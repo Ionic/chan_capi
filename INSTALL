@@ -1,0 +1,28 @@
+Modify the Makefile to fit your system, especially the path to the Asterisk include files.
+
+Currently there are some buildtime configuration parameters. You can enable early B3 connects
+if you want the capi channels to come up very soon and hear the indications from your
+local exchange (native capi indications).
+You can also force software dtmf detection/generation to be used.
+
+To build the driver you will need an installed capi system, including header files.
+
+to build the channel driver type:
+make
+
+to install:
+make install
+
+to install a sample configuration:
+make config
+
+
+in /etc/asterisk/modules.conf insert the line:
+    load => chan_capi.so
+
+    and in the [global] section:
+    chan_capi.so=yes
+
+
+HEY, dont forget a trailing newline at the end of modules.conf!!!
+    
