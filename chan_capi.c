@@ -2536,8 +2536,6 @@ static void *do_monitor(void *data)
 	
 		switch(Info = check_wait_get_cmsg(&monCMSG)) {
 			case 0x0000:
-				cc_ast_verbose(8, 1, VERBOSE_PREFIX_3 "%s\n",
-					capi_cmsg2str(&monCMSG));
 				capi_handle_msg(&monCMSG);
 				break;
 			case 0x1104:
