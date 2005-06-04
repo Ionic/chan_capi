@@ -681,6 +681,7 @@ static void capi_activehangup(struct ast_channel *c)
 static int capi_hangup(struct ast_channel *c)
 {
 	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
+	int removepipe = 0;
 
 	/*
 	 * hmm....ok...this is called to free the capi interface (passive disconnect)
@@ -690,7 +691,7 @@ static int capi_hangup(struct ast_channel *c)
 	cc_ast_verbose(3, 0, VERBOSE_PREFIX_3 "CAPI Hangingup\n");
 
 	if (i == NULL) {
-		ast_log(LOG_ERROR,"channel has no interface!\n");
+		ast_log(LOG_ERROR, "channel has no interface!\n");
 		return -1;
 	}
     
@@ -698,9 +699,10 @@ static int capi_hangup(struct ast_channel *c)
 	if (i->state != CAPI_STATE_DISCONNECTED) {
 		/* no */
 		capi_activehangup(c);
+		i->state = CAPI_STATE_DISCONNECTING;
+	} else {
+		removepipe = 1;
 	}
-
-	i->state = CAPI_STATE_DISCONNECTING;
 	
 	if ((i->doDTMF == 1) && (i->vad != NULL)) {
 		ast_dsp_free(i->vad);
@@ -720,6 +722,17 @@ static int capi_hangup(struct ast_channel *c)
 	i->mypipe = NULL;
 	CC_AST_CHANNEL_PVT(c) = NULL;
 	ast_setstate(c, AST_STATE_DOWN);
+
+	if (removepipe) {
+		/* disconnect already done, so cleanup */
+		if (!i->PLCI) {
+			ast_log(LOG_ERROR, "no PLCI for pipe removal\n");
+		} else {
+			remove_pipe(i->PLCI);
+			i->PLCI = 0;
+			i->NCCI = 0;
+		}
+	}
 
 	return 0;
 }
@@ -1716,6 +1729,7 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 		strncpy(p->i->owner->exten, capi_number(INFO_IND_INFOELEMENT(CMSG), 3),
 			sizeof(p->i->owner->exten) - 1);
 		ast_log(LOG_NOTICE,"%s\n", capi_cmsg2str(CMSG));
+		return;
 	}
 	
 	if (INFO_IND_INFONUMBER(CMSG) == 0x28) {
@@ -1726,6 +1740,8 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 		ast_log(LOG_NOTICE,"%s\n",capi_number(INFO_IND_INFOELEMENT(CMSG),0));
 #endif
 	}
+	cc_ast_verbose(5, 1, VERBOSE_PREFIX_2 "CAPI: unhandled INFO_IND %#x (PLCI=%#x)\n",
+		INFO_IND_INFONUMBER(CMSG), PLCI);
 }
 
 /*
@@ -1763,11 +1779,11 @@ static void capi_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, unsi
 		}
 		if (dtmflen == 1) {
 			dtmf = (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG))[0];
+			cc_ast_verbose(1, 1, VERBOSE_PREFIX_3 "c_dtmf = %c\n", dtmf);
 			if ((dtmf == 'X') || (dtmf == 'Y'))
 				capi_handle_dtmf_fax(p->c);
 			fr.frametype = AST_FRAME_DTMF;
 			fr.subclass = dtmf;
-			cc_ast_verbose(1, 1, VERBOSE_PREFIX_3 "c_dtmf = %c\n", dtmf);
 			pipe_frame(p, (struct ast_frame *)&fr);
 		} 
 	}
@@ -1951,7 +1967,7 @@ static void capi_handle_connect_active_indication(_cmsg *CMSG, unsigned int PLCI
 		/* special treatment for early B3 connects */
 		p->i->state = CAPI_STATE_BCONNECTED;
 		if (p->c->_state != AST_STATE_UP) {
-			ast_setstate(p->c,AST_STATE_UP);
+			ast_setstate(p->c, AST_STATE_UP);
 		}
 		p->i->earlyB3 = 0; /* not early anymore */
 		fr.frametype = AST_FRAME_CONTROL;
@@ -1989,8 +2005,13 @@ static void capi_handle_connect_b3_active_indication(_cmsg *CMSG, unsigned int P
 	ast_mutex_unlock(&contrlock);
 
 	p->i->state = CAPI_STATE_BCONNECTED;
-	capi_echo_canceller(p->c, EC_FUNCTION_ENABLE);
-	capi_detect_dtmf(p->c, 1);
+
+	if (p->i->fFax) {
+		cc_ast_verbose(6, 0, VERBOSE_PREFIX_3 "Fax connection, no EC/DTMF\n");
+	} else {
+		capi_echo_canceller(p->c, EC_FUNCTION_ENABLE);
+		capi_detect_dtmf(p->c, 1);
+	}
 
 	if (p->i->earlyB3 != 1) {
 		ast_setstate(p->c, AST_STATE_UP);
@@ -2083,6 +2104,7 @@ static void capi_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI, un
 {
 	_cmsg CMSG2;
 	struct ast_frame fr;
+	struct ast_capi_pvt *i;
 
 	DISCONNECT_RESP_HEADER(&CMSG2, ast_capi_ApplID, CMSG->Messagenumber , 0);
 	DISCONNECT_RESP_PLCI(&CMSG2) = PLCI;
@@ -2099,19 +2121,21 @@ static void capi_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI, un
 	}
 
 	return_on_no_pipe("DISCONNECT_IND");
+
+	i = p->i;
 	
 	if (p->c) {
 		p->c->hangupcause = DISCONNECT_IND_REASON(CMSG) - 0x3480;
 	}
 			    
-	if (PLCI == p->i->onholdPLCI) {
+	if (PLCI == i->onholdPLCI) {
 		/* the caller onhold hung up (or ECTed away) */
-		p->i->onholdPLCI = 0;
+		i->onholdPLCI = 0;
 		remove_pipe(PLCI);
 		return;
 	}
 			    
-	if (p->i->state == CAPI_STATE_DID) {
+	if (i->state == CAPI_STATE_DID) {
 		if ((p->c) != NULL) {
 			ast_hangup(p->c);
 		} else {    
@@ -2120,13 +2144,11 @@ static void capi_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI, un
 		return;				
 	}
 			    
-	p->i->state = CAPI_STATE_DISCONNECTED;
-
-	p->i->faxhandled = 0;
-	if (p->i->fFax) {
+	i->faxhandled = 0;
+	if (i->fFax) {
 		cc_ast_verbose(2, 0, VERBOSE_PREFIX_3 "Closing fax file...\n");
-		fclose(p->i->fFax);
-		p->i->fFax = NULL;
+		fclose(i->fFax);
+		i->fFax = NULL;
 	}
 
 	fr.frametype = AST_FRAME_CONTROL;
@@ -2150,9 +2172,13 @@ static void capi_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI, un
 			/* ast_log(LOG_NOTICE,"no soft hangup by capi\n"); */
 		}
 	}
-	p->i->PLCI = 0;
-	p->i->NCCI = 0;
-	remove_pipe(PLCI);
+
+	if (i->state == CAPI_STATE_DISCONNECTING) {
+		i->PLCI = 0;
+		i->NCCI = 0;
+		remove_pipe(PLCI);
+	}
+	i->state = CAPI_STATE_DISCONNECTED;
 }
 
 /*
