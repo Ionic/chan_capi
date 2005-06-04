@@ -18,6 +18,8 @@ Gareth Watts <gareth@omnipotent.net>
 Jeff Noxon <jeff@planetfall.com>
 Petr Michalek <petr.michalek@aca.cz>
 Jan Stocker
+Frank Sautter, levigo group
+
 (...and all the others that i forgot..) :-)
 
 This chan_capi version includes:
@@ -141,6 +143,34 @@ Example context for incoming calls on MSN 12345678:
 exten => 12345678,1,Dial(SIP/phone1)
 exten => 12345678,2,Hangup
 
+
+short HOWTO of 'capiAnswerFax':
+===============================
+For those of you who have a CAPI card with an on-board DSP (like some Eicon+Diva Server), this patch allows you to receive faxes.
+If you want to answer a channel in fax mode, use capiAnswerFax() instead of+Answer()
+If you use Answer(), you will be in voice mode. If the hardware DSP detects+a fax tone, you can switch from voice to fax mode by calling
+capiAnswerFax().
+
+Example of use :
+line number 123, play something, if a fax tone is detected, handle it
+line number 124, answer directly in fax mode
+
+[incoming]
+exten => 123,1,Answer()
+exten => 123,2,BackGround(jpop)
+exten => 124,1,Goto(handle_fax,s,1)
+exten => fax,1,Goto(handle_fax,s,1)
+
+[handle_fax]
+exten => s,1,capiAnswerFax(/tmp/${UNIQUEID})
+exten => s,2,Hangup()
+exten => h,1,deadagi,fax.php // Run sfftobmp and mail it.
+
+The output of capiAnswerFax is a SFF file. Use sfftobmp to convert it.
+With a Diva Server, theses features are allowed : fax up to 33600, high
+resolution. Color Fax /JPEG Compression is disabled (I can't test it).
+
+------
 
 More information/documentation and commercial support can be found at:
 	http://www.junghanns.net/asterisk/

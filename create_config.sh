@@ -66,6 +66,14 @@ else
 	echo " * no 'struct timeval delivery'"
 fi
 
+if grep -q "transfercapability" $INCLUDEDIR/channel.h; then
+	echo "#define CC_AST_CHANNEL_HAS_TRANSFERCAP" >>$CONFIGFILE
+	echo " * found 'transfercapability'"
+else
+	echo "#undef CC_AST_CHANNEL_HAS_TRANSFERCAP" >>$CONFIGFILE
+	echo " * no 'transfercapability'"
+fi
+
 
 echo "" >>$CONFIGFILE
 echo "#endif /* CHAN_CAPI_CONFIG_H */" >>$CONFIGFILE

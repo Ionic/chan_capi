@@ -32,4 +32,17 @@ extern int capi_call(struct ast_channel *c, char *idest, int timeout);
 extern int capi_detect_dtmf(struct ast_channel *c, int flag);
 extern MESSAGE_EXCHANGE_ERROR _capi_put_cmsg(_cmsg *CMSG);
 
+/*
+ * helper for ast_verbose with different verbose settings
+ */
+#define cc_ast_verbose(o_v, c_d, text...)				\
+	do { 								\
+		if ((o_v == 0) || (option_verbose > o_v)) {		\
+			if ((!c_d) || ((c_d) && (capidebug))) {		\
+				ast_verbose(text);			\
+			}						\
+		}							\
+	} while(0)
+
+
 #endif

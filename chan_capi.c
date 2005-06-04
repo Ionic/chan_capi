@@ -106,7 +106,7 @@ static struct capi_pipe *pipelist = NULL;
 static struct ast_capi_controller *capi_controllers[AST_CAPI_MAX_CONTROLLERS];
 static int capi_num_controllers = 0;
 static int capi_counter = 0;
-static unsigned long capi_used_controllers=0;
+static unsigned long capi_used_controllers = 0;
 
 static char capi_send_buffer[AST_CAPI_MAX_B3_BLOCKS * AST_CAPI_MAX_B3_BLOCK_SIZE];
 static int capi_send_buffer_handle = 0;
@@ -116,18 +116,7 @@ char capi_international_prefix[AST_MAX_EXTENSION];
 
 int capidebug = 0;
 
-/*
- * helper for ast_verbose with different verbose settings
- */
-#define cc_ast_verbose(o_v, c_d, text...)				\
-	do { 								\
-		if ((o_v == 0) || (option_verbose > o_v)) {		\
-			if ((!c_d) || ((c_d) && (capidebug))) {		\
-				ast_verbose(text);			\
-			}						\
-		}							\
-	} while(0)
-
+/* */
 #define return_on_no_pipe(x)						\
 	if (!p) {							\
 		ast_log(LOG_ERROR, "CAPI: %s no pipe PLCI=%#x\n", x, PLCI);	\
@@ -237,6 +226,99 @@ static unsigned ListenOnController(unsigned long CIPmask, unsigned controller)
 #define EC_OPTION_DISABLE_G165	 	(1<<1)
 #define EC_OPTION_DISABLE_G164_OR_G165	(1<<1 | 1<<2)
 #define EC_DEFAULT_TAIL			64
+
+#ifdef CC_AST_CHANNEL_HAS_TRANSFERCAP
+/*
+ *  TCAP -> CIP Translation Table (TransferCapability->CommonIsdnProfile)
+ */
+static struct {
+	unsigned short tcap;
+	unsigned short cip;
+} translate_tcap2cip[] = {
+	{ PRI_TRANS_CAP_SPEECH,			CAPI_CIP_SPEECH },
+	{ PRI_TRANS_CAP_DIGITAL,		CAPI_CIP_DIGITAL },
+	{ PRI_TRANS_CAP_RESTRICTED_DIGITAL,	CAPI_CIP_RESTRICTED_DIGITAL },
+	{ PRI_TRANS_CAP_3K1AUDIO,		CAPI_CIP_3K1AUDIO },
+	{ PRI_TRANS_CAP_DIGITAL_W_TONES,	CAPI_CIP_DIGITAL_W_TONES },
+	{ PRI_TRANS_CAP_VIDEO,			CAPI_CIP_VIDEO }
+};
+
+static int tcap2cip(unsigned short tcap)
+{
+	int x;
+	
+	for (x = 0; x < sizeof(translate_tcap2cip) / sizeof(translate_tcap2cip[0]); x++) {
+		if (translate_tcap2cip[x].tcap == tcap)
+			return (int)translate_tcap2cip[x].cip;
+	}
+	return 0;
+}
+
+/*
+ *  CIP -> TCAP Translation Table (CommonIsdnProfile->TransferCapability)
+ */
+static struct {
+	unsigned short cip;
+	unsigned short tcap;
+} translate_cip2tcap[] = {
+	{ CAPI_CIP_SPEECH,			PRI_TRANS_CAP_SPEECH },
+	{ CAPI_CIP_DIGITAL,			PRI_TRANS_CAP_DIGITAL },
+	{ CAPI_CIP_RESTRICTED_DIGITAL,		PRI_TRANS_CAP_RESTRICTED_DIGITAL },
+	{ CAPI_CIP_3K1AUDIO,			PRI_TRANS_CAP_3K1AUDIO },
+	{ CAPI_CIP_7KAUDIO,			PRI_TRANS_CAP_DIGITAL_W_TONES },
+	{ CAPI_CIP_VIDEO,			PRI_TRANS_CAP_VIDEO },
+	{ CAPI_CIP_PACKET_MODE,			PRI_TRANS_CAP_DIGITAL },
+	{ CAPI_CIP_56KBIT_RATE_ADAPTION,	PRI_TRANS_CAP_DIGITAL },
+	{ CAPI_CIP_DIGITAL_W_TONES,		PRI_TRANS_CAP_DIGITAL_W_TONES },
+	{ CAPI_CIP_TELEPHONY,			PRI_TRANS_CAP_SPEECH },
+	{ CAPI_CIP_FAX_G2_3,			PRI_TRANS_CAP_3K1AUDIO },
+	{ CAPI_CIP_FAX_G4C1,			PRI_TRANS_CAP_DIGITAL },
+	{ CAPI_CIP_FAX_G4C2_3,			PRI_TRANS_CAP_DIGITAL },
+	{ CAPI_CIP_TELETEX_PROCESSABLE,		PRI_TRANS_CAP_DIGITAL },
+	{ CAPI_CIP_TELETEX_BASIC,		PRI_TRANS_CAP_DIGITAL },
+	{ CAPI_CIP_VIDEOTEX,			PRI_TRANS_CAP_DIGITAL },
+	{ CAPI_CIP_TELEX,			PRI_TRANS_CAP_DIGITAL },
+	{ CAPI_CIP_X400,			PRI_TRANS_CAP_DIGITAL },
+	{ CAPI_CIP_X200,			PRI_TRANS_CAP_DIGITAL },
+	{ CAPI_CIP_7K_TELEPHONY,		PRI_TRANS_CAP_DIGITAL_W_TONES },
+	{ CAPI_CIP_VIDEO_TELEPHONY_C1,		PRI_TRANS_CAP_DIGITAL_W_TONES },
+	{ CAPI_CIP_VIDEO_TELEPHONY_C2,		PRI_TRANS_CAP_DIGITAL }
+};
+
+static unsigned short cip2tcap(int cip)
+{
+	int x;
+	
+	for (x = 0;x < sizeof(translate_cip2tcap) / sizeof(translate_cip2tcap[0]); x++) {
+		if (translate_cip2tcap[x].cip == (unsigned short)cip)
+			return translate_cip2tcap[x].tcap;
+	}
+	return 0;
+}
+
+/*
+ *  TransferCapability to String conversion
+ */
+static char *transfercapability2str(int transfercapability)
+{
+	switch(transfercapability) {
+	case PRI_TRANS_CAP_SPEECH:
+		return "SPEECH";
+	case PRI_TRANS_CAP_DIGITAL:
+		return "DIGITAL";
+	case PRI_TRANS_CAP_RESTRICTED_DIGITAL:
+		return "RESTRICTED_DIGITAL";
+	case PRI_TRANS_CAP_3K1AUDIO:
+		return "3K1AUDIO";
+	case PRI_TRANS_CAP_DIGITAL_W_TONES:
+		return "DIGITAL_W_TONES";
+	case PRI_TRANS_CAP_VIDEO:
+		return "VIDEO";
+	default:
+		return "UNKNOWN";
+	}
+}
+#endif /* CC_AST_CHANNEL_HAS_TRANSFERCAP */
 
 static void capi_echo_canceller(struct ast_channel *c, int function)
 {
@@ -749,7 +831,11 @@ int capi_call(struct ast_channel *c, char *idest, int timeout)
 	i->MessageNumber = get_ast_capi_MessageNumber();
 	CONNECT_REQ_HEADER(&CMSG, ast_capi_ApplID, i->MessageNumber, i->controller);
 	CONNECT_REQ_CONTROLLER(&CMSG) = i->controller;
-	CONNECT_REQ_CIPVALUE(&CMSG) = 0x10;	/* Telephony, could also use 0x04 (3.1Khz audio) */
+#ifdef CC_AST_CHANNEL_HAS_TRANSFERCAP
+	CONNECT_REQ_CIPVALUE(&CMSG) = tcap2cip(c->transfercapability);
+#else
+	CONNECT_REQ_CIPVALUE(&CMSG) = 0x10; /* Telephony */
+#endif
 	called[0] = strlen(dest) + 1;
 	called[1] = 0x80;
 	strncpy(&called[2], dest, sizeof(called) - 2);
@@ -814,7 +900,7 @@ static int capi_answer(struct ast_channel *c)
 {
 	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
 	_cmsg CMSG;
-	char buf[AST_MAX_EXTENSION];
+	char buf[AST_CAPI_MAX_STRING];
 	char *dnid;
     
 	if ((i->isdnmode == AST_CAPI_ISDNMODE_PTP) &&
@@ -823,6 +909,9 @@ static int capi_answer(struct ast_channel *c)
 	} else {
 		dnid = i->dnid;
 	}
+
+	i->fFax = NULL;
+	i->faxhandled = 0;
 
 	CONNECT_RESP_HEADER(&CMSG, ast_capi_ApplID, i->MessageNumber, 0);
 	CONNECT_RESP_PLCI(&CMSG) = i->PLCI;
@@ -1071,7 +1160,7 @@ static struct ast_channel *capi_new(struct ast_capi_pvt *i, int state)
 	int fmt;
 	int fds[2];
 
-	tmp = ast_channel_alloc(1);
+	tmp = ast_channel_alloc(0);
 	
 	if (tmp == NULL) {
 		ast_log(LOG_ERROR,"Unable to allocate channel!\n");
@@ -1169,6 +1258,12 @@ static struct ast_channel *capi_new(struct ast_capi_pvt *i, int state)
 #else
 	tmp->callerid = strdup(i->cid);
 #endif
+	
+#ifdef CC_AST_CHANNEL_HAS_TRANSFERCAP
+	tmp->transfercapability = cip2tcap(i->cip);
+	pbx_builtin_setvar_helper(tmp, "TRANSFERCAPABILITY", transfercapability2str(tmp->transfercapability));
+#endif
+	
 	strncpy(tmp->exten, i->dnid, sizeof(tmp->exten) - 1);
 	strncpy(tmp->accountcode, i->accountcode, sizeof(tmp->accountcode) - 1);
 	i->owner = tmp;
@@ -1204,7 +1299,7 @@ struct ast_channel *capi_request(char *type, int format, void *data)
 	struct ast_capi_pvt *i;
 	struct ast_channel *tmp = NULL;
 	char *dest, *interface;
-	char buffer[AST_MAX_EXTENSION];
+	char buffer[AST_CAPI_MAX_STRING];
 	unsigned int capigroup = 0, controller = 0;
 	unsigned int foundcontroller;
 	int notfound = 1;
@@ -1283,6 +1378,44 @@ struct ast_channel *capi_request(char *type, int format, void *data)
 	ast_log(LOG_NOTICE, "didn't find capi device with controller = %d or group = %d.\n",
 		controller, capigroup);
 	return NULL;
+}
+
+/*
+ * Fax guard tone -- Handle and return NULL
+ */
+static void capi_handle_dtmf_fax(struct ast_channel *ast)
+{
+	struct ast_capi_pvt *p = CC_AST_CHANNEL_PVT(ast);
+	char *cid;
+
+	if (p->faxhandled) {
+		ast_log(LOG_DEBUG, "Fax already handled\n");
+		return;
+	}
+	
+	p->faxhandled++;
+	
+	if (!strcmp(ast->exten, "fax")) {
+		ast_log(LOG_DEBUG, "Already in a fax extension, not redirecting\n");
+		return;
+	}
+#ifdef CC_AST_CHANNEL_HAS_CID
+	cid = ast->cid.cid_num;
+#else
+	cid = ast->callerid;
+#endif
+	if (!ast_exists_extension(ast, ast->context, "fax", 1, cid)) {
+		ast_log(LOG_NOTICE, "Fax detected, but no fax extension\n");
+		return;
+	}
+
+	cc_ast_verbose(2, 0, VERBOSE_PREFIX_3 "Redirecting %s to fax extension\n", ast->name);
+			
+	/* Save the DID/DNIS when we transfer the fax call to a "fax" extension */
+	pbx_builtin_setvar_helper(ast, "FAXEXTEN", ast->exten);
+	
+	if (ast_async_goto(ast, ast->context, "fax", 1))
+		ast_log(LOG_WARNING, "Failed to async goto '%s' into fax of '%s'\n", ast->name, ast->context);
 }
 
 /*
@@ -1630,6 +1763,8 @@ static void capi_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, unsi
 		}
 		if (dtmflen == 1) {
 			dtmf = (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG))[0];
+			if ((dtmf == 'X') || (dtmf == 'Y'))
+				capi_handle_dtmf_fax(p->c);
 			fr.frametype = AST_FRAME_DTMF;
 			fr.subclass = dtmf;
 			cc_ast_verbose(1, 1, VERBOSE_PREFIX_3 "c_dtmf = %c\n", dtmf);
@@ -1711,6 +1846,15 @@ static void capi_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 		p->i->B3in = AST_CAPI_MAX_B3_BLOCKS;
 	ast_mutex_unlock(&p->i->lockB3in);
 #endif
+
+	if (p->i->fFax) {
+		/* we are in fax-receive */	
+		cc_ast_verbose(6, 1, VERBOSE_PREFIX_3 "DATA_B3_IND (len=%d) Fax\n",
+			b3len);
+		if (fwrite((char *)&b3buf[AST_FRIENDLY_OFFSET], 1, b3len, p->i->fFax) != b3len)
+			ast_log(LOG_WARNING, "capiAnswerFax : error writing output file (%s)\n", strerror(errno));
+		return;
+	}
 	    
 	if ((p->i->doES == 1)) {
 		for (j = 0; j < b3len; j++) {
@@ -1978,6 +2122,13 @@ static void capi_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI, un
 			    
 	p->i->state = CAPI_STATE_DISCONNECTED;
 
+	p->i->faxhandled = 0;
+	if (p->i->fFax) {
+		cc_ast_verbose(2, 0, VERBOSE_PREFIX_3 "Closing fax file...\n");
+		fclose(p->i->fFax);
+		p->i->fFax = NULL;
+	}
+
 	fr.frametype = AST_FRAME_CONTROL;
 	if (DISCONNECT_IND_REASON(CMSG) == 0x34a2) {
 		fr.subclass = AST_CONTROL_BUSY;
@@ -2017,7 +2168,7 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 	int NPLAN=0;
 	int controller = 0;
 	char *msn;
-	char buffer[AST_MAX_EXTENSION];
+	char buffer[AST_CAPI_MAX_STRING];
 	char *magicmsn = "*\0";
 	char *emptyid = "\0";
 	char *emptydnid = "s\0";
@@ -2091,6 +2242,7 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 			} else
 				strncpy(i->cid, emptyid, sizeof(i->cid) - 1);
 
+			i->cip = CONNECT_IND_CIPVALUE(CMSG);
 			i->controller = controller;
 			i->PLCI = PLCI;
 			i->MessageNumber = CMSG->Messagenumber;
@@ -2275,16 +2427,26 @@ static void capi_handle_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned in
 		case CAPI_ALERT:
 			if (!p)
 				break;
-			p->i->state = CAPI_STATE_ALERTING;
-			if (p->c->_state == AST_STATE_RING) {
-				p->c->rings = 1;
+			if (ALERT_CONF_INFO(CMSG) == 0) {
+				p->i->state = CAPI_STATE_ALERTING;
+				if (p->c->_state == AST_STATE_RING) {
+					p->c->rings = 1;
+				}
+			} else {
+				ast_log(LOG_ERROR, "CAPI: ALERT conf_error 0x%x Command.Subcommand = %#x.%#x\n",
+					CMSG->Info, CMSG->Command, CMSG->Subcommand);
 			}
 			break;	    
 		case CAPI_DISCONNECT:
 		case CAPI_DISCONNECT_B3:
+		case CAPI_SELECT_B_PROTOCOL:
+		case CAPI_LISTEN:
 		case CAPI_INFO:
 		case CAPI_DATA_B3:
-			/* we do nothing here */
+			if (CMSG->Info) {
+				ast_log(LOG_ERROR, "CAPI: conf_error 0x%x Command.Subcommand = %#x.%#x\n",
+					CMSG->Info, CMSG->Command, CMSG->Subcommand);
+			}
 			break;
 		default:
 			ast_log(LOG_ERROR,"CAPI: Command.Subcommand = %#x.%#x\n",
@@ -2441,7 +2603,7 @@ int mkif(char *incomingmsn, char *context, char *controllerstr, int devices,
 {
 	struct ast_capi_pvt *tmp;
 	int i = 0;
-	char buffer[100];
+	char buffer[AST_CAPI_MAX_STRING];
 	char *contr;
 	unsigned long contrmap = 0;
 
@@ -2756,13 +2918,13 @@ int load_module(void)
 	struct ast_config *cfg;
 	struct ast_variable *v;
 	char *config = "capi.conf";
-	char incomingmsn[AST_MAX_EXTENSION] = "";
+	char incomingmsn[AST_CAPI_MAX_STRING] = "";
 	char context[AST_MAX_EXTENSION] = "";
 	char prefix[AST_MAX_EXTENSION] = "";
 	char accountcode[20] = "";
 	char *empty = "\0";
 	char deflect2[AST_MAX_EXTENSION] = "";
-	char controllerstr[AST_MAX_EXTENSION] = "";
+	char controllerstr[AST_CAPI_MAX_STRING] = "";
 	int res = 0;
 	int controller = 0;
 	int softdtmf = 0;
