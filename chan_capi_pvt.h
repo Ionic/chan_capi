@@ -206,6 +206,8 @@ struct ast_capi_pvt {
 	FILE *fFax;
 	/* Has a fax tone already been handled? */
 	int faxhandled;
+	/* Fax ready ? */
+	int FaxState;
 
 	/* deflect on circuitbusy */
 	char deflect2[AST_MAX_EXTENSION];
@@ -229,7 +231,9 @@ struct ast_capi_pvt {
 	float txgain;
 	float rxgain;
 	struct ast_dsp *vad;
-	
+
+	unsigned int reason;
+	unsigned int reasonb3;
 	
 	struct capi_pipe *mypipe;
 	/*! Next channel in list */

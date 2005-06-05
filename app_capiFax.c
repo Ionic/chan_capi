@@ -88,7 +88,7 @@ void SetupB3Config(B3_PROTO_FAXG3  *B3conf, int FAX_Format)
 	char *stationID = "00000000";
 	char *headLine  = "CAPI FAXServer";
 
-	B3conf->resolution = FAX_HIGH_RESOLUTION;
+	B3conf->resolution = 0;
 	B3conf->format = (unsigned short)FAX_Format;
 	len1 = strlen(stationID);
 	B3conf->Infos[0] = (unsigned char)len1;
@@ -102,7 +102,6 @@ void SetupB3Config(B3_PROTO_FAXG3  *B3conf, int FAX_Format)
 static int capi_change_bchan_fax(struct ast_channel *c) 
 {
 	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
-	MESSAGE_EXCHANGE_ERROR error;
 	_cmsg CMSG;
 	B3_PROTO_FAXG3  B3conf;
 
@@ -110,10 +109,8 @@ static int capi_change_bchan_fax(struct ast_channel *c)
 	
 	DISCONNECT_B3_REQ_HEADER(&CMSG, ast_capi_ApplID, get_ast_capi_MessageNumber(), 0);
 	DISCONNECT_B3_REQ_NCCI(&CMSG) = i->NCCI;
-
-	if ((error = _capi_put_cmsg(&CMSG)) == 0) {
-		cc_ast_verbose(5, 0, VERBOSE_PREFIX_4 "sent DISCONNECT_B3_REQ NCCI=%#x\n",i->NCCI);
-	}
+	_capi_put_cmsg(&CMSG);
+		
 	/* wait for the B3 layer to go down */
 	while (i->state != CAPI_STATE_CONNECTED) {
 		usleep(10000);
@@ -127,9 +124,7 @@ static int capi_change_bchan_fax(struct ast_channel *c)
 	SELECT_B_PROTOCOL_REQ_B1CONFIGURATION(&CMSG) = NULL;
 	SELECT_B_PROTOCOL_REQ_B2CONFIGURATION(&CMSG) = NULL;
 	SELECT_B_PROTOCOL_REQ_B3CONFIGURATION(&CMSG) = (_cstruct)&B3conf;
-
-	if ((error = _capi_put_cmsg(&CMSG)) == 0)
-		cc_ast_verbose(5, 0, VERBOSE_PREFIX_4 "capiAnswerFax sent SELECT_B_PROTOCOL\n");
+	_capi_put_cmsg(&CMSG);
 
 	return 0;
 }
@@ -172,8 +167,6 @@ static int capi_answer_fax(struct ast_channel *c)
 		return -1;
 	}
 
-	cc_ast_verbose(5, 1, VERBOSE_PREFIX_4 "sent CONNECT_RESP PLCI = %#x DNID = %s\n",i->PLCI,i->dnid);
-
 	i->state = CAPI_STATE_ANSWERING;
 	i->doB3 = AST_CAPI_B3_DONT;
 	i->outgoing = 0;
@@ -200,16 +193,42 @@ static int capianswerfax_exec(struct ast_channel *chan, void *data)
 	if (strcasecmp("CAPI", chan->type) == 0) {
 		i->fFax = fopen(vdata, "wb");
 		if (i->fFax == NULL) {
-			ast_log(LOG_WARNING, "capiAnswerFax can't create the output file (%s)\n", strerror(errno));
+			ast_log(LOG_WARNING, "capiAnswerFax: can't create the output file (%s)\n", strerror(errno));
 			res = -1;
 		} else {
+			i->FaxState = 1;
 			if (i->state != CAPI_STATE_BCONNECTED) {
 				capi_answer_fax(chan);
 			} else {
 				capi_change_bchan_fax(chan);
 			}
-			while (i->state != CAPI_STATE_DISCONNECTED) {
+			while (i->FaxState) {
 				sleep(1);
+			}
+			switch (i->reason) {
+				case 0x3490:
+				case 0x349f:
+					res = (i->reasonb3 == 0) ? 0 : -1;
+					break;
+				default:
+					res = -1;
+			}
+
+			/* if the file has zero length */
+			if (ftell(i->fFax) == 0L)
+				res = -1;
+				
+			cc_ast_verbose(2, 1, VERBOSE_PREFIX_3 "Closing fax file...\n");
+			fclose(i->fFax);
+			i->fFax = NULL;
+
+			if (res != 0) {
+				cc_ast_verbose(2, 0,
+					VERBOSE_PREFIX_1 "capiAnswerFax: fax receive failed.\n");
+				unlink(vdata);
+			} else {
+				cc_ast_verbose(2, 0,
+					VERBOSE_PREFIX_1 "capiAnswerFax: fax received.\n");
 			}
 		}
 	} else {
