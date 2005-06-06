@@ -223,15 +223,15 @@ static unsigned ListenOnController(unsigned long CIPmask, unsigned controller)
  * (i.e. Eicon active cards support it)
  */
 
-#define EC_FUNCTION_ENABLE		1
-#define EC_FUNCTION_DISABLE		2
-#define EC_FUNCTION_FREEZE		3
-#define EC_FUNCTION_RESUME		4
-#define EC_FUNCTION_RESET		5
-#define EC_OPTION_DISABLE_NEVER		0
-#define EC_OPTION_DISABLE_G165	 	(1<<1)
-#define EC_OPTION_DISABLE_G164_OR_G165	(1<<1 | 1<<2)
-#define EC_DEFAULT_TAIL			64
+#define EC_FUNCTION_ENABLE              1
+#define EC_FUNCTION_DISABLE             2
+#define EC_FUNCTION_FREEZE              3
+#define EC_FUNCTION_RESUME              4
+#define EC_FUNCTION_RESET               5
+#define EC_OPTION_DISABLE_NEVER         0
+#define EC_OPTION_DISABLE_G165          (1<<1)
+#define EC_OPTION_DISABLE_G164_OR_G165  (1<<1 | 1<<2)
+#define EC_DEFAULT_TAIL                 64
 
 #ifdef CC_AST_CHANNEL_HAS_TRANSFERCAP
 /*
@@ -241,12 +241,12 @@ static struct {
 	unsigned short tcap;
 	unsigned short cip;
 } translate_tcap2cip[] = {
-	{ PRI_TRANS_CAP_SPEECH,			CAPI_CIP_SPEECH },
-	{ PRI_TRANS_CAP_DIGITAL,		CAPI_CIP_DIGITAL },
-	{ PRI_TRANS_CAP_RESTRICTED_DIGITAL,	CAPI_CIP_RESTRICTED_DIGITAL },
-	{ PRI_TRANS_CAP_3K1AUDIO,		CAPI_CIP_3K1AUDIO },
-	{ PRI_TRANS_CAP_DIGITAL_W_TONES,	CAPI_CIP_DIGITAL_W_TONES },
-	{ PRI_TRANS_CAP_VIDEO,			CAPI_CIP_VIDEO }
+	{ PRI_TRANS_CAP_SPEECH,                 CAPI_CIP_SPEECH },
+	{ PRI_TRANS_CAP_DIGITAL,                CAPI_CIP_DIGITAL },
+	{ PRI_TRANS_CAP_RESTRICTED_DIGITAL,     CAPI_CIP_RESTRICTED_DIGITAL },
+	{ PRI_TRANS_CAP_3K1AUDIO,               CAPI_CIP_3K1AUDIO },
+	{ PRI_TRANS_CAP_DIGITAL_W_TONES,        CAPI_CIP_DIGITAL_W_TONES },
+	{ PRI_TRANS_CAP_VIDEO,                  CAPI_CIP_VIDEO }
 };
 
 static int tcap2cip(unsigned short tcap)
@@ -267,28 +267,28 @@ static struct {
 	unsigned short cip;
 	unsigned short tcap;
 } translate_cip2tcap[] = {
-	{ CAPI_CIP_SPEECH,			PRI_TRANS_CAP_SPEECH },
-	{ CAPI_CIP_DIGITAL,			PRI_TRANS_CAP_DIGITAL },
-	{ CAPI_CIP_RESTRICTED_DIGITAL,		PRI_TRANS_CAP_RESTRICTED_DIGITAL },
-	{ CAPI_CIP_3K1AUDIO,			PRI_TRANS_CAP_3K1AUDIO },
-	{ CAPI_CIP_7KAUDIO,			PRI_TRANS_CAP_DIGITAL_W_TONES },
-	{ CAPI_CIP_VIDEO,			PRI_TRANS_CAP_VIDEO },
-	{ CAPI_CIP_PACKET_MODE,			PRI_TRANS_CAP_DIGITAL },
-	{ CAPI_CIP_56KBIT_RATE_ADAPTION,	PRI_TRANS_CAP_DIGITAL },
-	{ CAPI_CIP_DIGITAL_W_TONES,		PRI_TRANS_CAP_DIGITAL_W_TONES },
-	{ CAPI_CIP_TELEPHONY,			PRI_TRANS_CAP_SPEECH },
-	{ CAPI_CIP_FAX_G2_3,			PRI_TRANS_CAP_3K1AUDIO },
-	{ CAPI_CIP_FAX_G4C1,			PRI_TRANS_CAP_DIGITAL },
-	{ CAPI_CIP_FAX_G4C2_3,			PRI_TRANS_CAP_DIGITAL },
-	{ CAPI_CIP_TELETEX_PROCESSABLE,		PRI_TRANS_CAP_DIGITAL },
-	{ CAPI_CIP_TELETEX_BASIC,		PRI_TRANS_CAP_DIGITAL },
-	{ CAPI_CIP_VIDEOTEX,			PRI_TRANS_CAP_DIGITAL },
-	{ CAPI_CIP_TELEX,			PRI_TRANS_CAP_DIGITAL },
-	{ CAPI_CIP_X400,			PRI_TRANS_CAP_DIGITAL },
-	{ CAPI_CIP_X200,			PRI_TRANS_CAP_DIGITAL },
-	{ CAPI_CIP_7K_TELEPHONY,		PRI_TRANS_CAP_DIGITAL_W_TONES },
-	{ CAPI_CIP_VIDEO_TELEPHONY_C1,		PRI_TRANS_CAP_DIGITAL_W_TONES },
-	{ CAPI_CIP_VIDEO_TELEPHONY_C2,		PRI_TRANS_CAP_DIGITAL }
+	{ CAPI_CIP_SPEECH,                  PRI_TRANS_CAP_SPEECH },
+	{ CAPI_CIP_DIGITAL,                 PRI_TRANS_CAP_DIGITAL },
+	{ CAPI_CIP_RESTRICTED_DIGITAL,      PRI_TRANS_CAP_RESTRICTED_DIGITAL },
+	{ CAPI_CIP_3K1AUDIO,                PRI_TRANS_CAP_3K1AUDIO },
+	{ CAPI_CIP_7KAUDIO,                 PRI_TRANS_CAP_DIGITAL_W_TONES },
+	{ CAPI_CIP_VIDEO,                   PRI_TRANS_CAP_VIDEO },
+	{ CAPI_CIP_PACKET_MODE,             PRI_TRANS_CAP_DIGITAL },
+	{ CAPI_CIP_56KBIT_RATE_ADAPTION,    PRI_TRANS_CAP_DIGITAL },
+	{ CAPI_CIP_DIGITAL_W_TONES,         PRI_TRANS_CAP_DIGITAL_W_TONES },
+	{ CAPI_CIP_TELEPHONY,               PRI_TRANS_CAP_SPEECH },
+	{ CAPI_CIP_FAX_G2_3,                PRI_TRANS_CAP_3K1AUDIO },
+	{ CAPI_CIP_FAX_G4C1,                PRI_TRANS_CAP_DIGITAL },
+	{ CAPI_CIP_FAX_G4C2_3,              PRI_TRANS_CAP_DIGITAL },
+	{ CAPI_CIP_TELETEX_PROCESSABLE,     PRI_TRANS_CAP_DIGITAL },
+	{ CAPI_CIP_TELETEX_BASIC,           PRI_TRANS_CAP_DIGITAL },
+	{ CAPI_CIP_VIDEOTEX,                PRI_TRANS_CAP_DIGITAL },
+	{ CAPI_CIP_TELEX,                   PRI_TRANS_CAP_DIGITAL },
+	{ CAPI_CIP_X400,                    PRI_TRANS_CAP_DIGITAL },
+	{ CAPI_CIP_X200,                    PRI_TRANS_CAP_DIGITAL },
+	{ CAPI_CIP_7K_TELEPHONY,            PRI_TRANS_CAP_DIGITAL_W_TONES },
+	{ CAPI_CIP_VIDEO_TELEPHONY_C1,      PRI_TRANS_CAP_DIGITAL_W_TONES },
+	{ CAPI_CIP_VIDEO_TELEPHONY_C2,      PRI_TRANS_CAP_DIGITAL }
 };
 
 static unsigned short cip2tcap(int cip)
@@ -497,11 +497,11 @@ static int capi_deflect(struct ast_channel *chan, void *data)
 {
 	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(chan);
 	MESSAGE_EXCHANGE_ERROR Info;
-	_cmsg	CMSG;
-	char	bchaninfo[1];
-	char	fac[60];
-	int	res = 0;
-	int	ms = 3000;
+	_cmsg CMSG;
+	char bchaninfo[1];
+	char fac[60];
+	int res = 0;
+	int ms = 3000;
 
 	if (!data) {
 		ast_log(LOG_WARNING, "cd requires an argument (destination phone number)\n");
@@ -522,16 +522,16 @@ static int capi_deflect(struct ast_channel *chan, void *data)
 	/* make sure we hang up correctly */
 	i->state = CAPI_STATE_CONNECTPENDING;
 
-	fac[0] = 0;	/* len */
-	fac[1] = 0;	/* len */
-	fac[2] = 0x01;	/* Use D-Chan */
-	fac[3] = 0;	/* Keypad len */
-	fac[4] = 31;	/* user user data? len = 31 = 29 + 2 */
-	fac[5] = 0x1c;	/* magic? */
-	fac[6] = 0x1d;	/* strlen destination + 18 = 29 */
-	fac[7] = 0x91;	/* .. */
+	fac[0] = 0;     /* len */
+	fac[1] = 0;     /* len */
+	fac[2] = 0x01;  /* Use D-Chan */
+	fac[3] = 0;     /* Keypad len */
+	fac[4] = 31;    /* user user data? len = 31 = 29 + 2 */
+	fac[5] = 0x1c;  /* magic? */
+	fac[6] = 0x1d;  /* strlen destination + 18 = 29 */
+	fac[7] = 0x91;  /* .. */
 	fac[8] = 0xA1;
-	fac[9] = 0x1A;	/* strlen destination + 15 = 26 */
+	fac[9] = 0x1A;  /* strlen destination + 15 = 26 */
 	fac[10] = 0x02;
 	fac[11] = 0x01;
 	fac[12] = 0x70;
@@ -539,12 +539,12 @@ static int capi_deflect(struct ast_channel *chan, void *data)
 	fac[14] = 0x01;
 	fac[15] = 0x0d;
 	fac[16] = 0x30;
-	fac[17] = 0x12;	/* strlen destination + 7 = 18 */
-	fac[18] = 0x30;	/* ...hm 0x30 */
-	fac[19] = 0x0d;	/* strlen destination + 2 */
-	fac[20] = 0x80;	/* CLIP */
-	fac[21] = 0x0b;	/*  strlen destination */
-	fac[22] = 0x01;	/*  destination start */
+	fac[17] = 0x12; /* strlen destination + 7 = 18 */
+	fac[18] = 0x30; /* ...hm 0x30 */
+	fac[19] = 0x0d; /* strlen destination + 2 */
+	fac[20] = 0x80; /* CLIP */
+	fac[21] = 0x0b; /*  strlen destination */
+	fac[22] = 0x01; /*  destination start */
 	fac[23] = 0x01;  
 	fac[24] = 0x01;  
 	fac[25] = 0x01;  
@@ -555,12 +555,12 @@ static int capi_deflect(struct ast_channel *chan, void *data)
 	fac[30] = 0x01; 
 	fac[31] = 0x01;  
 	fac[32] = 0x01;  
-	fac[33] = 0x01;	/* 0x1 = sending complete */
+	fac[33] = 0x01; /* 0x1 = sending complete */
 	fac[34] = 0x01;
 	fac[35] = 0x01;
 				   
 	memcpy((unsigned char *)fac + 22, data, strlen(data));
-	fac[22 + strlen(data)] = 0x01;	/* fill with 0x01 if number is only 6 numbers (local call) */
+	fac[22 + strlen(data)] = 0x01; /* fill with 0x01 if number is only 6 numbers (local call) */
 	fac[23 + strlen(data)] = 0x01;
 	fac[24 + strlen(data)] = 0x01;
 	fac[25 + strlen(data)] = 0x01;
@@ -773,16 +773,16 @@ int capi_call(struct ast_channel *c, char *idest, int timeout)
 
 	/* first character of destination tells special treatment */
 	switch(dest[0]) {
-		case 'b':	/* always B3 */
-			i->doB3 = AST_CAPI_B3_ALWAYS;
-			dest++;
-			break;
-		case 'B':	/* only do B3 on successfull calls */
-			i->doB3 = AST_CAPI_B3_ON_SUCCESS;
-			dest++;
-			break;
-		default:
-			i->doB3 = AST_CAPI_B3_DONT;
+	case 'b':	/* always B3 */
+		i->doB3 = AST_CAPI_B3_ALWAYS;
+		dest++;
+		break;
+	case 'B':	/* only do B3 on successfull calls */
+		i->doB3 = AST_CAPI_B3_ON_SUCCESS;
+		dest++;
+		break;
+	default:
+		i->doB3 = AST_CAPI_B3_DONT;
 	}
 
 	cc_ast_verbose(1, 1, VERBOSE_PREFIX_2 "CAPI Call %s %s\n", c->name, i->doB3?"with B3":"");
@@ -792,21 +792,21 @@ int capi_call(struct ast_channel *c, char *idest, int timeout)
 #else    
 	switch (c->callingpres) {
 #endif
-		case PRES_ALLOWED_USER_NUMBER_NOT_SCREENED:
-		case PRES_ALLOWED_USER_NUMBER_PASSED_SCREEN:
-		case PRES_ALLOWED_USER_NUMBER_FAILED_SCREEN:
-		case PRES_ALLOWED_NETWORK_NUMBER:
-		case PRES_NUMBER_NOT_AVAILABLE:
-			i->CLIR = 0;
-			break;
-		case PRES_PROHIB_USER_NUMBER_NOT_SCREENED:
-		case PRES_PROHIB_USER_NUMBER_PASSED_SCREEN:
-		case PRES_PROHIB_USER_NUMBER_FAILED_SCREEN:
-		case PRES_PROHIB_NETWORK_NUMBER:
-			i->CLIR = 1;
-			break;
-		default:
-			i->CLIR = 0;
+	case PRES_ALLOWED_USER_NUMBER_NOT_SCREENED:
+	case PRES_ALLOWED_USER_NUMBER_PASSED_SCREEN:
+	case PRES_ALLOWED_USER_NUMBER_FAILED_SCREEN:
+	case PRES_ALLOWED_NETWORK_NUMBER:
+	case PRES_NUMBER_NOT_AVAILABLE:
+		i->CLIR = 0;
+		break;
+	case PRES_PROHIB_USER_NUMBER_NOT_SCREENED:
+	case PRES_PROHIB_USER_NUMBER_PASSED_SCREEN:
+	case PRES_PROHIB_USER_NUMBER_FAILED_SCREEN:
+	case PRES_PROHIB_NETWORK_NUMBER:
+		i->CLIR = 1;
+		break;
+	default:
+		i->CLIR = 0;
 	}
 
 	p = malloc(sizeof(struct capi_pipe));
@@ -2386,33 +2386,33 @@ static void capi_handle_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int 
 	p = find_pipe(CMSG);
 
 	switch (CMSG->Command) {
-		case CAPI_DATA_B3:
-			capi_handle_data_b3_indication(CMSG, PLCI, NCCI, p);
-			break;
-		case CAPI_CONNECT_B3:
-			capi_handle_connect_b3_indication(CMSG, PLCI, NCCI, p);
-			break;
-		case CAPI_CONNECT_B3_ACTIVE:
-			capi_handle_connect_b3_active_indication(CMSG, PLCI, NCCI, p);
-			break;
-		case CAPI_DISCONNECT_B3:
-			capi_handle_disconnect_b3_indication(CMSG, PLCI, NCCI, p);
-			break;
-		case CAPI_DISCONNECT:
-			capi_handle_disconnect_indication(CMSG, PLCI, NCCI, p);
-			break;
-		case CAPI_FACILITY:
-			capi_handle_facility_indication(CMSG, PLCI, NCCI, p);
-			break;
-		case CAPI_INFO:
-			capi_handle_info_indication(CMSG, PLCI, NCCI, p);
-			break;
-		case CAPI_CONNECT_ACTIVE:
-			capi_handle_connect_active_indication(CMSG, PLCI, NCCI, p);
-			break;
-		default:
-			ast_log(LOG_ERROR, "Command.Subcommand = %#x.%#x\n",
-				CMSG->Command, CMSG->Subcommand);
+	case CAPI_DATA_B3:
+		capi_handle_data_b3_indication(CMSG, PLCI, NCCI, p);
+		break;
+	case CAPI_CONNECT_B3:
+		capi_handle_connect_b3_indication(CMSG, PLCI, NCCI, p);
+		break;
+	case CAPI_CONNECT_B3_ACTIVE:
+		capi_handle_connect_b3_active_indication(CMSG, PLCI, NCCI, p);
+		break;
+	case CAPI_DISCONNECT_B3:
+		capi_handle_disconnect_b3_indication(CMSG, PLCI, NCCI, p);
+		break;
+	case CAPI_DISCONNECT:
+		capi_handle_disconnect_indication(CMSG, PLCI, NCCI, p);
+		break;
+	case CAPI_FACILITY:
+		capi_handle_facility_indication(CMSG, PLCI, NCCI, p);
+		break;
+	case CAPI_INFO:
+		capi_handle_info_indication(CMSG, PLCI, NCCI, p);
+		break;
+	case CAPI_CONNECT_ACTIVE:
+		capi_handle_connect_active_indication(CMSG, PLCI, NCCI, p);
+		break;
+	default:
+		ast_log(LOG_ERROR, "Command.Subcommand = %#x.%#x\n",
+			CMSG->Command, CMSG->Subcommand);
 	}
 }
 
@@ -2422,39 +2422,39 @@ static void capi_handle_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int 
 static void capi_handle_facility_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pipe *p)
 {
 	switch (FACILITY_CONF_FACILITYSELECTOR(CMSG)) {
-		case FACILITYSELECTOR_DTMF:
-			cc_ast_verbose(2, 1, VERBOSE_PREFIX_3 "DTMF conf(PLCI=%#x)\n",
+	case FACILITYSELECTOR_DTMF:
+		cc_ast_verbose(2, 1, VERBOSE_PREFIX_3 "DTMF conf(PLCI=%#x)\n",
+			PLCI);
+		break;
+	case FACILITYSELECTOR_ECHO_CANCEL:
+		if (FACILITY_CONF_INFO(CMSG)) {
+			cc_ast_verbose(2, 0, VERBOSE_PREFIX_3 "Error setting up echo canceller (PLCI=%#x, Info=%#04x)\n",
+				PLCI, FACILITY_CONF_INFO(CMSG));
+			break;
+		}
+		if (FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[1] == EC_FUNCTION_DISABLE) {
+			cc_ast_verbose(2, 0, VERBOSE_PREFIX_3 "Echo canceller successfully disabled (PLCI=%#x)\n",
 				PLCI);
-			break;
-		case FACILITYSELECTOR_ECHO_CANCEL:
-			if (FACILITY_CONF_INFO(CMSG)) {
-				cc_ast_verbose(2, 0, VERBOSE_PREFIX_3 "Error setting up echo canceller (PLCI=%#x, Info=%#04x)\n",
-					PLCI, FACILITY_CONF_INFO(CMSG));
-				break;
-			}
-			if (FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[1] == EC_FUNCTION_DISABLE) {
-				cc_ast_verbose(2, 0, VERBOSE_PREFIX_3 "Echo canceller successfully disabled (PLCI=%#x)\n",
-					PLCI);
-			} else {
-				cc_ast_verbose(2, 0, VERBOSE_PREFIX_3 "Echo canceller successfully set up (PLCI=%#x)\n",
-					PLCI);
-			}
-			break;
+		} else {
+			cc_ast_verbose(2, 0, VERBOSE_PREFIX_3 "Echo canceller successfully set up (PLCI=%#x)\n",
+				PLCI);
+		}
+		break;
 
-		case FACILITYSELECTOR_SUPPLEMENTARY:
-			/* HOLD */
-			if ((FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[1] == 0x2) &&
-			    (FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[2] == 0x0) &&
-			    ((FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[4] != 0x0) ||
-			     (FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[5] != 0x0))) {
-				if (p) {
-					p->i->state = CAPI_STATE_BCONNECTED;
-				}
+	case FACILITYSELECTOR_SUPPLEMENTARY:
+		/* HOLD */
+		if ((FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[1] == 0x2) &&
+		    (FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[2] == 0x0) &&
+		    ((FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[4] != 0x0) ||
+		     (FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[5] != 0x0))) {
+			if (p) {
+				p->i->state = CAPI_STATE_BCONNECTED;
 			}
-			break;
-		default:
-    			ast_log(LOG_ERROR, "CAPI: unhandled FACILITY_CONF 0x%x\n",
-				FACILITY_CONF_FACILITYSELECTOR(CMSG));
+		}
+		break;
+	default:
+    		ast_log(LOG_ERROR, "CAPI: unhandled FACILITY_CONF 0x%x\n",
+			FACILITY_CONF_FACILITYSELECTOR(CMSG));
 	}
 }
 
@@ -2468,74 +2468,74 @@ static void capi_handle_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned in
 	p = find_pipe(CMSG);
 
 	switch (CMSG->Command) {
-		case CAPI_FACILITY:
-			capi_handle_facility_confirmation(CMSG, PLCI, NCCI, p);
+	case CAPI_FACILITY:
+		capi_handle_facility_confirmation(CMSG, PLCI, NCCI, p);
+		break;
+	case CAPI_CONNECT:
+		cc_ast_verbose(1, 1, VERBOSE_PREFIX_2 "received CONNECT_CONF PLCI = %#x INFO = %#x\n",
+			PLCI, CONNECT_CONF_INFO(CMSG));
+		if (!p)
 			break;
-		case CAPI_CONNECT:
-			cc_ast_verbose(1, 1, VERBOSE_PREFIX_2 "received CONNECT_CONF PLCI = %#x INFO = %#x\n",
-				PLCI, CONNECT_CONF_INFO(CMSG));
-			if (!p)
-				break;
-			if (CONNECT_CONF_INFO(CMSG) == 0) {
-				p->i->PLCI = PLCI;
-				p->PLCI = PLCI;
-				ast_setstate(p->c, AST_STATE_DIALING);
-			} else {
-				/* here, something has to be done --> */
-				struct ast_frame fr;
-				fr.frametype = AST_FRAME_CONTROL;
-				fr.subclass = AST_CONTROL_BUSY;
-				fr.datalen = 0;
-				pipe_frame(p, (struct ast_frame *)&fr);
-			}
+		if (CONNECT_CONF_INFO(CMSG) == 0) {
+			p->i->PLCI = PLCI;
+			p->PLCI = PLCI;
+			ast_setstate(p->c, AST_STATE_DIALING);
+		} else {
+			/* here, something has to be done --> */
+			struct ast_frame fr;
+			fr.frametype = AST_FRAME_CONTROL;
+			fr.subclass = AST_CONTROL_BUSY;
+			fr.datalen = 0;
+			pipe_frame(p, (struct ast_frame *)&fr);
+		}
+		break;
+	case CAPI_CONNECT_B3:
+		if (!p)
 			break;
-		case CAPI_CONNECT_B3:
-			if (!p)
-				break;
-			if (CONNECT_B3_CONF_INFO(CMSG) == 0) {
-				p->i->NCCI = NCCI;
-			} else {
-				p->i->earlyB3 = -1;
-				p->i->doB3 = AST_CAPI_B3_DONT;
-			}
+		if (CONNECT_B3_CONF_INFO(CMSG) == 0) {
+			p->i->NCCI = NCCI;
+		} else {
+			p->i->earlyB3 = -1;
+			p->i->doB3 = AST_CAPI_B3_DONT;
+		}
+		break;
+	case CAPI_ALERT:
+		if (!p)
 			break;
-		case CAPI_ALERT:
-			if (!p)
-				break;
-			if (ALERT_CONF_INFO(CMSG) == 0) {
-				p->i->state = CAPI_STATE_ALERTING;
-				if (p->c->_state == AST_STATE_RING) {
-					p->c->rings = 1;
-				}
-			} else {
-				ast_log(LOG_ERROR, "CAPI: ALERT conf_error 0x%x Command.Subcommand = %#x.%#x\n",
-					CMSG->Info, CMSG->Command, CMSG->Subcommand);
+		if (ALERT_CONF_INFO(CMSG) == 0) {
+			p->i->state = CAPI_STATE_ALERTING;
+			if (p->c->_state == AST_STATE_RING) {
+				p->c->rings = 1;
 			}
-			break;	    
-		case CAPI_SELECT_B_PROTOCOL:
-			if (CMSG->Info) {
-				ast_log(LOG_ERROR, "CAPI: conf_error 0x%x Command.Subcommand = %#x.%#x\n",
-					CMSG->Info, CMSG->Command, CMSG->Subcommand);
-			} else {
-				if (p->i->FaxState) {
-					capi_echo_canceller(p->c, EC_FUNCTION_DISABLE);
-					capi_detect_dtmf(p->c, 0);
-				}
+		} else {
+			ast_log(LOG_ERROR, "CAPI: ALERT conf_error 0x%x Command.Subcommand = %#x.%#x\n",
+				CMSG->Info, CMSG->Command, CMSG->Subcommand);
+		}
+		break;	    
+	case CAPI_SELECT_B_PROTOCOL:
+		if (CMSG->Info) {
+			ast_log(LOG_ERROR, "CAPI: conf_error 0x%x Command.Subcommand = %#x.%#x\n",
+				CMSG->Info, CMSG->Command, CMSG->Subcommand);
+		} else {
+			if (p->i->FaxState) {
+				capi_echo_canceller(p->c, EC_FUNCTION_DISABLE);
+				capi_detect_dtmf(p->c, 0);
 			}
-			break;
-		case CAPI_DISCONNECT:
-		case CAPI_DISCONNECT_B3:
-		case CAPI_LISTEN:
-		case CAPI_INFO:
-		case CAPI_DATA_B3:
-			if (CMSG->Info) {
-				ast_log(LOG_ERROR, "CAPI: conf_error 0x%x Command.Subcommand = %#x.%#x\n",
-					CMSG->Info, CMSG->Command, CMSG->Subcommand);
-			}
-			break;
-		default:
-			ast_log(LOG_ERROR,"CAPI: Command.Subcommand = %#x.%#x\n",
-				CMSG->Command, CMSG->Subcommand);
+		}
+		break;
+	case CAPI_DISCONNECT:
+	case CAPI_DISCONNECT_B3:
+	case CAPI_LISTEN:
+	case CAPI_INFO:
+	case CAPI_DATA_B3:
+		if (CMSG->Info) {
+			ast_log(LOG_ERROR, "CAPI: conf_error 0x%x Command.Subcommand = %#x.%#x\n",
+				CMSG->Info, CMSG->Command, CMSG->Subcommand);
+		}
+		break;
+	default:
+		ast_log(LOG_ERROR,"CAPI: Command.Subcommand = %#x.%#x\n",
+			CMSG->Command, CMSG->Subcommand);
 	}
 }
 
@@ -2561,12 +2561,12 @@ static void capi_handle_msg(_cmsg *CMSG)
 	}
 
 	switch (CMSG->Subcommand) {
-		case CAPI_IND:
-			capi_handle_indication(CMSG, PLCI, NCCI);
-			break;
-		case CAPI_CONF:
-			capi_handle_confirmation(CMSG, PLCI, NCCI);
-			break;
+	case CAPI_IND:
+		capi_handle_indication(CMSG, PLCI, NCCI);
+		break;
+	case CAPI_CONF:
+		capi_handle_confirmation(CMSG, PLCI, NCCI);
+		break;
 	}
 }
 
@@ -2594,15 +2594,15 @@ static void *do_monitor(void *data)
 		memset(&monCMSG, 0, sizeof(_cmsg));
 	
 		switch(Info = check_wait_get_cmsg(&monCMSG)) {
-			case 0x0000:
-				capi_handle_msg(&monCMSG);
-				break;
-			case 0x1104:
-				/* CAPI queue is empty */
-				break;
-			default:
-				/* something is wrong! */
-				break;
+		case 0x0000:
+			capi_handle_msg(&monCMSG);
+			break;
+		case 0x1104:
+			/* CAPI queue is empty */
+			break;
+		default:
+			/* something is wrong! */
+			break;
 		} /* switch */
 	} /* for */
 	
@@ -2642,8 +2642,8 @@ static int restart_monitor(void)
  */
 static void capi_gains(struct ast_capi_gains *g, float rxgain, float txgain)
 {
-	int i=0;
-	int x=0;
+	int i = 0;
+	int x = 0;
 	
 	if (rxgain != 1.0) {
 		for (i = 0; i < 256; i++) {
@@ -2907,6 +2907,7 @@ static int capi_no_debug(int fd, int argc, char *argv[])
 {
 	if (argc != 3)
 		return RESULT_SHOWUSAGE;
+
 	capidebug = 0;
 	ast_cli(fd, "CAPI Debugging Disabled\n");
 	

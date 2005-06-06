@@ -206,12 +206,12 @@ static int capianswerfax_exec(struct ast_channel *chan, void *data)
 				sleep(1);
 			}
 			switch (i->reason) {
-				case 0x3490:
-				case 0x349f:
-					res = (i->reasonb3 == 0) ? 0 : -1;
-					break;
-				default:
-					res = -1;
+			case 0x3490:
+			case 0x349f:
+				res = (i->reasonb3 == 0) ? 0 : -1;
+				break;
+			default:
+				res = -1;
 			}
 
 			/* if the file has zero length */
