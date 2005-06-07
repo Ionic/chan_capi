@@ -25,116 +25,131 @@ Frank Sautter, levigo group
 This chan_capi version includes:
 ================================
 
-- multiple controller support
+- Multiple controller support
 - CID,DNID (callling party, called party)
 - CLIR/CLIP
-- supplementary services, CD,HOLD,RETRIEVE,ECT
+- Supplementary services, CD,HOLD,RETRIEVE,ECT
 - DTMF (dependend on card) + software DTMF support
-- early B3 connects (always,success,never)
-- digital audio (what did you think?)
-- incoming/outgoing calls
-- overlap sending (dialtone)
-- E(xplicit) C(all) T(ransfer) (...although it's done implicit .. but dont tell!)
-- tuneable latency ;) you can configure the size of B3 blocks at compile time
+- Early B3 connects (always,success,never)
+- Digital audio (what did you think?)
+- Incoming/outgoing calls
+- Overlap sending (dialtone)
+- E(xplicit) C(all) T(ransfer) (...although it's done implicit-but don't tell!)
+- Tuneable latency:  you can configure the size of B3 blocks at compile time
   (in chan_capi_pvt.h, AST_CAPI_MAX_B3_BLOCK_SIZE)
-  the default is 160 samples, for non-VoIP use you can tune it down to 130
-- use asterisk's internal dsp functions for dtmf
-- alaw support 
-- ulaw support! 
+  The default is 160 samples, for non-VoIP use you can tune it down to 130
+- Use asterisks internal DSP functions for DTMF
+- Alaw support 
+- Ulaw support! 
 - Eicon CAPI echo cancelation (echocancel=1)
-- reject call waiting (ACO)
+- Reject call waiting (ACO)
 - DID for Point to Point mode (a.k.a overlap receiving)
-- experimental echo squelching (echosquelch=1)
-- call progress, no need to add ||r to your dialstring anymore
-- rx/tx gains (rxgain=1.0)
-- call deflection on circuitbusy (makefile option) (deflect=12345678)
-- (inter)national dialing prefix (for callerid) configurable in capi.conf
-- CLI command "capi info" shows B channel status
-- capiECT will announce the callerID since it gets lost on most isdn pbxes
-  the called party can press # to drop the call
-- audio syncing (timing outgoing dataB3 on incoming dataB3), supposed to fix
+- Call progress, no need to add ||r to your dialstring anymore
+- Rx/Tx gains (rxgain=1.0)
+- Call deflection on circuit busy (deflect=12345678)
+- (Inter)national dialing prefix (for callerid) configurable in capi.conf
+- CLI command "capi info" shows B channel status of chan_capi
+- CapiECT will announce the callerID since it gets lost on most isdn pbxes
+  The called party can press # to drop the call
+- Audio syncing (timing outgoing dataB3 on incoming dataB3), supposed to fix
   the DATA_B3_REQ (error = 0x1103) problem
-- catch all MSN (incomingmsn=*)
-- some configuration enhancements (msn=123,124,125 and controller=1,2,3,4)
-- accountcode= added.
-- finally the echo squelching works!
-- callgroup support
-- fixed pipe leak
-- updated to support the new frame->delivery field
-- compiles with latest cvs with a makefile option (LOOK AT THE MAKEFILE)
-- fixed channel name bug in p2p mode
-- added app_capiNoES for disabling the primitive echo suppressor, use this before
-  you start recording voicemail or your files may get choppy
-- fixed for latest cvs (AST_MUTEX_DEFINE_STATIC)
-- fixed for latest cvs (asterisk/parking.h -> asterisk/features.h)
-- fixed for latest cvs ast_pthread_create
+- Catch all MSN (incomingmsn=*)
+- Some configuration enhancements (msn=123,124,125 and controller=1,2,3,4)
+- Added accountcode= 
+- Echo squelching (echosquelch=1)
+- Callgroup support
+- Fixed pipe leak
+- Updated to support the new frame->delivery field
+- Compiles with different Asterisk versions (automatic build configuration)
+- Fixed channel name bug in PtP mode
+- Added app_capiNoES for disabling the primitive echo suppressor, use this 
+  before you start recording voicemail or your files may get choppy
+- Added app_capiFax to receive faxes over CAPI (see below)
 
 - ATTENTION! the dialstring syntax now uses the zaptel dialstring syntax 
-  it used to be:  Dial(CAPI/[@]<outgoingMSN>:[b|B]<destination>)
+  
+  It used to be:  Dial(CAPI/[@]<outgoingMSN>:[b|B]<destination>)
  
-  now it is:      Dial(CAPI/g<group>/[b|B]<destination>)
-  or:             Dial(CAPI/contr<controller>/[b|B]<destination>)
+  Now it is:      Dial(CAPI/g<group>/[b|B]<destination>)
+  Or:             Dial(CAPI/contr<controller>/[b|B]<destination>)
  
-  CLIP/CLIR is now uses the calling presentation of the calling channel, this can
+  CLIP/CLIR now uses the calling presentation of the calling channel, which can
   be modified using the CallingPres() application. Use CallinPres(32) for CLIR.
   That is why the msn= param in capi.conf is now obsolete. The callerID is also
   taken from the calling channel.
 
-- fixes for BSD (Jan Stocker)
+- Fixes for BSD (Jan Stocker)
 
 Helper applications
 ===================
-kapejod says: "No No No, dont use those yet....!" (except maybe HOLD,ECT...)
+Kapejod says: "No No No, don't use those yet....!" (except maybe HOLD,ECT...)
 
-app_capiCD.c		forwards an unanswered call to another phone (does not rely on sservice CD)
-			example:
-			exten => s,1,Wait,1
-			exten => s,2,capiCD,12345678
+app_capiCD.c		
+	Forwards an unanswered call to another phone (does not rely on sservice CD)
+		Example:
+		exten => s,1,Wait,1
+		exten => s,2,capiCD,12345678
 			
-app_capiHOLD.c		puts an answered call on hold, this has nothing to do with asterisk's onhold thingie (music et al)
-			after putting a call onhold, never use the Wait application!
+app_capiHOLD.c		
+	Puts an answered call on hold, this has nothing to do with asterisk's onhold
+	thingie (music et al)
+	After putting a call onhold, never use the Wait application!
 
-app_capiRETRIEVE.c	gets the holded call back
+app_capiRETRIEVE.c	
+	Gets the holded call back
 
-app_capiECT.c		explicit call transfer of the holded call (must put call on hold first!)
-			example:
-			exten => s,1,Answer
-			exten => s,2,capiHOLD
-			exten => s,3,capiECT,55:50
-			will ECT the call to 50 using 55 as the callerid/outgoing msn
+app_capiECT.c		
+	Explicit call transfer of the call on hold (must put call on hold first!)
+		Example:
+		exten => s,1,Answer
+		exten => s,2,capiHOLD
+		exten => s,3,capiECT,55:50
+		Will ECT the call to 50 using 55 as the callerid/outgoing MSN
 
 
 Using CLIR
 ==========
 Use the CallingPres() application before you dial:
-exten => _X.,1,CallingPres(32)
-exten => _X.,2,Dial(CAPI/contr1/${EXTEN})    
+	exten => _X.,1,CallingPres(32)
+	exten => _X.,2,Dial(CAPI/contr1/${EXTEN})    
 
 Enjoying early B3 connects (inband call progress, tones and announcements)
 ==========================================================================
-early B3 is now configurable in the dialstring :)
-if you prefix the destination number with a 'b' early B3 will always be used, also if the call fails
-because the number is unprovisioned, etc ...
-if you prefix it with a 'B' early B3 will only be used on successful calls, giving you ring indication,etc...
+Early B3 is now configurable in the dialstring.
+If you prefix the destination number with a 'b' early B3 will always be used, 
+also if the call fails, because the number is unprovisioned, etc ...
+If you prefix it with a 'B' early B3 will only be used on successful calls, 
+giving you ring indication,etc...
 
-dont use indications in the Dial command, your local exchange will do that for you:
-exten => _X.,1,Dial(CAPI/contr1/B${EXTEN},30)		(early B3 on success)
-exten => _X.,1,Dial(CAPI/contr1/b${EXTEN},30)		(always early B3)
-exten => _X.,1,Dial(CAPI/contr1/${EXTEN},30,r)		(no early B3, fake ring indication)
+Don't use indications in the Dial command, your local exchange will do that for 
+you:
+	exten => _X.,1,Dial(CAPI/contr1/B${EXTEN},30)		
+		(early B3 on success)
+	
+	exten => _X.,1,Dial(CAPI/contr1/b${EXTEN},30)	
+		(always early B3)
+	
+	exten => _X.,1,Dial(CAPI/contr1/${EXTEN},30,r)		
+		(no early B3, fake ring indication)
 
-exten => _X.,1,Dial(CAPI/contr1/b${EXTEN},30,r)		(always early B3, fake indicatons if the exchange
-							does not give us indications)
-exten => _X.,1,Dial(CAPI/contr1/B${EXTEN},30,r)		(early B3 on success, fake indicatons if the exchange
-							does not give us indications)
+	exten => _X.,1,Dial(CAPI/contr1/b${EXTEN},30,r)		
+		(always early B3, fake indicatons if the exchange does not give us 
+		indications)
+	
+	exten => _X.,1,Dial(CAPI/contr1/B${EXTEN},30,r)		
+		(early B3 on success, fake indicatons if the exchange does not give us 
+		indications)
     
 For normal PBX usage you would use the "b" option, always early B3.
 
 Overlap sending (a.k.a. real dialtone)
 ======================================
-when you dial an empty number, and have early B3 enabled, with:
+When you dial an empty number, and have early B3 enabled, with:
     Dial(CAPI/g1/b)
-the channel will come up at once and give you the dialtone it gets from the local exchange.
-at this point the channel is like a legacy phone, now you can send dtmf digits to dial.    
+The channel will come up at once and give you the dialtone it gets from the 
+local exchange.
+At this point the channel is like a legacy phone, now you can send DTMF digits 
+to dial.    
 
 Example context for incoming calls on MSN 12345678:
 ===================================================
@@ -143,13 +158,14 @@ Example context for incoming calls on MSN 12345678:
 exten => 12345678,1,Dial(SIP/phone1)
 exten => 12345678,2,Hangup
 
-
-short HOWTO of 'capiAnswerFax':
+Short HOWTO of 'capiAnswerFax':
 ===============================
-For those of you who have a CAPI card with an on-board DSP (like some Eicon+Diva Server), this patch allows you to receive faxes.
-If you want to answer a channel in fax mode, use capiAnswerFax() instead of+Answer()
-If you use Answer(), you will be in voice mode. If the hardware DSP detects+a fax tone, you can switch from voice to fax mode by calling
-capiAnswerFax().
+For those of you who have a CAPI card with an on-board DSP (like some Eicon and
+DIVA Server), this patch allows you to receive faxes.
+If you want to answer a channel in fax mode, use capiAnswerFax() instead of 
+Answer()
+If you use Answer(), you will be in voice mode. If the hardware DSP detects 
+fax tone, you can switch from voice to fax mode by calling capiAnswerFax().
 
 Example of use :
 line number 123, play something, if a fax tone is detected, handle it
@@ -167,12 +183,15 @@ exten => s,2,Hangup()
 exten => h,1,deadagi,fax.php // Run sfftobmp and mail it.
 
 The output of capiAnswerFax is a SFF file. Use sfftobmp to convert it.
-With a Diva Server, theses features are allowed : fax up to 33600, high
-resolution. Color Fax /JPEG Compression is disabled (I can't test it).
+With a DIVA Server, following features are provided:
+ - fax up to 33600
+ - high resolution
+ - Color Fax 
+ - JPEG Compression is disabled (I can't test it)
 
 ------
 
-More information/documentation and commercial support can be found at:
+More information/documentation and commercial support can be found at:         
 	http://www.junghanns.net/asterisk/
 	
 
