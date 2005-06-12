@@ -86,16 +86,15 @@ static inline void write_capi_word(void *m, unsigned short val)
 
 #define CAPI_STATE_DISCONNECTING        4
 #define CAPI_STATE_DISCONNECTED         5
-#define CAPI_STATE_REMOTE_HANGUP        6
 
-#define CAPI_STATE_CONNECTPENDING       7
-#define CAPI_STATE_ONHOLD               8
-#define CAPI_STATE_NETWORKHANGUP        9
-#define CAPI_STATE_ANSWERING            10
-#define CAPI_STATE_PUTTINGONHOLD        11
-#define CAPI_STATE_RETRIEVING           12
+#define CAPI_STATE_CONNECTPENDING       6
+#define CAPI_STATE_ANSWERING            7
+#define CAPI_STATE_DID                  8
 
-#define CAPI_STATE_DID                  13
+#define CAPI_STATE_PUTTINGONHOLD        10
+#define CAPI_STATE_RETRIEVING           11
+#define CAPI_STATE_ONHOLD               12
+
 
 #define AST_CAPI_B3_DONT                0
 #define AST_CAPI_B3_ALWAYS              1

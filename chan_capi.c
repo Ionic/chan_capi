@@ -477,7 +477,14 @@ static int capi_alert(struct ast_channel *c)
 {
 	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
 	_cmsg CMSG;
-    
+
+	if ((i->state != CAPI_STATE_DISCONNECTED) &&
+	    (i->state != CAPI_STATE_DID)) {
+		ast_log(LOG_WARNING, "CAPI attempting ALERT in state %d\n",
+			i->state);
+		return -1;
+	}
+	
 	ALERT_REQ_HEADER(&CMSG, ast_capi_ApplID, i->MessageNumber, 0);
 	ALERT_REQ_PLCI(&CMSG) = i->PLCI;
 
@@ -954,11 +961,6 @@ struct ast_frame *capi_read(struct ast_channel *c)
 		return NULL;
 	}
 
-	if ((i->state == CAPI_STATE_REMOTE_HANGUP)) {
-		ast_log(LOG_ERROR, "this channel is not connected\n");
-		return NULL;
-	}
-	
 	if (i->state == CAPI_STATE_ONHOLD) {
 		i->fr.frametype = AST_FRAME_NULL;
 		return &i->fr;
