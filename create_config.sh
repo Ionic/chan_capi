@@ -74,6 +74,14 @@ else
 	echo " * no 'transfercapability'"
 fi
 
+if grep -q "ast_config_load" $INCLUDEDIR/config.h; then
+	echo " * found 'ast_config_load'"
+else
+	echo "#define ast_config_load(x) ast_load(x)" >>$CONFIGFILE
+	echo "#define ast_config_destroy(x) ast_destroy(x)" >>$CONFIGFILE
+	echo " * no 'ast_config_load'"
+fi
+
 
 echo "" >>$CONFIGFILE
 echo "#endif /* CHAN_CAPI_CONFIG_H */" >>$CONFIGFILE

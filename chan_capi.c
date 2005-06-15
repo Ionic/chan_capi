@@ -52,6 +52,13 @@
 #include "chan_capi_app.h"
 #include "chan_capi_pvt.h"
 
+#define CC_VERSION "cm-0.5"
+
+#ifdef CAPI_ULAW
+#define LAW_STRING "uLaw"
+#else
+#define LAW_STRING "aLaw"
+#endif
 
 /*
  * personal stuff
@@ -61,18 +68,10 @@ unsigned ast_capi_ApplID;
 static _cword ast_capi_MessageNumber = 1;
 static char *desc = "Common ISDN API for Asterisk";
 #ifdef CC_AST_HAVE_TECH_PVT
-#ifdef CAPI_ULAW
-static const char tdesc[] = "Common ISDN API Driver (0.4.0) muLaw "ASTERISKVERSION;
-#else
-static const char tdesc[] = "Common ISDN API Driver (0.4.0) aLaw "ASTERISKVERSION;
-#endif
+static const char tdesc[] = "Common ISDN API Driver (" CC_VERSION ") " LAW_STRING " " ASTERISKVERSION;
 static const char type[] = "CAPI";
 #else
-#ifdef CAPI_ULAW
-static char *tdesc = "Common ISDN API Driver (0.4.0) muLaw "ASTERISKVERSION;
-#else
-static char *tdesc = "Common ISDN API Driver (0.4.0) aLaw "ASTERISKVERSION;
-#endif
+static char *tdesc = "Common ISDN API Driver (" CC_VERSION ") " LAW_STRING " "ASTERISKVERSION;
 static char *type = "CAPI";
 #endif
 
@@ -3020,7 +3019,7 @@ int load_module(void)
 	unsigned int group = 0;
 	struct ast_capi_controller *cp;
 
-	cfg = ast_load(config);
+	cfg = ast_config_load(config);
 
 	/* We *must* have a config file otherwise stop immediately, well no */
 	if (!cfg) {
@@ -3224,7 +3223,7 @@ int load_module(void)
 		}
 		v = v->next;
 	}
-	ast_destroy(cfg);
+	ast_config_destroy(cfg);
 
 	for (controller = 1; controller <= capi_num_controllers; controller++) {
 		if (capi_used_controllers & (1 << controller)) {
