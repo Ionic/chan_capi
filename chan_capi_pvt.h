@@ -129,8 +129,6 @@ struct ast_capi_pvt {
 	/*! Frame */
 	struct ast_frame fr;			
 	
-	char offset[AST_FRIENDLY_OFFSET];
-	
 	/* capi message number */
 	_cword MessageNumber;	
 	unsigned int NCCI;
@@ -141,22 +139,15 @@ struct ast_capi_pvt {
 	/* we could live on those */
 	unsigned long controllers;
 
-	int datahandle;
+	/* send buffer */
+	unsigned char send_buffer[AST_CAPI_MAX_B3_BLOCKS * AST_CAPI_MAX_B3_BLOCK_SIZE];
+	unsigned short send_buffer_handle;
 
-	short buf[AST_CAPI_MAX_BUF];
-	int buflen;
-	/*! Immediate, or wait for an answer */
-	int mode;						
-	/*! State of modem in miniature */
+	/* receive buffer */
+	unsigned char rec_buffer[AST_CAPI_MAX_BUF + AST_FRIENDLY_OFFSET];
+
+	/* current state */
 	int state;					
-	/*! Digits to strip on outgoing numbers */
-	int stripmsd;					
-	/*! ringer timeout */
-	int ringt;				
-	/*! actual time of last ring */
-	time_t lastring;			
-	/*! dtmf receive state/data */
-	char dtmfrx;				
 	
 	char context[AST_MAX_EXTENSION];
 	/*! Multiple Subscriber Number we listen to (, seperated list) */
@@ -175,8 +166,6 @@ struct ast_capi_pvt {
 	
 	/*! default language */
 	char language[MAX_LANGUAGE];	
-	/*! Static response buffer */
-	char response[256];				
 
 	int calledPartyIsISDN;
 	/* this is an outgoing channel */
@@ -211,13 +200,13 @@ struct ast_capi_pvt {
 	/* deflect on circuitbusy */
 	char deflect2[AST_MAX_EXTENSION];
 	
-    /* not all codecs supply frames in nice 320 byte chunks */
-    struct ast_smoother *smoother;
-    /* ok, we stop to be nice and give them the lowest possible latency 130 samples * 2 = 260 bytes */
-#ifdef CAPI_SYNC
-	int B3in;
-	ast_mutex_t lockB3in;
-#endif
+	/* not all codecs supply frames in nice 160 byte chunks */
+	struct ast_smoother *smoother;
+	/* ok, we stop to be nice and give them the lowest possible latency 130 samples * 2 = 260 bytes */
+
+	/* outgoing queue count */
+	int B3q;
+	ast_mutex_t lockB3q;
 
 	/* do ECHO SURPRESSION */
 	int doES;
@@ -241,61 +230,61 @@ struct ast_capi_pvt {
 
 
 struct ast_capi_profile {
-    unsigned short ncontrollers;
-    unsigned short nbchannels;
-    unsigned char globaloptions;
-    unsigned char globaloptions2;
-    unsigned char globaloptions3;
-    unsigned char globaloptions4;
-    unsigned int b1protocols;
-    unsigned int b2protocols;
-    unsigned int b3protocols;
-    unsigned int reserved3[6];
-    unsigned int manufacturer[5];
+	unsigned short ncontrollers;
+	unsigned short nbchannels;
+	unsigned char globaloptions;
+	unsigned char globaloptions2;
+	unsigned char globaloptions3;
+	unsigned char globaloptions4;
+	unsigned int b1protocols;
+	unsigned int b2protocols;
+	unsigned int b3protocols;
+	unsigned int reserved3[6];
+	unsigned int manufacturer[5];
 };
 
 struct capi_pipe {
-    /* lock */
-    ast_mutex_t lock;
+	/* lock */
+	ast_mutex_t lock;
 
-    /* fd for writing to the channel */
-    int fd;
+	/* fd for writing to the channel */
+	int fd;
 
-    /* PLCI of the B3 CON */
-    unsigned int PLCI;
-    /* pointer to the interface */
-    struct ast_capi_pvt *i;
-    /* pointer to the channel */
-    struct ast_channel *c;
-    /* next pipe */
-    struct capi_pipe *next;
+	/* PLCI of the B3 CON */
+	unsigned int PLCI;
+	/* pointer to the interface */
+	struct ast_capi_pvt *i;
+	/* pointer to the channel */
+	struct ast_channel *c;
+	/* next pipe */
+	struct capi_pipe *next;
 };
 
 struct ast_capi_controller {
-    /* which controller is this? */
-    int controller;
-    /* how many bchans? */
-    int nbchannels;
-    /* free bchans */
-    int nfreebchannels;
-    /* DID */
-    int isdnmode;
-    /* features: */
-    int dtmf;
-    int echocancel;
-    int sservices;	/* supplementray services */
-    /* supported sservices: */
-    int holdretrieve;
-    int terminalportability;
-    int ECT;
-    int threePTY;
-    int CF;
-    int CD;
-    int MCID;
-    int CCBS;
-    int MWI;
-    int CCNR;
-    int CONF;
+	/* which controller is this? */
+	int controller;
+	/* how many bchans? */
+	int nbchannels;
+	/* free bchans */
+	int nfreebchannels;
+	/* DID */
+	int isdnmode;
+	/* features: */
+	int dtmf;
+	int echocancel;
+	int sservices;	/* supplementray services */
+	/* supported sservices: */
+	int holdretrieve;
+	int terminalportability;
+	int ECT;
+	int threePTY;
+	int CF;
+	int CD;
+	int MCID;
+	int CCBS;
+	int MWI;
+	int CCNR;
+	int CONF;
 };
 
 

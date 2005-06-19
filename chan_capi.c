@@ -83,7 +83,6 @@ AST_MUTEX_DEFINE_STATIC(iflock);
 AST_MUTEX_DEFINE_STATIC(pipelock);
 AST_MUTEX_DEFINE_STATIC(monlock);
 AST_MUTEX_DEFINE_STATIC(contrlock);
-AST_MUTEX_DEFINE_STATIC(capi_send_buffer_lock);
 AST_MUTEX_DEFINE_STATIC(capi_put_lock);
 
 #ifdef CAPI_ULAW
@@ -106,9 +105,6 @@ static struct ast_capi_controller *capi_controllers[AST_CAPI_MAX_CONTROLLERS];
 static int capi_num_controllers = 0;
 static int capi_counter = 0;
 static unsigned long capi_used_controllers = 0;
-
-static char capi_send_buffer[AST_CAPI_MAX_B3_BLOCKS * AST_CAPI_MAX_B3_BLOCK_SIZE];
-static int capi_send_buffer_handle = 0;
 
 char capi_national_prefix[AST_MAX_EXTENSION];
 char capi_international_prefix[AST_MAX_EXTENSION];
@@ -701,10 +697,8 @@ static int capi_hangup(struct ast_channel *c)
 		ast_dsp_free(i->vad);
 	}
 	
-	ast_smoother_free(i->smoother); /* discard any frames left hanging */
-	i->smoother = ast_smoother_new(AST_CAPI_MAX_B3_BLOCK_SIZE * 2);
 	memset(i->cid, 0, sizeof(i->cid));
-	i->owner=NULL;
+	i->owner = NULL;
 	
 	ast_mutex_lock(&usecnt_lock);
 	usecnt--;
@@ -967,6 +961,7 @@ struct ast_frame *capi_read(struct ast_channel *c)
 	
 	i->fr.frametype = AST_FRAME_NULL;
 	i->fr.subclass = 0;
+
 #ifdef CC_AST_FRAME_HAS_TIMEVAL
 	i->fr.delivery.tv_sec = 0;
 	i->fr.delivery.tv_usec = 0;
@@ -976,7 +971,7 @@ struct ast_frame *capi_read(struct ast_channel *c)
 		ast_log(LOG_ERROR, "did not read a whole frame\n");
 	}
 	if (i->fr.frametype == AST_FRAME_VOICE) {
-		readsize = read(i->fd,i->fr.data,i->fr.datalen);
+		readsize = read(i->fd, i->fr.data, i->fr.datalen);
 		if (readsize != i->fr.datalen) {
 			ast_log(LOG_ERROR, "did not read whole frame data\n");
 		}
@@ -1015,9 +1010,10 @@ struct ast_frame *capi_read(struct ast_channel *c)
 int capi_write(struct ast_channel *c, struct ast_frame *f)
 {
 	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
+	MESSAGE_EXCHANGE_ERROR error = 1;
 	_cmsg CMSG;
 	int j = 0;
-	char buf[1000];
+	unsigned char *buf;
 	struct ast_frame *fsmooth;
 	int txavg=0;
 
@@ -1046,10 +1042,12 @@ int capi_write(struct ast_channel *c, struct ast_frame *f)
 		ast_log(LOG_ERROR, "dont know how to write subclass %d\n", f->subclass);
 		return -1;
 	}
-	/* ast_log(LOG_NOTICE,"writing frame %d %d\n",f->frametype,f->subclass); */
+	if ((!f->data) || (!f->datalen) || (!i->smoother)) {
+		return 0;
+	}
 
 	if (ast_smoother_feed(i->smoother, f) != 0) {
-		ast_log(LOG_ERROR, "failed to fill smoother\n");
+		ast_log(LOG_ERROR, "CAPI: failed to fill smoother\n");
 		return -1;
 	}
 
@@ -1060,11 +1058,11 @@ int capi_write(struct ast_channel *c, struct ast_frame *f)
 		DATA_B3_REQ_DATALENGTH(&CMSG) = fsmooth->datalen;
 		DATA_B3_REQ_FLAGS(&CMSG) = 0; 
 
-		if (ast_mutex_lock(&capi_send_buffer_lock)) {
-			ast_log(LOG_WARNING, "Unable to lock B3 send buffer!\n");
-			return -1;
-		}
-		
+		DATA_B3_REQ_DATAHANDLE(&CMSG) = i->send_buffer_handle;
+		buf = &(i->send_buffer[(i->send_buffer_handle % AST_CAPI_MAX_B3_BLOCKS) * AST_CAPI_MAX_B3_BLOCK_SIZE]);
+		DATA_B3_REQ_DATA(&CMSG) = buf;
+		i->send_buffer_handle++;
+
 		if ((i->doES == 1)) {
 			for (j = 0; j < fsmooth->datalen; j++) {
 				buf[j] = reversebits[ ((unsigned char *)fsmooth->data)[j] ]; 
@@ -1075,42 +1073,22 @@ int capi_write(struct ast_channel *c, struct ast_frame *f)
 				i->txavg[j] = i->txavg[j+1];
 			}
 			i->txavg[ECHO_TX_COUNT - 1] = txavg;
-	    
-			/* ast_log(LOG_NOTICE,"txavg = %d\n",txavg); */
 		} else {
 			for (j = 0; j < fsmooth->datalen; j++) {
 				buf[j] = i->g.txgains[reversebits[((unsigned char *)fsmooth->data)[j]]]; 
 			}
 		}
     
-		DATA_B3_REQ_DATAHANDLE(&CMSG) = capi_send_buffer_handle;
-		memcpy((char *)&capi_send_buffer[(capi_send_buffer_handle % AST_CAPI_MAX_B3_BLOCKS) * AST_CAPI_MAX_B3_BLOCK_SIZE],
-			&buf, fsmooth->datalen);
-		DATA_B3_REQ_DATA(&CMSG) = (unsigned char *)&capi_send_buffer[(capi_send_buffer_handle % AST_CAPI_MAX_B3_BLOCKS) * AST_CAPI_MAX_B3_BLOCK_SIZE];
-		capi_send_buffer_handle++;
-    
-		if (ast_mutex_unlock(&capi_send_buffer_lock)) {
-			ast_log(LOG_WARNING,"Unable to unlock B3 send buffer!\n");
-			return -1;
+		if (i->B3q < AST_CAPI_MAX_B3_BLOCKS) {
+			error = _capi_put_cmsg(&CMSG);
 		}
 
-
-#ifdef CAPI_SYNC    
-		ast_mutex_lock(&i->lockB3in);
-		if ((i->B3in >= 1) && (i->B3in <= AST_CAPI_MAX_B3_BLOCKS)) {
-			i->B3in--;
-			ast_mutex_unlock(&i->lockB3in);
-			_capi_put_cmsg(&CMSG);
-		} else {
-			if (i->B3in > 0)
-				i->B3in--;
-			ast_mutex_unlock(&i->lockB3in);
+		if (!error) {
+			ast_mutex_lock(&i->lockB3q);
+			i->B3q++;
+			ast_mutex_unlock(&i->lockB3q);
 		}
-#else
-		_capi_put_cmsg(&CMSG);
-#endif
-    
-		/* ast_frfree(fsmooth); */
+
 	        fsmooth = ast_smoother_read(i->smoother);
 	}
 	return 0;
@@ -1132,6 +1110,23 @@ static int capi_fixup(struct ast_channel *oldchan, struct ast_channel *newchan)
  */
 static int capi_indicate(struct ast_channel *c, int condition)
 {
+	cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "Requested indication %d for %s\n",
+		condition, c->name);
+	
+	switch (condition) {
+	case AST_CONTROL_RINGING:
+		break;
+	case AST_CONTROL_BUSY:
+		break;
+	case AST_CONTROL_CONGESTION:
+		break;
+	case AST_CONTROL_PROGRESS:
+		break;
+	case AST_CONTROL_PROCEEDING:
+		break;
+	case -1: /* stop indications */
+		break;
+	}
 	return -1;
 }
 
@@ -1141,7 +1136,13 @@ static int capi_indicate(struct ast_channel *c, int condition)
 static int capi_bridge(struct ast_channel *c0, struct ast_channel *c1,
 		int flags, struct ast_frame **fo, struct ast_channel **rc)
 {
-	return -1;
+	cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "Requested bridge for %s and %s\n",
+		c0->name, c1->name);
+	
+	return -1; /* failed, not supported */
+	return -2; /* we dont want private bridge, no error message */
+	return -3; /* no success, but try me again */
+	return 0; /* success and end of private bridging */
 }
 
 /*
@@ -1176,18 +1177,11 @@ static struct ast_channel *capi_new(struct ast_capi_pvt *i, int state)
 
 	i->fd = fds[0];
 	i->fd2 = fds[1];
-#if 0
-	flags = fcntl(i->fd,F_GETFL);
-	fcntl(i->fd,F_SETFL,flags | O_SYNC | O_DIRECT);
-	flags = fcntl(i->fd2,F_GETFL);
-	fcntl(i->fd2,F_SETFL,flags | O_SYNC | O_DIRECT);
-#endif
 	
 	ast_setstate(tmp, state);
 	tmp->fds[0] = i->fd;
-	i->smoother = ast_smoother_new(AST_CAPI_MAX_B3_BLOCK_SIZE);
-	if (i->smoother == NULL) {
-		ast_log(LOG_ERROR, "smoother NULL!\n");
+	if (i->smoother != NULL) {
+		ast_smoother_reset(i->smoother, AST_CAPI_MAX_B3_BLOCK_SIZE);
 	}
 	i->fr.frametype = 0;
 	i->fr.subclass = 0;
@@ -1203,8 +1197,8 @@ static struct ast_channel *capi_new(struct ast_capi_pvt *i, int state)
 	i->outgoing = 0;
 	i->onholdPLCI = 0;
 #ifdef CAPI_SYNC
-	i->B3in = 0;
-	ast_mutex_init(&i->lockB3in);
+	i->B3q = 0;
+	ast_mutex_init(&i->lockB3q);
 #endif		
 	memset(i->txavg, 0, ECHO_TX_COUNT);
 
@@ -1362,7 +1356,6 @@ struct ast_channel *capi_request(char *type, int format, void *data)
 		i->controller = foundcontroller;
 		tmp = capi_new(i, AST_STATE_DOWN);
 		i->PLCI = 0;
-		i->datahandle = 0;
 		i->outgoing = 1;	/* this is an outgoing line */
 		i->earlyB3 = -1;
 		ast_mutex_unlock(&contrlock);
@@ -1481,7 +1474,7 @@ static int pipe_frame(struct capi_pipe *p, struct ast_frame *f)
 			return -1;
 		}
 		if (f->frametype == AST_FRAME_VOICE) {
-			written = write(p->fd,f->data,f->datalen);
+			written = write(p->fd, f->data, f->datalen);
 			if (written < f->datalen) {
 				ast_log(LOG_ERROR,"wrote %d bytes instead of %d\n",
 					written, f->datalen);
@@ -1894,15 +1887,18 @@ static void capi_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 {
 	_cmsg CMSG2;
 	struct ast_frame fr;
-	char b3buf[1024];
+	unsigned char *b3buf = NULL;
 	int b3len = 0;
 	int j;
 	int rxavg = 0;
 	int txavg = 0;
 
-	memcpy(&b3buf[AST_FRIENDLY_OFFSET], (char *)DATA_B3_IND_DATA(CMSG), DATA_B3_IND_DATALENGTH(CMSG));
 	b3len = DATA_B3_IND_DATALENGTH(CMSG);
-			
+	if ((p) && (p->i)) {
+		b3buf = &(p->i->rec_buffer[AST_FRIENDLY_OFFSET]);
+		memcpy(b3buf, (char *)DATA_B3_IND_DATA(CMSG), b3len);
+	}
+	
 	/* send a DATA_B3_RESP very quickly to free the buffer in capi */
 	DATA_B3_RESP_HEADER(&CMSG2, ast_capi_ApplID, CMSG->Messagenumber, 0);
 	DATA_B3_RESP_NCCI(&CMSG2) = NCCI;
@@ -1911,39 +1907,31 @@ static void capi_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 
 	return_on_no_pipe("DATA_B3_IND");
 	
-#ifdef CAPI_SYNC
-	ast_mutex_lock(&p->i->lockB3in);
-	p->i->B3in++;
-	if (p->i->B3in > AST_CAPI_MAX_B3_BLOCKS)
-		p->i->B3in = AST_CAPI_MAX_B3_BLOCKS;
-	ast_mutex_unlock(&p->i->lockB3in);
-#endif
-
 	if (p->i->fFax) {
 		/* we are in fax-receive and have a file open */
 		cc_ast_verbose(6, 1, VERBOSE_PREFIX_3 "DATA_B3_IND (len=%d) Fax\n",
 			b3len);
-		if (fwrite((char *)&b3buf[AST_FRIENDLY_OFFSET], 1, b3len, p->i->fFax) != b3len)
+		if (fwrite(b3buf, 1, b3len, p->i->fFax) != b3len)
 			ast_log(LOG_WARNING, "capiAnswerFax : error writing output file (%s)\n", strerror(errno));
 		return;
 	}
 	    
 	if ((p->i->doES == 1)) {
 		for (j = 0; j < b3len; j++) {
-			b3buf[AST_FRIENDLY_OFFSET + j] = reversebits[(unsigned char)b3buf[AST_FRIENDLY_OFFSET + j]]; 
-			rxavg += abs(capiXLAW2INT( reversebits[(unsigned char)b3buf[AST_FRIENDLY_OFFSET + j]]));
+			*(b3buf + j) = reversebits[*(b3buf + j)]; 
+			rxavg += abs(capiXLAW2INT( reversebits[*(b3buf + j)]));
 		}
 		rxavg = rxavg / j;
-		for(j = 0; j < ECHO_EFFECTIVE_TX_COUNT; j++) {
+		for (j = 0; j < ECHO_EFFECTIVE_TX_COUNT; j++) {
 			txavg += p->i->txavg[j];
 		}
 		txavg = txavg / j;
 			    
 		if ( (txavg / ECHO_TXRX_RATIO) > rxavg) { 
 #ifdef CAPI_ULAW
-			memset(&b3buf[AST_FRIENDLY_OFFSET], 255, b3len);
+			memset(b3buf, 255, b3len);
 #else
-			memset(&b3buf[AST_FRIENDLY_OFFSET], 84, b3len);
+			memset(b3buf, 84, b3len);
 #endif
 			if (capidebug) {
 				ast_log(LOG_NOTICE, "SUPPRESSING ECHO rx=%d, tx=%d\n",
@@ -1952,7 +1940,7 @@ static void capi_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 		}
 	} else {
 		for (j = 0; j < b3len; j++) {
-			b3buf[AST_FRIENDLY_OFFSET + j] = reversebits[p->i->g.rxgains[(unsigned char)b3buf[AST_FRIENDLY_OFFSET + j]]]; 
+			*(b3buf + j) = reversebits[p->i->g.rxgains[*(b3buf + j)]]; 
 		}
 	}
 
@@ -1965,7 +1953,7 @@ static void capi_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 			    
 	fr.frametype = AST_FRAME_VOICE;
 	fr.subclass = capi_capability;
-	fr.data = (char *)&b3buf[AST_FRIENDLY_OFFSET];
+	fr.data = b3buf;
 	fr.datalen = b3len;
 	fr.samples = b3len;
 	fr.offset = AST_FRIENDLY_OFFSET;
@@ -1976,8 +1964,8 @@ static void capi_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 #endif
 	fr.src = NULL;
 	cc_ast_verbose(8, 1, VERBOSE_PREFIX_3 "DATA_B3_IND (len=%d) fr.datalen=%d fr.subclass=%d\n",
-		(int)DATA_B3_IND_DATALENGTH(CMSG), fr.datalen, fr.subclass);
-	pipe_frame(p, (struct ast_frame *)&fr);
+		b3len, fr.datalen, fr.subclass);
+	pipe_frame(p, &fr);
 }
 
 /*
@@ -2331,7 +2319,7 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 			p->PLCI = PLCI;
 			p->i = i;
 
-			ast_pthread_mutex_init(&(p->lock),NULL);
+			ast_pthread_mutex_init(&(p->lock), NULL);
 			i->mypipe = p;
 
 			if (i->isdnmode == AST_CAPI_ISDNMODE_PTP) {
@@ -2509,14 +2497,14 @@ static void capi_handle_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned in
 				p->c->rings = 1;
 			}
 		} else {
-			ast_log(LOG_ERROR, "CAPI: ALERT conf_error 0x%x Command.Subcommand = %#x.%#x\n",
-				CMSG->Info, CMSG->Command, CMSG->Subcommand);
+			ast_log(LOG_ERROR, "CAPI: ALERT conf_error 0x%x PLCI=0x%x Command.Subcommand = %#x.%#x\n",
+				CMSG->Info, PLCI, CMSG->Command, CMSG->Subcommand);
 		}
 		break;	    
 	case CAPI_SELECT_B_PROTOCOL:
 		if (CMSG->Info) {
-			ast_log(LOG_ERROR, "CAPI: conf_error 0x%x Command.Subcommand = %#x.%#x\n",
-				CMSG->Info, CMSG->Command, CMSG->Subcommand);
+			ast_log(LOG_ERROR, "CAPI: conf_error 0x%x PLCI=0x%x Command.Subcommand = %#x.%#x\n",
+				CMSG->Info, PLCI, CMSG->Command, CMSG->Subcommand);
 		} else {
 			if (p->i->FaxState) {
 				capi_echo_canceller(p->c, EC_FUNCTION_DISABLE);
@@ -2524,14 +2512,26 @@ static void capi_handle_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned in
 			}
 		}
 		break;
+	case CAPI_DATA_B3:
+		if (CMSG->Info) {
+			ast_log(LOG_ERROR, "CAPI: conf_error 0x%x PLCI=0x%x Command.Subcommand = %#x.%#x\n",
+				CMSG->Info, PLCI, CMSG->Command, CMSG->Subcommand);
+		}
+		if (p) {
+			ast_mutex_lock(&p->i->lockB3q);
+			if (p->i->B3q > 0) {
+				p->i->B3q--;
+			}
+			ast_mutex_unlock(&p->i->lockB3q);
+		}
+		break;
 	case CAPI_DISCONNECT:
 	case CAPI_DISCONNECT_B3:
 	case CAPI_LISTEN:
 	case CAPI_INFO:
-	case CAPI_DATA_B3:
 		if (CMSG->Info) {
-			ast_log(LOG_ERROR, "CAPI: conf_error 0x%x Command.Subcommand = %#x.%#x\n",
-				CMSG->Info, CMSG->Command, CMSG->Subcommand);
+			ast_log(LOG_ERROR, "CAPI: conf_error 0x%x PLCI=0x%x Command.Subcommand = %#x.%#x\n",
+				CMSG->Info, PLCI, CMSG->Command, CMSG->Subcommand);
 		}
 		break;
 	default:
@@ -2733,6 +2733,8 @@ int mkif(char *incomingmsn, char *context, char *controllerstr, int devices,
 		tmp->callgroup = callgroup;
 		tmp->group = group;
 		
+		tmp->smoother = ast_smoother_new(AST_CAPI_MAX_B3_BLOCK_SIZE);
+
 		tmp->rxgain = rxgain;
 		tmp->txgain = txgain;
 		capi_gains(&tmp->g, rxgain, txgain);
