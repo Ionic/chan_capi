@@ -52,7 +52,7 @@
 #include "chan_capi_app.h"
 #include "chan_capi_pvt.h"
 
-#define CC_VERSION "cm-0.5.1"
+#define CC_VERSION "cm-0.6dev"
 
 #ifdef CAPI_ULAW
 #define LAW_STRING "uLaw"
@@ -1110,24 +1110,59 @@ static int capi_fixup(struct ast_channel *oldchan, struct ast_channel *newchan)
  */
 static int capi_indicate(struct ast_channel *c, int condition)
 {
-	cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "Requested indication %d for %s\n",
-		condition, c->name);
-	
+	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
+	_cmsg CMSG;
+	int ret = -1;
+
+	if (i == NULL) {
+		return -1;
+	}
+
 	switch (condition) {
 	case AST_CONTROL_RINGING:
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "Requested RINGING-Indication for %s\n",
+			c->name);
 		break;
 	case AST_CONTROL_BUSY:
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "Requested BUSY-Indication for %s\n",
+			c->name);
+		if (c->_state == AST_STATE_RING) {
+			CONNECT_RESP_HEADER(&CMSG, ast_capi_ApplID, i->MessageNumber, 0);
+			CONNECT_RESP_PLCI(&CMSG) = i->PLCI;
+			CONNECT_RESP_REJECT(&CMSG) = 3;
+			_capi_put_cmsg(&CMSG);
+			ret = 0;
+		}
 		break;
 	case AST_CONTROL_CONGESTION:
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "Requested CONGESTION-Indication for %s\n",
+			c->name);
+		if (c->_state == AST_STATE_RING) {
+			CONNECT_RESP_HEADER(&CMSG, ast_capi_ApplID, i->MessageNumber, 0);
+			CONNECT_RESP_PLCI(&CMSG) = i->PLCI;
+			CONNECT_RESP_REJECT(&CMSG) = 4;
+			_capi_put_cmsg(&CMSG);
+			ret = 0;
+		}
 		break;
 	case AST_CONTROL_PROGRESS:
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "Requested PROGRESS-Indication for %s\n",
+			c->name);
 		break;
 	case AST_CONTROL_PROCEEDING:
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "Requested PROCEEDING-Indication for %s\n",
+			c->name);
 		break;
 	case -1: /* stop indications */
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "Requested Indication-STOP for %s\n",
+			c->name);
+		break;
+	default:
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "Requested unknown Indication %d for %s\n",
+			condition, c->name);
 		break;
 	}
-	return -1;
+	return(ret);
 }
 
 /*
