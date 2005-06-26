@@ -74,7 +74,7 @@ This chan_capi version includes:
   Or:             Dial(CAPI/contr<controller>/[b|B]<destination>)
  
   CLIP/CLIR now uses the calling presentation of the calling channel, which can
-  be modified using the CallingPres() application. Use CallinPres(32) for CLIR.
+  be modified using the CallingPres() application. Use CallingPres(32) for CLIR.
   That is why the msn= param in capi.conf is now obsolete. The callerID is also
   taken from the calling channel.
 

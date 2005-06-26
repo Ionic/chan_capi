@@ -52,7 +52,7 @@
 #include "chan_capi_app.h"
 #include "chan_capi_pvt.h"
 
-#define CC_VERSION "cm-0.6dev"
+#define CC_VERSION "cm-0.5.2"
 
 #ifdef CAPI_ULAW
 #define LAW_STRING "uLaw"
@@ -633,12 +633,16 @@ static void capi_activehangup(struct ast_channel *c)
 {
 	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
 	_cmsg CMSG;
+	int state;
 
 	cc_ast_verbose(2, 1, VERBOSE_PREFIX_4 "activehangingup\n");
 
 	if (i == NULL) {
 		return;
 	}
+
+	state = i->state;
+	i->state = CAPI_STATE_DISCONNECTING; 
 
 	if (c->_state == AST_STATE_RING) {
 		CONNECT_RESP_HEADER(&CMSG, ast_capi_ApplID, i->MessageNumber, 0);
@@ -649,14 +653,14 @@ static void capi_activehangup(struct ast_channel *c)
 	}
 
 	/* active disconnect */
-	if (i->state == CAPI_STATE_BCONNECTED) {
+	if (state == CAPI_STATE_BCONNECTED) {
 		DISCONNECT_B3_REQ_HEADER(&CMSG, ast_capi_ApplID, get_ast_capi_MessageNumber(), 0);
 		DISCONNECT_B3_REQ_NCCI(&CMSG) = i->NCCI;
 		_capi_put_cmsg(&CMSG);
 		return;
 	}
 	
-	if ((i->state == CAPI_STATE_CONNECTED) || (i->state == CAPI_STATE_CONNECTPENDING)) {
+	if ((state == CAPI_STATE_CONNECTED) || (state == CAPI_STATE_CONNECTPENDING)) {
 		DISCONNECT_REQ_HEADER(&CMSG, ast_capi_ApplID, get_ast_capi_MessageNumber(), 0);
 		DISCONNECT_REQ_PLCI(&CMSG) = i->PLCI;
 		_capi_put_cmsg(&CMSG);
@@ -683,12 +687,13 @@ static int capi_hangup(struct ast_channel *c)
 		ast_log(LOG_ERROR, "channel has no interface!\n");
 		return -1;
 	}
+   
+   	i->mypipe->c = NULL;
     
 	/* are we down, yet? */
 	if (i->state != CAPI_STATE_DISCONNECTED) {
 		/* no */
 		capi_activehangup(c);
-		i->state = CAPI_STATE_DISCONNECTING;
 	} else {
 		removepipe = 1;
 	}
@@ -1010,7 +1015,7 @@ struct ast_frame *capi_read(struct ast_channel *c)
 int capi_write(struct ast_channel *c, struct ast_frame *f)
 {
 	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
-	MESSAGE_EXCHANGE_ERROR error = 1;
+	MESSAGE_EXCHANGE_ERROR error;
 	_cmsg CMSG;
 	int j = 0;
 	unsigned char *buf;
@@ -1078,9 +1083,13 @@ int capi_write(struct ast_channel *c, struct ast_frame *f)
 				buf[j] = i->g.txgains[reversebits[((unsigned char *)fsmooth->data)[j]]]; 
 			}
 		}
-    
+   
+   		error = 1; 
 		if (i->B3q < AST_CAPI_MAX_B3_BLOCKS) {
 			error = _capi_put_cmsg(&CMSG);
+		} else {
+			ast_log(LOG_ERROR, "CAPI: send buffer full for %s (NCCI=%#x)\n",
+				c->name, i->NCCI);
 		}
 
 		if (!error) {
@@ -1489,7 +1498,7 @@ static int pipe_frame(struct capi_pipe *p, struct ast_frame *f)
 	
 	if ((f->frametype == AST_FRAME_VOICE) &&
 	    (p->i->doDTMF == 1) &&
-	    (p->i->vad != NULL)) {
+	    (p->i->vad != NULL) && (p->c != NULL)) {
 #ifdef CC_AST_DSP_PROCESS_NEEDLOCK 
 		f = ast_dsp_process(p->c, p->i->vad, f, 0);
 #else
@@ -2118,6 +2127,7 @@ static void capi_handle_disconnect_b3_indication(_cmsg *CMSG, unsigned int PLCI,
 	return_on_no_pipe("DISCONNECT_B3_IND");
 
 	p->i->reasonb3 = DISCONNECT_B3_IND_REASON_B3(CMSG);
+	p->i->NCCI = 0;
 
 	switch(p->i->state) {
 	case CAPI_STATE_BCONNECTED:
@@ -2358,7 +2368,7 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 			i->mypipe = p;
 
 			if (i->isdnmode == AST_CAPI_ISDNMODE_PTP) {
-				p->c = capi_new(i,AST_STATE_DOWN);
+				p->c = capi_new(i, AST_STATE_DOWN);
 				i->state = CAPI_STATE_DID;
 			} else {
 				p->c = capi_new(i, AST_STATE_RING);
@@ -2549,8 +2559,8 @@ static void capi_handle_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned in
 		break;
 	case CAPI_DATA_B3:
 		if (CMSG->Info) {
-			ast_log(LOG_ERROR, "CAPI: conf_error 0x%x PLCI=0x%x Command.Subcommand = %#x.%#x\n",
-				CMSG->Info, PLCI, CMSG->Command, CMSG->Subcommand);
+			ast_log(LOG_ERROR, "CAPI: DATA_B3 conf_error 0x%x NCCI=0x%x\n",
+				CMSG->Info, NCCI);
 		}
 		if (p) {
 			ast_mutex_lock(&p->i->lockB3q);
