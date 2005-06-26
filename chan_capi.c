@@ -52,7 +52,7 @@
 #include "chan_capi_app.h"
 #include "chan_capi_pvt.h"
 
-#define CC_VERSION "cm-0.5.2"
+#define CC_VERSION "cm-0.6dev"
 
 #ifdef CAPI_ULAW
 #define LAW_STRING "uLaw"
