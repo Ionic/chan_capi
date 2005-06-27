@@ -1240,10 +1240,8 @@ static struct ast_channel *capi_new(struct ast_capi_pvt *i, int state)
 	i->doB3 = AST_CAPI_B3_DONT;
 	i->outgoing = 0;
 	i->onholdPLCI = 0;
-#ifdef CAPI_SYNC
 	i->B3q = 0;
 	ast_mutex_init(&i->lockB3q);
-#endif		
 	memset(i->txavg, 0, ECHO_TX_COUNT);
 
 	if (i->doDTMF == 1) {
