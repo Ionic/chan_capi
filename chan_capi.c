@@ -52,7 +52,7 @@
 #include "chan_capi_app.h"
 #include "chan_capi_pvt.h"
 
-#define CC_VERSION "cm-0.6dev"
+#define CC_VERSION "cm-0.6dev2"
 
 #ifdef CAPI_ULAW
 #define LAW_STRING "uLaw"
@@ -1000,7 +1000,7 @@ struct ast_frame *capi_read(struct ast_channel *c)
 				if (ast_async_goto(c, c->context, "fax", 1))
 					ast_log(LOG_WARNING, "Failed to async goto '%s' into fax of '%s'\n", c->name, c->context);
 			} else {
-				ast_log(LOG_NOTICE, "Fax detected, but no fax extension\n");
+				cc_ast_verbose(3, 0, VERBOSE_PREFIX_3 "Fax detected, but no fax extension\n");
 			}
 		} else {
 			ast_log(LOG_DEBUG, "Already in a fax extension, not redirecting\n");
@@ -1435,7 +1435,7 @@ static void capi_handle_dtmf_fax(struct ast_channel *ast)
 	cid = ast->callerid;
 #endif
 	if (!ast_exists_extension(ast, ast->context, "fax", 1, cid)) {
-		ast_log(LOG_NOTICE, "Fax detected, but no fax extension\n");
+		cc_ast_verbose(3, 0, VERBOSE_PREFIX_3 "Fax tone detected, but no fax extension for %s\n", ast->name);
 		return;
 	}
 
