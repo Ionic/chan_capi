@@ -52,7 +52,7 @@
 #include "chan_capi_app.h"
 #include "chan_capi_pvt.h"
 
-#define CC_VERSION "cm-0.6dev2"
+#define CC_VERSION "cm-0.6dev3"
 
 #ifdef CAPI_ULAW
 #define LAW_STRING "uLaw"
@@ -70,6 +70,7 @@ static char *desc = "Common ISDN API for Asterisk";
 #ifdef CC_AST_HAVE_TECH_PVT
 static const char tdesc[] = "Common ISDN API Driver (" CC_VERSION ") " LAW_STRING " " ASTERISKVERSION;
 static const char type[] = "CAPI";
+static const struct ast_channel_tech capi_tech;
 #else
 static char *tdesc = "Common ISDN API Driver (" CC_VERSION ") " LAW_STRING " "ASTERISKVERSION;
 static char *type = "CAPI";
@@ -1249,15 +1250,27 @@ static struct ast_channel *capi_new(struct ast_capi_pvt *i, int state)
 		ast_dsp_set_features(i->vad, DSP_FEATURE_DTMF_DETECT);
 	}
 
+#ifndef CC_AST_HAVE_TECH_PVT
 	if (tmp->pvt == NULL) {
-		free(tmp);
+	    	ast_log(LOG_ERROR, "CAPI: pvt structure not allocated.\n");
+		ast_channel_free(tmp);
 		return NULL;
 	}
-
+#endif
 	CC_AST_CHANNEL_PVT(tmp) = i;
 
 	tmp->callgroup = i->callgroup;
-#ifndef CC_AST_HAVE_TECH_PVT
+	tmp->nativeformats = capi_capability;
+	fmt = ast_best_codec(tmp->nativeformats);
+	/* fmt = capi_capability; */
+	tmp->readformat = fmt;
+	tmp->writeformat = fmt;
+
+#ifdef CC_AST_HAVE_TECH_PVT
+	tmp->tech = &capi_tech;
+	tmp->rawreadformat = fmt;
+	tmp->rawwriteformat = fmt;
+#else
 	tmp->pvt->call = capi_call;
 	tmp->pvt->fixup = capi_fixup;
 	tmp->pvt->indicate = capi_indicate;
@@ -1267,16 +1280,6 @@ static struct ast_channel *capi_new(struct ast_capi_pvt *i, int state)
 	tmp->pvt->read = capi_read;
 	tmp->pvt->write = capi_write;
 	tmp->pvt->send_digit = capi_send_digit;
-#endif
-	tmp->nativeformats = capi_capability;
-	fmt = ast_best_codec(tmp->nativeformats);
-	/* fmt = capi_capability; */
-	tmp->readformat = fmt;
-	tmp->writeformat = fmt;
-#ifdef CC_AST_HAVE_TECH_PVT
-	tmp->rawreadformat = fmt;
-	tmp->rawwriteformat = fmt;
-#else
 	tmp->pvt->rawreadformat = fmt;
 	tmp->pvt->rawwriteformat = fmt;
 #endif
