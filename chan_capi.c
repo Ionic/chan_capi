@@ -52,7 +52,7 @@
 #include "chan_capi_app.h"
 #include "chan_capi_pvt.h"
 
-#define CC_VERSION "cm-0.6dev3"
+#define CC_VERSION "cm-0.6dev4"
 
 #ifdef CAPI_ULAW
 #define LAW_STRING "uLaw"
@@ -1086,16 +1086,18 @@ int capi_write(struct ast_channel *c, struct ast_frame *f)
 		}
    
    		error = 1; 
-		if (i->B3q < AST_CAPI_MAX_B3_BLOCKS) {
+		if (i->B3q > 0) {
 			error = _capi_put_cmsg(&CMSG);
 		} else {
-			ast_log(LOG_ERROR, "CAPI: send buffer full for %s (NCCI=%#x)\n",
-				c->name, i->NCCI);
+			cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "Too much voice to send for NCCI=%#x\n",
+				i->NCCI);
 		}
 
 		if (!error) {
 			ast_mutex_lock(&i->lockB3q);
-			i->B3q++;
+			i->B3q -= fsmooth->datalen;
+			if (i->B3q < 0)
+				i->B3q = 0;
 			ast_mutex_unlock(&i->lockB3q);
 		}
 
@@ -1961,6 +1963,12 @@ static void capi_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 		return;
 	}
 	    
+	ast_mutex_lock(&p->i->lockB3q);
+	if (p->i->B3q < 500) {
+		p->i->B3q += b3len;
+	}
+	ast_mutex_unlock(&p->i->lockB3q);
+
 	if ((p->i->doES == 1)) {
 		for (j = 0; j < b3len; j++) {
 			*(b3buf + j) = reversebits[*(b3buf + j)]; 
@@ -2562,13 +2570,6 @@ static void capi_handle_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned in
 		if (CMSG->Info) {
 			ast_log(LOG_ERROR, "CAPI: DATA_B3 conf_error 0x%x NCCI=0x%x\n",
 				CMSG->Info, NCCI);
-		}
-		if (p) {
-			ast_mutex_lock(&p->i->lockB3q);
-			if (p->i->B3q > 0) {
-				p->i->B3q--;
-			}
-			ast_mutex_unlock(&p->i->lockB3q);
 		}
 		break;
 	case CAPI_DISCONNECT:
