@@ -2252,8 +2252,8 @@ static void capi_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI, un
 		 * in this case * did not read our hangup control frame
 		 * so we must hangup the channel!
 		 */
-		if ( (p->i->state != CAPI_STATE_DISCONNECTED) && (p->i->state != CAPI_STATE_DISCONNECTING) &&
-		     (ast_check_hangup(p->c) == 0)) {
+		if ( (p->c) && (p->i->state != CAPI_STATE_DISCONNECTED) &&
+		     (p->i->state != CAPI_STATE_DISCONNECTING) && (ast_check_hangup(p->c) == 0)) {
 			cc_ast_verbose(1, 0, VERBOSE_PREFIX_3 "soft hangup by capi\n");
 			ast_softhangup(p->c, AST_SOFTHANGUP_DEV);
 		} else {
