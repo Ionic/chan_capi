@@ -1661,8 +1661,10 @@ static void handle_did_digits(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI,
 	case -1:
 	default:
 		/* doesn't match */
-		ast_log(LOG_ERROR, "did not find device for msn = %s\n",
-			p->i->dnid);
+		if (capidebug) {
+			ast_log(LOG_ERROR, "did not find device for msn = %s\n",
+				p->i->dnid);
+		}
 		CONNECT_RESP_HEADER(&CMSG2, ast_capi_ApplID, CMSG->Messagenumber, 0);
 		CONNECT_RESP_PLCI(&CMSG2) = PLCI;
 		CONNECT_RESP_REJECT(&CMSG2) = 1; /* ignore */
