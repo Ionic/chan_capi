@@ -1350,7 +1350,7 @@ struct ast_channel *capi_request(char *type, int format, void *data)
 
 	if (((char *)interface)[0] == 'g') {
 		interface++;
-		capigroup = atoi(interface);
+		capigroup = ast_get_group(interface);
 		cc_ast_verbose(1, 1, VERBOSE_PREFIX_3 "capi request group = %d\n",
 				capigroup);
 	} else if (!strncmp(interface, "contr", 5)) {
@@ -1382,7 +1382,7 @@ struct ast_channel *capi_request(char *type, int format, void *data)
 			foundcontroller = controller;
 		} else {
 			/* DIAL(CAPI/gX/...) */
-			if (!(i->group & (1 << capigroup))) {
+			if (!(i->group & capigroup)) {
 				/* keep on running! */
 				ast_mutex_unlock(&contrlock);
 				continue;

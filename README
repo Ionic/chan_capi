@@ -72,7 +72,11 @@ This chan_capi version includes:
  
   Now it is:      Dial(CAPI/g<group>/[b|B]<destination>)
   Or:             Dial(CAPI/contr<controller>/[b|B]<destination>)
- 
+
+  'group' can be a value, comma separated list of values or a range
+  using '-'. The according interface is found by searching a match with
+  the 'group' specified in the capi.conf for each interface.
+
   CLIP/CLIR now uses the calling presentation of the calling channel, which can
   be modified using the CallingPres() application. Use CallingPres(32) for CLIR.
   That is why the msn= param in capi.conf is now obsolete. The callerID is also
