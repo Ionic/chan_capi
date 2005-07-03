@@ -3286,7 +3286,7 @@ int load_module(void)
 					controller, ALL_SERVICES);
 			}
 		} else {
-			ast_log(LOG_WARNING,"Unused contr%d\n",controller);
+			ast_log(LOG_NOTICE, "Unused contr%d\n",controller);
 		}
 	}
 
