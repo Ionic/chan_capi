@@ -156,7 +156,7 @@ MESSAGE_EXCHANGE_ERROR _capi_put_cmsg(_cmsg *CMSG)
 
 	if (error) {
 		ast_log(LOG_ERROR, "CAPI error sending %s (NCCI=%#x) (error=%#x)\n",
-			capi_cmsg2str(CMSG), CMSG->adr.adrNCCI, error);
+			capi_cmsg2str(CMSG), (unsigned int)CMSG->adr.adrNCCI, error);
 	} else {
 		if (CMSG->Command == CAPI_DATA_B3) {
 			cc_ast_verbose(7, 1, "%s\n", capi_cmsg2str(CMSG));
