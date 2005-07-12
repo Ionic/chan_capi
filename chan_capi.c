@@ -1226,7 +1226,6 @@ static struct ast_channel *capi_new(struct ast_capi_pvt *i, int state)
 	i->fd = fds[0];
 	i->fd2 = fds[1];
 	
-	ast_setstate(tmp, state);
 	tmp->fds[0] = i->fd;
 	if (i->smoother != NULL) {
 		ast_smoother_reset(i->smoother, AST_CAPI_MAX_B3_BLOCK_SIZE);
@@ -1306,6 +1305,9 @@ static struct ast_channel *capi_new(struct ast_capi_pvt *i, int state)
 	usecnt++;
 	ast_mutex_unlock(&usecnt_lock);
 	ast_update_use_count();
+	
+	ast_setstate(tmp, state);
+
 	if (state != AST_STATE_DOWN) {
 		/* we are alerting (phones ringing) */
 		if (state == AST_STATE_RING)
@@ -1639,7 +1641,7 @@ static void handle_did_digits(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI,
 		strncat(p->i->dnid, did, sizeof(p->i->dnid) - 1);
 	}
 				
-	snprintf(name, sizeof(name), "CAPI/contr%d/%s/-%d",
+	snprintf(name, sizeof(name), "CAPI/contr%d/%s-%d",
 		p->i->controller, p->i->dnid, capi_counter++);
 	ast_change_name(p->c, name);
 				
@@ -1746,7 +1748,6 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 {
 	_cmsg CMSG2;
 	struct ast_frame fr;
-	int handled = 0;
 
 	memset(&CMSG2,0,sizeof(_cmsg));
 	INFO_RESP_HEADER(&CMSG2, ast_capi_ApplID, CMSG->Messagenumber, PLCI);
@@ -1755,39 +1756,18 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 	return_on_no_pipe("INFO_IND");
 
 	switch(INFO_IND_INFONUMBER(CMSG)) {
-	case 0x8045:	/* DISCONNECT */
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "info element DISCONNECT\n");
-		handle_info_disconnect(CMSG, PLCI, NCCI, p);
-		handled = 1;
+	case 0x0008:	/* Cause */
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "info element CAUSE %02x %02x\n",
+			INFO_IND_INFOELEMENT(CMSG)[1], INFO_IND_INFOELEMENT(CMSG)[2]);
+		break;
+	case 0x0018:	/* Channel Identifikation */
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "info element CHANNEL IDENTIFIKATION %02x\n",
+			INFO_IND_INFOELEMENT(CMSG)[1]);
 		break;
 	case 0x001e:	/* Progress Indicator */
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "info element PI %02x %02x\n",
 			INFO_IND_INFOELEMENT(CMSG)[1], INFO_IND_INFOELEMENT(CMSG)[2]);
 		handle_progress_indicator(CMSG, PLCI, p);
-		handled = 1;
-		break;
-	case 0x0070:	/* Called Party Number */
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "info element CALLED PARTY NUMBER\n");
-		handle_did_digits(CMSG, PLCI, NCCI, p);
-		handled = 1;
-		break;
-	case 0x0074:	/* Redirecting Number */
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "info element REDIRECTING NUMBER\n");
-		/*
-		strncpy(p->i->owner->exten, capi_number(INFO_IND_INFOELEMENT(CMSG), 3),
-			sizeof(p->i->owner->exten) - 1);
-		*/
-		handled = 1;
-		break;
-	case 0x0008:	/* Cause */
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "info element CAUSE %02x %02x\n",
-			INFO_IND_INFOELEMENT(CMSG)[1], INFO_IND_INFOELEMENT(CMSG)[2]);
-		handled = 1;
-		break;
-	case 0x0018:	/* Channel Identifikation */
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "info element CHANNEL IDENTIFIKATION %02x\n",
-			INFO_IND_INFOELEMENT(CMSG)[1]);
-		handled = 1;
 		break;
 	case 0x0028:	/* DSP */
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "info element DSP\n");
@@ -1797,56 +1777,65 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 		ast_queue_frame(p->i->owner, &ft);
 		ast_log(LOG_NOTICE,"%s\n",capi_number(INFO_IND_INFOELEMENT(CMSG),0));
 		#endif
-		handled = 1;
 		break;
 	case 0x0029:	/* Date/Time */
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "info element Date/Time %02d/%02d/%02d %02d:%02d\n",
 			INFO_IND_INFOELEMENT(CMSG)[1], INFO_IND_INFOELEMENT(CMSG)[2],
 			INFO_IND_INFOELEMENT(CMSG)[3], INFO_IND_INFOELEMENT(CMSG)[4],
 			INFO_IND_INFOELEMENT(CMSG)[5]);
-		handled = 1;
 		break;
-	case 0x8005:	/* SETUP */
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "info element SETUP\n");
-		handled = 1;
+	case 0x0070:	/* Called Party Number */
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "info element CALLED PARTY NUMBER\n");
+		handle_did_digits(CMSG, PLCI, NCCI, p);
 		break;
-	case 0x8007:	/* CONNECT */
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "info element CONNECT\n");
-		handled = 1;
-		break;
-	case 0x800f:	/* CONNECT ACK */
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "info element CONNECT ACK\n");
-		handled = 1;
-		break;
-	case 0x800d:	/* SETUP ACK */
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "info element SETUP ACK\n");
-		fr.frametype = AST_FRAME_CONTROL;
-		fr.subclass = AST_CONTROL_PROGRESS;
-		pipe_frame(p, (struct ast_frame *)&fr);
-		handled = 1;
+	case 0x0074:	/* Redirecting Number */
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "info element REDIRECTING NUMBER\n");
+		/*
+		strncpy(p->i->owner->exten, capi_number(INFO_IND_INFOELEMENT(CMSG), 3),
+			sizeof(p->i->owner->exten) - 1);
+		*/
 		break;
 	case 0x8001:	/* ALERTING */
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "info element ALERTING\n");
 		fr.frametype = AST_FRAME_CONTROL;
 		fr.subclass = AST_CONTROL_RINGING;
 		pipe_frame(p, (struct ast_frame *)&fr);
-		handled = 1;
 		break;
-	case 0x805a:	/* RELEASE COMPLETE */
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "info element RELEASE COMPLETE\n");
-		handled = 1;
+	case 0x8002:	/* CALL PROCEEDING */
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "info element CALL PROCEEDING\n");
+		break;
+	case 0x8003:	/* PROGRESS */
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "info element PROGRESS\n");
+		break;
+	case 0x8005:	/* SETUP */
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "info element SETUP\n");
+		break;
+	case 0x8007:	/* CONNECT */
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "info element CONNECT\n");
+		break;
+	case 0x800d:	/* SETUP ACK */
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "info element SETUP ACK\n");
+		fr.frametype = AST_FRAME_CONTROL;
+		fr.subclass = AST_CONTROL_PROGRESS;
+		pipe_frame(p, (struct ast_frame *)&fr);
+		break;
+	case 0x800f:	/* CONNECT ACK */
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "info element CONNECT ACK\n");
+		break;
+	case 0x8045:	/* DISCONNECT */
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "info element DISCONNECT\n");
+		handle_info_disconnect(CMSG, PLCI, NCCI, p);
 		break;
 	case 0x804d:	/* RELEASE */
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "info element RELEASE\n");
-		handled = 1;
+		break;
+	case 0x805a:	/* RELEASE COMPLETE */
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "info element RELEASE COMPLETE\n");
 		break;
 	default:
-		/* */
-		break;
-	}
-	if (!handled) {
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "CAPI: unhandled INFO_IND %#x (PLCI=%#x)\n",
 			INFO_IND_INFONUMBER(CMSG), PLCI);
+		break;
 	}
 }
 
@@ -2105,6 +2094,12 @@ static void capi_handle_connect_b3_active_indication(_cmsg *CMSG, unsigned int P
 		capi_controllers[p->i->controller]->nfreebchannels--;
 	}
 	ast_mutex_unlock(&contrlock);
+
+	if (p->i->state == CAPI_STATE_DISCONNECTING) {
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "CONNECT_B3_ACTIVE_IND during disconnect for NCCI %#x\n",
+			NCCI);
+		return;
+	}
 
 	p->i->state = CAPI_STATE_BCONNECTED;
 
