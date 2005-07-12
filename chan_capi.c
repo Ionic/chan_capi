@@ -1355,6 +1355,11 @@ struct ast_channel *capi_request(char *type, int format, void *data)
 	interface = strtok_r(buffer, "/", &buffer_rp);
 	dest = strtok_r(NULL, "/", &buffer_rp);
 
+	if ((!interface) || (!dest)) {
+		ast_log(LOG_ERROR,"Syntax error in dialstring. Read the docs!\n");
+		return NULL;
+	}
+
 	if (((char *)interface)[0] == 'g') {
 		interface++;
 		capigroup = ast_get_group(interface);
@@ -1366,7 +1371,7 @@ struct ast_channel *capi_request(char *type, int format, void *data)
 		cc_ast_verbose(1, 1, VERBOSE_PREFIX_3 "capi request controller = %d\n",
 				controller);
 	} else {
-		ast_log(LOG_ERROR,"Syntax error in dialstring. read the docs!\n");
+		ast_log(LOG_ERROR,"Syntax error in dialstring. Read the docs!\n");
 		return NULL;
  	}
 
