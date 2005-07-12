@@ -1287,10 +1287,15 @@ static struct ast_channel *capi_new(struct ast_capi_pvt *i, int state)
 #endif
 	strncpy(tmp->context, i->context, sizeof(tmp->context) - 1);
 #ifdef CC_AST_CHANNEL_HAS_CID
-	tmp->cid.cid_num = strdup(i->cid);
-	tmp->cid.cid_dnid = strdup(i->dnid);
+	if (!ast_strlen_zero(i->cid))
+		tmp->cid.cid_num = strdup(i->cid);
+	if (!ast_strlen_zero(i->dnid))
+		tmp->cid.cid_dnid = strdup(i->dnid);
 #else
-	tmp->callerid = strdup(i->cid);
+	if (!ast_strlen_zero(i->cid))
+		tmp->callerid = strdup(i->cid);
+	if (!ast_strlen_zero(i->dnid))
+		tmp->dnid = strdup(i->dnid);
 #endif
 	
 #ifdef CC_AST_CHANNEL_HAS_TRANSFERCAP
