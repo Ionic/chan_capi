@@ -762,6 +762,7 @@ int capi_call(struct ast_channel *c, char *idest, int timeout)
 	char *buffer_rp = buffer_r;
 	char called[AST_MAX_EXTENSION], calling[AST_MAX_EXTENSION];
 	char bchaninfo[3];
+	int CLIR;
 	
 	_cmsg CMSG;
 	MESSAGE_EXCHANGE_ERROR  error;
@@ -792,30 +793,14 @@ int capi_call(struct ast_channel *c, char *idest, int timeout)
 		i->doB3 = AST_CAPI_B3_DONT;
 	}
 
-	cc_ast_verbose(1, 1, VERBOSE_PREFIX_2 "CAPI Call %s %s\n", c->name, i->doB3?"with B3":"");
-    
 #ifdef CC_AST_CHANNEL_HAS_CID
-	switch (c->cid.cid_pres) {
+	CLIR = c->cid.cid_pres;
 #else    
-	switch (c->callingpres) {
+	CLIR = c->callingpres;
 #endif
-	case PRES_ALLOWED_USER_NUMBER_NOT_SCREENED:
-	case PRES_ALLOWED_USER_NUMBER_PASSED_SCREEN:
-	case PRES_ALLOWED_USER_NUMBER_FAILED_SCREEN:
-	case PRES_ALLOWED_NETWORK_NUMBER:
-	case PRES_NUMBER_NOT_AVAILABLE:
-		i->CLIR = 0;
-		break;
-	case PRES_PROHIB_USER_NUMBER_NOT_SCREENED:
-	case PRES_PROHIB_USER_NUMBER_PASSED_SCREEN:
-	case PRES_PROHIB_USER_NUMBER_FAILED_SCREEN:
-	case PRES_PROHIB_NETWORK_NUMBER:
-		i->CLIR = 1;
-		break;
-	default:
-		i->CLIR = 0;
-	}
-
+	cc_ast_verbose(1, 1, VERBOSE_PREFIX_2 "CAPI Call %s %s (pres=0x%02x)\n",
+		c->name, i->doB3 ? "with B3":"", CLIR);
+    
 	p = malloc(sizeof(struct capi_pipe));
 	if (!p) {
 		ast_log(LOG_ERROR, "Error allocating capi_pipe.\n");
@@ -858,11 +843,7 @@ int capi_call(struct ast_channel *c, char *idest, int timeout)
 #endif
 
 	calling[1] = 0x00;
-	if (i->CLIR == 1) {
-		calling[2] = 0xA0; /* CLIR */
-	} else {
-		calling[2] = 0x80; /* CLIP */
-	}
+	calling[2] = 0x80 | (CLIR & 0x63);
 #ifdef CC_AST_CHANNEL_HAS_CID
 	strncpy(&calling[3], c->cid.cid_num, sizeof(calling) - 3);
 #else
@@ -1237,7 +1218,6 @@ static struct ast_channel *capi_new(struct ast_capi_pvt *i, int state)
 	i->fr.delivery.tv_usec = 0;
 #endif
 	i->state = CAPI_STATE_DISCONNECTED;
-	i->CLIR = 0;
 	i->calledPartyIsISDN = 1;
 	i->earlyB3 = -1;
 	i->doB3 = AST_CAPI_B3_DONT;
@@ -2796,7 +2776,6 @@ int mkif(char *incomingmsn, char *context, char *controllerstr, int devices,
 		tmp->controllers = contrmap;
 		capi_used_controllers |= contrmap;
 		tmp->controller = 0;
-		tmp->CLIR = 0;
 		tmp->earlyB3 = -1;
 		tmp->onholdPLCI = 0;
 		tmp->doEC = echocancel;
@@ -3015,31 +2994,6 @@ static struct ast_cli_entry  cli_debug =
 	{ { "capi", "debug", NULL }, capi_do_debug, "Enable CAPI debugging", debug_usage };
 static struct ast_cli_entry  cli_no_debug =
 	{ { "capi", "no", "debug", NULL }, capi_no_debug, "Disable CAPI debugging", no_debug_usage };
-
-/*
- * calling pres
- */
-static char *synopsis_callingpres = "Change the presentation for the callerid";
-static char *descrip_callingpres = "Callingpres(number): Changes the presentation for the callerid. Should be called before placing an outgoing call\n";
-static char *app_callingpres = "CallingPres";
-
-static int change_callingpres(struct ast_channel *chan, void *data)
-{
-	int mode = 0;
-	
-	if (data) {
-		mode = atoi((char *)data);
-#ifdef CC_AST_CHANNEL_HAS_CID 
-		chan->cid.cid_pres = mode;
-#else
-		chan->callingpres = mode;
-#endif
-	} else {
-		ast_log(LOG_NOTICE, "Application %s requres an argument: %s(number)\n",
-			app_callingpres, app_callingpres);
-	}
-	return 0;
-}
 
 #ifdef CC_AST_HAVE_TECH_PVT
 static const struct ast_channel_tech capi_tech = {
@@ -3330,8 +3284,6 @@ int load_module(void)
 	ast_cli_register(&cli_debug);
 	ast_cli_register(&cli_no_debug);
 	
-	ast_register_application(app_callingpres, change_callingpres, synopsis_callingpres, descrip_callingpres);
-
 	restart_monitor();
 
 	return res;
@@ -3345,8 +3297,6 @@ int unload_module()
 	if (capi20_release(ast_capi_ApplID) != 0)
 		ast_log(LOG_WARNING,"Unable to unregister from CAPI!\n");
 
-	ast_unregister_application(app_callingpres);
-	
 #ifdef CC_AST_HAVE_TECH_PVT
 	ast_channel_unregister(&capi_tech);
 #else

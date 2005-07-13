@@ -170,8 +170,6 @@ struct ast_capi_pvt {
 	int calledPartyIsISDN;
 	/* this is an outgoing channel */
 	int outgoing;
-	/* use CLIR */
-	int CLIR;
 	/* are we doing early B3 connect on this interface? */
 	int earlyB3;
 	/* should we do early B3 on this interface? */

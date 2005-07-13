@@ -113,9 +113,10 @@ app_capiECT.c
 
 Using CLIR
 ==========
-Use the CallingPres() application before you dial:
-	exten => _X.,1,CallingPres(32)
-	exten => _X.,2,Dial(CAPI/contr1/${EXTEN})    
+Use the SetCallerPres() application before you dial:
+	exten => _X.,1,SetCallerPres(prohib_not_screened)
+	exten => _X.,2,Dial(CAPI/contr1/${EXTEN})
+
 
 Enjoying early B3 connects (inband call progress, tones and announcements)
 ==========================================================================
