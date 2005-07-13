@@ -2553,9 +2553,11 @@ static void capi_handle_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned in
 		if (!p)
 			break;
 		if (ALERT_CONF_INFO(CMSG) == 0) {
-			p->i->state = CAPI_STATE_ALERTING;
-			if (p->c->_state == AST_STATE_RING) {
-				p->c->rings = 1;
+			if (p->i->state != CAPI_STATE_DISCONNECTING) {
+				p->i->state = CAPI_STATE_ALERTING;
+				if ((p->c) && (p->c->_state == AST_STATE_RING)) {
+					p->c->rings = 1;
+				}
 			}
 		} else {
 			ast_log(LOG_ERROR, "CAPI: ALERT conf_error 0x%x PLCI=0x%x Command.Subcommand = %#x.%#x\n",
