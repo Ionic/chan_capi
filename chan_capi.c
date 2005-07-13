@@ -1685,12 +1685,35 @@ static void handle_did_digits(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI,
 }
 
 /*
+ * send control according to cause code
+ */
+static void pipe_cause_control(struct capi_pipe *p, int control)
+{
+	struct ast_frame fr;
+	
+	fr.frametype = AST_FRAME_NULL;
+	fr.datalen = 0;
+
+	if ((p->c) && (control)) {
+		int cause = p->c->hangupcause;
+		if (cause == 34) {
+			fr.frametype = AST_FRAME_CONTROL;
+			fr.subclass = AST_CONTROL_CONGESTION;
+		} else if ((cause != 18) && (cause != 19)) {
+			/* not NOANSWER */
+			fr.frametype = AST_FRAME_CONTROL;
+			fr.subclass = AST_CONTROL_BUSY;
+		}
+	}
+	pipe_frame(p, &fr);
+}
+
+/*
  * Disconnect via INFO_IND
  */
 static void handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pipe *p)
 {
 	_cmsg CMSG2;
-	struct ast_frame fr;
 
 	if (PLCI == p->i->onholdPLCI) {
 		cc_ast_verbose(4, 1, VERBOSE_PREFIX_1 "Disconnect onhold call\n");
@@ -1707,9 +1730,7 @@ static void handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsigned int 
 	if ((p->i->doB3 != AST_CAPI_B3_ALWAYS) && (p->i->outgoing == 1)) {
 		cc_ast_verbose(4, 1, VERBOSE_PREFIX_1 "Disconnect case 1\n");
 		p->i->earlyB3 = 0; /* !!! */
-		fr.frametype = AST_FRAME_NULL;
-		fr.datalen = 0;
-		pipe_frame(p, (struct ast_frame *)&fr);
+		pipe_cause_control(p, 1);
 		return;
 	}
 	
@@ -1717,9 +1738,7 @@ static void handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsigned int 
 	if ((p->i->doB3 != AST_CAPI_B3_DONT) &&
 	    (p->i->earlyB3 == 0) && (p->i->outgoing == 1)) {
 		cc_ast_verbose(4, 1, VERBOSE_PREFIX_1 "Disconnect case 2\n");
-		fr.frametype = AST_FRAME_NULL;
-		fr.datalen = 0;
-		pipe_frame(p, (struct ast_frame *)&fr);
+		pipe_cause_control(p, 1);
 		return;
 	}
 
@@ -1735,9 +1754,7 @@ static void handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsigned int 
 			p->i->FaxState = 0;
 			return;
 		}
-		fr.frametype = AST_FRAME_NULL;
-		fr.datalen = 0;
-		pipe_frame(p, (struct ast_frame *)&fr);
+		pipe_cause_control(p, 0);
 		return;
 	}
 	
@@ -1748,7 +1765,7 @@ static void handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsigned int 
 		/* wait for the 0x001e (PROGRESS), play audio and wait for a timeout from the network */
 		return;
 	}
-	cc_ast_verbose(3, 1, VERBOSE_PREFIX_1 "Unhandled case DISCONNECT INFO_IND\n");
+	cc_ast_verbose(3, 1, VERBOSE_PREFIX_1 "Other case DISCONNECT INFO_IND\n");
 }
 
 /*
@@ -1769,10 +1786,16 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 	case 0x0008:	/* Cause */
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "info element CAUSE %02x %02x\n",
 			INFO_IND_INFOELEMENT(CMSG)[1], INFO_IND_INFOELEMENT(CMSG)[2]);
+		if (p->c) {
+			p->c->hangupcause = INFO_IND_INFOELEMENT(CMSG)[2] & 0x7f;
+		}
 		break;
 	case 0x0018:	/* Channel Identifikation */
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "info element CHANNEL IDENTIFIKATION %02x\n",
 			INFO_IND_INFOELEMENT(CMSG)[1]);
+		break;
+	case 0x001c:	/*  Facility Q.932 */
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "info element FACILITY\n");
 		break;
 	case 0x001e:	/* Progress Indicator */
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "info element PI %02x %02x\n",
@@ -2223,10 +2246,6 @@ static void capi_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI, un
 
 	i->reason = DISCONNECT_IND_REASON(CMSG);
 	
-	if (p->c) {
-		p->c->hangupcause = DISCONNECT_IND_REASON(CMSG) - 0x3480;
-	}
-			    
 	if (PLCI == i->onholdPLCI) {
 		/* the caller onhold hung up (or ECTed away) */
 		i->onholdPLCI = 0;
