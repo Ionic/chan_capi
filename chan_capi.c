@@ -1969,7 +1969,7 @@ static void capi_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 	}
 	    
 	ast_mutex_lock(&p->i->lockB3q);
-	if (p->i->B3q < 500) {
+	if (p->i->B3q < 800) {
 		p->i->B3q += b3len;
 	}
 	ast_mutex_unlock(&p->i->lockB3q);
