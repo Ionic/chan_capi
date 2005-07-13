@@ -2267,7 +2267,7 @@ static void capi_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI, un
 
 	fr.frametype = AST_FRAME_CONTROL;
 	if (DISCONNECT_IND_REASON(CMSG) == 0x34a2) {
-		fr.subclass = AST_CONTROL_BUSY;
+		fr.subclass = AST_CONTROL_CONGESTION;
 	} else {
 		fr.frametype = AST_FRAME_NULL;
 	}
