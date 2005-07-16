@@ -86,6 +86,7 @@ AST_MUTEX_DEFINE_STATIC(pipelock);
 AST_MUTEX_DEFINE_STATIC(monlock);
 AST_MUTEX_DEFINE_STATIC(contrlock);
 AST_MUTEX_DEFINE_STATIC(capi_put_lock);
+AST_MUTEX_DEFINE_EXPORTED(verbose_lock);
 
 #ifdef CAPI_ULAW
 static int capi_capability = AST_FORMAT_ULAW;

@@ -27,6 +27,7 @@
 extern unsigned ast_capi_ApplID;
 extern _cword get_ast_capi_MessageNumber(void);
 extern int capidebug;
+extern ast_mutex_t verbose_lock;
 
 extern int capi_call(struct ast_channel *c, char *idest, int timeout);
 extern int capi_detect_dtmf(struct ast_channel *c, int flag);
@@ -39,7 +40,9 @@ extern MESSAGE_EXCHANGE_ERROR _capi_put_cmsg(_cmsg *CMSG);
 	do { 								\
 		if ((o_v == 0) || (option_verbose > o_v)) {		\
 			if ((!c_d) || ((c_d) && (capidebug))) {		\
+				ast_mutex_lock(&verbose_lock);		\
 				ast_verbose(text);			\
+				ast_mutex_unlock(&verbose_lock);	\
 			}						\
 		}							\
 	} while(0)
