@@ -1814,9 +1814,15 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 		break;
 	case 0x8002:	/* CALL PROCEEDING */
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "info element CALL PROCEEDING\n");
+		fr.frametype = AST_FRAME_CONTROL;
+		fr.subclass = AST_CONTROL_PROCEEDING;
+		pipe_frame(p, (struct ast_frame *)&fr);
 		break;
 	case 0x8003:	/* PROGRESS */
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "info element PROGRESS\n");
+		fr.frametype = AST_FRAME_CONTROL;
+		fr.subclass = AST_CONTROL_PROGRESS;
+		pipe_frame(p, (struct ast_frame *)&fr);
 		break;
 	case 0x8005:	/* SETUP */
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "info element SETUP\n");
@@ -1826,9 +1832,6 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 		break;
 	case 0x800d:	/* SETUP ACK */
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "info element SETUP ACK\n");
-		fr.frametype = AST_FRAME_CONTROL;
-		fr.subclass = AST_CONTROL_PROGRESS;
-		pipe_frame(p, (struct ast_frame *)&fr);
 		break;
 	case 0x800f:	/* CONNECT ACK */
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "info element CONNECT ACK\n");
