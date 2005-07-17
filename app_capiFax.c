@@ -116,6 +116,8 @@ static int capi_change_bchan_fax(struct ast_channel *c)
 		usleep(10000);
 	}
 
+	/* TODO: if state != BCONNECTED */
+
 	SELECT_B_PROTOCOL_REQ_HEADER(&CMSG, ast_capi_ApplID, get_ast_capi_MessageNumber(), 0);
 	SELECT_B_PROTOCOL_REQ_PLCI(&CMSG) = i->PLCI;
 	SELECT_B_PROTOCOL_REQ_B1PROTOCOL(&CMSG) = 4;
@@ -190,50 +192,54 @@ static int capianswerfax_exec(struct ast_channel *chan, void *data)
 
 	LOCAL_USER_ADD(u);
 
-	if (strcasecmp("CAPI", chan->type) == 0) {
-		i->fFax = fopen(vdata, "wb");
-		if (i->fFax == NULL) {
-			ast_log(LOG_WARNING, "capiAnswerFax: can't create the output file (%s)\n", strerror(errno));
-			res = -1;
-		} else {
-			i->FaxState = 1;
-			if (i->state != CAPI_STATE_BCONNECTED) {
-				capi_answer_fax(chan);
-			} else {
-				capi_change_bchan_fax(chan);
-			}
-			while (i->FaxState) {
-				sleep(1);
-			}
-			switch (i->reason) {
-			case 0x3490:
-			case 0x349f:
-				res = (i->reasonb3 == 0) ? 0 : -1;
-				break;
-			default:
-				res = -1;
-			}
-
-			/* if the file has zero length */
-			if (ftell(i->fFax) == 0L)
-				res = -1;
-				
-			cc_ast_verbose(2, 1, VERBOSE_PREFIX_3 "Closing fax file...\n");
-			fclose(i->fFax);
-			i->fFax = NULL;
-
-			if (res != 0) {
-				cc_ast_verbose(2, 0,
-					VERBOSE_PREFIX_1 "capiAnswerFax: fax receive failed.\n");
-				unlink(vdata);
-			} else {
-				cc_ast_verbose(2, 0,
-					VERBOSE_PREFIX_1 "capiAnswerFax: fax received.\n");
-			}
-		}
-	} else {
+	if (!strcasecmp("CAPI", chan->type) == 0) {
 		ast_log(LOG_WARNING, "capiFax only works on CAPI channels, check your extensions.conf!\n");
+		LOCAL_USER_REMOVE(u);
+		return -1;
+	}
+
+	i->fFax = fopen(vdata, "wb");
+
+	if (i->fFax == NULL) {
+		ast_log(LOG_WARNING, "capiAnswerFax: can't create the output file (%s)\n", strerror(errno));
+		LOCAL_USER_REMOVE(u);
+		return -1;
+	}
+
+	i->FaxState = 1;
+	if (i->state != CAPI_STATE_BCONNECTED) {
+		capi_answer_fax(chan);
+	} else {
+		capi_change_bchan_fax(chan);
+	}
+	while (i->FaxState) {
+		sleep(1);
+	}
+
+	/* if the file has zero length */
+	if (ftell(i->fFax) == 0L)
 		res = -1;
+	
+	cc_ast_verbose(2, 1, VERBOSE_PREFIX_3 "Closing fax file...\n");
+	fclose(i->fFax);
+	i->fFax = NULL;
+
+	switch (i->reason) {
+	case 0x3490:
+	case 0x349f:
+		res = (i->reasonb3 == 0) ? 0 : -1;
+		break;
+	default:
+		res = -1;
+	}
+			
+	if (res != 0) {
+		cc_ast_verbose(2, 0,
+			VERBOSE_PREFIX_1 "capiAnswerFax: fax receive failed.\n");
+		unlink(vdata);
+	} else {
+		cc_ast_verbose(2, 0,
+			VERBOSE_PREFIX_1 "capiAnswerFax: fax received.\n");
 	}
 	
 	LOCAL_USER_REMOVE(u);

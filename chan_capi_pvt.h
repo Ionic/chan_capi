@@ -117,12 +117,15 @@ struct ast_capi_gains {
 #define PRES_PROHIB_NETWORK_NUMBER                   0x23
 #define PRES_NUMBER_NOT_AVAILABLE                    0x43
 
+#define CAPI_ISDN_STATE_SETUP_ACK     0x01
 
 /* ! Private data for a capi device */
 struct ast_capi_pvt {
 	ast_mutex_t lock;
 	int fd;
 	int fd2;
+
+	char name[AST_CAPI_MAX_STRING];	
 
 	/*! Channel we belong to, possibly NULL */
 	struct ast_channel *owner;		
@@ -147,13 +150,16 @@ struct ast_capi_pvt {
 	unsigned char rec_buffer[AST_CAPI_MAX_BUF + AST_FRIENDLY_OFFSET];
 
 	/* current state */
-	int state;					
+	int state;
+
+	unsigned int isdnstate;
 	
 	char context[AST_MAX_EXTENSION];
 	/*! Multiple Subscriber Number we listen to (, seperated list) */
 	char incomingmsn[AST_CAPI_MAX_STRING];	
 	/*! Prefix to Build CID */
 	char prefix[AST_MAX_EXTENSION];	
+
 	/*! Caller ID if available */
 	char cid[AST_MAX_EXTENSION];	
 	/*! Dialed Number if available */
@@ -166,6 +172,10 @@ struct ast_capi_pvt {
 	
 	/*! default language */
 	char language[MAX_LANGUAGE];	
+
+	/* additional numbers to dial */
+	int doOverlap;
+	char overlapdigits[AST_MAX_EXTENSION];
 
 	int calledPartyIsISDN;
 	/* this is an outgoing channel */
@@ -221,11 +231,9 @@ struct ast_capi_pvt {
 	unsigned int reason;
 	unsigned int reasonb3;
 	
-	struct capi_pipe *mypipe;
 	/*! Next channel in list */
 	struct ast_capi_pvt *next;			
 };
-
 
 struct ast_capi_profile {
 	unsigned short ncontrollers;
@@ -241,21 +249,25 @@ struct ast_capi_profile {
 	unsigned int manufacturer[5];
 };
 
-struct capi_pipe {
-	/* lock */
-	ast_mutex_t lock;
-
-	/* fd for writing to the channel */
-	int fd;
-
-	/* PLCI of the B3 CON */
-	unsigned int PLCI;
-	/* pointer to the interface */
-	struct ast_capi_pvt *i;
-	/* pointer to the channel */
-	struct ast_channel *c;
-	/* next pipe */
-	struct capi_pipe *next;
+struct ast_capi_conf {
+	char name[AST_CAPI_MAX_STRING];	
+	char incomingmsn[AST_CAPI_MAX_STRING];
+	char context[AST_MAX_EXTENSION];
+	char controllerstr[AST_CAPI_MAX_STRING];
+	char prefix[AST_MAX_EXTENSION];
+	char deflect2[AST_MAX_EXTENSION];
+	char accountcode[20];
+	int devices;
+	int softdtmf;
+	int echocancel;
+	int ecoption;
+	int ectail;
+	int isdnmode;
+	int es;
+	unsigned int callgroup;
+	unsigned int group;
+	float rxgain;
+	float txgain;
 };
 
 struct ast_capi_controller {

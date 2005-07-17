@@ -33,7 +33,7 @@ This chan_capi version includes:
 - Early B3 connects (always,success,never)
 - Digital audio (what did you think?)
 - Incoming/outgoing calls
-- Overlap sending (dialtone)
+- Overlap sending (dialtone and additional digits)
 - E(xplicit) C(all) T(ransfer) (...although it's done implicit-but don't tell!)
 - Tuneable latency:  you can configure the size of B3 blocks at compile time
   (in chan_capi_pvt.h, AST_CAPI_MAX_B3_BLOCK_SIZE)
@@ -44,45 +44,48 @@ This chan_capi version includes:
 - Eicon CAPI echo cancelation (echocancel=1)
 - Reject call waiting (ACO)
 - DID for Point to Point mode (a.k.a overlap receiving)
-- Call progress, no need to add ||r to your dialstring anymore
 - Rx/Tx gains (rxgain=1.0)
 - Call deflection on circuit busy (deflect=12345678)
 - (Inter)national dialing prefix (for callerid) configurable in capi.conf
 - CLI command "capi info" shows B channel status of chan_capi
 - CapiECT will announce the callerID since it gets lost on most isdn pbxes
   The called party can press # to drop the call
-- Audio syncing (timing outgoing dataB3 on incoming dataB3), supposed to fix
-  the DATA_B3_REQ (error = 0x1103) problem
 - Catch all MSN (incomingmsn=*)
 - Some configuration enhancements (msn=123,124,125 and controller=1,2,3,4)
 - Added accountcode= 
 - Echo squelching (echosquelch=1)
 - Callgroup support
-- Fixed pipe leak
+- report correct DIALSTATUS and HANGUPCAUSE.
 - Updated to support the new frame->delivery field
 - Compiles with different Asterisk versions (automatic build configuration)
-- Fixed channel name bug in PtP mode
 - Added app_capiNoES for disabling the primitive echo suppressor, use this 
   before you start recording voicemail or your files may get choppy
 - Added app_capiFax to receive faxes over CAPI (see below)
+- Fixes for BSD (Jan Stocker)
 
-- ATTENTION! the dialstring syntax now uses the zaptel dialstring syntax 
-  
-  It used to be:  Dial(CAPI/[@]<outgoingMSN>:[b|B]<destination>)
- 
-  Now it is:      Dial(CAPI/g<group>/[b|B]<destination>)
-  Or:             Dial(CAPI/contr<controller>/[b|B]<destination>)
+The Dial string
+===============
+
+  Example:        Dial(CAPI/g<group>/<destination>[/<params>])
+  Or:             Dial(CAPI/contr<controller>/<destination>[/<params>])
 
   'group' can be a value, comma separated list of values or a range
   using '-'. The according interface is found by searching a match with
   the 'group' specified in the capi.conf for each interface.
 
-  CLIP/CLIR now uses the calling presentation of the calling channel, which can
-  be modified using the CallingPres() application. Use CallingPres(32) for CLIR.
-  That is why the msn= param in capi.conf is now obsolete. The callerID is also
-  taken from the calling channel.
+  'params' is an optional part to set special settings for this call.
+  The string consists of a list of characters with the following meaning:
+   'b' : early B3 always.
+   'B' : early B3 on successful calls only.
+   'o' : use overlap sending of number if number is longer than 2 digits
+         (This is useful, when further digits shall be send to complete the
+	 destination address).
 
-- Fixes for BSD (Jan Stocker)
+  CLIP/CLIR uses the calling presentation of the calling channel, which can
+  be modified using the SetCallerPres() application. Use
+  SetCallerPres(prohib_not_screened) for CLIR. That is why the msn= param in
+  capi.conf has been removed. The callerID is also taken from the calling channel.
+
 
 Helper applications
 ===================
@@ -120,28 +123,28 @@ Use the SetCallerPres() application before you dial:
 
 Enjoying early B3 connects (inband call progress, tones and announcements)
 ==========================================================================
-Early B3 is now configurable in the dialstring.
-If you prefix the destination number with a 'b' early B3 will always be used, 
-also if the call fails, because the number is unprovisioned, etc ...
-If you prefix it with a 'B' early B3 will only be used on successful calls, 
+Early B3 is configurable in the dialstring parameters.
+If you set a 'b', early B3 will always be used, also if the call fails,
+because the number is unprovisioned, etc ...
+If you set a 'B', early B3 will only be used on successful calls, 
 giving you ring indication,etc...
 
 Don't use indications in the Dial command, your local exchange will do that for 
 you:
-	exten => _X.,1,Dial(CAPI/contr1/B${EXTEN},30)		
+	exten => _X.,1,Dial(CAPI/contr1/${EXTEN}/B,30)		
 		(early B3 on success)
 	
-	exten => _X.,1,Dial(CAPI/contr1/b${EXTEN},30)	
+	exten => _X.,1,Dial(CAPI/contr1/${EXTEN}/b,30)	
 		(always early B3)
 	
 	exten => _X.,1,Dial(CAPI/contr1/${EXTEN},30,r)		
 		(no early B3, fake ring indication)
 
-	exten => _X.,1,Dial(CAPI/contr1/b${EXTEN},30,r)		
+	exten => _X.,1,Dial(CAPI/contr1/${EXTEN}/b,30,r)		
 		(always early B3, fake indicatons if the exchange does not give us 
 		indications)
 	
-	exten => _X.,1,Dial(CAPI/contr1/B${EXTEN},30,r)		
+	exten => _X.,1,Dial(CAPI/contr1/${EXTEN}/B,30,r)		
 		(early B3 on success, fake indicatons if the exchange does not give us 
 		indications)
     
@@ -150,7 +153,7 @@ For normal PBX usage you would use the "b" option, always early B3.
 Overlap sending (a.k.a. real dialtone)
 ======================================
 When you dial an empty number, and have early B3 enabled, with:
-    Dial(CAPI/g1/b)
+    Dial(CAPI/g1//b)
 The channel will come up at once and give you the dialtone it gets from the 
 local exchange.
 At this point the channel is like a legacy phone, now you can send DTMF digits 
@@ -192,12 +195,5 @@ With a DIVA Server, following features are provided:
  - fax up to 33600
  - high resolution
  - Color Fax 
- - JPEG Compression is disabled (I can't test it)
-
-------
-
-More information/documentation and commercial support can be found at:         
-	http://www.junghanns.net/asterisk/
-	
-
+ - JPEG Compression is disabled (not tested yet)
 
