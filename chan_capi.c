@@ -494,7 +494,7 @@ static int capi_alert(struct ast_channel *c)
 	    (i->state != CAPI_STATE_DID)) {
 		cc_ast_verbose(2, 1, VERBOSE_PREFIX_2 "%s: attempting ALERT in state %d\n",
 			i->name, i->state);
-		return 0;
+		return -1;
 	}
 	
 	ALERT_REQ_HEADER(&CMSG, ast_capi_ApplID, get_ast_capi_MessageNumber(), 0);
@@ -1163,8 +1163,7 @@ static int capi_indicate(struct ast_channel *c, int condition)
 	case AST_CONTROL_RINGING:
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested RINGING-Indication for %s\n",
 			i->name, c->name);
-		capi_alert(c);
-		ret = 0;
+		ret = capi_alert(c);
 		break;
 	case AST_CONTROL_BUSY:
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested BUSY-Indication for %s\n",
