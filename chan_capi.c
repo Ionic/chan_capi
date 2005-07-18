@@ -2375,14 +2375,18 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 	char *magicmsn = "*\0";
 	char *emptydnid = "s\0";
 	int deflect = 0;
+	int callpres = 0;
 
 	DNID = capi_number(CONNECT_IND_CALLEDPARTYNUMBER(CMSG),1);
 	if ((DNID && *DNID == 0) || !DNID) {
 		DNID = emptydnid;
 	}
-	
+
 	NPLAN = (CONNECT_IND_CALLINGPARTYNUMBER(CMSG)[1] & 0x70);
 	CID = capi_number(CONNECT_IND_CALLINGPARTYNUMBER(CMSG), 2);
+	if (CONNECT_IND_CALLINGPARTYNUMBER(CMSG)[0] > 1) {
+		callpres = (CONNECT_IND_CALLINGPARTYNUMBER(CMSG)[2] & 0x63);
+	}
 	controller = PLCI & 0xff;
 	
 	cc_ast_verbose(1, 1, VERBOSE_PREFIX_2 "CONNECT_IND (PLCI=%#x,DID=%s,CID=%s,CIP=%#x,CONTROLLER=%#x)\n",
@@ -2441,9 +2445,9 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 				else
 					snprintf(i->cid, (sizeof(i->cid)-1), "%s%s",
 						i->prefix, CID);
-			} else
+			} else {
 				strncpy(i->cid, emptyid, sizeof(i->cid) - 1);
-
+			}
 			i->cip = CONNECT_IND_CIPVALUE(CMSG);
 			i->controller = controller;
 			i->PLCI = PLCI;
@@ -2462,6 +2466,11 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 				interface_cleanup(i);
 				break;
 			}
+#ifdef CC_AST_CHANNEL_HAS_CID
+			i->owner->cid.cid_pres = callpres;
+#else    
+			i->owner->callingpres = callpres;
+#endif
 
 			if (deflect == 1) {
 				if (i->deflect2) {
