@@ -684,7 +684,8 @@ static void capi_activehangup(struct ast_channel *c)
 		return;
 	}
 	
-	if ((state == CAPI_STATE_CONNECTED) || (state == CAPI_STATE_CONNECTPENDING)) {
+	if ((state == CAPI_STATE_CONNECTED) || (state == CAPI_STATE_CONNECTPENDING) ||
+	    (state == CAPI_STATE_ANSWERING)) {
 		DISCONNECT_REQ_HEADER(&CMSG, ast_capi_ApplID, get_ast_capi_MessageNumber(), 0);
 		DISCONNECT_REQ_PLCI(&CMSG) = i->PLCI;
 		_capi_put_cmsg(&CMSG);
@@ -2149,6 +2150,12 @@ static void capi_handle_connect_active_indication(_cmsg *CMSG, unsigned int PLCI
 	}
 	
 	return_on_no_interface("CONNECT_ACTIVE_IND");
+
+	if (i->state == CAPI_STATE_DISCONNECTING) {
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: CONNECT_ACTIVE in DISCONNECTING.\n",
+			i->name);
+		return;
+	}
 
 	if ((i->owner) && (i->FaxState)) {
 		i->state = CAPI_STATE_CONNECTED;
