@@ -806,6 +806,7 @@ int capi_call(struct ast_channel *c, char *idest, int timeout)
 	char *dest, *interface, *param;
 	char buffer[AST_MAX_EXTENSION];
 	char called[AST_MAX_EXTENSION], calling[AST_MAX_EXTENSION];
+	char callerid[AST_MAX_EXTENSION];
 	char bchaninfo[3];
 	int CLIR;
 	
@@ -883,18 +884,19 @@ int capi_call(struct ast_channel *c, char *idest, int timeout)
 	CONNECT_REQ_CALLEDPARTYSUBADDRESS(&CMSG) = NULL;
 
 #ifdef CC_AST_CHANNEL_HAS_CID
-	calling[0] = strlen(c->cid.cid_num) + 2;
+	if (c->cid.cid_num) 
+		strncpy(callerid, c->cid.cid_num, sizeof(callerid) - 1);
 #else
-	calling[0] = strlen(c->callerid) + 2;
+	if (c->callerid) 
+		strncpy(callerid, c->callerid, sizeof(callerid) - 1);
 #endif
+	else
+		memset(callerid, 0, sizeof(callerid));
 
+	calling[0] = strlen(callerid) + 2;
 	calling[1] = 0x00;
 	calling[2] = 0x80 | (CLIR & 0x63);
-#ifdef CC_AST_CHANNEL_HAS_CID
-	strncpy(&calling[3], c->cid.cid_num, sizeof(calling) - 4);
-#else
-	strncpy(&calling[3], c->callerid, sizeof(calling) - 4);
-#endif
+	strncpy(&calling[3], callerid, sizeof(calling) - 4);
 
 	CONNECT_REQ_CALLINGPARTYNUMBER(&CMSG) = calling;
 	CONNECT_REQ_CALLINGPARTYSUBADDRESS(&CMSG) = NULL;
