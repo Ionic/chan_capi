@@ -1679,11 +1679,43 @@ static void handle_progress_indicator(_cmsg *CMSG, unsigned int PLCI, struct ast
 }
 
 /*
+ * if the dnid matches, start the pbx
+ */
+static void start_pbx_on_match(struct ast_capi_pvt *i, unsigned int PLCI, _cword MessageNumber)
+{
+	_cmsg CMSG2;
+
+	switch(search_did(i->owner)) {
+	case 0: /* match */
+		if (ast_pbx_start(i->owner)) {
+			ast_log(LOG_ERROR, "%s: Unable to start pbx on channel!\n",
+				i->name);
+			ast_hangup(i->owner);
+		} else {
+			cc_ast_verbose(2, 1, VERBOSE_PREFIX_3 "Started pbx on channel %s\n",
+				i->owner->name);
+		}
+		break;
+	case 1:
+		/* would possibly match */
+		break;
+	case -1:
+	default:
+		/* doesn't match */
+		ast_log(LOG_ERROR, "%s: did not find exten for '%s', ignoring call.\n",
+			i->name, i->dnid);
+		CONNECT_RESP_HEADER(&CMSG2, ast_capi_ApplID, MessageNumber, 0);
+		CONNECT_RESP_PLCI(&CMSG2) = PLCI;
+		CONNECT_RESP_REJECT(&CMSG2) = 1; /* ignore */
+		_capi_put_cmsg(&CMSG2);
+	}
+}
+
+/*
  * Called Party Number via INFO_IND
  */
 static void handle_did_digits(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct ast_capi_pvt *i)
 {
-	_cmsg CMSG2;
 	char name[AST_CHANNEL_NAME] = "";
 	char *did;
 	struct ast_frame fr;
@@ -1718,31 +1750,8 @@ static void handle_did_digits(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI,
 		} 
 		return;
 	}
-			
-	switch(search_did(i->owner)) {
-	case 0: /* match */
-		if (ast_pbx_start(i->owner)) {
-			ast_log(LOG_ERROR, "%s: Unable to start pbx on channel!\n",
-				i->name);
-			ast_hangup(i->owner);
-		} else {
-			cc_ast_verbose(2, 1, VERBOSE_PREFIX_3 "Started pbx on channel %s\n",
-				name);
-		}
-		break;
-	case 1:
-		/* would possibly match */
-		break;
-	case -1:
-	default:
-		/* doesn't match */
-		ast_log(LOG_ERROR, "%s: did not find exten for msn = %s, ignoring call.\n",
-			i->name, i->dnid);
-		CONNECT_RESP_HEADER(&CMSG2, ast_capi_ApplID, CMSG->Messagenumber, 0);
-		CONNECT_RESP_PLCI(&CMSG2) = PLCI;
-		CONNECT_RESP_REJECT(&CMSG2) = 1; /* ignore */
-		_capi_put_cmsg(&CMSG2);
-	}
+
+	start_pbx_on_match(i, PLCI, CMSG->Messagenumber);
 }
 
 /*
@@ -2434,6 +2443,9 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 				strncpy(i->dnid, emptydnid, sizeof(i->dnid) - 1);
 			} else {
 				/* make sure the number match exactly or may match on ptp mode */
+				cc_ast_verbose(4, 1, VERBOSE_PREFIX_1 "%s: msn='%s' DNID='%s' %s\n",
+					i->name, msn, DNID,
+					(i->isdnmode == AST_CAPI_ISDNMODE_PTMP)?"PtMP":"PtP");
 				if ((strcasecmp(msn, DNID)) &&
 				   ((i->isdnmode == AST_CAPI_ISDNMODE_PTMP) ||
 				    (strlen(msn) >= strlen(DNID)) ||
@@ -2464,6 +2476,9 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 			if (i->isdnmode == AST_CAPI_ISDNMODE_PTP) {
 				capi_new(i, AST_STATE_DOWN);
 				i->state = CAPI_STATE_DID;
+				if ((DNID == emptydnid) && (i->owner)) {
+					start_pbx_on_match(i, PLCI, CMSG->Messagenumber);
+				}
 			} else {
 				capi_new(i, AST_STATE_RING);
 			}
@@ -2629,7 +2644,11 @@ static void capi_handle_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned in
 	case CAPI_ALERT:
 		if (!i->owner)
 			break;
-		if (ALERT_CONF_INFO(CMSG) == 0) {
+		if ((ALERT_CONF_INFO(CMSG) & 0xff00) == 0) {
+			if (ALERT_CONF_INFO(CMSG) == 0x0003) {
+				cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Alert already sent by another app.\n",
+					i->name);
+			}
 			if (i->state != CAPI_STATE_DISCONNECTING) {
 				i->state = CAPI_STATE_ALERTING;
 				if (i->owner->_state == AST_STATE_RING) {
