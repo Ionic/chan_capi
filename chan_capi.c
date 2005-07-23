@@ -633,6 +633,7 @@ static void interface_cleanup(struct ast_capi_pvt *i)
 	}
 	
 	i->isdnstate = 0;
+	i->cause = 0;
 
 	i->faxhandled = 0;
 	i->FaxState = 0;
@@ -655,23 +656,30 @@ static void capi_activehangup(struct ast_channel *c)
 	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
 	_cmsg CMSG;
 	int state;
+	char *cause;
 
 	if (i == NULL) {
 		ast_log(LOG_WARNING, "No interface!\n");
 		return;
 	}
 
-	cc_ast_verbose(2, 1, VERBOSE_PREFIX_4 "%s: activehangingup\n",
-		i->name);
-
 	state = i->state;
-	i->state = CAPI_STATE_DISCONNECTING; 
+	i->state = CAPI_STATE_DISCONNECTING;
+
+	i->cause = c->hangupcause;
+	if ((cause = pbx_builtin_getvar_helper(c, "PRI_CAUSE"))) {
+		i->cause = atoi(cause);
+	}
+	
+	cc_ast_verbose(2, 1, VERBOSE_PREFIX_4 "%s: activehangingup (cause=0x%02x)\n",
+		i->name, i->cause);
+
 
 	if ((c->_state == AST_STATE_RING) ||
 	    (state == CAPI_STATE_DID)) {
 		CONNECT_RESP_HEADER(&CMSG, ast_capi_ApplID, i->MessageNumber, 0);
 		CONNECT_RESP_PLCI(&CMSG) = i->PLCI;
-		CONNECT_RESP_REJECT(&CMSG) = 2;
+		CONNECT_RESP_REJECT(&CMSG) = (i->cause) ? (0x3480 | (i->cause & 0x7f)) : 2;
 		_capi_put_cmsg(&CMSG);
 		return;
 	}

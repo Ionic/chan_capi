@@ -153,6 +153,7 @@ struct ast_capi_pvt {
 	int state;
 
 	unsigned int isdnstate;
+	int cause;
 	
 	char context[AST_MAX_EXTENSION];
 	/*! Multiple Subscriber Number we listen to (, seperated list) */
