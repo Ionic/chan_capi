@@ -68,6 +68,7 @@ The Dial string
 
   Example:        Dial(CAPI/g<group>/<destination>[/<params>])
   Or:             Dial(CAPI/contr<controller>/<destination>[/<params>])
+  Or:             Dial(CAPI/<interface-name>/<destination>[/<params>])
 
   'group' can be a value, comma separated list of values or a range
   using '-'. The according interface is found by searching a match with
@@ -80,6 +81,9 @@ The Dial string
    'o' : use overlap sending of number if number is longer than 2 digits
          (This is useful, when further digits shall be send to complete the
 	 destination address).
+
+  If the <interface-name> is used in dialstring, be sure the name (specified
+  in capi.conf) does not start with 'contr' or 'g'.
 
   CLIP/CLIR uses the calling presentation of the calling channel, which can
   be modified using the SetCallerPres() application. Use

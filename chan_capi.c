@@ -1399,19 +1399,17 @@ struct ast_channel *capi_request(char *type, int format, void *data)
 		return NULL;
 	}
 
-	if (((char *)interface)[0] == 'g') {
-		interface++;
-		capigroup = ast_get_group(interface);
+	if (interface[0] == 'g') {
+		capigroup = ast_get_group(interface + 1);
 		cc_ast_verbose(1, 1, VERBOSE_PREFIX_3 "capi request group = %d\n",
 				capigroup);
 	} else if (!strncmp(interface, "contr", 5)) {
-		interface += 5;
-		controller = atoi(interface);
+		controller = atoi(interface + 5);
 		cc_ast_verbose(1, 1, VERBOSE_PREFIX_3 "capi request controller = %d\n",
 				controller);
 	} else {
-		ast_log(LOG_ERROR,"Syntax error in dialstring. Read the docs!\n");
-		return NULL;
+		cc_ast_verbose(1, 1, VERBOSE_PREFIX_3 "capi request for interface '%s'\n",
+				interface);
  	}
 
 	ast_mutex_lock(&iflock);
@@ -1433,7 +1431,13 @@ struct ast_channel *capi_request(char *type, int format, void *data)
 			foundcontroller = controller;
 		} else {
 			/* DIAL(CAPI/gX/...) */
-			if (!(i->group & capigroup)) {
+			if ((interface[0] == 'g') && (!(i->group & capigroup))) {
+				/* keep on running! */
+				ast_mutex_unlock(&contrlock);
+				continue;
+			}
+			/* DIAL(CAPI/<interface-name>/...) */
+			if ((interface[0] != 'g') && (strcmp(interface, i->name))) {
 				/* keep on running! */
 				ast_mutex_unlock(&contrlock);
 				continue;
@@ -1466,8 +1470,8 @@ struct ast_channel *capi_request(char *type, int format, void *data)
 		return tmp;
 	}
 	ast_mutex_unlock(&iflock);
-	ast_log(LOG_NOTICE, "didn't find capi device with controller = %d or group = %d.\n",
-		controller, capigroup);
+	ast_log(LOG_NOTICE, "didn't find capi device for interface '%s'\n",
+		interface);
 	return NULL;
 }
 
