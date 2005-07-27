@@ -90,6 +90,7 @@ static inline void write_capi_word(void *m, unsigned short val)
 #define CAPI_STATE_CONNECTPENDING       6
 #define CAPI_STATE_ANSWERING            7
 #define CAPI_STATE_DID                  8
+#define CAPI_STATE_INCALL               9
 
 #define CAPI_STATE_PUTTINGONHOLD        10
 #define CAPI_STATE_RETRIEVING           11
