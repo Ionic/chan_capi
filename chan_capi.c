@@ -77,6 +77,12 @@ static char *tdesc = "Common ISDN API Driver (" CC_VERSION ") " LAW_STRING " "AS
 static char *type = "CAPI";
 #endif
 
+static char *commandtdesc = "CAPI command interface.";
+static char *commandapp = "capiCommand";
+static char *commandsynopsis = "Execute special CAPI commands";
+STANDARD_LOCAL_USER;
+LOCAL_USER_DECL;
+
 static int usecnt;
 
 AST_MUTEX_DEFINE_STATIC(messagenumber_lock);
@@ -197,7 +203,7 @@ static unsigned ListenOnController(unsigned long CIPmask, unsigned controller)
 
 	LISTEN_REQ_HEADER(&CMSG, ast_capi_ApplID, get_ast_capi_MessageNumber(), controller);
 
-	LISTEN_REQ_INFOMASK(&CMSG) = 0x03ff; /* lots of info ;) + early B3 connect */
+	LISTEN_REQ_INFOMASK(&CMSG) = 0xffff; /* lots of info ;) + early B3 connect */
 		/* 0x00ff if no early B3 should be done */
 		
 	LISTEN_REQ_CIPMASK(&CMSG) = CIPmask;
@@ -448,6 +454,7 @@ static int capi_send_digit(struct ast_channel *c, char digit)
 			/* if no SETUP-ACK yet, add it to the overlap list */
 			strncat(i->overlapdigits, &digit, 1);
 			i->doOverlap = 1;
+			return 0;
 		}
 	}
 
@@ -490,7 +497,7 @@ static int capi_alert(struct ast_channel *c)
 	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
 	_cmsg CMSG;
 
-	if ((i->state != CAPI_STATE_DISCONNECTED) &&
+	if ((i->state != CAPI_STATE_INCALL) &&
 	    (i->state != CAPI_STATE_DID)) {
 		cc_ast_verbose(2, 1, VERBOSE_PREFIX_2 "%s: attempting ALERT in state %d\n",
 			i->name, i->state);
@@ -671,12 +678,12 @@ static void capi_activehangup(struct ast_channel *c)
 		i->cause = atoi(cause);
 	}
 	
-	cc_ast_verbose(2, 1, VERBOSE_PREFIX_4 "%s: activehangingup (cause=0x%02x)\n",
+	cc_ast_verbose(2, 1, VERBOSE_PREFIX_4 "%s: activehangingup (cause=%d)\n",
 		i->name, i->cause);
 
 
-	if ((c->_state == AST_STATE_RING) ||
-	    (state == CAPI_STATE_DID)) {
+	if ((state == CAPI_STATE_ALERTING) ||
+	    (state == CAPI_STATE_DID) || (state == CAPI_STATE_INCALL)) {
 		CONNECT_RESP_HEADER(&CMSG, ast_capi_ApplID, i->MessageNumber, 0);
 		CONNECT_RESP_PLCI(&CMSG) = i->PLCI;
 		CONNECT_RESP_REJECT(&CMSG) = (i->cause) ? (0x3480 | (i->cause & 0x7f)) : 2;
@@ -1178,8 +1185,8 @@ static int capi_indicate(struct ast_channel *c, int condition)
 	case AST_CONTROL_BUSY:
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested BUSY-Indication for %s\n",
 			i->name, c->name);
-		if ((c->_state == AST_STATE_RING) ||
-		    (i->state == CAPI_STATE_DID)) {
+		if ((i->state == CAPI_STATE_ALERTING) ||
+		    (i->state == CAPI_STATE_DID) || (i->state == CAPI_STATE_INCALL)) {
 			CONNECT_RESP_HEADER(&CMSG, ast_capi_ApplID, i->MessageNumber, 0);
 			CONNECT_RESP_PLCI(&CMSG) = i->PLCI;
 			CONNECT_RESP_REJECT(&CMSG) = 3;
@@ -1190,8 +1197,8 @@ static int capi_indicate(struct ast_channel *c, int condition)
 	case AST_CONTROL_CONGESTION:
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested CONGESTION-Indication for %s\n",
 			i->name, c->name);
-		if ((c->_state == AST_STATE_RING) ||
-		    (i->state == CAPI_STATE_DID)) {
+		if ((i->state == CAPI_STATE_ALERTING) ||
+		    (i->state == CAPI_STATE_DID) || (i->state == CAPI_STATE_INCALL)) {
 			CONNECT_RESP_HEADER(&CMSG, ast_capi_ApplID, i->MessageNumber, 0);
 			CONNECT_RESP_PLCI(&CMSG) = i->PLCI;
 			CONNECT_RESP_REJECT(&CMSG) = 4;
@@ -1917,6 +1924,14 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 			sizeof(i->owner->exten) - 1);
 		*/
 		break;
+	case 0x4000:	/* CHARGE in UNITS */
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: info element CHARGE in UNITS\n",
+			i->name);
+		break;
+	case 0x4001:	/* CHARGE in CURRENCY */
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: info element CHARGE in CURRENCY\n",
+			i->name);
+		break;
 	case 0x8001:	/* ALERTING */
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: info element ALERTING\n",
 			i->name);
@@ -1973,6 +1988,10 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 		break;
 	case 0x805a:	/* RELEASE COMPLETE */
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: info element RELEASE COMPLETE\n",
+			i->name);
+		break;
+	case 0x807b:	/* INFORMATION */
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: info element INFORMATION\n",
 			i->name);
 		break;
 	default:
@@ -2352,6 +2371,13 @@ static void capi_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI, un
 		return;
 	}
 
+	if ((i->owner) && (i->state == CAPI_STATE_DID) && (i->owner->pbx == NULL)) {
+		/* the pbx was not started yet */
+		i->state = CAPI_STATE_DISCONNECTED;
+		ast_hangup(i->owner);
+		return;
+	}
+
 	fr.frametype = AST_FRAME_CONTROL;
 	if (DISCONNECT_IND_REASON(CMSG) == 0x34a2) {
 		fr.subclass = AST_CONTROL_CONGESTION;
@@ -2365,7 +2391,7 @@ static void capi_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI, un
 		 * in this case * did not read our hangup control frame
 		 * so we must hangup the channel!
 		 */
-		if ( (i->owner) && (i->state != CAPI_STATE_DISCONNECTED) &&
+		if ( (i->owner) && (i->state != CAPI_STATE_DISCONNECTED) && (i->state != CAPI_STATE_INCALL) &&
 		     (i->state != CAPI_STATE_DISCONNECTING) && (ast_check_hangup(i->owner) == 0)) {
 			cc_ast_verbose(1, 0, VERBOSE_PREFIX_3 "%s: soft hangup by capi\n",
 				i->name);
@@ -2489,6 +2515,7 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 				}
 			} else {
 				capi_new(i, AST_STATE_RING);
+				i->state = CAPI_STATE_INCALL;
 			}
 
 			ast_mutex_unlock(&iflock);
@@ -2631,7 +2658,6 @@ static void capi_handle_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned in
 			i->name, PLCI, CONNECT_CONF_INFO(CMSG));
 		if (CONNECT_CONF_INFO(CMSG) == 0) {
 			i->PLCI = PLCI;
-			ast_setstate(i->owner, AST_STATE_DIALING);
 		} else {
 			/* here, something has to be done --> */
 			struct ast_frame fr;
@@ -2731,6 +2757,90 @@ static void capi_handle_msg(_cmsg *CMSG)
 	}
 }
 
+/*
+ * set early-B3 for incoming connections
+ * (only for NT mode)
+ */
+static int capi_set_earlyb3(struct ast_channel *c, char *param)
+{
+	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
+	_cmsg CMSG;
+	unsigned char fac[12];
+
+	if ((i->state != CAPI_STATE_DID) && (i->state != CAPI_STATE_INCALL)) {
+		ast_log(LOG_WARNING, "wrong channel state to signal early-B3\n");
+		return 0;
+	}
+
+	SELECT_B_PROTOCOL_REQ_HEADER(&CMSG, ast_capi_ApplID, get_ast_capi_MessageNumber(), 0);
+	SELECT_B_PROTOCOL_REQ_PLCI(&CMSG) = i->PLCI;
+	SELECT_B_PROTOCOL_REQ_B1PROTOCOL(&CMSG) = 1;
+	SELECT_B_PROTOCOL_REQ_B2PROTOCOL(&CMSG) = 1;
+	SELECT_B_PROTOCOL_REQ_B3PROTOCOL(&CMSG) = 0;
+	SELECT_B_PROTOCOL_REQ_B1CONFIGURATION(&CMSG) = NULL;
+	SELECT_B_PROTOCOL_REQ_B2CONFIGURATION(&CMSG) = NULL;
+	SELECT_B_PROTOCOL_REQ_B3CONFIGURATION(&CMSG) = NULL;
+
+	_capi_put_cmsg(&CMSG);
+
+	sleep(1);
+
+	fac[0] = 4;
+	fac[1] = 0x1e;
+	fac[2] = 0x02;
+	fac[3] = 0x82;
+	fac[4] = 0x88;
+
+	INFO_REQ_HEADER(&CMSG, ast_capi_ApplID, get_ast_capi_MessageNumber(), 0);
+	INFO_REQ_PLCI(&CMSG) = i->PLCI;
+	INFO_REQ_BCHANNELINFORMATION(&CMSG) = 0;
+	INFO_REQ_KEYPADFACILITY(&CMSG) = 0;
+	INFO_REQ_USERUSERDATA(&CMSG) = 0;
+	INFO_REQ_FACILITYDATAARRAY(&CMSG) = fac;
+
+	_capi_put_cmsg(&CMSG);
+
+	return 0;
+}
+
+/*
+ * capi command interface
+ */
+static int capicommand_exec(struct ast_channel *chan, void *data)
+{
+	int res = 0;
+	struct localuser *u;
+	char *s;
+	char *stringp = NULL;
+	char *command, *params;
+
+	if (!data) {
+		ast_log(LOG_WARNING, "capiCommand requires arguments\n");
+		return -1;
+	}
+	if (strcmp(chan->type, "CAPI")) {
+		ast_log(LOG_WARNING, "capiCommand works on CAPI channels only, check your extensions.conf!\n");
+		return -1;
+	}
+	s = ast_strdupa(data);
+	stringp = s;
+	command = strsep(&stringp, "|");
+	params = strsep(&stringp, "|");
+	cc_ast_verbose(2, 1, VERBOSE_PREFIX_3 "capiCommand: '%s' '%s'\n",
+		command, params);
+
+	LOCAL_USER_ADD(u);
+	if (!strcasecmp(command, "earlyb3")) {
+		res = capi_set_earlyb3(chan, params);
+	} else {
+		res = -1;
+		ast_log(LOG_WARNING, "Unknown command '%s' for capiCommand\n",
+			command);
+	}
+
+	LOCAL_USER_REMOVE(u);
+	return(res);
+}
 
 /*
  * module stuff, monitor...
@@ -3450,6 +3560,8 @@ int load_module(void)
 	ast_cli_register(&cli_debug);
 	ast_cli_register(&cli_no_debug);
 	
+	ast_register_application(commandapp, capicommand_exec, commandsynopsis, commandtdesc);
+
 	restart_monitor();
 
 	return 0;
@@ -3493,6 +3605,7 @@ int unload_module()
 #else
 	ast_channel_unregister(type);
 #endif
+	ast_unregister_application(commandapp);
 	
 	return 0;
 }
