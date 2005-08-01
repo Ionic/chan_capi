@@ -2553,7 +2553,7 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 	
 	CONNECT_RESP_HEADER(&CMSG2, ast_capi_ApplID, CMSG->Messagenumber, 0);
 	CONNECT_RESP_PLCI(&CMSG2) = CONNECT_IND_PLCI(CMSG);
-	CONNECT_RESP_REJECT(&CMSG2) = (deflect == 1) ? 3 : 1; /* busy : ignore */
+	CONNECT_RESP_REJECT(&CMSG2) = 1; /* ignore */
 	_capi_put_cmsg(&CMSG2);
 }
 
