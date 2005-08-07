@@ -645,6 +645,7 @@ static void interface_cleanup(struct ast_capi_pvt *i)
 
 	memset(i->cid, 0, sizeof(i->cid));
 	memset(i->dnid, 0, sizeof(i->dnid));
+	i->cid_ton = 0;
 
 	i->owner = NULL;
 }
@@ -818,6 +819,7 @@ int capi_call(struct ast_channel *c, char *idest, int timeout)
 	char callerid[AST_MAX_EXTENSION];
 	char bchaninfo[3];
 	int CLIR;
+	int callernplan = 0;
 	
 	_cmsg CMSG;
 	MESSAGE_EXCHANGE_ERROR  error;
@@ -861,6 +863,7 @@ int capi_call(struct ast_channel *c, char *idest, int timeout)
 
 #ifdef CC_AST_CHANNEL_HAS_CID
 	CLIR = c->cid.cid_pres;
+	callernplan = c->cid.cid_ton & 0x7f;
 #else    
 	CLIR = c->callingpres;
 #endif
@@ -903,7 +906,7 @@ int capi_call(struct ast_channel *c, char *idest, int timeout)
 		memset(callerid, 0, sizeof(callerid));
 
 	calling[0] = strlen(callerid) + 2;
-	calling[1] = 0x00;
+	calling[1] = callernplan;
 	calling[2] = 0x80 | (CLIR & 0x63);
 	strncpy(&calling[3], callerid, sizeof(calling) - 4);
 
@@ -1330,6 +1333,7 @@ static struct ast_channel *capi_new(struct ast_capi_pvt *i, int state)
 		tmp->cid.cid_num = strdup(i->cid);
 	if (!ast_strlen_zero(i->dnid))
 		tmp->cid.cid_dnid = strdup(i->dnid);
+	tmp->cid.cid_ton = i->cid_ton;
 #else
 	if (!ast_strlen_zero(i->cid))
 		tmp->callerid = strdup(i->cid);
@@ -2419,7 +2423,7 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 	_cmsg CMSG2;
 	char *DNID;
 	char *CID;
-	int NPLAN=0;
+	int callernplan = 0, callednplan = 0;
 	int controller = 0;
 	char *msn;
 	char buffer[AST_CAPI_MAX_STRING];
@@ -2430,14 +2434,17 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 	int deflect = 0;
 	int callpres = 0;
 
-	DNID = capi_number(CONNECT_IND_CALLEDPARTYNUMBER(CMSG),1);
+	DNID = capi_number(CONNECT_IND_CALLEDPARTYNUMBER(CMSG), 1);
 	if ((DNID && *DNID == 0) || !DNID) {
 		DNID = emptydnid;
 	}
+	if (CONNECT_IND_CALLEDPARTYNUMBER(CMSG)[0] > 1) {
+		callednplan = (CONNECT_IND_CALLEDPARTYNUMBER(CMSG)[1] & 0x7f);
+	}
 
-	NPLAN = (CONNECT_IND_CALLINGPARTYNUMBER(CMSG)[1] & 0x70);
 	CID = capi_number(CONNECT_IND_CALLINGPARTYNUMBER(CMSG), 2);
 	if (CONNECT_IND_CALLINGPARTYNUMBER(CMSG)[0] > 1) {
+		callernplan = (CONNECT_IND_CALLINGPARTYNUMBER(CMSG)[1] & 0x7f);
 		callpres = (CONNECT_IND_CALLINGPARTYNUMBER(CMSG)[2] & 0x63);
 	}
 	controller = PLCI & 0xff;
@@ -2492,10 +2499,10 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 				strncpy(i->dnid, DNID, sizeof(i->dnid) - 1);
 			}
 			if (CID != NULL) {
-				if (NPLAN == CAPI_ETSI_NPLAN_NATIONAL)
+				if ((callernplan & 0x70) == CAPI_ETSI_NPLAN_NATIONAL)
 					snprintf(i->cid, (sizeof(i->cid)-1), "%s%s%s",
 						i->prefix, capi_national_prefix, CID);
-				else if (NPLAN == CAPI_ETSI_NPLAN_INTERNAT)
+				else if ((callernplan & 0x70) == CAPI_ETSI_NPLAN_INTERNAT)
 					snprintf(i->cid, (sizeof(i->cid)-1), "%s%s%s",
 						i->prefix, capi_international_prefix, CID);
 				else
@@ -2508,6 +2515,7 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 			i->controller = controller;
 			i->PLCI = PLCI;
 			i->MessageNumber = CMSG->Messagenumber;
+			i->cid_ton = callernplan;
 
 			if (i->isdnmode == AST_CAPI_ISDNMODE_PTP) {
 				capi_new(i, AST_STATE_DOWN);
@@ -2531,13 +2539,14 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 #else    
 			i->owner->callingpres = callpres;
 #endif
-
 			if (deflect == 1) {
 				if (i->deflect2) {
 					capi_deflect(i->owner, i->deflect2);
 				} else
 					break;
 			}
+			sprintf(buffer, "%d", callednplan);
+			pbx_builtin_setvar_helper(i->owner, "CALLEDTON", buffer);
 			return;
 		}
 	}

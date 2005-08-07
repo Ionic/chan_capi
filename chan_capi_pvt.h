@@ -155,7 +155,9 @@ struct ast_capi_pvt {
 	/*! Caller ID if available */
 	char cid[AST_MAX_EXTENSION];	
 	/*! Dialed Number if available */
-	char dnid[AST_MAX_EXTENSION];	
+	char dnid[AST_MAX_EXTENSION];
+	/* callerid type of number */
+	int cid_ton;
 
 	char accountcode[20];	
 

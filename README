@@ -62,6 +62,7 @@ This chan_capi version includes:
   before you start recording voicemail or your files may get choppy
 - Added app_capiFax to receive faxes over CAPI (see below)
 - Fixes for BSD (Jan Stocker)
+- Support 'type of number'.
 
 The Dial string
 ===============
