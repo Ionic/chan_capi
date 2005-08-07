@@ -108,16 +108,6 @@ struct ast_capi_gains {
 	unsigned char rxgains[256];
 };
 
-#define PRES_ALLOWED_USER_NUMBER_NOT_SCREENED        0x00
-#define PRES_ALLOWED_USER_NUMBER_PASSED_SCREEN       0x01
-#define PRES_ALLOWED_USER_NUMBER_FAILED_SCREEN       0x02
-#define PRES_ALLOWED_NETWORK_NUMBER                  0x03
-#define PRES_PROHIB_USER_NUMBER_NOT_SCREENED         0x20
-#define PRES_PROHIB_USER_NUMBER_PASSED_SCREEN        0x21
-#define PRES_PROHIB_USER_NUMBER_FAILED_SCREEN        0x22
-#define PRES_PROHIB_NETWORK_NUMBER                   0x23
-#define PRES_NUMBER_NOT_AVAILABLE                    0x43
-
 #define CAPI_ISDN_STATE_SETUP_ACK     0x01
 
 /* ! Private data for a capi device */
