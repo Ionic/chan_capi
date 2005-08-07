@@ -55,12 +55,6 @@
 /* #define CC_VERSION "cm-x.y.z" */
 #define CC_VERSION "$Revision$"
 
-#ifdef CAPI_ULAW
-#define LAW_STRING "uLaw"
-#else
-#define LAW_STRING "aLaw"
-#endif
-
 /*
  * personal stuff
  */
@@ -69,11 +63,11 @@ unsigned ast_capi_ApplID = 0;
 static _cword ast_capi_MessageNumber = 1;
 static char *desc = "Common ISDN API for Asterisk";
 #ifdef CC_AST_HAVE_TECH_PVT
-static const char tdesc[] = "Common ISDN API Driver (" CC_VERSION ") " LAW_STRING " " ASTERISKVERSION;
+static const char tdesc[] = "Common ISDN API Driver (" CC_VERSION ") " ASTERISKVERSION;
 static const char type[] = "CAPI";
 static const struct ast_channel_tech capi_tech;
 #else
-static char *tdesc = "Common ISDN API Driver (" CC_VERSION ") " LAW_STRING " "ASTERISKVERSION;
+static char *tdesc = "Common ISDN API Driver (" CC_VERSION ") " ASTERISKVERSION;
 static char *type = "CAPI";
 #endif
 
@@ -93,11 +87,7 @@ AST_MUTEX_DEFINE_STATIC(contrlock);
 AST_MUTEX_DEFINE_STATIC(capi_put_lock);
 AST_MUTEX_DEFINE_EXPORTED(verbose_lock);
 
-#ifdef CAPI_ULAW
-static int capi_capability = AST_FORMAT_ULAW;
-#else
 static int capi_capability = AST_FORMAT_ALAW;
-#endif
 
 static pthread_t monitor_thread = -1;
 
@@ -1307,7 +1297,6 @@ static struct ast_channel *capi_new(struct ast_capi_pvt *i, int state)
 	tmp->callgroup = i->callgroup;
 	tmp->nativeformats = capi_capability;
 	fmt = ast_best_codec(tmp->nativeformats);
-	/* fmt = capi_capability; */
 	tmp->readformat = fmt;
 	tmp->writeformat = fmt;
 
@@ -3215,11 +3204,7 @@ static struct ast_cli_entry  cli_no_debug =
 static const struct ast_channel_tech capi_tech = {
 	.type = type,
 	.description = tdesc,
-#ifdef CAPI_ULAW
-	.capabilities = AST_FORMAT_ULAW,
-#else
 	.capabilities = AST_FORMAT_ALAW,
-#endif
 	.requester = capi_request,
 	.send_digit = capi_send_digit,
 	.send_text = NULL,
@@ -3476,6 +3461,10 @@ static int capi_eval_config(struct ast_config *cfg)
 		} else if (!strcasecmp(v->name, "txgain")) {
 			if (sscanf(v->value,"%f",&txgain) != 1) {
 				ast_log(LOG_ERROR,"invalid txgain\n");
+			}
+		} else if (!strcasecmp(v->name, "ulaw")) {
+			if (!strcasecmp(v->value, "yes") || !strcasecmp(v->value, "1") || !strcasecmp(v->value, "on")) {
+				capi_capability = AST_FORMAT_ULAW;
 			}
 		}
 	}
