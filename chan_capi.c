@@ -370,9 +370,11 @@ int capi_detect_dtmf(struct ast_channel *c, int flag)
 	
 	if ((capi_controllers[i->controller]->dtmf == 1) && (i->doDTMF == 0)) {
 		ast_mutex_unlock(&contrlock);
+		cc_ast_verbose(2, 0, VERBOSE_PREFIX_3 "%s: Setting up DTMF detector (PLCI=%#x, flag=%d)\n",
+			i->name, i->PLCI, flag);
 		FACILITY_REQ_HEADER(&CMSG, ast_capi_ApplID, get_ast_capi_MessageNumber(), 0);
 		FACILITY_REQ_PLCI(&CMSG) = i->PLCI;
-		FACILITY_REQ_FACILITYSELECTOR(&CMSG) = 1;
+		FACILITY_REQ_FACILITYSELECTOR(&CMSG) = FACILITYSELECTOR_DTMF;
 		buf[0] = 8; /* msg length */
 		if (flag == 1) {
 			write_capi_word(&buf[1], 1); /* start DTMF listen */
@@ -389,7 +391,9 @@ int capi_detect_dtmf(struct ast_channel *c, int flag)
 	} else {
 		ast_mutex_unlock(&contrlock);
 		/* do software dtmf detection */
-		i->doDTMF = 1; /* just being paranoid again... */
+		if (i->doDTMF == 0) {
+			i->doDTMF = 1;
+		}
 	}
 	return 0;
 }
@@ -451,7 +455,7 @@ static int capi_send_digit(struct ast_channel *c, char digit)
 	if ((i->earlyB3 != 1) && (i->state == CAPI_STATE_BCONNECTED)) {
 		/* we have a real connection, so send real DTMF */
 		ast_mutex_lock(&contrlock);
-		if ((capi_controllers[i->controller]->dtmf == 0) || (i->doDTMF == 1)) {
+		if ((capi_controllers[i->controller]->dtmf == 0) || (i->doDTMF > 0)) {
 			/* let * fake it */
 			ast_mutex_unlock(&contrlock);
 			return -1;
@@ -461,7 +465,7 @@ static int capi_send_digit(struct ast_channel *c, char digit)
 	
 		FACILITY_REQ_HEADER(&CMSG, ast_capi_ApplID, get_ast_capi_MessageNumber(), 0);
 		FACILITY_REQ_PLCI(&CMSG) = i->NCCI;
-	        FACILITY_REQ_FACILITYSELECTOR(&CMSG) = 1;
+	        FACILITY_REQ_FACILITYSELECTOR(&CMSG) = FACILITYSELECTOR_DTMF;
         	buf[0] = 8;
 	        write_capi_word(&buf[1], 3); /* send DTMF digit */
 	        write_capi_word(&buf[3], AST_CAPI_DTMF_DURATION);
@@ -727,7 +731,7 @@ static int capi_hangup(struct ast_channel *c)
 		cleanup = 1;
 	}
 	
-	if ((i->doDTMF == 1) && (i->vad != NULL)) {
+	if ((i->doDTMF > 0) && (i->vad != NULL)) {
 		ast_dsp_free(i->vad);
 	}
 	
@@ -1287,9 +1291,12 @@ static struct ast_channel *capi_new(struct ast_capi_pvt *i, int state)
 	ast_mutex_init(&i->lockB3q);
 	memset(i->txavg, 0, ECHO_TX_COUNT);
 
-	if (i->doDTMF == 1) {
+	if (i->doDTMF > 0) {
 		i->vad = ast_dsp_new();
 		ast_dsp_set_features(i->vad, DSP_FEATURE_DTMF_DETECT);
+		if (i->doDTMF > 1) {
+			ast_dsp_digitmode(i->vad, DSP_DIGITMODE_DTMF | DSP_DIGITMODE_RELAXDTMF);
+		}
 	}
 
 	CC_AST_CHANNEL_PVT(tmp) = i;
@@ -1561,7 +1568,7 @@ static int pipe_frame(struct ast_capi_pvt *i, struct ast_frame *f)
 	tv.tv_usec = 10;
 	
 	if ((f->frametype == AST_FRAME_VOICE) &&
-	    (i->doDTMF == 1) &&
+	    (i->doDTMF > 0) &&
 	    (i->vad != NULL) ) {
 #ifdef CC_AST_DSP_PROCESS_NEEDLOCK 
 		f = ast_dsp_process(i->owner, i->vad, f, 0);
@@ -2999,11 +3006,7 @@ int mkif(struct ast_capi_conf *conf)
 
 		strncpy(tmp->deflect2, conf->deflect2, sizeof(tmp->deflect2) - 1);
 
-		if (conf->softdtmf == 1) {
-			tmp->doDTMF = 1;
-		} else {
-			tmp->doDTMF = 0;
-		}
+		tmp->doDTMF = conf->softdtmf;
 
 		tmp->next = iflist; /* prepend */
 		iflist = tmp;
@@ -3360,7 +3363,18 @@ static int conf_interface(struct ast_capi_conf *conf, struct ast_variable *v)
 		CONF_STRING(conf->deflect2, "deflect");
 		CONF_STRING(conf->prefix, "prefix");
 		CONF_STRING(conf->accountcode, "accountcode");
-		CONF_INTEGER(conf->softdtmf, "softdtmf");
+		if (!strcasecmp(v->name, "softdtmf")) {
+			if ((!conf->softdtmf) && (ast_true(v->value))) {
+				conf->softdtmf = 1;
+			}
+			continue;
+		}
+		if (!strcasecmp(v->name, "relaxdtmf")) {
+			if (ast_true(v->value)) {
+				conf->softdtmf = 2;
+			}
+			continue;
+		}
 		CONF_INTEGER(conf->es, "echosquelch");
 
 		if (!strcasecmp(v->name, "callgroup")) {
@@ -3384,11 +3398,11 @@ static int conf_interface(struct ast_capi_conf *conf, struct ast_variable *v)
 			continue;
 		}
 		if (!strcasecmp(v->name, "echocancel")) {
-			if (!strcasecmp(v->value, "yes") || !strcasecmp(v->value, "1") || !strcasecmp(v->value, "on")) {
+			if (ast_true(v->value)) {
 				conf->echocancel = 1;
 				conf->ecoption = EC_OPTION_DISABLE_G165;
 			}	
-			else if (!strcasecmp(v->value, "no") || !strcasecmp(v->value, "0") || !strcasecmp(v->value, "off")) {
+			else if (ast_false(v->value)) {
 				conf->echocancel = 0;
 				conf->ecoption = 0;
 			}	
@@ -3463,7 +3477,7 @@ static int capi_eval_config(struct ast_config *cfg)
 				ast_log(LOG_ERROR,"invalid txgain\n");
 			}
 		} else if (!strcasecmp(v->name, "ulaw")) {
-			if (!strcasecmp(v->value, "yes") || !strcasecmp(v->value, "1") || !strcasecmp(v->value, "on")) {
+			if (ast_true(v->value)) {
 				capi_capability = AST_FORMAT_ULAW;
 			}
 		}
