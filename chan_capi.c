@@ -1470,7 +1470,7 @@ struct ast_channel *capi_request(char *type, int format, void *data)
 		return tmp;
 	}
 	ast_mutex_unlock(&iflock);
-	ast_log(LOG_NOTICE, "didn't find capi device for interface '%s'\n",
+	cc_ast_verbose(2, 0, VERBOSE_PREFIX_3 "didn't find capi device for interface '%s'\n",
 		interface);
 	return NULL;
 }
