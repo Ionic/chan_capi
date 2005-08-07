@@ -2356,12 +2356,16 @@ static void capi_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI, un
 {
 	_cmsg CMSG2;
 	struct ast_frame fr;
+	int state;
 
 	DISCONNECT_RESP_HEADER(&CMSG2, ast_capi_ApplID, CMSG->Messagenumber , 0);
 	DISCONNECT_RESP_PLCI(&CMSG2) = PLCI;
 	_capi_put_cmsg(&CMSG2);
 	
 	return_on_no_interface("DISCONNECT_IND");
+
+	state = i->state;
+	i->state = CAPI_STATE_DISCONNECTED;
 
 	i->reason = DISCONNECT_IND_REASON(CMSG);
 	
@@ -2371,9 +2375,8 @@ static void capi_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI, un
 		return;
 	}
 
-	if ((i->owner) && (i->state == CAPI_STATE_DID) && (i->owner->pbx == NULL)) {
+	if ((i->owner) && (state == CAPI_STATE_DID) && (i->owner->pbx == NULL)) {
 		/* the pbx was not started yet */
-		i->state = CAPI_STATE_DISCONNECTED;
 		ast_hangup(i->owner);
 		return;
 	}
@@ -2391,8 +2394,8 @@ static void capi_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI, un
 		 * in this case * did not read our hangup control frame
 		 * so we must hangup the channel!
 		 */
-		if ( (i->owner) && (i->state != CAPI_STATE_DISCONNECTED) && (i->state != CAPI_STATE_INCALL) &&
-		     (i->state != CAPI_STATE_DISCONNECTING) && (ast_check_hangup(i->owner) == 0)) {
+		if ( (i->owner) && (state != CAPI_STATE_DISCONNECTED) && (state != CAPI_STATE_INCALL) &&
+		     (state != CAPI_STATE_DISCONNECTING) && (ast_check_hangup(i->owner) == 0)) {
 			cc_ast_verbose(1, 0, VERBOSE_PREFIX_3 "%s: soft hangup by capi\n",
 				i->name);
 			ast_softhangup(i->owner, AST_SOFTHANGUP_DEV);
@@ -2402,10 +2405,9 @@ static void capi_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI, un
 		}
 	}
 
-	if (i->state == CAPI_STATE_DISCONNECTING) {
+	if (state == CAPI_STATE_DISCONNECTING) {
 		interface_cleanup(i);
 	}
-	i->state = CAPI_STATE_DISCONNECTED;
 }
 
 /*
@@ -2716,7 +2718,7 @@ static void capi_handle_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned in
 	case CAPI_LISTEN:
 	case CAPI_INFO:
 		if (CMSG->Info) {
-			ast_log(LOG_ERROR, "CAPI: conf_error 0x%x PLCI=0x%x Command.Subcommand = %#x.%#x\n",
+			cc_ast_verbose(1, 1, VERBOSE_PREFIX_2 "CAPI: conf_error 0x%x PLCI=0x%x Command.Subcommand = %#x.%#x\n",
 				CMSG->Info, PLCI, CMSG->Command, CMSG->Subcommand);
 		}
 		break;
