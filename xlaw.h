@@ -1,10 +1,5 @@
-#ifdef CAPI_ULAW
-#define capiXLAW2INT(x) capiULAW2INT[x]
-#define capiINT2XLAW(x) capiINT2ULAW[((unsigned short)x) >> 2]
-#else
-#define capiXLAW2INT(x) capiALAW2INT[x]
-#define capiINT2XLAW(x) capiINT2ALAW[(x>>4)+4096]
-#endif
+#define capi_int2ulaw(x) capiINT2ULAW[((unsigned short)x) >> 2]
+#define capi_int2alaw(x) capiINT2ALAW[(x>>4)+4096]
 
 static unsigned char reversebits[256] =
 {
@@ -42,7 +37,6 @@ static unsigned char reversebits[256] =
 0x1f, 0x9f, 0x5f, 0xdf, 0x3f, 0xbf, 0x7f, 0xff
 };
 
-#ifdef CAPI_ULAW
 static short capiULAW2INT[] =
 {
 0x8284, 0x7d7c, 0xf8a4, 0x075c, 0xe104, 0x1efc, 0xfe8c, 0x0174,
@@ -1105,7 +1099,7 @@ const unsigned char capiINT2ULAW[16384] = {
 246,14,14,142,142,78,78,206,206,46,46,174,174,110,110,238,
 238,30,30,158,158,94,94,222,222,62,62,190,190,126,126,254,
 };
-#else
+
 static short capiALAW2INT[] =
 {
 	0x13fc, 0xec04, 0x0144, 0xfebc, 0x517c, 0xae84, 0x051c, 0xfae4,
@@ -1657,4 +1651,3 @@ const unsigned char capiINT2ALAW[8192] = {
   85,85,85,85,85,85,85,85,85,85,85,85,85,85,85,85
 };
 
-#endif // CAPI_ULAW

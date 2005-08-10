@@ -399,6 +399,20 @@ int capi_detect_dtmf(struct ast_channel *c, int flag)
 }
 
 /*
+ * set a new name for this channel
+ */
+static void update_channel_name(struct ast_capi_pvt *i)
+{
+	char name[AST_CHANNEL_NAME];
+
+	snprintf(name, sizeof(name) - 1, "CAPI/%s/%s-%d",
+		i->name, i->dnid, capi_counter++);
+	ast_change_name(i->owner, name);
+	cc_ast_verbose(3, 0, VERBOSE_PREFIX_3 "%s: Updated channel name: %s\n",
+			i->name, name);
+}
+
+/*
  * send digits via INFO_REQ
  */
 static int capi_send_info_digits(struct ast_capi_pvt *i, char *digits, int len)
@@ -436,11 +450,21 @@ static int capi_send_digit(struct ast_channel *c, char digit)
 	MESSAGE_EXCHANGE_ERROR error;
 	_cmsg CMSG;
 	char buf[10];
+	char did[2];
     
+	if (i == NULL) {
+		ast_log(LOG_ERROR, "No interface!\n");
+		return -1;
+	}
+
 	memset(buf, 0, sizeof(buf));
 	
 	if ((c->_state == AST_STATE_DIALING) &&
 	    (i->state != CAPI_STATE_DISCONNECTING)) {
+		did[0] = digit;
+		did[1] = 0;
+		strncat(i->dnid, did, sizeof(i->dnid) - 1);
+		update_channel_name(i);	
 		if ((i->isdnstate & CAPI_ISDN_STATE_SETUP_ACK) &&
 		    (i->doOverlap == 0)) {
 			return (capi_send_info_digits(i, &digit, 1));
@@ -1112,7 +1136,11 @@ int capi_write(struct ast_channel *c, struct ast_frame *f)
 		if ((i->doES == 1)) {
 			for (j = 0; j < fsmooth->datalen; j++) {
 				buf[j] = reversebits[ ((unsigned char *)fsmooth->data)[j] ]; 
-				txavg += abs( capiXLAW2INT(reversebits[ ((unsigned char*)fsmooth->data)[j]]) );
+				if (capi_capability == AST_FORMAT_ULAW) {
+					txavg += abs( capiULAW2INT[reversebits[ ((unsigned char*)fsmooth->data)[j]]] );
+				} else {
+					txavg += abs( capiALAW2INT[reversebits[ ((unsigned char*)fsmooth->data)[j]]] );
+				}
 			}
 			txavg = txavg / j;
 			for(j = 0; j < ECHO_TX_COUNT - 1; j++) {
@@ -1261,7 +1289,7 @@ static struct ast_channel *capi_new(struct ast_capi_pvt *i, int state)
 	}
 #endif
 
-	snprintf(tmp->name, sizeof(tmp->name), "CAPI/%s/%s-%d",
+	snprintf(tmp->name, sizeof(tmp->name) - 1, "CAPI/%s/%s-%d",
 		i->name, i->dnid, capi_counter++);
 	tmp->type = type;
 
@@ -1735,7 +1763,6 @@ static void start_pbx_on_match(struct ast_capi_pvt *i, unsigned int PLCI, _cword
  */
 static void handle_did_digits(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct ast_capi_pvt *i)
 {
-	char name[AST_CHANNEL_NAME] = "";
 	char *did;
 	struct ast_frame fr;
 	int a;
@@ -1755,10 +1782,8 @@ static void handle_did_digits(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI,
 	if (strcasecmp(i->dnid, did)) {
 		strncat(i->dnid, did, sizeof(i->dnid) - 1);
 	}
-				
-	snprintf(name, sizeof(name), "CAPI/%s/%s-%d",
-		i->name, i->dnid, capi_counter++);
-	ast_change_name(i->owner, name);
+	
+	update_channel_name(i);	
 	
 	if (i->owner->pbx != NULL) {
 		/* we are already in pbx, so we send the digits as dtmf */
@@ -2133,7 +2158,11 @@ static void capi_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 	if ((i->doES == 1)) {
 		for (j = 0; j < b3len; j++) {
 			*(b3buf + j) = reversebits[*(b3buf + j)]; 
-			rxavg += abs(capiXLAW2INT( reversebits[*(b3buf + j)]));
+			if (capi_capability == AST_FORMAT_ULAW) {
+				rxavg += abs(capiULAW2INT[ reversebits[*(b3buf + j)]]);
+			} else {
+				rxavg += abs(capiALAW2INT[ reversebits[*(b3buf + j)]]);
+			}
 		}
 		rxavg = rxavg / j;
 		for (j = 0; j < ECHO_EFFECTIVE_TX_COUNT; j++) {
@@ -2141,12 +2170,12 @@ static void capi_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 		}
 		txavg = txavg / j;
 			    
-		if ( (txavg / ECHO_TXRX_RATIO) > rxavg) { 
-#ifdef CAPI_ULAW
-			memset(b3buf, 255, b3len);
-#else
-			memset(b3buf, 84, b3len);
-#endif
+		if ( (txavg / ECHO_TXRX_RATIO) > rxavg) {
+			if (capi_capability == AST_FORMAT_ULAW) {
+				memset(b3buf, 255, b3len);
+			} else {
+				memset(b3buf, 84, b3len);
+			}
 			if (capidebug) {
 				ast_log(LOG_NOTICE, "%s: SUPPRESSING ECHO rx=%d, tx=%d\n",
 					i->name, rxavg, txavg);
@@ -2545,8 +2574,18 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 				} else
 					break;
 			}
+			cc_ast_verbose(3, 0, VERBOSE_PREFIX_3 "%s: Incoming call '%s' -> '%s'\n",
+				i->name, i->cid, i->dnid);
 			sprintf(buffer, "%d", callednplan);
 			pbx_builtin_setvar_helper(i->owner, "CALLEDTON", buffer);
+			/* TODO
+			pbx_builtin_setvar_helper(i->owner, "USERUSERINFO", buffer);
+			pbx_builtin_setvar_helper(i->owner, "CALLINGSUBADDR", buffer);
+			pbx_builtin_setvar_helper(i->owner, "CALLEDSUBADDR", buffer);
+			pbx_builtin_setvar_helper(i->owner, "PRIREDIRECTREASON", buffer);
+			pbx_builtin_setvar_helper(i->owner, "ANI2", buffer);
+			pbx_builtin_setvar_helper(i->owner, "SECONDCALLERID", buffer);
+			*/
 			return;
 		}
 	}
@@ -2701,13 +2740,13 @@ static void capi_handle_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned in
 				}
 			}
 		} else {
-			ast_log(LOG_ERROR, "%s: ALERT conf_error 0x%x PLCI=0x%x Command.Subcommand = %#x.%#x\n",
+			cc_ast_verbose(1, 1, VERBOSE_PREFIX_2 "%s: ALERT conf_error 0x%x PLCI=0x%x Command.Subcommand = %#x.%#x\n",
 				i->name, CMSG->Info, PLCI, CMSG->Command, CMSG->Subcommand);
 		}
 		break;	    
 	case CAPI_SELECT_B_PROTOCOL:
 		if (CMSG->Info) {
-			ast_log(LOG_ERROR, "%s: conf_error 0x%x PLCI=0x%x Command.Subcommand = %#x.%#x\n",
+			cc_ast_verbose(1, 1, VERBOSE_PREFIX_2 "%s: conf_error 0x%x PLCI=0x%x Command.Subcommand = %#x.%#x\n",
 				i->name, CMSG->Info, PLCI, CMSG->Command, CMSG->Subcommand);
 		} else {
 			if ((i->owner) && (i->FaxState)) {
@@ -2718,7 +2757,7 @@ static void capi_handle_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned in
 		break;
 	case CAPI_DATA_B3:
 		if (CMSG->Info) {
-			ast_log(LOG_ERROR, "%s: DATA_B3 conf_error 0x%x NCCI=0x%x\n",
+			cc_ast_verbose(1, 1, VERBOSE_PREFIX_2 "%s: DATA_B3 conf_error 0x%x NCCI=0x%x\n",
 				i->name, CMSG->Info, NCCI);
 		}
 		break;
@@ -2835,8 +2874,8 @@ static int capicommand_exec(struct ast_channel *chan, void *data)
 	}
 	s = ast_strdupa(data);
 	stringp = s;
-	command = strsep(&stringp, "|");
-	params = strsep(&stringp, "|");
+	command = strsep(&stringp, ",");
+	params = strsep(&stringp, ",");
 	cc_ast_verbose(2, 1, VERBOSE_PREFIX_3 "capiCommand: '%s' '%s'\n",
 		command, params);
 
@@ -2929,12 +2968,20 @@ static void capi_gains(struct ast_capi_gains *g, float rxgain, float txgain)
 	
 	if (rxgain != 1.0) {
 		for (i = 0; i < 256; i++) {
-			x = (int)(((float)capiXLAW2INT(i)) * rxgain);
+			if (capi_capability == AST_FORMAT_ULAW) {
+				x = (int)(((float)capiULAW2INT[i]) * rxgain);
+			} else {
+				x = (int)(((float)capiALAW2INT[i]) * rxgain);
+			}
 			if (x > 32767)
 				x = 32767;
 			if (x < -32767)
 				x = -32767;
-			g->rxgains[i] = capiINT2XLAW(x);
+			if (capi_capability == AST_FORMAT_ULAW) {
+				g->rxgains[i] = capi_int2ulaw(x);
+			} else {
+				g->rxgains[i] = capi_int2alaw(x);
+			}
 		}
 	} else {
 		for (i = 0; i < 256; i++) {
@@ -2944,12 +2991,20 @@ static void capi_gains(struct ast_capi_gains *g, float rxgain, float txgain)
 	
 	if (txgain != 1.0) {
 		for (i = 0; i < 256; i++) {
-			x = (int)(((float)capiXLAW2INT(i)) * txgain);
+			if (capi_capability == AST_FORMAT_ULAW) {
+				x = (int)(((float)capiULAW2INT[i]) * txgain);
+			} else {
+				x = (int)(((float)capiALAW2INT[i]) * txgain);
+			}
 			if (x > 32767)
 				x = 32767;
 			if (x < -32767)
 				x = -32767;
-			g->txgains[i] = capiINT2XLAW(x);
+			if (capi_capability == AST_FORMAT_ULAW) {
+				g->txgains[i] = capi_int2ulaw(x);
+			} else {
+				g->txgains[i] = capi_int2alaw(x);
+			}
 		}
 	} else {
 		for (i = 0; i < 256; i++) {
