@@ -1912,8 +1912,12 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 			i->owner->hangupcause = INFO_IND_INFOELEMENT(CMSG)[2] & 0x7f;
 		}
 		break;
-	case 0x0018:	/* Channel Identifikation */
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: info element CHANNEL IDENTIFIKATION %02x\n",
+	case 0x0014:	/* Call State */
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: info element CALL STATE %02x\n",
+			i->name, INFO_IND_INFOELEMENT(CMSG)[1]);
+		break;
+	case 0x0018:	/* Channel Identification */
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: info element CHANNEL IDENTIFICATION %02x\n",
 			i->name, INFO_IND_INFOELEMENT(CMSG)[1]);
 		break;
 	case 0x001c:	/*  Facility Q.932 */
@@ -2039,6 +2043,10 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 		break;
 	case 0x807b:	/* INFORMATION */
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: info element INFORMATION\n",
+			i->name);
+		break;
+	case 0x807d:	/* STATUS */
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: info element STATUS\n",
 			i->name);
 		break;
 	default:
