@@ -1980,6 +1980,22 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 	case 0x8003:	/* PROGRESS */
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: info element PROGRESS\n",
 			i->name);
+		/*
+		 * rain - some networks will indicate a USER BUSY cause, send
+		 * PROGRESS message, and then send audio for a busy signal for
+		 * a moment before dropping the line.  This delays sending the
+		 * busy to the end user, so we explicitly check for it here.
+		 *
+		 * FIXME: should have better CAUSE handling so that we can
+		 * distinguish things like status responses and invalid IE
+		 * content messages (from bad SetCallerID) from errors actually
+		 * related to the call setup; then, we could always abort if we
+		 * get a PROGRESS with a hangupcause set (safer?)
+		 */
+		if (i->owner && i->owner->hangupcause == AST_CAUSE_USER_BUSY) {
+			pipe_cause_control(i, 1);
+			break;
+		}
 		fr.frametype = AST_FRAME_CONTROL;
 		fr.subclass = AST_CONTROL_PROGRESS;
 		pipe_frame(i, &fr);
