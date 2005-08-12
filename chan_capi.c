@@ -32,6 +32,7 @@
 #include <asterisk/features.h>
 #include <asterisk/utils.h>
 #include <asterisk/cli.h>
+#include <asterisk/causes.h>
 #include <sys/time.h>
 #include <sys/signal.h>
 #include <stdlib.h>
@@ -1810,10 +1811,11 @@ static void pipe_cause_control(struct ast_capi_pvt *i, int control)
 
 	if ((i->owner) && (control)) {
 		int cause = i->owner->hangupcause;
-		if (cause == 34) {
+		if (cause == AST_CAUSE_NORMAL_CIRCUIT_CONGESTION) {
 			fr.frametype = AST_FRAME_CONTROL;
 			fr.subclass = AST_CONTROL_CONGESTION;
-		} else if ((cause != 18) && (cause != 19)) {
+		} else if ((cause != AST_CAUSE_NO_USER_RESPONSE) &&
+		           (cause != AST_CAUSE_NO_ANSWER)) {
 			/* not NOANSWER */
 			fr.frametype = AST_FRAME_CONTROL;
 			fr.subclass = AST_CONTROL_BUSY;
