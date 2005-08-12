@@ -42,6 +42,13 @@ static inline void write_capi_word(void *m, unsigned short val)
 	((unsigned char *)m)[0] = val & 0xff;
 	((unsigned char *)m)[1] = (val >> 8) & 0xff;
 }
+static inline unsigned short read_capi_word(void *m)
+{
+	unsigned short val;
+
+	val = ((unsigned char *)m)[0] | (((unsigned char *)m)[1] << 8);	
+	return (val);
+}
 
 /*
  * definitions for compatibility with older versions of ast*
