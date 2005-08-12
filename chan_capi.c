@@ -44,8 +44,6 @@
 #include <sys/types.h>
 #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined( __NetBSD__ ) || defined(__APPLE__)
 #include <capi_bsd.h>
-#else
-#include <linux/capi.h>
 #endif
 #include <capi20.h>
 #include <asterisk/dsp.h>
@@ -2080,7 +2078,7 @@ static void capi_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, unsi
 			dtmflen = FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[0];
 			FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG) += 1;
 		} else {
-			dtmflen = ((__u16 *) (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG) + 1))[0];
+			dtmflen = read_capi_word(FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG) + 1);
 			FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG) += 3;
 		}
 		while (dtmflen) {

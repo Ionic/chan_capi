@@ -35,7 +35,6 @@
 #include <stdlib.h>
 
 #include <pthread.h>
-#include <linux/capi.h>
 #include <capi20.h>
 #include "chan_capi_pvt.h"
 #include "chan_capi_app.h"
