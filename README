@@ -92,16 +92,21 @@ The Dial string
   capi.conf has been removed. The callerID is also taken from the calling channel.
 
 
+CAPI command application
+========================
+chan_capi provides an additional Asterisk application
+   capicommand()
+With this application, special capi commands and features can be used.
+
+Call Deflection:
+    Forwards an unanswered call to another number.
+        Example:
+        exten => s,1,capicommand(deflect|12345678)
+      
+
 Helper applications
 ===================
-Kapejod says: "No No No, don't use those yet....!" (except maybe HOLD,ECT...)
 
-app_capiCD.c		
-	Forwards an unanswered call to another phone (does not rely on sservice CD)
-		Example:
-		exten => s,1,Wait,1
-		exten => s,2,capiCD,12345678
-			
 app_capiHOLD.c		
 	Puts an answered call on hold, this has nothing to do with asterisk's onhold
 	thingie (music et al)

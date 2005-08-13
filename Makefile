@@ -42,7 +42,7 @@ LIBS=-ldl -lpthread -lm
 CC=gcc
 INSTALL=install
 
-SHAREDOS=chan_capi.so app_capiCD.so app_capiHOLD.so app_capiRETRIEVE.so \
+SHAREDOS=chan_capi.so app_capiHOLD.so app_capiRETRIEVE.so \
 	app_capiECT.so app_capiMCID.so app_capiNoES.so app_capiFax.so
 
 CFLAGS+=-Wno-missing-prototypes -Wno-missing-declarations

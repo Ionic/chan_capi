@@ -4,17 +4,14 @@ INSTALL
 Modify the Makefile to fit your system, especially the path to the Asterisk 
 include files.
 
-Currently there are some buildtime configuration parameters:
-- You can switch to Ulaw. 
-
 To build the driver you will need an installed capi system, including header 
 files.
 
-To build the channel driver type:
+To build the channel driver:
 ---------------------------------
 make
 
-To install type:
+To install:
 ----------------
 make install
 

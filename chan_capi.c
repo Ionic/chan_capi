@@ -535,107 +535,6 @@ static int capi_alert(struct ast_channel *c)
 }
 
 /*
- * deflect a call
- */
-static int capi_deflect(struct ast_channel *chan, void *data)
-{
-	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(chan);
-	MESSAGE_EXCHANGE_ERROR Info;
-	_cmsg CMSG;
-	char bchaninfo[1];
-	char fac[60];
-	int res = 0;
-	int ms = 3000;
-
-	if (!data) {
-		ast_log(LOG_WARNING, "%s: CD requires an argument (destination phone number)\n",
-			i->name);
-		return -1;
-	}
-
-	if ((i->state == CAPI_STATE_CONNECTED) || (i->state == CAPI_STATE_BCONNECTED)) {
-		ast_log(LOG_ERROR, "%s: call deflection does not work with calls that are already connected!\n",
-			i->name);
-		return -1;
-	}
-	
-	/* wait until the channel is alerting, so we dont drop the call and interfer with msgs */
-	while ((ms > 0) && (i->state != CAPI_STATE_ALERTING)) {
-		sleep(100);
-		ms -= 100;
-	}
-
-	/* make sure we hang up correctly */
-	i->state = CAPI_STATE_CONNECTPENDING;
-
-	fac[0] = 0;     /* len */
-	fac[1] = 0;     /* len */
-	fac[2] = 0x01;  /* Use D-Chan */
-	fac[3] = 0;     /* Keypad len */
-	fac[4] = 31;    /* user user data? len = 31 = 29 + 2 */
-	fac[5] = 0x1c;  /* magic? */
-	fac[6] = 0x1d;  /* strlen destination + 18 = 29 */
-	fac[7] = 0x91;  /* .. */
-	fac[8] = 0xA1;
-	fac[9] = 0x1A;  /* strlen destination + 15 = 26 */
-	fac[10] = 0x02;
-	fac[11] = 0x01;
-	fac[12] = 0x70;
-	fac[13] = 0x02;
-	fac[14] = 0x01;
-	fac[15] = 0x0d;
-	fac[16] = 0x30;
-	fac[17] = 0x12; /* strlen destination + 7 = 18 */
-	fac[18] = 0x30; /* ...hm 0x30 */
-	fac[19] = 0x0d; /* strlen destination + 2 */
-	fac[20] = 0x80; /* CLIP */
-	fac[21] = 0x0b; /*  strlen destination */
-	fac[22] = 0x01; /*  destination start */
-	fac[23] = 0x01;  
-	fac[24] = 0x01;  
-	fac[25] = 0x01;  
-	fac[26] = 0x01;  
-	fac[27] = 0x01;  
-	fac[28] = 0x01;  
-	fac[29] = 0x01;  
-	fac[30] = 0x01; 
-	fac[31] = 0x01;  
-	fac[32] = 0x01;  
-	fac[33] = 0x01; /* 0x1 = sending complete */
-	fac[34] = 0x01;
-	fac[35] = 0x01;
-				   
-	memcpy((unsigned char *)fac + 22, data, strlen(data));
-	fac[22 + strlen(data)] = 0x01; /* fill with 0x01 if number is only 6 numbers (local call) */
-	fac[23 + strlen(data)] = 0x01;
-	fac[24 + strlen(data)] = 0x01;
-	fac[25 + strlen(data)] = 0x01;
-	fac[26 + strlen(data)] = 0x01;
-     
-	fac[6] = 18 + strlen(data);
-	fac[9] = 15 + strlen(data);
-	fac[17] = 7 + strlen(data);
-	fac[19] = 2 + strlen(data);
-	fac[21] = strlen(data);
-
-	bchaninfo[0] = 0x1;
-	
-	INFO_REQ_HEADER(&CMSG, ast_capi_ApplID, get_ast_capi_MessageNumber(), 0);
-	INFO_REQ_CONTROLLER(&CMSG) = i->controller;
-	INFO_REQ_PLCI(&CMSG) = i->PLCI;
-	INFO_REQ_BCHANNELINFORMATION(&CMSG) = (unsigned char*)bchaninfo; /* use D-Channel */
-	INFO_REQ_KEYPADFACILITY(&CMSG) = 0;
-	INFO_REQ_USERUSERDATA(&CMSG) = 0;
-	INFO_REQ_FACILITYDATAARRAY(&CMSG) = (unsigned char*) fac + 4;
-
-	if ((Info = _capi_put_cmsg(&CMSG)) != 0) {
-		return Info;
-	}
-
-	return res;
-}
-
-/*
  * cleanup the interface
  */
 static void interface_cleanup(struct ast_capi_pvt *i)
@@ -2471,6 +2370,101 @@ static void capi_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI, un
 }
 
 /*
+ * deflect a call
+ */
+static int capi_call_deflect(struct ast_channel *c, char *param)
+{
+	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
+	_cmsg	CMSG;
+	char	bchaninfo[1];
+	char	fac[60];
+	int	res = 0;
+
+	if ((!param) || (!strlen(param))) {
+		ast_log(LOG_WARNING, "capi deflection requires an argument (destination phone number)\n");
+		return -1;
+	}
+	
+	if ((i->state != CAPI_STATE_INCALL) &&
+	    (i->state != CAPI_STATE_DID) &&
+	    (i->state != CAPI_STATE_ALERTING)) {
+		ast_log(LOG_WARNING, "wrong state of call for call deflection\n");
+		return -1;
+	}
+	if (i->state != CAPI_STATE_ALERTING) {
+		capi_alert(c);
+	}
+	
+	fac[0] = 0;	/* len */
+	fac[1] = 0;	/* len */
+	fac[2] = 0x01;	/* Use D-Chan */
+	fac[3] = 0;	/* Keypad len */
+	fac[4] = 31;	/* user user data? len = 31 = 29 + 2 */
+	fac[5] = 0x1c;	/* magic? */
+	fac[6] = 0x1d;	/* strlen destination + 18 = 29 */
+	fac[7] = 0x91;	/* .. */
+	fac[8] = 0xA1;
+	fac[9] = 0x1A;	/* strlen destination + 15 = 26 */
+	fac[10] = 0x02;
+	fac[11] = 0x01;
+	fac[12] = 0x70;
+	fac[13] = 0x02;
+	fac[14] = 0x01;
+	fac[15] = 0x0d;
+	fac[16] = 0x30;
+	fac[17] = 0x12;	/* strlen destination + 7 = 18 */
+	fac[18] = 0x30;	/* ...hm 0x30 */
+	fac[19] = 0x0d;	/* strlen destination + 2 */
+	fac[20] = 0x80;	/* CLIP */
+	fac[21] = 0x0b;	/* strlen destination */
+	fac[22] = 0x01;	/* destination start */
+	fac[23] = 0x01;	/* */  
+	fac[24] = 0x01;	/* */  
+	fac[25] = 0x01;	/* */  
+	fac[26] = 0x01;	/* */
+	fac[27] = 0x01;	/* */
+	fac[28] = 0x01;	/* */
+	fac[29] = 0x01;	/* */
+	fac[30] = 0x01;	/* */
+	fac[31] = 0x01;	/* */
+	fac[32] = 0x01;	/* */
+	fac[33] = 0x01;	/* 0x01 = sending complete */
+	fac[34] = 0x01;
+	fac[35] = 0x01;
+				   
+	memcpy((unsigned char *)fac + 22, param, strlen(param));
+	
+	fac[22 + strlen(param)] = 0x01;	/* fill with 0x01 if number is only 6 numbers (local call) */
+	fac[23 + strlen(param)] = 0x01;
+	fac[24 + strlen(param)] = 0x01;
+	fac[25 + strlen(param)] = 0x01;
+	fac[26 + strlen(param)] = 0x01;
+     
+	fac[6] = 18 + strlen(param);
+	fac[9] = 15 + strlen(param);
+	fac[17] = 7 + strlen(param);
+	fac[19] = 2 + strlen(param);
+	fac[21] = strlen(param);
+
+	bchaninfo[0] = 0x1;
+	
+	INFO_REQ_HEADER(&CMSG, ast_capi_ApplID, get_ast_capi_MessageNumber(), 0);
+	INFO_REQ_CONTROLLER(&CMSG) = i->controller;
+	INFO_REQ_PLCI(&CMSG) = i->PLCI;
+	INFO_REQ_BCHANNELINFORMATION(&CMSG) = (unsigned char*)bchaninfo; /* use D-Channel */
+	INFO_REQ_KEYPADFACILITY(&CMSG) = 0;
+	INFO_REQ_USERUSERDATA(&CMSG) = 0;
+	INFO_REQ_FACILITYDATAARRAY(&CMSG) = (unsigned char*)fac + 4;
+
+	_capi_put_cmsg(&CMSG);
+
+	cc_ast_verbose(2, 1, VERBOSE_PREFIX_2 "%s: sent INFO_REQ for CD PLCI = %#x\n",
+		i->name, i->PLCI);
+
+	return(res);
+}
+
+/*
  * CAPI CONNECT_IND
  */
 static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI)
@@ -2600,7 +2594,7 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 #endif
 			if (deflect == 1) {
 				if (i->deflect2) {
-					capi_deflect(i->owner, i->deflect2);
+					capi_call_deflect(i->owner, i->deflect2);
 				} else
 					break;
 			}
@@ -2919,14 +2913,16 @@ static int capicommand_exec(struct ast_channel *chan, void *data)
 	}
 	s = ast_strdupa(data);
 	stringp = s;
-	command = strsep(&stringp, ",");
-	params = strsep(&stringp, ",");
-	cc_ast_verbose(2, 1, VERBOSE_PREFIX_3 "capiCommand: '%s' '%s'\n",
+	command = strsep(&stringp, "|");
+	params = stringp;
+	cc_ast_verbose(2, 1, VERBOSE_PREFIX_1 "capiCommand: '%s' '%s'\n",
 		command, params);
 
 	LOCAL_USER_ADD(u);
 	if (!strcasecmp(command, "earlyb3")) {
 		res = capi_set_earlyb3(chan, params);
+	} else if (!strcasecmp(command, "deflect")) {
+		res = capi_call_deflect(chan, params);
 	} else {
 		res = -1;
 		ast_log(LOG_WARNING, "Unknown command '%s' for capiCommand\n",
