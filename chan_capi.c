@@ -2716,6 +2716,25 @@ static void capi_handle_facility_confirmation(_cmsg *CMSG, unsigned int PLCI, un
 }
 
 /*
+ * show error in confirmation
+ */
+static void show_capi_conf_error(char *msg, struct ast_capi_pvt *i, unsigned int PLCI, _cmsg *CMSG)
+{
+	const char *name = type;
+
+	if (i)
+		name = i->name;
+		
+	if (CMSG->Info == 0x2002) {
+		cc_ast_verbose(1, 1, VERBOSE_PREFIX_2 "%s: %s_CONF 0x%x (wrong state) PLCI=0x%x Command.Subcommand = %#x.%#x\n",
+			name, msg, CMSG->Info, PLCI, CMSG->Command, CMSG->Subcommand);
+	} else {
+		ast_log(LOG_WARNING, "%s: %s conf_error 0x%x PLCI=0x%x Command.Subcommand = %#x.%#x\n",
+			name, msg, CMSG->Info, PLCI, CMSG->Command, CMSG->Subcommand);
+	}
+}
+
+/*
  * CAPI *_CONF
  */
 static void capi_handle_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI)
@@ -2767,14 +2786,12 @@ static void capi_handle_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned in
 				}
 			}
 		} else {
-			cc_ast_verbose(1, 1, VERBOSE_PREFIX_2 "%s: ALERT conf_error 0x%x PLCI=0x%x Command.Subcommand = %#x.%#x\n",
-				i->name, CMSG->Info, PLCI, CMSG->Command, CMSG->Subcommand);
+			show_capi_conf_error("ALERT", i, PLCI, CMSG);
 		}
 		break;	    
 	case CAPI_SELECT_B_PROTOCOL:
 		if (CMSG->Info) {
-			cc_ast_verbose(1, 1, VERBOSE_PREFIX_2 "%s: conf_error 0x%x PLCI=0x%x Command.Subcommand = %#x.%#x\n",
-				i->name, CMSG->Info, PLCI, CMSG->Command, CMSG->Subcommand);
+			show_capi_conf_error("SELECT_B_PROTOCOL", i, PLCI, CMSG);
 		} else {
 			if ((i->owner) && (i->FaxState)) {
 				capi_echo_canceller(i->owner, EC_FUNCTION_DISABLE);
@@ -2784,8 +2801,7 @@ static void capi_handle_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned in
 		break;
 	case CAPI_DATA_B3:
 		if (CMSG->Info) {
-			cc_ast_verbose(1, 1, VERBOSE_PREFIX_2 "%s: DATA_B3 conf_error 0x%x NCCI=0x%x\n",
-				i->name, CMSG->Info, NCCI);
+			show_capi_conf_error("DATA_B3", i, PLCI, CMSG);
 		}
 		break;
 	case CAPI_DISCONNECT:
@@ -2793,8 +2809,7 @@ static void capi_handle_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned in
 	case CAPI_LISTEN:
 	case CAPI_INFO:
 		if (CMSG->Info) {
-			cc_ast_verbose(1, 1, VERBOSE_PREFIX_2 "CAPI: conf_error 0x%x PLCI=0x%x Command.Subcommand = %#x.%#x\n",
-				CMSG->Info, PLCI, CMSG->Command, CMSG->Subcommand);
+			show_capi_conf_error("", i, PLCI, CMSG);
 		}
 		break;
 	default:
