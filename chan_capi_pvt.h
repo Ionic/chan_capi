@@ -195,6 +195,8 @@ struct ast_capi_pvt {
 	int ecTail;
 	/* isdnmode ptp or ptm */
 	int isdnmode;
+	/* Answer before getting digits? */
+	int immediate;
 
 	/* Common ISDN Profile (CIP) */
 	int cip;
@@ -264,6 +266,7 @@ struct ast_capi_conf {
 	int ecoption;
 	int ectail;
 	int isdnmode;
+	int immediate;
 	int es;
 	unsigned int callgroup;
 	unsigned int group;

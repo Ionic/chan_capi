@@ -2483,12 +2483,13 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 	char buffer_r[AST_CAPI_MAX_STRING];
 	char *buffer_rp = buffer_r;
 	char *magicmsn = "*\0";
-	char *emptydnid = "s\0";
+	char *emptydnid = "\0";
+	char *startdnid = "s\0";
 	int deflect = 0;
 	int callpres = 0;
 
 	DNID = capi_number(CONNECT_IND_CALLEDPARTYNUMBER(CMSG), 1);
-	if ((DNID && *DNID == 0) || !DNID) {
+	if (!DNID) {
 		DNID = emptydnid;
 	}
 	if (CONNECT_IND_CALLEDPARTYNUMBER(CMSG)[0] > 1) {
@@ -2531,12 +2532,14 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 		}
 		strncpy(buffer, i->incomingmsn, sizeof(buffer) - 1);
 		for (msn = strtok_r(buffer, ",", &buffer_rp); msn; msn = strtok_r(NULL, ",", &buffer_rp)) {
-			if (!DNID) {
+			if (!strlen(DNID)) {
 				/* if no DNID, only accept if '*' was specified */
 				if (strncasecmp(msn, magicmsn, strlen(msn))) {
 					continue;
 				}
-				strncpy(i->dnid, emptydnid, sizeof(i->dnid) - 1);
+				if (i->immediate) {
+					strncpy(i->dnid, startdnid, sizeof(i->dnid) - 1);
+				}
 			} else {
 				/* make sure the number match exactly or may match on ptp mode */
 				cc_ast_verbose(4, 1, VERBOSE_PREFIX_1 "%s: msn='%s' DNID='%s' %s\n",
@@ -2573,7 +2576,7 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 			if (i->isdnmode == AST_CAPI_ISDNMODE_PTP) {
 				capi_new(i, AST_STATE_DOWN);
 				i->state = CAPI_STATE_DID;
-				if ((DNID == emptydnid) && (i->owner)) {
+				if (strlen(i->dnid) && (i->owner)) {
 					start_pbx_on_match(i, PLCI, CMSG->Messagenumber);
 				}
 			} else {
@@ -3087,6 +3090,7 @@ int mkif(struct ast_capi_conf *conf)
 		tmp->doES = conf->es;
 		tmp->callgroup = conf->callgroup;
 		tmp->group = conf->group;
+		tmp->immediate = conf->immediate;
 		
 		tmp->smoother = ast_smoother_new(AST_CAPI_MAX_B3_BLOCK_SIZE);
 
@@ -3456,6 +3460,12 @@ static int conf_interface(struct ast_capi_conf *conf, struct ast_variable *v)
 		if (!strcasecmp(v->name, "softdtmf")) {
 			if ((!conf->softdtmf) && (ast_true(v->value))) {
 				conf->softdtmf = 1;
+			}
+			continue;
+		}
+		if (!strcasecmp(v->name, "immediate")) {
+			if (ast_true(v->value)) {
+				conf->immediate = 1;
 			}
 			continue;
 		}
