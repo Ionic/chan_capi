@@ -1583,7 +1583,8 @@ static int pipe_frame(struct ast_capi_pvt *i, struct ast_frame *f)
 	struct timeval tv;
 
 	if (i->owner == NULL) {
-		ast_log(LOG_ERROR, "No owner in pipe_frame\n");
+		cc_ast_verbose(1, 1, VERBOSE_PREFIX_1 "%s: No owner in pipe_frame\n",
+			i->name);
 		return -1;
 	}
 
@@ -2085,11 +2086,13 @@ static void capi_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, unsi
 			dtmf = (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG))[dtmfpos];
 			cc_ast_verbose(1, 1, VERBOSE_PREFIX_3 "%s: c_dtmf = %c\n",
 				i->name, dtmf);
-			if ((dtmf == 'X') || (dtmf == 'Y'))
+			if ((dtmf == 'X') || (dtmf == 'Y')) {
 				capi_handle_dtmf_fax(i->owner);
-			fr.frametype = AST_FRAME_DTMF;
-			fr.subclass = dtmf;
-			pipe_frame(i, &fr);
+			} else {
+				fr.frametype = AST_FRAME_DTMF;
+				fr.subclass = dtmf;
+				pipe_frame(i, &fr);
+			}
 			dtmflen--;
 			dtmfpos++;
 		} 
