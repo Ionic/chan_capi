@@ -43,7 +43,7 @@ CC=gcc
 INSTALL=install
 
 SHAREDOS=chan_capi.so app_capiHOLD.so app_capiRETRIEVE.so \
-	app_capiECT.so app_capiMCID.so app_capiNoES.so
+	app_capiECT.so app_capiMCID.so
 
 CFLAGS+=-Wno-missing-prototypes -Wno-missing-declarations
 

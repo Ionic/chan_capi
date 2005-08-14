@@ -58,8 +58,6 @@ This chan_capi version includes:
 - report correct DIALSTATUS and HANGUPCAUSE.
 - Updated to support the new frame->delivery field
 - Compiles with different Asterisk versions (automatic build configuration)
-- Added app_capiNoES for disabling the primitive echo suppressor, use this 
-  before you start recording voicemail or your files may get choppy
 - receive faxes over CAPI (see below)
 - Fixes for BSD (Jan Stocker)
 - Support 'type of number'.
@@ -108,6 +106,14 @@ Fax receive:
         Example:
         exten => s,1,capicommand(receivefax|/tmp/${UNIQUEID}|+49 6137 555123|Asterisk)
 	(more see below)
+
+Enable/Disable echosquelch:
+    Enable or disable a very primitive echo suppressor.
+    Disable this before you start recording voicemail or your files may get choppy.
+        Example:
+        exten => s,1,capicommand(echosquelch|yes)
+	  or
+        exten => s,1,capicommand(echosquelch|no)
 
 
 Helper applications

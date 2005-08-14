@@ -2244,10 +2244,8 @@ static void capi_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 			} else {
 				memset(b3buf, 84, b3len);
 			}
-			if (capidebug) {
-				ast_log(LOG_NOTICE, "%s: SUPPRESSING ECHO rx=%d, tx=%d\n",
+			cc_ast_verbose(6, 1, VERBOSE_PREFIX_2 "%s: SUPPRESSING ECHO rx=%d, tx=%d\n",
 					i->name, rxavg, txavg);
-			}
 		}
 	} else {
 		for (j = 0; j < b3len; j++) {
@@ -3001,6 +2999,30 @@ static void capi_handle_msg(_cmsg *CMSG)
 }
 
 /*
+ * set echo squelch
+ */
+static int capi_echosquelch(struct ast_channel *c, char *param)
+{
+	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
+
+	if (!param) {
+		ast_log(LOG_WARNING, "Parameter for echosquelch missing.\n");
+		return -1;
+	}
+	if (ast_true(param)) {
+		i->doES = 1;
+	} else if (ast_false(param)) {
+		i->doES = 0;
+	} else {
+		ast_log(LOG_WARNING, "Parameter for echosquelch invalid.\n");
+		return -1;
+	}
+	cc_ast_verbose(2, 1, VERBOSE_PREFIX_1 "%s: echosquelch switched %s\n",
+		i->name, i->doES ? "ON":"OFF");
+	return 0;
+}
+
+/*
  * set early-B3 for incoming connections
  * (only for NT mode)
  */
@@ -3079,6 +3101,8 @@ static int capicommand_exec(struct ast_channel *chan, void *data)
 		res = capi_call_deflect(chan, params);
 	} else if (!strcasecmp(command, "receivefax")) {
 		res = capi_receive_fax(chan, params);
+	} else if (!strcasecmp(command, "echosquelch")) {
+		res = capi_echosquelch(chan, params);
 	} else {
 		res = -1;
 		ast_log(LOG_WARNING, "Unknown command '%s' for capiCommand\n",
@@ -3645,8 +3669,12 @@ static int conf_interface(struct ast_capi_conf *conf, struct ast_variable *v)
 			}
 			continue;
 		}
-		CONF_INTEGER(conf->es, "echosquelch");
-
+		if (!strcasecmp(v->name, "echosquelch")) {
+			if (ast_true(v->value)) {
+				conf->es = 1;
+			}
+			continue;
+		}
 		if (!strcasecmp(v->name, "callgroup")) {
 			conf->callgroup = ast_get_group(v->value);
 			continue;
