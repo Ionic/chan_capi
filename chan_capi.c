@@ -559,7 +559,6 @@ static void interface_cleanup(struct ast_capi_pvt *i)
 	i->cause = 0;
 
 	i->faxhandled = 0;
-	i->FaxState = 0;
 
 	i->PLCI = 0;
 	i->NCCI = 0;
@@ -857,9 +856,9 @@ int capi_call(struct ast_channel *c, char *idest, int timeout)
 }
 
 /*
- * Asterisk tells us to answer a call
+ * answer a capi call
  */
-static int capi_answer(struct ast_channel *c)
+static int capi_send_answer(struct ast_channel *c, int *bprot, _cstruct b3conf)
 {
 	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
 	_cmsg CMSG;
@@ -874,9 +873,7 @@ static int capi_answer(struct ast_channel *c)
 		dnid = i->dnid;
 	}
 
-	i->fFax = NULL;
-	i->faxhandled = 0;
-	i->FaxState = 0;
+	memset(&CMSG, 0, sizeof(CMSG));
 
 	CONNECT_RESP_HEADER(&CMSG, ast_capi_ApplID, i->MessageNumber, 0);
 	CONNECT_RESP_PLCI(&CMSG) = i->PLCI;
@@ -886,11 +883,10 @@ static int capi_answer(struct ast_channel *c)
 	buf[2] = 0x80;
 	strncpy(&buf[3], dnid, sizeof(buf) - 4);
 	CONNECT_RESP_CONNECTEDNUMBER(&CMSG) = buf;
-	CONNECT_RESP_CONNECTEDSUBADDRESS(&CMSG) = NULL;
-	CONNECT_RESP_LLC(&CMSG) = NULL;
-	CONNECT_RESP_B1PROTOCOL(&CMSG) = 1;
-	CONNECT_RESP_B2PROTOCOL(&CMSG) = 1;
-	CONNECT_RESP_B3PROTOCOL(&CMSG) = 0;
+	CONNECT_RESP_B1PROTOCOL(&CMSG) = bprot[0];
+	CONNECT_RESP_B2PROTOCOL(&CMSG) = bprot[1];
+	CONNECT_RESP_B3PROTOCOL(&CMSG) = bprot[2];
+	CONNECT_RESP_B3CONFIGURATION(&CMSG) = b3conf;
 
 	cc_ast_verbose(3, 0, VERBOSE_PREFIX_3 "%s: Answering for %s\n",
 		i->name, dnid);
@@ -905,6 +901,16 @@ static int capi_answer(struct ast_channel *c)
 	i->earlyB3 = -1;
 
 	return 0;
+}
+
+/*
+ * Asterisk tells us to answer a call
+ */
+static int capi_answer(struct ast_channel *c)
+{
+	int bprot[3] = { 1, 1, 0 };
+
+	return capi_send_answer(c, bprot, NULL);
 }
 
 /*
@@ -1402,6 +1408,143 @@ struct ast_channel *capi_request(char *type, int format, void *data)
 }
 
 /*
+ * fill out fax conf struct
+ */
+static void setup_b3_fax_config(B3_PROTO_FAXG3 *b3conf, int fax_format, char *stationid, char *headline)
+{
+	int len1;
+	int len2;
+
+	cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "Setup fax b3conf fmt=%d, stationid='%s' headline='%s'\n",
+		fax_format, stationid, headline);
+	b3conf->resolution = 0;
+	b3conf->format = (unsigned short)fax_format;
+	len1 = strlen(stationid);
+	b3conf->Infos[0] = (unsigned char)len1;
+	strcpy((char *)&b3conf->Infos[1], stationid);
+	len2 = strlen(headline);
+	b3conf->Infos[len1 + 1] = (unsigned char)len2;
+	strcpy((char *)&b3conf->Infos[len1 + 2], headline);
+	b3conf->len = (unsigned char)(2 * sizeof(unsigned short) + len1 + len2 + 2);
+}
+
+/*
+ * change b protocol to fax
+ */
+static void capi_change_bchan_fax(struct ast_channel *c, B3_PROTO_FAXG3 *b3conf) 
+{
+	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
+	_cmsg CMSG;
+
+	if (i->state == CAPI_STATE_BCONNECTED) {
+		int waitcount = 200;
+		DISCONNECT_B3_REQ_HEADER(&CMSG, ast_capi_ApplID, get_ast_capi_MessageNumber(), 0);
+		DISCONNECT_B3_REQ_NCCI(&CMSG) = i->NCCI;
+		_capi_put_cmsg(&CMSG);
+	
+		/* wait for the B3 layer to go down */
+		while ((waitcount > 0) && (i->state == CAPI_STATE_BCONNECTED)) {
+			usleep(10000);
+			waitcount--;
+		}
+		if (i->state != CAPI_STATE_CONNECTED) {
+			ast_log(LOG_WARNING, "capi receivefax disconnect b3 wait error\n");
+		}
+	}
+
+	SELECT_B_PROTOCOL_REQ_HEADER(&CMSG, ast_capi_ApplID, get_ast_capi_MessageNumber(), 0);
+	SELECT_B_PROTOCOL_REQ_PLCI(&CMSG) = i->PLCI;
+	SELECT_B_PROTOCOL_REQ_B1PROTOCOL(&CMSG) = 4;
+	SELECT_B_PROTOCOL_REQ_B2PROTOCOL(&CMSG) = 4;
+	SELECT_B_PROTOCOL_REQ_B3PROTOCOL(&CMSG) = 4;
+	SELECT_B_PROTOCOL_REQ_B1CONFIGURATION(&CMSG) = NULL;
+	SELECT_B_PROTOCOL_REQ_B2CONFIGURATION(&CMSG) = NULL;
+	SELECT_B_PROTOCOL_REQ_B3CONFIGURATION(&CMSG) = (_cstruct)b3conf;
+	_capi_put_cmsg(&CMSG);
+
+	return;
+}
+
+/*
+ * capicommand 'receivefax'
+ */
+static int capi_receive_fax(struct ast_channel *c, char *data)
+{
+	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
+	int res = 0;
+	char *filename, *stationid, *headline;
+	int bprot[3] = { 4, 4, 4 };
+	B3_PROTO_FAXG3 b3conf;
+
+	if (!data) { /* no data implies no filename or anything is present */
+		ast_log(LOG_WARNING, "capi receivefax requires a filename\n");
+		return -1;
+	}
+
+	filename = strsep(&data, "|");
+	stationid = strsep(&data, "|");
+	headline = data;
+
+	if (!stationid)
+		stationid = emptyid;
+	if (!headline)
+		headline = emptyid;
+
+	if ((i->fFax = fopen(filename, "wb")) == NULL) {
+		ast_log(LOG_WARNING, "can't create fax output file (%s)\n", strerror(errno));
+		return -1;
+	}
+
+	i->FaxState = 1;
+	setup_b3_fax_config(&b3conf, FAX_SFF_FORMAT, stationid, headline);
+
+	switch (i->state) {
+	case CAPI_STATE_ALERTING:
+	case CAPI_STATE_DID:
+	case CAPI_STATE_INCALL:
+		capi_send_answer(c, bprot, (_cstruct)&b3conf);
+		break;
+	case CAPI_STATE_CONNECTED:
+	case CAPI_STATE_BCONNECTED:
+		capi_change_bchan_fax(c, &b3conf);
+		break;
+	default:
+		i->FaxState = 0;
+		ast_log(LOG_WARNING, "capi receive fax in wrong state (%d)\n",
+			i->state);
+		return -1;
+	}
+
+	while (i->FaxState == 1) {
+		usleep(10000);
+	}
+
+	res = i->FaxState;
+	i->FaxState = 0;
+
+	/* if the file has zero length */
+	if (ftell(i->fFax) == 0L) {
+		res = -1;
+	}
+			
+	cc_ast_verbose(2, 1, VERBOSE_PREFIX_3 "Closing fax file...\n");
+	fclose(i->fFax);
+	i->fFax = NULL;
+
+	if (res != 0) {
+		cc_ast_verbose(2, 0,
+			VERBOSE_PREFIX_1 "capi receivefax: fax receive failed reason=0x%04x reasonB3=0x%04x\n",
+				i->reason, i->reasonb3);
+		unlink(filename);
+	} else {
+		cc_ast_verbose(2, 0,
+			VERBOSE_PREFIX_1 "capi receivefax: fax receive successful.\n");
+	}
+	
+	return res;
+}
+
+/*
  * Fax guard tone -- Handle and return NULL
  */
 static void capi_handle_dtmf_fax(struct ast_channel *ast)
@@ -1769,7 +1912,6 @@ static void handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsigned int 
 			i->name);
 		if (i->FaxState) {
 			/* in capiFax */
-			i->FaxState = 0;
 			return;
 		}
 		pipe_cause_control(i, 0);
@@ -2233,7 +2375,7 @@ static void capi_handle_connect_b3_active_indication(_cmsg *CMSG, unsigned int P
 	}
 
 	if (i->FaxState) {
-		cc_ast_verbose(6, 0, VERBOSE_PREFIX_3 "%s: Fax connection, no EC/DTMF\n",
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: Fax connection, no EC/DTMF\n",
 			i->name);
 	} else {
 		capi_echo_canceller(i->owner, EC_FUNCTION_ENABLE);
@@ -2328,6 +2470,18 @@ static void capi_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI, un
 
 	i->reason = DISCONNECT_IND_REASON(CMSG);
 	
+	if (i->FaxState == 1) {
+		/* in capiFax */
+		switch (i->reason) {
+		case 0x3490:
+		case 0x349f:
+			i->FaxState = (i->reasonb3 == 0) ? 0 : -1;
+			break;
+		default:
+			i->FaxState = -1;
+		}
+	}
+
 	if (PLCI == i->onholdPLCI) {
 		/* the caller onhold hung up (or ECTed away) */
 		interface_cleanup(i);
@@ -2900,7 +3054,7 @@ static int capicommand_exec(struct ast_channel *chan, void *data)
 	int res = 0;
 	struct localuser *u;
 	char *s;
-	char *stringp = NULL;
+	char *stringp;
 	char *command, *params;
 
 	if (!data) {
@@ -2923,6 +3077,8 @@ static int capicommand_exec(struct ast_channel *chan, void *data)
 		res = capi_set_earlyb3(chan, params);
 	} else if (!strcasecmp(command, "deflect")) {
 		res = capi_call_deflect(chan, params);
+	} else if (!strcasecmp(command, "receivefax")) {
+		res = capi_receive_fax(chan, params);
 	} else {
 		res = -1;
 		ast_log(LOG_WARNING, "Unknown command '%s' for capiCommand\n",

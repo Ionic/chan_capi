@@ -64,6 +64,27 @@ static inline unsigned short read_capi_word(void *m)
 	static ast_mutex_t mutex = AST_MUTEX_INITIALIZER
 #endif
 
+/* FAX Resolutions */
+#define FAX_STANDARD_RESOLUTION         0
+#define FAX_HIGH_RESOLUTION             1
+
+/* FAX Formats */
+#define FAX_SFF_FORMAT                  0
+#define FAX_PLAIN_FORMAT                1
+#define FAX_PCX_FORMAT                  2
+#define FAX_DCX_FORMAT                  3
+#define FAX_TIFF_FORMAT                 4
+#define FAX_ASCII_FORMAT                5
+#define FAX_EXTENDED_ASCII_FORMAT       6
+#define FAX_BINARY_FILE_TRANSFER_FORMAT 7
+
+/* Fax struct */
+typedef struct fax3proto3 {
+	unsigned char len;
+	unsigned short resolution __attribute__ ((packed));
+	unsigned short format __attribute__ ((packed));
+	unsigned char Infos[100] __attribute__ ((packed));
+} B3_PROTO_FAXG3;
 
 /* duration in ms for sending and detecting dtmfs */
 #define AST_CAPI_DTMF_DURATION          0x40

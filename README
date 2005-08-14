@@ -60,7 +60,7 @@ This chan_capi version includes:
 - Compiles with different Asterisk versions (automatic build configuration)
 - Added app_capiNoES for disabling the primitive echo suppressor, use this 
   before you start recording voicemail or your files may get choppy
-- Added app_capiFax to receive faxes over CAPI (see below)
+- receive faxes over CAPI (see below)
 - Fixes for BSD (Jan Stocker)
 - Support 'type of number'.
 
@@ -102,7 +102,13 @@ Call Deflection:
     Forwards an unanswered call to another number.
         Example:
         exten => s,1,capicommand(deflect|12345678)
-      
+  
+Fax receive:
+    Receive a fax using CAPI.
+        Example:
+        exten => s,1,capicommand(receivefax|/tmp/${UNIQUEID}|+49 6137 555123|Asterisk)
+	(more see below)
+
 
 Helper applications
 ===================
@@ -176,14 +182,17 @@ Example context for incoming calls on MSN 12345678:
 exten => 12345678,1,Dial(SIP/phone1)
 exten => 12345678,2,Hangup
 
-Short HOWTO of 'capiAnswerFax':
-===============================
+
+Short HOWTO of capicommand(receivefax|<filename>[|<stationid>|<headline>]):
+==========================================================================
 For those of you who have a CAPI card with an on-board DSP (like some Eicon and
 DIVA Server), this patch allows you to receive faxes.
-If you want to answer a channel in fax mode, use capiAnswerFax() instead of 
-Answer()
+If you want to answer a channel in fax mode, use capicommand(receivefax|...)
+instead of Answer()
 If you use Answer(), you will be in voice mode. If the hardware DSP detects 
-fax tone, you can switch from voice to fax mode by calling capiAnswerFax().
+fax tone, you can switch from voice to fax mode by calling capicommand(receivefax|...).
+The parameter <filename> is mandatory and the parameters <stationid> and
+<headline> are optional.
 
 Example of use :
 line number 123, play something, if a fax tone is detected, handle it
@@ -196,11 +205,12 @@ exten => 124,1,Goto(handle_fax,s,1)
 exten => fax,1,Goto(handle_fax,s,1)
 
 [handle_fax]
-exten => s,1,capiAnswerFax(/tmp/${UNIQUEID})
+exten => s,1,capicommand(receivefax|/tmp/${UNIQUEID}[|<stationid>|<headline>])
 exten => s,2,Hangup()
 exten => h,1,deadagi,fax.php // Run sfftobmp and mail it.
 
-The output of capiAnswerFax is a SFF file. Use sfftobmp to convert it.
+The output of capicommand(receivefax|...) is a SFF file.
+Use sfftobmp to convert it.
 With a DIVA Server, following features are provided:
  - fax up to 33600
  - high resolution
