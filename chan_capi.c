@@ -2997,6 +2997,32 @@ static void capi_handle_msg(_cmsg *CMSG)
 		break;
 	}
 }
+/*
+ * report malicious call
+ */
+static int capi_malicious(struct ast_channel *c, char *param)
+{
+	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
+	_cmsg	CMSG;
+	char	fac[4];
+
+	fac[0] = 3;      /* len */
+	fac[1] = 0x0e;   /* MCID */
+	fac[2] = 0x00;
+	fac[3] = 0;	
+
+	FACILITY_REQ_HEADER(&CMSG,ast_capi_ApplID, get_ast_capi_MessageNumber(),0);
+	FACILITY_REQ_PLCI(&CMSG) = i->PLCI;
+	FACILITY_REQ_FACILITYSELECTOR(&CMSG) = FACILITYSELECTOR_SUPPLEMENTARY;
+	FACILITY_REQ_FACILITYREQUESTPARAMETER(&CMSG) = (char *)&fac;
+
+	_capi_put_cmsg(&CMSG);
+
+	cc_ast_verbose(2, 1, VERBOSE_PREFIX_1 "%s: sent MCID for PLCI=%#x\n",
+		i->name, i->PLCI);
+
+	return 0;
+}
 
 /*
  * set echo squelch
@@ -3103,6 +3129,8 @@ static int capicommand_exec(struct ast_channel *chan, void *data)
 		res = capi_receive_fax(chan, params);
 	} else if (!strcasecmp(command, "echosquelch")) {
 		res = capi_echosquelch(chan, params);
+	} else if (!strcasecmp(command, "malicious")) {
+		res = capi_malicious(chan, params);
 	} else {
 		res = -1;
 		ast_log(LOG_WARNING, "Unknown command '%s' for capiCommand\n",

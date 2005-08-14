@@ -112,8 +112,13 @@ Enable/Disable echosquelch:
     Disable this before you start recording voicemail or your files may get choppy.
         Example:
         exten => s,1,capicommand(echosquelch|yes)
-	  or
+          or
         exten => s,1,capicommand(echosquelch|no)
+
+Malicious Call Identification:
+    Report a call of malicious nature.
+        Example:
+        exten => s,1,capicommand(malicious)
 
 
 Helper applications
