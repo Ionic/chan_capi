@@ -617,7 +617,7 @@ static void capi_activehangup(struct ast_channel *c)
 	}
 	
 	if ((state == CAPI_STATE_CONNECTED) || (state == CAPI_STATE_CONNECTPENDING) ||
-	    (state == CAPI_STATE_ANSWERING)) {
+	    (state == CAPI_STATE_ANSWERING) || (state == CAPI_STATE_ONHOLD)) {
 		DISCONNECT_REQ_HEADER(&CMSG, ast_capi_ApplID, get_ast_capi_MessageNumber(), 0);
 		DISCONNECT_REQ_PLCI(&CMSG) = i->PLCI;
 		_capi_put_cmsg(&CMSG);
@@ -2101,7 +2101,7 @@ static void capi_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, unsi
 	
 	return_on_no_interface("FACILITY_IND");
 
-	if (FACILITY_IND_FACILITYSELECTOR(CMSG) == 0x0001) {
+	if (FACILITY_IND_FACILITYSELECTOR(CMSG) == FACILITYSELECTOR_DTMF) {
 		/* DTMF received */
 		if (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[0] != (0xff)) {
 			dtmflen = FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[0];
@@ -2126,7 +2126,7 @@ static void capi_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, unsi
 		} 
 	}
 	
-	if (FACILITY_IND_FACILITYSELECTOR(CMSG) == 0x0003) {
+	if (FACILITY_IND_FACILITYSELECTOR(CMSG) == FACILITYSELECTOR_SUPPLEMENTARY) {
 		/* supplementary sservices */
 #if 0
 		ast_log(LOG_NOTICE,"FACILITY_IND PLCI = %#x\n",PLCI);
@@ -2140,19 +2140,37 @@ static void capi_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, unsi
 		/* RETRIEVE */
 		if ( (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[1] == 0x3) &&
 		     (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[3] == 0x2) ) {
-			i->state = CAPI_STATE_CONNECTED;
-			i->PLCI = i->onholdPLCI;
-			i->onholdPLCI = 0;
+			if ((FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[5] != 0) || 
+			    (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4] != 0)) { 
+				ast_log(LOG_WARNING, "%s: unable to retrieve PLCI=%#x, REASON = %#x%#x\n",
+					i->name,
+					PLCI, FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[5],
+					FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]);
+			} else {
+				/* reason != 0x0000 == problem */
+				i->state = CAPI_STATE_CONNECTED;
+				i->PLCI = i->onholdPLCI;
+				i->onholdPLCI = 0;
+				cc_ast_verbose(1, 1, VERBOSE_PREFIX_3 "%s: PLCI=%#x retrieved\n",
+					i->name, PLCI);
+				/* send a CONNECT_B3_REQ */
+				memset(&CMSG2, 0, sizeof(_cmsg));
+				CONNECT_B3_REQ_HEADER(&CMSG2, ast_capi_ApplID, get_ast_capi_MessageNumber(),0);
+				CONNECT_B3_REQ_PLCI(&CMSG2) = i->PLCI;
+				_capi_put_cmsg(&CMSG2);
+				cc_ast_verbose(4, 1, VERBOSE_PREFIX_3 "%s: sent CONNECT_B3_REQ PLCI=%#x\n",
+					i->name, PLCI);
+			}
 		}
 		
 		/* HOLD */
 		if ( (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[1] == 0x2) &&
 		     (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[3] == 0x2) ) {
-			if ((FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[5] != 0) &&
+			if ((FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[5] != 0) || 
 			    (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4] != 0)) { 
 				/* reason != 0x0000 == problem */
 				i->onholdPLCI = 0;
-				i->state = CAPI_STATE_ONHOLD;
+				i->state = CAPI_STATE_BCONNECTED;
 				ast_log(LOG_WARNING, "%s: unable to put PLCI=%#x onhold, REASON = %#x%#x, maybe you need to subscribe for this...\n",
 					i->name,
 					PLCI, FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[5],
@@ -2160,10 +2178,8 @@ static void capi_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, unsi
 			} else {
 				/* reason = 0x0000 == call on hold */
 				i->state = CAPI_STATE_ONHOLD;
-				if (capidebug) {
-					ast_log(LOG_NOTICE, "%s: PLCI=%#x put onhold\n",
-						i->name, PLCI);
-				}
+				cc_ast_verbose(1, 1, VERBOSE_PREFIX_3 "%s: PLCI=%#x put onhold\n",
+					i->name, PLCI);
 			}
 		}
 	}
@@ -2465,12 +2481,6 @@ static void capi_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI, un
 		default:
 			i->FaxState = -1;
 		}
-	}
-
-	if (PLCI == i->onholdPLCI) {
-		/* the caller onhold hung up (or ECTed away) */
-		interface_cleanup(i);
-		return;
 	}
 
 	if ((i->owner) && (state == CAPI_STATE_DID) && (i->owner->pbx == NULL)) {
@@ -2842,7 +2852,8 @@ static void capi_handle_facility_confirmation(_cmsg *CMSG, unsigned int PLCI, un
 		    (FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[2] == 0x0) &&
 		    ((FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[4] != 0x0) ||
 		     (FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[5] != 0x0))) {
-			i->state = CAPI_STATE_BCONNECTED;
+			cc_ast_verbose(2, 0, VERBOSE_PREFIX_3 "%s: Call on hold (PLCI=%#x)\n",
+				i->name, PLCI);
 		}
 		break;
 	default:
@@ -2984,6 +2995,73 @@ static void capi_handle_msg(_cmsg *CMSG)
 		break;
 	}
 }
+
+/*
+ * retrieve a hold on call
+ */
+static int capi_retrieve(struct ast_channel *c, char *param)
+{
+	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
+	_cmsg	CMSG;
+	char	fac[4];
+
+	if (i->onholdPLCI == 0) {
+		ast_log(LOG_WARNING, "%s: %s is not on hold to retrieve!\n",
+			i->name, c->name);
+		return -1;
+	}
+
+	fac[0] = 3;	/* len */
+	fac[1] = 0x03;	/* retrieve */
+	fac[2] = 0x00;
+	fac[3] = 0;	
+
+	FACILITY_REQ_HEADER(&CMSG,ast_capi_ApplID, get_ast_capi_MessageNumber(),0);
+	FACILITY_REQ_PLCI(&CMSG) = i->onholdPLCI;
+	FACILITY_REQ_FACILITYSELECTOR(&CMSG) = FACILITYSELECTOR_SUPPLEMENTARY;
+	FACILITY_REQ_FACILITYREQUESTPARAMETER(&CMSG) = (char *)&fac;
+
+	_capi_put_cmsg(&CMSG);
+	cc_ast_verbose(2, 1, VERBOSE_PREFIX_1 "%s: sent RETRIEVE for PLCI=%#x\n",
+		i->name, i->PLCI);
+
+	return 0;
+}
+
+/*
+ * hold a call
+ */
+static int capi_hold(struct ast_channel *c, char *param)
+{
+	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
+	_cmsg	CMSG;
+	char	fac[4];
+
+	if (i->state != CAPI_STATE_BCONNECTED) {
+		ast_log(LOG_NOTICE,"%s: Cannot put on hold %s while not connected.\n",
+			i->name, c->name);
+		return -1;
+	}
+
+	fac[0] = 3;	/* len */
+	fac[1] = 0x02;	/* this is a HOLD up */
+	fac[2] = 0x00;
+	fac[3] = 0;	
+
+	FACILITY_REQ_HEADER(&CMSG,ast_capi_ApplID, get_ast_capi_MessageNumber(),0);
+	FACILITY_REQ_PLCI(&CMSG) = i->PLCI;
+	FACILITY_REQ_FACILITYSELECTOR(&CMSG) = FACILITYSELECTOR_SUPPLEMENTARY;
+	FACILITY_REQ_FACILITYREQUESTPARAMETER(&CMSG) = (char *)&fac;
+
+	_capi_put_cmsg(&CMSG);
+	cc_ast_verbose(2, 1, VERBOSE_PREFIX_1 "%s: sent HOLD for PLCI=%#x\n",
+		i->name, i->PLCI);
+
+	i->onholdPLCI= i->PLCI;
+
+	return 0;
+}
+
 /*
  * report malicious call
  */
@@ -3118,6 +3196,10 @@ static int capicommand_exec(struct ast_channel *chan, void *data)
 		res = capi_echosquelch(chan, params);
 	} else if (!strcasecmp(command, "malicious")) {
 		res = capi_malicious(chan, params);
+	} else if (!strcasecmp(command, "hold")) {
+		res = capi_hold(chan, params);
+	} else if (!strcasecmp(command, "retrieve")) {
+		res = capi_retrieve(chan, params);
 	} else {
 		res = -1;
 		ast_log(LOG_WARNING, "Unknown command '%s' for capiCommand\n",

@@ -120,23 +120,27 @@ Malicious Call Identification:
         Example:
         exten => s,1,capicommand(malicious)
 
+Hold:
+    Puts an answered call on hold, this has nothing to do with asterisk's onhold
+    thingie (music et al).
+    After putting a call onhold, never use the Wait application!
+        Example:
+        exten => s,1,capicommand(hold)
+
+Retrieve:
+    Gets back the holded call
+        Example:
+        exten => s,1,capicommand(retrieve)
+
 
 Helper applications
 ===================
-
-app_capiHOLD.c		
-	Puts an answered call on hold, this has nothing to do with asterisk's onhold
-	thingie (music et al)
-	After putting a call onhold, never use the Wait application!
-
-app_capiRETRIEVE.c	
-	Gets the holded call back
 
 app_capiECT.c		
 	Explicit call transfer of the call on hold (must put call on hold first!)
 		Example:
 		exten => s,1,Answer
-		exten => s,2,capiHOLD
+		exten => s,2,capicommand(hold)
 		exten => s,3,capiECT,55:50
 		Will ECT the call to 50 using 55 as the callerid/outgoing MSN
 

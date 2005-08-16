@@ -120,10 +120,7 @@ typedef struct fax3proto3 {
 #define CAPI_STATE_DID                  8
 #define CAPI_STATE_INCALL               9
 
-#define CAPI_STATE_PUTTINGONHOLD        10
-#define CAPI_STATE_RETRIEVING           11
-#define CAPI_STATE_ONHOLD               12
-
+#define CAPI_STATE_ONHOLD               10
 
 #define AST_CAPI_B3_DONT                0
 #define AST_CAPI_B3_ALWAYS              1
