@@ -33,6 +33,7 @@
 #include <asterisk/utils.h>
 #include <asterisk/cli.h>
 #include <asterisk/causes.h>
+#include <asterisk/rtp.h>
 #include <sys/time.h>
 #include <sys/signal.h>
 #include <stdlib.h>
@@ -63,11 +64,11 @@ static _cword ast_capi_MessageNumber = 1;
 static char *desc = "Common ISDN API for Asterisk";
 #ifdef CC_AST_HAVE_TECH_PVT
 static const char tdesc[] = "Common ISDN API Driver (" CC_VERSION ") " ASTERISKVERSION;
-static const char type[] = "CAPI";
+static const char channeltype[] = "CAPI";
 static const struct ast_channel_tech capi_tech;
 #else
 static char *tdesc = "Common ISDN API Driver (" CC_VERSION ") " ASTERISKVERSION;
-static char *type = "CAPI";
+static char *channeltype = "CAPI";
 #endif
 
 static char *commandtdesc = "CAPI command interface.";
@@ -1156,21 +1157,6 @@ static int capi_indicate(struct ast_channel *c, int condition)
 }
 
 /*
- * native bridging: connect to channels directly
- */
-static int capi_bridge(struct ast_channel *c0, struct ast_channel *c1,
-		int flags, struct ast_frame **fo, struct ast_channel **rc)
-{
-	cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "Requested bridge for %s and %s\n",
-		c0->name, c1->name);
-	
-	return -1; /* failed, not supported */
-	return -2; /* we dont want private bridge, no error message */
-	return -3; /* no success, but try me again */
-	return 0; /* success and end of private bridging */
-}
-
-/*
  * a new channel is needed
  */
 static struct ast_channel *capi_new(struct ast_capi_pvt *i, int state)
@@ -1195,7 +1181,7 @@ static struct ast_channel *capi_new(struct ast_capi_pvt *i, int state)
 
 	snprintf(tmp->name, sizeof(tmp->name) - 1, "CAPI/%s/%s-%d",
 		i->name, i->dnid, capi_counter++);
-	tmp->type = type;
+	tmp->type = channeltype;
 
 	if (pipe(fds) != 0) {
 	    	ast_log(LOG_ERROR, "%s: unable to create pipe.\n", i->name);
@@ -1250,7 +1236,7 @@ static struct ast_channel *capi_new(struct ast_capi_pvt *i, int state)
 	tmp->pvt->call = capi_call;
 	tmp->pvt->fixup = capi_fixup;
 	tmp->pvt->indicate = capi_indicate;
-	tmp->pvt->bridge = capi_bridge;
+	tmp->pvt->bridge = ast_rtp_bridge;
 	tmp->pvt->answer = capi_answer;
 	tmp->pvt->hangup = capi_hangup;
 	tmp->pvt->read = capi_read;
@@ -1549,13 +1535,14 @@ static int capi_receive_fax(struct ast_channel *c, char *data)
  */
 static void capi_handle_dtmf_fax(struct ast_channel *ast)
 {
-	struct ast_capi_pvt *p = CC_AST_CHANNEL_PVT(ast);
+	struct ast_capi_pvt *p;
 	char *cid;
 
 	if (!ast) {
 		ast_log(LOG_ERROR, "No channel!\n");
 		return;
 	}
+	p = CC_AST_CHANNEL_PVT(ast);
 	
 	if (p->faxhandled) {
 		ast_log(LOG_DEBUG, "Fax already handled\n");
@@ -2189,7 +2176,7 @@ static void capi_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 {
 	_cmsg CMSG2;
 	struct ast_frame fr;
-	unsigned char *b3buf = NULL;
+	unsigned char *b3buf;
 	int b3len = 0;
 	int j;
 	int rxavg = 0;
@@ -2869,7 +2856,7 @@ static void capi_handle_facility_confirmation(_cmsg *CMSG, unsigned int PLCI, un
  */
 static void show_capi_conf_error(char *msg, struct ast_capi_pvt *i, unsigned int PLCI, _cmsg *CMSG)
 {
-	const char *name = type;
+	const char *name = channeltype;
 
 	if (i)
 		name = i->name;
@@ -3142,9 +3129,65 @@ static int capicommand_exec(struct ast_channel *chan, void *data)
 }
 
 /*
+ * do the bridge
+ */
+static int capi_set_rtp_peer(struct ast_channel *c, struct ast_rtp *rtp, struct ast_rtp *vrtp, int codecs)
+{
+	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
+
+	if (!i)
+		return -1;
+
+	cc_ast_verbose(4, 1, VERBOSE_PREFIX_3 "%s: set RTP peer for %s\n",
+		i->name, c->name);
+
+
+	return 0;
+}
+
+/*
+ * return bridge capability/rtp
+ */
+static struct ast_rtp *capi_get_rtp_info(struct ast_channel *c)
+{
+	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
+	struct ast_rtp *rtp = NULL;
+
+	if (!i)
+		return NULL;
+
+	cc_ast_verbose(4, 1, VERBOSE_PREFIX_3 "%s: get RTP info for %s\n",
+		i->name, c->name);
+
+	return rtp;
+}
+
+/*
+ * return codec
+ */
+static int capi_get_codec(struct ast_channel *c)
+{
+	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
+
+	cc_ast_verbose(4, 1, VERBOSE_PREFIX_3 "%s: get codec for %s\n",
+		i->name, c->name);
+
+	return capi_capability;
+}
+
+/*
+ * RTP callbacks
+ */
+static struct ast_rtp_protocol capi_rtp = {
+	.type = channeltype,
+	.get_rtp_info = capi_get_rtp_info,
+	.set_rtp_peer = capi_set_rtp_peer,
+	.get_codec = capi_get_codec,
+};
+
+/*
  * module stuff, monitor...
  */
-
 static void *do_monitor(void *data)
 {
 	unsigned int Info;
@@ -3183,7 +3226,7 @@ static void *do_monitor(void *data)
 /*
  * start monitor thread
  */
-static int restart_monitor(void)
+static int start_monitor(void)
 {
 	/* stay stopped if wanted */
 	if (ast_mutex_lock(&monlock)) {
@@ -3521,7 +3564,7 @@ static struct ast_cli_entry  cli_no_debug =
 
 #ifdef CC_AST_HAVE_TECH_PVT
 static const struct ast_channel_tech capi_tech = {
-	.type = type,
+	.type = channeltype,
 	.description = tdesc,
 	.capabilities = AST_FORMAT_ALAW,
 	.requester = capi_request,
@@ -3532,7 +3575,7 @@ static const struct ast_channel_tech capi_tech = {
 	.answer = capi_answer,
 	.read = capi_read,
 	.write = capi_write,
-	.bridge = capi_bridge,
+	.bridge = ast_rtp_bridge,
 	.exception = NULL,
 	.indicate = capi_indicate,
 	.fixup = capi_fixup,
@@ -3882,12 +3925,15 @@ int load_module(void)
 #ifdef CC_AST_HAVE_TECH_PVT
 	if (ast_channel_register(&capi_tech)) {
 #else	
-	if (ast_channel_register(type, tdesc, capi_capability, capi_request)) {
+	if (ast_channel_register(channeltype, tdesc, capi_capability, capi_request)) {
 #endif
-		ast_log(LOG_ERROR, "Unable to register channel class %s\n", type);
+		ast_log(LOG_ERROR, "Unable to register channel class %s\n", channeltype);
 		unload_module();
 		return -1;
 	}
+
+	/* Tell the RTP subdriver that we're here */
+	ast_rtp_proto_register(&capi_rtp);
 
 	ast_cli_register(&cli_info);
 	ast_cli_register(&cli_debug);
@@ -3895,7 +3941,7 @@ int load_module(void)
 	
 	ast_register_application(commandapp, capicommand_exec, commandsynopsis, commandtdesc);
 
-	restart_monitor();
+	start_monitor();
 
 	return 0;
 }
@@ -3907,6 +3953,8 @@ int unload_module()
 {
 	struct ast_capi_pvt *i, *itmp;
 	int controller;
+
+	ast_rtp_proto_unregister(&capi_rtp);
 
 	ast_mutex_lock(&iflock);
 
@@ -3936,7 +3984,7 @@ int unload_module()
 #ifdef CC_AST_HAVE_TECH_PVT
 	ast_channel_unregister(&capi_tech);
 #else
-	ast_channel_unregister(type);
+	ast_channel_unregister(channeltype);
 #endif
 	ast_unregister_application(commandapp);
 	
