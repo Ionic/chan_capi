@@ -3261,7 +3261,9 @@ static int capi_get_codec(struct ast_channel *c)
  * RTP callbacks
  */
 static struct ast_rtp_protocol capi_rtp = {
+#ifdef CC_AST_HAVE_TECH_PVT
 	.type = channeltype,
+#endif
 	.get_rtp_info = capi_get_rtp_info,
 	.set_rtp_peer = capi_set_rtp_peer,
 	.get_codec = capi_get_codec,
@@ -4015,6 +4017,9 @@ int load_module(void)
 	}
 
 	/* Tell the RTP subdriver that we're here */
+#ifndef CC_AST_HAVE_TECH_PVT
+	capi_rtp.type = channeltype;
+#endif
 	ast_rtp_proto_register(&capi_rtp);
 
 	ast_cli_register(&cli_info);
