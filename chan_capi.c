@@ -879,11 +879,13 @@ static int capi_send_answer(struct ast_channel *c, int *bprot, _cstruct b3conf)
 	CONNECT_RESP_HEADER(&CMSG, ast_capi_ApplID, i->MessageNumber, 0);
 	CONNECT_RESP_PLCI(&CMSG) = i->PLCI;
 	CONNECT_RESP_REJECT(&CMSG) = 0;
-	buf[0] = strlen(dnid) + 2;
-	buf[1] = 0x00;
-	buf[2] = 0x80;
-	strncpy(&buf[3], dnid, sizeof(buf) - 4);
-	CONNECT_RESP_CONNECTEDNUMBER(&CMSG) = buf;
+	if (strlen(dnid)) {
+		buf[0] = strlen(dnid) + 2;
+		buf[1] = 0x00;
+		buf[2] = 0x80;
+		strncpy(&buf[3], dnid, sizeof(buf) - 4);
+		CONNECT_RESP_CONNECTEDNUMBER(&CMSG) = buf;
+	}
 	CONNECT_RESP_B1PROTOCOL(&CMSG) = bprot[0];
 	CONNECT_RESP_B2PROTOCOL(&CMSG) = bprot[1];
 	CONNECT_RESP_B3PROTOCOL(&CMSG) = bprot[2];
@@ -1263,7 +1265,7 @@ static struct ast_channel *capi_new(struct ast_capi_pvt *i, int state)
 	tmp->transfercapability = cip2tcap(i->cip);
 	pbx_builtin_setvar_helper(tmp, "TRANSFERCAPABILITY", transfercapability2str(tmp->transfercapability));
 #endif
-	
+
 	strncpy(tmp->exten, i->dnid, sizeof(tmp->exten) - 1);
 	strncpy(tmp->accountcode, i->accountcode, sizeof(tmp->accountcode) - 1);
 	i->owner = tmp;
@@ -1676,11 +1678,15 @@ static int search_did(struct ast_channel *c)
 	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
 	char *exten;
     
-	if (strlen(i->dnid) < strlen(i->incomingmsn))
-		return -1;
-	
-	/* exten = i->dnid + strlen(i->incomingmsn); */
-	exten = i->dnid;
+	if (!strlen(i->dnid) && (i->immediate)) {
+		exten = "s";
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_1 "%s: %s: %s matches in context %s for immediate\n",
+			i->name, c->name, exten, c->context);
+	} else {
+		if (strlen(i->dnid) < strlen(i->incomingmsn))
+			return 0;
+		exten = i->dnid;
+	}
 
 	if (ast_exists_extension(NULL, c->context, exten, 1, NULL)) {
 		c->priority = 1;
@@ -2630,7 +2636,6 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 	char *buffer_rp = buffer_r;
 	char *magicmsn = "*\0";
 	char *emptydnid = "\0";
-	char *startdnid = "s\0";
 	int deflect = 0;
 	int callpres = 0;
 
@@ -2683,9 +2688,7 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 				if (strncasecmp(msn, magicmsn, strlen(msn))) {
 					continue;
 				}
-				if (i->immediate) {
-					strncpy(i->dnid, startdnid, sizeof(i->dnid) - 1);
-				}
+				strncpy(i->dnid, emptydnid, sizeof(i->dnid) - 1);
 			} else {
 				/* make sure the number match exactly or may match on ptp mode */
 				cc_ast_verbose(4, 1, VERBOSE_PREFIX_1 "%s: msn='%s' DNID='%s' %s\n",
@@ -2722,7 +2725,7 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 			if (i->isdnmode == AST_CAPI_ISDNMODE_PTP) {
 				capi_new(i, AST_STATE_DOWN);
 				i->state = CAPI_STATE_DID;
-				if (strlen(i->dnid) && (i->owner)) {
+				if (!strlen(i->dnid) && (i->immediate) && (i->owner)) {
 					start_pbx_on_match(i, PLCI, CMSG->Messagenumber);
 				}
 			} else {
@@ -3224,7 +3227,7 @@ static int capi_set_rtp_peer(struct ast_channel *c, struct ast_rtp *rtp, struct 
 		i->name, c->name);
 
 
-	return 0;
+	return -1;
 }
 
 /*
