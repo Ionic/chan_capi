@@ -328,7 +328,7 @@ static void capi_echo_canceller(struct ast_channel *c, int function)
 	}
 	ast_mutex_unlock(&contrlock);
 
-	cc_ast_verbose(2, 0, VERBOSE_PREFIX_3 "%s: Setting up echo canceller (PLCI=%#x, function=%d, options=%d, tail=%d)\n",
+	cc_ast_verbose(2, 0, VERBOSE_PREFIX_2 "%s: Setting up echo canceller (PLCI=%#x, function=%d, options=%d, tail=%d)\n",
 			i->name, i->PLCI, function, i->ecOption, i->ecTail);
 
 	FACILITY_REQ_HEADER(&CMSG, ast_capi_ApplID, get_ast_capi_MessageNumber(), 0);
@@ -370,7 +370,7 @@ int capi_detect_dtmf(struct ast_channel *c, int flag)
 	
 	if ((capi_controllers[i->controller]->dtmf == 1) && (i->doDTMF == 0)) {
 		ast_mutex_unlock(&contrlock);
-		cc_ast_verbose(2, 0, VERBOSE_PREFIX_3 "%s: Setting up DTMF detector (PLCI=%#x, flag=%d)\n",
+		cc_ast_verbose(2, 0, VERBOSE_PREFIX_2 "%s: Setting up DTMF detector (PLCI=%#x, flag=%d)\n",
 			i->name, i->PLCI, flag);
 		FACILITY_REQ_HEADER(&CMSG, ast_capi_ApplID, get_ast_capi_MessageNumber(), 0);
 		FACILITY_REQ_PLCI(&CMSG) = i->PLCI;
@@ -501,7 +501,7 @@ static int capi_send_digit(struct ast_channel *c, char digit)
 		if ((error = _capi_put_cmsg(&CMSG)) != 0) {
 			return error;
 		}
-		cc_ast_verbose(3, 0, VERBOSE_PREFIX_3 "%s: sent dtmf '%c'\n",
+		cc_ast_verbose(3, 0, VERBOSE_PREFIX_4 "%s: sent dtmf '%c'\n",
 			i->name, digit);
 	}
 	return 0;
@@ -517,7 +517,7 @@ static int capi_alert(struct ast_channel *c)
 
 	if ((i->state != CAPI_STATE_INCALL) &&
 	    (i->state != CAPI_STATE_DID)) {
-		cc_ast_verbose(2, 1, VERBOSE_PREFIX_2 "%s: attempting ALERT in state %d\n",
+		cc_ast_verbose(2, 1, VERBOSE_PREFIX_3 "%s: attempting ALERT in state %d\n",
 			i->name, i->state);
 		return -1;
 	}
@@ -543,7 +543,7 @@ static void interface_cleanup(struct ast_capi_pvt *i)
 	if (!i)
 		return;
 
-	cc_ast_verbose(2, 1, VERBOSE_PREFIX_4 "%s: Interface cleanup PLCI=%#x\n",
+	cc_ast_verbose(2, 1, VERBOSE_PREFIX_2 "%s: Interface cleanup PLCI=%#x\n",
 		i->name, i->PLCI);
 	
 	if (i->fd != -1) {
@@ -595,7 +595,7 @@ static void capi_activehangup(struct ast_channel *c)
 		i->cause = atoi(cause);
 	}
 	
-	cc_ast_verbose(2, 1, VERBOSE_PREFIX_4 "%s: activehangingup (cause=%d)\n",
+	cc_ast_verbose(2, 1, VERBOSE_PREFIX_3 "%s: activehangingup (cause=%d)\n",
 		i->name, i->cause);
 
 
@@ -643,7 +643,7 @@ static int capi_hangup(struct ast_channel *c)
 		return -1;
 	}
 
-	cc_ast_verbose(3, 0, VERBOSE_PREFIX_3 "%s: CAPI Hangingup\n",
+	cc_ast_verbose(3, 0, VERBOSE_PREFIX_2 "%s: CAPI Hangingup\n",
 		i->name);
   
 	/* are we down, yet? */
@@ -725,7 +725,7 @@ static void parse_dialstring(char *buffer, char **interface, char **dest, char *
 		}
 		buffer_p++;
 	}
-	cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "parsed dialstring: '%s' '%s' '%s'\n",
+	cc_ast_verbose(3, 1, VERBOSE_PREFIX_4 "parsed dialstring: '%s' '%s' '%s'\n",
 		*interface, *dest, *param);
 }
 
@@ -891,7 +891,7 @@ static int capi_send_answer(struct ast_channel *c, int *bprot, _cstruct b3conf)
 	CONNECT_RESP_B3PROTOCOL(&CMSG) = bprot[2];
 	CONNECT_RESP_B3CONFIGURATION(&CMSG) = b3conf;
 
-	cc_ast_verbose(3, 0, VERBOSE_PREFIX_3 "%s: Answering for %s\n",
+	cc_ast_verbose(3, 0, VERBOSE_PREFIX_2 "%s: Answering for %s\n",
 		i->name, dnid);
 		
 	if (_capi_put_cmsg(&CMSG) != 0) {
@@ -1064,7 +1064,7 @@ int capi_write(struct ast_channel *c, struct ast_frame *f)
 		if (i->B3q > 0) {
 			error = _capi_put_cmsg(&CMSG);
 		} else {
-			cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: too much voice to send for NCCI=%#x\n",
+			cc_ast_verbose(3, 1, VERBOSE_PREFIX_4 "%s: too much voice to send for NCCI=%#x\n",
 				i->name, i->NCCI);
 		}
 
@@ -1146,6 +1146,16 @@ static int capi_indicate(struct ast_channel *c, int condition)
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested PROCEEDING-Indication for %s\n",
 			i->name, c->name);
 		break;
+#ifdef CC_AST_CONTROL_HOLD
+	case AST_CONTROL_HOLD:
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested HOLD-Indication for %s\n",
+			i->name, c->name);
+		break;
+	case AST_CONTROL_UNHOLD:
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested UNHOLD-Indication for %s\n",
+			i->name, c->name);
+		break;
+#endif
 	case -1: /* stop indications */
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested Indication-STOP for %s\n",
 			i->name, c->name);
@@ -1285,7 +1295,7 @@ static struct ast_channel *capi_new(struct ast_capi_pvt *i, int state)
 			i->owner = NULL;
 			tmp = NULL;
 		} else {
-			cc_ast_verbose(2, 0, VERBOSE_PREFIX_3 "%s: started pbx on channel (callgroup=%d)!\n",
+			cc_ast_verbose(2, 0, VERBOSE_PREFIX_2 "%s: started pbx on channel (callgroup=%d)!\n",
 				i->name, tmp->callgroup);
 		}
 	}
@@ -1309,7 +1319,7 @@ struct ast_channel *capi_request(char *type, int format, void *data)
 	unsigned int foundcontroller;
 	int notfound = 1;
 
-	cc_ast_verbose(1, 1, VERBOSE_PREFIX_3 "data = %s\n", (char *)data);
+	cc_ast_verbose(1, 1, VERBOSE_PREFIX_4 "data = %s\n", (char *)data);
 
 	strncpy(buffer, (char *)data, sizeof(buffer) - 1);
 	parse_dialstring(buffer, &interface, &dest, &param);
@@ -1321,14 +1331,14 @@ struct ast_channel *capi_request(char *type, int format, void *data)
 
 	if (interface[0] == 'g') {
 		capigroup = ast_get_group(interface + 1);
-		cc_ast_verbose(1, 1, VERBOSE_PREFIX_3 "capi request group = %d\n",
+		cc_ast_verbose(1, 1, VERBOSE_PREFIX_4 "capi request group = %d\n",
 				capigroup);
 	} else if (!strncmp(interface, "contr", 5)) {
 		controller = atoi(interface + 5);
-		cc_ast_verbose(1, 1, VERBOSE_PREFIX_3 "capi request controller = %d\n",
+		cc_ast_verbose(1, 1, VERBOSE_PREFIX_4 "capi request controller = %d\n",
 				controller);
 	} else {
-		cc_ast_verbose(1, 1, VERBOSE_PREFIX_3 "capi request for interface '%s'\n",
+		cc_ast_verbose(1, 1, VERBOSE_PREFIX_4 "capi request for interface '%s'\n",
 				interface);
  	}
 
@@ -1596,7 +1606,7 @@ static struct ast_capi_pvt *find_interface(_cmsg *CMSG)
 	ast_mutex_unlock(&iflock);
 
 	if (!i) {
-		cc_ast_verbose(2, 1, VERBOSE_PREFIX_1
+		cc_ast_verbose(2, 1, VERBOSE_PREFIX_4
 			"CAPI: no interface for PLCI = %#x MN = %#x\n",
 			PLCI, MN);
 	}
@@ -1680,7 +1690,7 @@ static int search_did(struct ast_channel *c)
     
 	if (!strlen(i->dnid) && (i->immediate)) {
 		exten = "s";
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_1 "%s: %s: %s matches in context %s for immediate\n",
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: %s: %s matches in context %s for immediate\n",
 			i->name, c->name, exten, c->context);
 	} else {
 		if (strlen(i->dnid) < strlen(i->incomingmsn))
@@ -1691,13 +1701,13 @@ static int search_did(struct ast_channel *c)
 	if (ast_exists_extension(NULL, c->context, exten, 1, NULL)) {
 		c->priority = 1;
 		strncpy(c->exten, exten, sizeof(c->exten) - 1);
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_1 "%s: %s: %s matches in context %s\n",
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: %s: %s matches in context %s\n",
 			i->name, c->name, exten, c->context);
 		return 0;
 	}
 
 	if (ast_canmatch_extension(NULL, c->context, exten, 1, NULL)) {
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_1 "%s: %s: %s would possibly match in context %s\n",
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: %s: %s would possibly match in context %s\n",
 			i->name, c->name, exten, c->context);
 		return 1;
 	}
@@ -1713,35 +1723,35 @@ static void handle_progress_indicator(_cmsg *CMSG, unsigned int PLCI, struct ast
 	_cmsg CMSG2;
 
 	if (INFO_IND_INFOELEMENT(CMSG)[0] < 2) {
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_1 "%s: Progress description missing\n",
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_4 "%s: Progress description missing\n",
 			i->name);
 		return;
 	}
 
 	switch(INFO_IND_INFOELEMENT(CMSG)[2] & 0x7f) {
 	case 0x01:
-		cc_ast_verbose(4, 1, VERBOSE_PREFIX_1 "%s: Not end-to-end ISDN\n",
+		cc_ast_verbose(4, 1, VERBOSE_PREFIX_4 "%s: Not end-to-end ISDN\n",
 			i->name);
 		break;
 	case 0x02:
-		cc_ast_verbose(4, 1, VERBOSE_PREFIX_1 "%s: Destination is non ISDN\n",
+		cc_ast_verbose(4, 1, VERBOSE_PREFIX_4 "%s: Destination is non ISDN\n",
 			i->name);
 		i->calledPartyIsISDN = 0;
 		break;
 	case 0x03:
-		cc_ast_verbose(4, 1, VERBOSE_PREFIX_1 "%s: Origination is non ISDN\n",
+		cc_ast_verbose(4, 1, VERBOSE_PREFIX_4 "%s: Origination is non ISDN\n",
 			i->name);
 		break;
 	case 0x04:
-		cc_ast_verbose(4, 1, VERBOSE_PREFIX_1 "%s: Call returned to ISDN\n",
+		cc_ast_verbose(4, 1, VERBOSE_PREFIX_4 "%s: Call returned to ISDN\n",
 			i->name);
 		break;
 	case 0x05:
-		cc_ast_verbose(4, 1, VERBOSE_PREFIX_1 "%s: Interworking occured\n",
+		cc_ast_verbose(4, 1, VERBOSE_PREFIX_4 "%s: Interworking occured\n",
 			i->name);
 		break;
 	case 0x08:
-		cc_ast_verbose(4, 1, VERBOSE_PREFIX_1 "%s: In-band information available\n",
+		cc_ast_verbose(4, 1, VERBOSE_PREFIX_4 "%s: In-band information available\n",
 			i->name);
 		if ((i->doB3 != AST_CAPI_B3_DONT) &&
 		    (i->earlyB3 == -1) &&
@@ -1755,7 +1765,7 @@ static void handle_progress_indicator(_cmsg *CMSG, unsigned int PLCI, struct ast
 		}
 		break;
 	default:
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_1 "%s: Unknown progress description %02x\n",
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_4 "%s: Unknown progress description %02x\n",
 			i->name, INFO_IND_INFOELEMENT(CMSG)[2]);
 	}
 }
@@ -1774,7 +1784,7 @@ static void start_pbx_on_match(struct ast_capi_pvt *i, unsigned int PLCI, _cword
 				i->name);
 			ast_hangup(i->owner);
 		} else {
-			cc_ast_verbose(2, 1, VERBOSE_PREFIX_3 "Started pbx on channel %s\n",
+			cc_ast_verbose(2, 1, VERBOSE_PREFIX_2 "Started pbx on channel %s\n",
 				i->owner->name);
 		}
 		break;
@@ -1866,7 +1876,7 @@ static void handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsigned int 
 	_cmsg CMSG2;
 
 	if (PLCI == i->onholdPLCI) {
-		cc_ast_verbose(4, 1, VERBOSE_PREFIX_1 "%s: Disconnect onhold call\n",
+		cc_ast_verbose(4, 1, VERBOSE_PREFIX_3 "%s: Disconnect onhold call\n",
 			i->name);
 		/* the caller onhold hung up (or ECTed away) */
 		/* send a disconnect_req , we cannot hangup the channel here!!! */
@@ -1879,7 +1889,7 @@ static void handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsigned int 
 
 	/* case 1: B3 on success or no B3 at all */
 	if ((i->doB3 != AST_CAPI_B3_ALWAYS) && (i->outgoing == 1)) {
-		cc_ast_verbose(4, 1, VERBOSE_PREFIX_1 "%s: Disconnect case 1\n",
+		cc_ast_verbose(4, 1, VERBOSE_PREFIX_3 "%s: Disconnect case 1\n",
 			i->name);
 		i->earlyB3 = 0; /* !!! */
 		pipe_cause_control(i, 1);
@@ -1889,7 +1899,7 @@ static void handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsigned int 
 	/* case 2: we are doing B3, and receive the 0x8045 after a successful call */
 	if ((i->doB3 != AST_CAPI_B3_DONT) &&
 	    (i->earlyB3 == 0) && (i->outgoing == 1)) {
-		cc_ast_verbose(4, 1, VERBOSE_PREFIX_1 "%s: Disconnect case 2\n",
+		cc_ast_verbose(4, 1, VERBOSE_PREFIX_3 "%s: Disconnect case 2\n",
 			i->name);
 		pipe_cause_control(i, 1);
 		return;
@@ -1901,7 +1911,7 @@ static void handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsigned int 
 	 * network caused DISCONNECT_IND!
 	 */
 	if (i->outgoing == 0) {
-		cc_ast_verbose(4, 1, VERBOSE_PREFIX_1 "%s: Disconnect case 3\n",
+		cc_ast_verbose(4, 1, VERBOSE_PREFIX_3 "%s: Disconnect case 3\n",
 			i->name);
 		if (i->FaxState) {
 			/* in capiFax */
@@ -1914,12 +1924,12 @@ static void handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsigned int 
 	/* case 4 (a.k.a. the italian case): B3 always. call is unsuccessful */
 	if ((i->doB3 == AST_CAPI_B3_ALWAYS) &&
 	    (i->earlyB3 == -1) && (i->outgoing == 1)) {
-		cc_ast_verbose(4, 1, VERBOSE_PREFIX_1 "%s: Disconnect case 4\n",
+		cc_ast_verbose(4, 1, VERBOSE_PREFIX_3 "%s: Disconnect case 4\n",
 			i->name);
 		/* wait for the 0x001e (PROGRESS), play audio and wait for a timeout from the network */
 		return;
 	}
-	cc_ast_verbose(3, 1, VERBOSE_PREFIX_1 "%s: Other case DISCONNECT INFO_IND\n",
+	cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: Other case DISCONNECT INFO_IND\n",
 		i->name);
 }
 
@@ -1939,31 +1949,31 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 
 	switch(INFO_IND_INFONUMBER(CMSG)) {
 	case 0x0008:	/* Cause */
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: info element CAUSE %02x %02x\n",
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element CAUSE %02x %02x\n",
 			i->name, INFO_IND_INFOELEMENT(CMSG)[1], INFO_IND_INFOELEMENT(CMSG)[2]);
 		if (i->owner) {
 			i->owner->hangupcause = INFO_IND_INFOELEMENT(CMSG)[2] & 0x7f;
 		}
 		break;
 	case 0x0014:	/* Call State */
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: info element CALL STATE %02x\n",
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element CALL STATE %02x\n",
 			i->name, INFO_IND_INFOELEMENT(CMSG)[1]);
 		break;
 	case 0x0018:	/* Channel Identification */
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: info element CHANNEL IDENTIFICATION %02x\n",
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element CHANNEL IDENTIFICATION %02x\n",
 			i->name, INFO_IND_INFOELEMENT(CMSG)[1]);
 		break;
 	case 0x001c:	/*  Facility Q.932 */
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: info element FACILITY\n",
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element FACILITY\n",
 			i->name);
 		break;
 	case 0x001e:	/* Progress Indicator */
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: info element PI %02x %02x\n",
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element PI %02x %02x\n",
 			i->name, INFO_IND_INFOELEMENT(CMSG)[1], INFO_IND_INFOELEMENT(CMSG)[2]);
 		handle_progress_indicator(CMSG, PLCI, i);
 		break;
 	case 0x0028:	/* DSP */
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: info element DSP\n",
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element DSP\n",
 			i->name);
 		#if 0
 		struct ast_frame ft = { AST_FRAME_TEXT, capi_number(INFO_IND_INFOELEMENT(CMSG),0), };
@@ -1973,19 +1983,19 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 		#endif
 		break;
 	case 0x0029:	/* Date/Time */
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: info element Date/Time %02d/%02d/%02d %02d:%02d\n",
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element Date/Time %02d/%02d/%02d %02d:%02d\n",
 			i->name,
 			INFO_IND_INFOELEMENT(CMSG)[1], INFO_IND_INFOELEMENT(CMSG)[2],
 			INFO_IND_INFOELEMENT(CMSG)[3], INFO_IND_INFOELEMENT(CMSG)[4],
 			INFO_IND_INFOELEMENT(CMSG)[5]);
 		break;
 	case 0x0070:	/* Called Party Number */
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: info element CALLED PARTY NUMBER\n",
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element CALLED PARTY NUMBER\n",
 			i->name);
 		handle_did_digits(CMSG, PLCI, NCCI, i);
 		break;
 	case 0x0074:	/* Redirecting Number */
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: info element REDIRECTING NUMBER\n",
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element REDIRECTING NUMBER\n",
 			i->name);
 		/*
 		strncpy(i->owner->exten, capi_number(INFO_IND_INFOELEMENT(CMSG), 3),
@@ -1993,29 +2003,29 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 		*/
 		break;
 	case 0x4000:	/* CHARGE in UNITS */
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: info element CHARGE in UNITS\n",
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element CHARGE in UNITS\n",
 			i->name);
 		break;
 	case 0x4001:	/* CHARGE in CURRENCY */
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: info element CHARGE in CURRENCY\n",
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element CHARGE in CURRENCY\n",
 			i->name);
 		break;
 	case 0x8001:	/* ALERTING */
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: info element ALERTING\n",
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element ALERTING\n",
 			i->name);
 		fr.frametype = AST_FRAME_CONTROL;
 		fr.subclass = AST_CONTROL_RINGING;
 		pipe_frame(i, &fr);
 		break;
 	case 0x8002:	/* CALL PROCEEDING */
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: info element CALL PROCEEDING\n",
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element CALL PROCEEDING\n",
 			i->name);
 		fr.frametype = AST_FRAME_CONTROL;
 		fr.subclass = AST_CONTROL_PROCEEDING;
 		pipe_frame(i, &fr);
 		break;
 	case 0x8003:	/* PROGRESS */
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: info element PROGRESS\n",
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element PROGRESS\n",
 			i->name);
 		/*
 		 * rain - some networks will indicate a USER BUSY cause, send
@@ -2038,15 +2048,15 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 		pipe_frame(i, &fr);
 		break;
 	case 0x8005:	/* SETUP */
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: info element SETUP\n",
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element SETUP\n",
 			i->name);
 		break;
 	case 0x8007:	/* CONNECT */
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: info element CONNECT\n",
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element CONNECT\n",
 			i->name);
 		break;
 	case 0x800d:	/* SETUP ACK */
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: info element SETUP ACK\n",
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element SETUP ACK\n",
 			i->name);
 		i->isdnstate |= CAPI_ISDN_STATE_SETUP_ACK;
 		/* if some digits of initial CONNECT_REQ are left to dial */
@@ -2058,32 +2068,32 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 		}
 		break;
 	case 0x800f:	/* CONNECT ACK */
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: info element CONNECT ACK\n",
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element CONNECT ACK\n",
 			i->name);
 		break;
 	case 0x8045:	/* DISCONNECT */
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: info element DISCONNECT\n",
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element DISCONNECT\n",
 			i->name);
 		handle_info_disconnect(CMSG, PLCI, NCCI, i);
 		break;
 	case 0x804d:	/* RELEASE */
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: info element RELEASE\n",
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element RELEASE\n",
 			i->name);
 		break;
 	case 0x805a:	/* RELEASE COMPLETE */
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: info element RELEASE COMPLETE\n",
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element RELEASE COMPLETE\n",
 			i->name);
 		break;
 	case 0x807b:	/* INFORMATION */
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: info element INFORMATION\n",
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element INFORMATION\n",
 			i->name);
 		break;
 	case 0x807d:	/* STATUS */
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: info element STATUS\n",
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element STATUS\n",
 			i->name);
 		break;
 	default:
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: unhandled INFO_IND %#x (PLCI=%#x)\n",
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: unhandled INFO_IND %#x (PLCI=%#x)\n",
 			i->name, INFO_IND_INFONUMBER(CMSG), PLCI);
 		break;
 	}
@@ -2118,7 +2128,7 @@ static void capi_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, unsi
 		}
 		while (dtmflen) {
 			dtmf = (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG))[dtmfpos];
-			cc_ast_verbose(1, 1, VERBOSE_PREFIX_3 "%s: c_dtmf = %c\n",
+			cc_ast_verbose(1, 1, VERBOSE_PREFIX_4 "%s: c_dtmf = %c\n",
 				i->name, dtmf);
 			if ((dtmf == 'X') || (dtmf == 'Y')) {
 				capi_handle_dtmf_fax(i->owner);
@@ -2253,7 +2263,7 @@ static void capi_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 			} else {
 				memset(b3buf, 84, b3len);
 			}
-			cc_ast_verbose(6, 1, VERBOSE_PREFIX_2 "%s: SUPPRESSING ECHO rx=%d, tx=%d\n",
+			cc_ast_verbose(6, 1, VERBOSE_PREFIX_3 "%s: SUPPRESSING ECHO rx=%d, tx=%d\n",
 					i->name, rxavg, txavg);
 		}
 	} else {
@@ -2297,7 +2307,7 @@ static void capi_handle_connect_active_indication(_cmsg *CMSG, unsigned int PLCI
 	return_on_no_interface("CONNECT_ACTIVE_IND");
 
 	if (i->state == CAPI_STATE_DISCONNECTING) {
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: CONNECT_ACTIVE in DISCONNECTING.\n",
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: CONNECT_ACTIVE in DISCONNECTING.\n",
 			i->name);
 		return;
 	}
@@ -2613,7 +2623,7 @@ static int capi_call_deflect(struct ast_channel *c, char *param)
 
 	_capi_put_cmsg(&CMSG);
 
-	cc_ast_verbose(2, 1, VERBOSE_PREFIX_2 "%s: sent INFO_REQ for CD PLCI = %#x\n",
+	cc_ast_verbose(2, 1, VERBOSE_PREFIX_3 "%s: sent INFO_REQ for CD PLCI = %#x\n",
 		i->name, i->PLCI);
 
 	return(res);
@@ -2654,7 +2664,7 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 	}
 	controller = PLCI & 0xff;
 	
-	cc_ast_verbose(1, 1, VERBOSE_PREFIX_2 "CONNECT_IND (PLCI=%#x,DID=%s,CID=%s,CIP=%#x,CONTROLLER=%#x)\n",
+	cc_ast_verbose(1, 1, VERBOSE_PREFIX_3 "CONNECT_IND (PLCI=%#x,DID=%s,CID=%s,CIP=%#x,CONTROLLER=%#x)\n",
 		PLCI, DNID, CID, CONNECT_IND_CIPVALUE(CMSG), controller);
 
 	if ((CONNECT_IND_BCHANNELINFORMATION(CMSG)) &&
@@ -2691,7 +2701,7 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 				strncpy(i->dnid, emptydnid, sizeof(i->dnid) - 1);
 			} else {
 				/* make sure the number match exactly or may match on ptp mode */
-				cc_ast_verbose(4, 1, VERBOSE_PREFIX_1 "%s: msn='%s' DNID='%s' %s\n",
+				cc_ast_verbose(4, 1, VERBOSE_PREFIX_4 "%s: msn='%s' DNID='%s' %s\n",
 					i->name, msn, DNID,
 					(i->isdnmode == AST_CAPI_ISDNMODE_PTMP)?"PtMP":"PtP");
 				if ((strcasecmp(msn, DNID)) &&
@@ -2750,7 +2760,7 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 				} else
 					break;
 			}
-			cc_ast_verbose(3, 0, VERBOSE_PREFIX_3 "%s: Incoming call '%s' -> '%s'\n",
+			cc_ast_verbose(3, 0, VERBOSE_PREFIX_2 "%s: Incoming call '%s' -> '%s'\n",
 				i->name, i->cid, i->dnid);
 			sprintf(buffer, "%d", callednplan);
 			pbx_builtin_setvar_helper(i->owner, "CALLEDTON", buffer);
@@ -2770,7 +2780,7 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 	/* obviously we are not called...so tell capi to ignore this call */
 
 	if (capidebug) {
-		ast_log(LOG_ERROR, "did not find device for msn = %s\n", DNID);
+		ast_log(LOG_WARNING, "did not find device for msn = %s\n", DNID);
 	}
 	
 	CONNECT_RESP_HEADER(&CMSG2, ast_capi_ApplID, CMSG->Messagenumber, 0);
@@ -2831,7 +2841,7 @@ static void capi_handle_facility_confirmation(_cmsg *CMSG, unsigned int PLCI, un
 {
 	switch (FACILITY_CONF_FACILITYSELECTOR(CMSG)) {
 	case FACILITYSELECTOR_DTMF:
-		cc_ast_verbose(2, 1, VERBOSE_PREFIX_3 "%s: DTMF conf(PLCI=%#x)\n",
+		cc_ast_verbose(2, 1, VERBOSE_PREFIX_4 "%s: DTMF conf(PLCI=%#x)\n",
 			i->name, PLCI);
 		break;
 	case FACILITYSELECTOR_ECHO_CANCEL:
@@ -2876,7 +2886,7 @@ static void show_capi_conf_error(char *msg, struct ast_capi_pvt *i, unsigned int
 		name = i->name;
 		
 	if (CMSG->Info == 0x2002) {
-		cc_ast_verbose(1, 1, VERBOSE_PREFIX_2 "%s: %s_CONF 0x%x (wrong state) PLCI=0x%x Command.Subcommand = %#x.%#x\n",
+		cc_ast_verbose(1, 1, VERBOSE_PREFIX_3 "%s: %s_CONF 0x%x (wrong state) PLCI=0x%x Command.Subcommand = %#x.%#x\n",
 			name, msg, CMSG->Info, PLCI, CMSG->Command, CMSG->Subcommand);
 	} else {
 		ast_log(LOG_WARNING, "%s: %s conf_error 0x%x PLCI=0x%x Command.Subcommand = %#x.%#x\n",
@@ -2900,7 +2910,7 @@ static void capi_handle_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned in
 	case CAPI_CONNECT:
 		if (!i->owner)
 			break;
-		cc_ast_verbose(1, 1, VERBOSE_PREFIX_2 "%s: received CONNECT_CONF PLCI = %#x INFO = %#x\n",
+		cc_ast_verbose(1, 1, VERBOSE_PREFIX_3 "%s: received CONNECT_CONF PLCI = %#x INFO = %#x\n",
 			i->name, PLCI, CONNECT_CONF_INFO(CMSG));
 		if (CONNECT_CONF_INFO(CMSG) == 0) {
 			i->PLCI = PLCI;
@@ -2926,7 +2936,7 @@ static void capi_handle_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned in
 			break;
 		if ((ALERT_CONF_INFO(CMSG) & 0xff00) == 0) {
 			if (ALERT_CONF_INFO(CMSG) == 0x0003) {
-				cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Alert already sent by another app.\n",
+				cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: Alert already sent by another app.\n",
 					i->name);
 			}
 			if (i->state != CAPI_STATE_DISCONNECTING) {
@@ -3025,7 +3035,7 @@ static int capi_retrieve(struct ast_channel *c, char *param)
 	FACILITY_REQ_FACILITYREQUESTPARAMETER(&CMSG) = (char *)&fac;
 
 	_capi_put_cmsg(&CMSG);
-	cc_ast_verbose(2, 1, VERBOSE_PREFIX_1 "%s: sent RETRIEVE for PLCI=%#x\n",
+	cc_ast_verbose(2, 1, VERBOSE_PREFIX_4 "%s: sent RETRIEVE for PLCI=%#x\n",
 		i->name, i->PLCI);
 
 	return 0;
@@ -3057,7 +3067,7 @@ static int capi_hold(struct ast_channel *c, char *param)
 	FACILITY_REQ_FACILITYREQUESTPARAMETER(&CMSG) = (char *)&fac;
 
 	_capi_put_cmsg(&CMSG);
-	cc_ast_verbose(2, 1, VERBOSE_PREFIX_1 "%s: sent HOLD for PLCI=%#x\n",
+	cc_ast_verbose(2, 1, VERBOSE_PREFIX_4 "%s: sent HOLD for PLCI=%#x\n",
 		i->name, i->PLCI);
 
 	i->onholdPLCI= i->PLCI;
@@ -3086,7 +3096,7 @@ static int capi_malicious(struct ast_channel *c, char *param)
 
 	_capi_put_cmsg(&CMSG);
 
-	cc_ast_verbose(2, 1, VERBOSE_PREFIX_1 "%s: sent MCID for PLCI=%#x\n",
+	cc_ast_verbose(2, 1, VERBOSE_PREFIX_4 "%s: sent MCID for PLCI=%#x\n",
 		i->name, i->PLCI);
 
 	return 0;
@@ -3111,7 +3121,7 @@ static int capi_echosquelch(struct ast_channel *c, char *param)
 		ast_log(LOG_WARNING, "Parameter for echosquelch invalid.\n");
 		return -1;
 	}
-	cc_ast_verbose(2, 1, VERBOSE_PREFIX_1 "%s: echosquelch switched %s\n",
+	cc_ast_verbose(2, 1, VERBOSE_PREFIX_4 "%s: echosquelch switched %s\n",
 		i->name, i->doES ? "ON":"OFF");
 	return 0;
 }
@@ -3185,7 +3195,7 @@ static int capicommand_exec(struct ast_channel *chan, void *data)
 	stringp = s;
 	command = strsep(&stringp, "|");
 	params = stringp;
-	cc_ast_verbose(2, 1, VERBOSE_PREFIX_1 "capiCommand: '%s' '%s'\n",
+	cc_ast_verbose(2, 1, VERBOSE_PREFIX_3 "capiCommand: '%s' '%s'\n",
 		command, params);
 
 	LOCAL_USER_ADD(u);
@@ -3462,7 +3472,7 @@ int mkif(struct ast_capi_conf *conf)
 			tmp->doEC, tmp->ecOption, tmp->ecTail, tmp->doES, tmp->rxgain,
 			tmp->txgain, callgroup);
 		 */
-		cc_ast_verbose(2, 0, VERBOSE_PREFIX_2 "ast_capi_pvt %s (%s,%s,%d,%d) (%d,%d,%d)\n",
+		cc_ast_verbose(2, 0, VERBOSE_PREFIX_3 "ast_capi_pvt %s (%s,%s,%d,%d) (%d,%d,%d)\n",
 			tmp->name, tmp->incomingmsn, tmp->context, tmp->controller,
 			conf->devices, tmp->doEC, tmp->ecOption, tmp->ecTail);
 	}
@@ -3710,7 +3720,7 @@ static int cc_init_capi(void)
 	capi_num_controllers = profile.ncontrollers;
 #endif
 
-	cc_ast_verbose(3, 0, VERBOSE_PREFIX_3 "This box has %d capi controller(s).\n",
+	cc_ast_verbose(3, 0, VERBOSE_PREFIX_2 "This box has %d capi controller(s).\n",
 		capi_num_controllers);
 	
 	for (controller = 1 ;controller <= capi_num_controllers; controller++) {

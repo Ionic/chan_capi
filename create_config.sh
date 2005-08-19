@@ -82,6 +82,13 @@ else
 	echo " * no 'ast_config_load'"
 fi
 
+if grep -q "AST_CONTROL_HOLD" $INCLUDEDIR/frame.h; then
+	echo "#define CC_AST_CONTROL_HOLD" >>$CONFIGFILE
+	echo " * found 'AST_CONTROL_HOLD'"
+else
+	echo "#undef CC_AST_CONTROL_HOLD" >>$CONFIGFILE
+	echo " * no 'AST_CONTROL_HOLD'"
+fi
 
 echo "" >>$CONFIGFILE
 echo "#endif /* CHAN_CAPI_CONFIG_H */" >>$CONFIGFILE
