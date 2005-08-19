@@ -1972,6 +1972,25 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 			i->name, INFO_IND_INFOELEMENT(CMSG)[1], INFO_IND_INFOELEMENT(CMSG)[2]);
 		handle_progress_indicator(CMSG, PLCI, i);
 		break;
+	case 0x0027: {	/*  Notification Indicator */
+		char *desc = "?";
+		if (INFO_IND_INFOELEMENT(CMSG)[0] > 0) {
+			switch (INFO_IND_INFOELEMENT(CMSG)[1]) {
+			case 0:
+				desc = "User suspended";
+				break;
+			case 1:
+				desc = "User resumed";
+				break;
+			case 2:
+				desc = "Bearer service changed";
+				break;
+			}
+		}
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element NOTIFICATION INDICATOR '%s'\n",
+			i->name, desc);
+		break;
+	}
 	case 0x0028:	/* DSP */
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element DSP\n",
 			i->name);
@@ -2082,6 +2101,10 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 		break;
 	case 0x805a:	/* RELEASE COMPLETE */
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element RELEASE COMPLETE\n",
+			i->name);
+		break;
+	case 0x806e:	/* NOTIFY */
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element NOTIFY\n",
 			i->name);
 		break;
 	case 0x807b:	/* INFORMATION */
