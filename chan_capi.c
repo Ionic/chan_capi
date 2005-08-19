@@ -82,7 +82,6 @@ static int usecnt;
 AST_MUTEX_DEFINE_STATIC(messagenumber_lock);
 AST_MUTEX_DEFINE_STATIC(usecnt_lock);
 AST_MUTEX_DEFINE_STATIC(iflock);
-AST_MUTEX_DEFINE_STATIC(monlock);
 AST_MUTEX_DEFINE_STATIC(contrlock);
 AST_MUTEX_DEFINE_STATIC(capi_put_lock);
 AST_MUTEX_DEFINE_EXPORTED(verbose_lock);
@@ -94,7 +93,7 @@ static pthread_t monitor_thread = -1;
 static struct ast_capi_pvt *iflist = NULL;
 static struct ast_capi_controller *capi_controllers[AST_CAPI_MAX_CONTROLLERS + 1];
 static int capi_num_controllers = 0;
-static int capi_counter = 0;
+static unsigned int capi_counter = 0;
 static unsigned long capi_used_controllers = 0;
 static char *emptyid = "\0";
 
@@ -405,7 +404,7 @@ static void update_channel_name(struct ast_capi_pvt *i)
 {
 	char name[AST_CHANNEL_NAME];
 
-	snprintf(name, sizeof(name) - 1, "CAPI/%s/%s-%d",
+	snprintf(name, sizeof(name) - 1, "CAPI/%s/%s-%x",
 		i->name, i->dnid, capi_counter++);
 	ast_change_name(i->owner, name);
 	cc_ast_verbose(3, 0, VERBOSE_PREFIX_3 "%s: Updated channel name: %s\n",
@@ -1191,7 +1190,7 @@ static struct ast_channel *capi_new(struct ast_capi_pvt *i, int state)
 	}
 #endif
 
-	snprintf(tmp->name, sizeof(tmp->name) - 1, "CAPI/%s/%s-%d",
+	snprintf(tmp->name, sizeof(tmp->name) - 1, "CAPI/%s/%s-%x",
 		i->name, i->dnid, capi_counter++);
 	tmp->type = channeltype;
 
@@ -3314,16 +3313,7 @@ static void *do_monitor(void *data)
 	_cmsg monCMSG;
 	
 	for (/* for ever */;;) {
-#if 0
-		if (ast_mutex_lock(&monlock)) {
-			ast_log(LOG_ERROR, "Unable to get monitor lock!\n");
-			return NULL;
-		}
-		/* do some nifty stuff */
-	
-		ast_mutex_unlock(&monlock);
-#endif
-	
+
 		memset(&monCMSG, 0, sizeof(_cmsg));
 	
 		switch(Info = check_wait_get_cmsg(&monCMSG)) {
@@ -3341,33 +3331,6 @@ static void *do_monitor(void *data)
 	
 	/* never reached */
 	return NULL;
-}
-
-/*
- * start monitor thread
- */
-static int start_monitor(void)
-{
-	/* stay stopped if wanted */
-	if (ast_mutex_lock(&monlock)) {
-		ast_log(LOG_WARNING, "Unable to get monitor lock!\n");
-		return -1;
-	}
-	
-	if (monitor_thread == pthread_self()) {
-		ast_mutex_unlock(&monlock);
-		ast_log(LOG_WARNING, "Unable to kill myself!\n");
-		return -1;
-	}
-    
-	/* restart */
-	if (ast_pthread_create(&monitor_thread, NULL, do_monitor, NULL) < 0) {
-		ast_mutex_unlock(&monlock);
-		ast_log(LOG_ERROR, "Unable to start monitor thread!\n");
-		return -1;
-	}
-
-	return 0;
 }
 
 /*
@@ -4064,7 +4027,10 @@ int load_module(void)
 	
 	ast_register_application(commandapp, capicommand_exec, commandsynopsis, commandtdesc);
 
-	start_monitor();
+	if (ast_pthread_create(&monitor_thread, NULL, do_monitor, NULL) < 0) {
+		ast_log(LOG_ERROR, "Unable to start monitor thread!\n");
+		return -1;
+	}
 
 	return 0;
 }
@@ -4077,7 +4043,19 @@ int unload_module()
 	struct ast_capi_pvt *i, *itmp;
 	int controller;
 
+	ast_unregister_application(commandapp);
+
+	ast_cli_unregister(&cli_info);
+	ast_cli_unregister(&cli_debug);
+	ast_cli_unregister(&cli_no_debug);
+
 	ast_rtp_proto_unregister(&capi_rtp);
+
+	if (monitor_thread != -1) {
+		pthread_cancel(monitor_thread);
+		pthread_kill(monitor_thread, SIGURG);
+		pthread_join(monitor_thread, NULL);
+	}
 
 	ast_mutex_lock(&iflock);
 
@@ -4109,7 +4087,6 @@ int unload_module()
 #else
 	ast_channel_unregister(channeltype);
 #endif
-	ast_unregister_application(commandapp);
 	
 	return 0;
 }
