@@ -49,6 +49,14 @@ static inline unsigned short read_capi_word(void *m)
 	val = ((unsigned char *)m)[0] | (((unsigned char *)m)[1] << 8);	
 	return (val);
 }
+static inline unsigned short read_capi_dword(void *m)
+{
+	unsigned int val;
+
+	val = ((unsigned char *)m)[0] | (((unsigned char *)m)[1] << 8) |	
+	      (((unsigned char *)m)[2] << 16) | (((unsigned char *)m)[3] << 24);	
+	return (val);
+}
 
 /*
  * definitions for compatibility with older versions of ast*

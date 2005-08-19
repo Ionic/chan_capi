@@ -2571,6 +2571,11 @@ static int capi_call_deflect(struct ast_channel *c, char *param)
 		ast_log(LOG_WARNING, "capi deflection requires an argument (destination phone number)\n");
 		return -1;
 	}
+	if (!(capi_controllers[i->controller]->CD)) {
+		ast_log(LOG_NOTICE,"%s: CALL DEFLECT for %s not supported by controller.\n",
+			i->name, c->name);
+		return -1;
+	}
 	
 	if ((i->state != CAPI_STATE_INCALL) &&
 	    (i->state != CAPI_STATE_DID) &&
@@ -3045,6 +3050,11 @@ static int capi_retrieve(struct ast_channel *c, char *param)
 			i->name, c->name);
 		return -1;
 	}
+	if (!(capi_controllers[i->controller]->holdretrieve)) {
+		ast_log(LOG_NOTICE,"%s: RETRIEVE for %s not supported by controller.\n",
+			i->name, c->name);
+		return -1;
+	}
 
 	fac[0] = 3;	/* len */
 	fac[1] = 0x03;	/* retrieve */
@@ -3077,6 +3087,11 @@ static int capi_hold(struct ast_channel *c, char *param)
 			i->name, c->name);
 		return -1;
 	}
+	if (!(capi_controllers[i->controller]->holdretrieve)) {
+		ast_log(LOG_NOTICE,"%s: HOLD for %s not supported by controller.\n",
+			i->name, c->name);
+		return -1;
+	}
 
 	fac[0] = 3;	/* len */
 	fac[1] = 0x02;	/* this is a HOLD up */
@@ -3105,6 +3120,12 @@ static int capi_malicious(struct ast_channel *c, char *param)
 	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
 	_cmsg	CMSG;
 	char	fac[4];
+
+	if (!(capi_controllers[i->controller]->MCID)) {
+		ast_log(LOG_NOTICE,"%s: MCID for %s not supported by controller.\n",
+			i->name, c->name);
+		return -1;
+	}
 
 	fac[0] = 3;      /* len */
 	fac[1] = 0x0e;   /* MCID */
@@ -3474,11 +3495,12 @@ static void supported_sservices(struct ast_capi_controller *cp)
 	_cmsg CMSG, CMSG2;
 	struct timeval tv;
 	char fac[20];
+	unsigned int services;
 
 	memset(fac, 0, sizeof(fac));
 	FACILITY_REQ_HEADER(&CMSG, ast_capi_ApplID, get_ast_capi_MessageNumber(), 0);
 	FACILITY_REQ_CONTROLLER(&CMSG) = cp->controller;
-	FACILITY_REQ_FACILITYSELECTOR(&CMSG) = 0x0003; /* sservices */
+	FACILITY_REQ_FACILITYSELECTOR(&CMSG) = FACILITYSELECTOR_SUPPLEMENTARY;
 	fac[0] = 3;
 	FACILITY_REQ_FACILITYREQUESTPARAMETER(&CMSG) = (char *)&fac;
 	_capi_put_cmsg(&CMSG);
@@ -3498,21 +3520,8 @@ static void supported_sservices(struct ast_capi_controller *cp)
 		}
 	} 
 
-	/* preset all zero */
-	cp->holdretrieve = 0;	
-	cp->terminalportability = 0;
-	cp->ECT = 0;
-	cp->threePTY = 0;
-	cp->CF = 0;
-	cp->CD = 0;
-	cp->MCID = 0;
-	cp->CCBS = 0;
-	cp->MWI = 0;
-	cp->CCNR = 0;
-	cp->CONF = 0;
-
 	/* parse supported sservices */
-	if (FACILITY_CONF_FACILITYSELECTOR(&CMSG2) != 0x0003) {
+	if (FACILITY_CONF_FACILITYSELECTOR(&CMSG2) != FACILITYSELECTOR_SUPPLEMENTARY) {
 		ast_log(LOG_NOTICE, "unexpected FACILITY_SELECTOR = %#x\n",
 			FACILITY_CONF_FACILITYSELECTOR(&CMSG2));
 		return;
@@ -3523,49 +3532,52 @@ static void supported_sservices(struct ast_capi_controller *cp)
 			(short)FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(&CMSG2)[1]);
 		return;
 	}
+	services = read_capi_dword(&(FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(&CMSG2)[6]));
+	cc_ast_verbose(3, 0, VERBOSE_PREFIX_4 "supplementary services : 0x%08x\n",
+		services);
 	
 	/* success, so set the features we have */
-	if ((FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(&CMSG2)[6] & 1) == 1) {
+	if (services & 0x0001) {
 		cp->holdretrieve = 1;
 		cc_ast_verbose(3, 0, VERBOSE_PREFIX_4 "HOLD/RETRIEVE\n");
 	}
-	if (((FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(&CMSG2)[6] & 2) >> 1) == 1) {
+	if (services & 0x0002) {
 		cp->terminalportability = 1;
 		cc_ast_verbose(3, 0, VERBOSE_PREFIX_4 "TERMINAL PORTABILITY\n");
 	}
-	if (((FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(&CMSG2)[6] & 4) >> 2) == 1) {
+	if (services & 0x0004) {
 		cp->ECT = 1;
 		cc_ast_verbose(3, 0, VERBOSE_PREFIX_4 "ECT\n");
 	}
-	if (((FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(&CMSG2)[6] & 8) >> 3) == 1) {
+	if (services & 0x0008) {
 		cp->threePTY = 1;
 		cc_ast_verbose(3, 0, VERBOSE_PREFIX_4 "3PTY\n");
 	}
-	if (((FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(&CMSG2)[6] & 16) >> 4) == 1) {
+	if (services & 0x0010) {
 		cp->CF = 1;
 		cc_ast_verbose(3, 0, VERBOSE_PREFIX_4 "CF\n");
 	}
-	if (((FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(&CMSG2)[6] & 32) >> 5) == 1) {
+	if (services & 0x0020) {
 		cp->CD = 1;
 		cc_ast_verbose(3, 0, VERBOSE_PREFIX_4 "CD\n");
 	}
-	if (((FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(&CMSG2)[6] & 64) >> 6) == 1) {
+	if (services & 0x0040) {
 		cp->MCID = 1;
 		cc_ast_verbose(3, 0, VERBOSE_PREFIX_4 "MCID\n");
 	}
-	if (((FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(&CMSG2)[6] & 128) >> 7) == 1) {
+	if (services & 0x0080) {
 		cp->CCBS = 1;
 		cc_ast_verbose(3, 0, VERBOSE_PREFIX_4 "CCBS\n");
 	}
-	if ((FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(&CMSG2)[7] & 1) == 1) {
+	if (services & 0x0100) {
 		cp->MWI = 1;
 		cc_ast_verbose(3, 0, VERBOSE_PREFIX_4 "MWI\n");
 	}
-	if (((FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(&CMSG2)[7] & 2) >> 1) == 1) {
+	if (services & 0x0200) {
 		cp->CCNR = 1;
 		cc_ast_verbose(3, 0, VERBOSE_PREFIX_4 "CCNR\n");
 	}
-	if (((FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(&CMSG2)[7] & 4) >> 2) == 1) {
+	if (services & 0x0400) {
 		cp->CONF = 1;
 		cc_ast_verbose(3, 0, VERBOSE_PREFIX_4 "CONF\n");
 	}
