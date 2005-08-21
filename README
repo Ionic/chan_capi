@@ -137,17 +137,16 @@ Retrieve:
          or
         exten => s,1,capicommand(retrieve|${MYHOLDVAR})
 
-
-Helper applications
-===================
-
-app_capiECT.c		
-	Explicit call transfer of the call on hold (must put call on hold first!)
-		Example:
-		exten => s,1,Answer
-		exten => s,2,capicommand(hold)
-		exten => s,3,capiECT,55:50
-		Will ECT the call to 50 using 55 as the callerid/outgoing MSN
+ECT:
+    Explicit call transfer of the call on hold (must put call on hold first!)
+        Example:
+        exten => s,1,capicommand(ect|${MYHOLDVAR})
+         or
+        [macro-capiect]
+        exten => s,1,capicommand(ect)
+        [default]
+        exten => s,1,capicommand(hold)
+        exten => s,2,Dial(CAPI/1234,60,M(capiect))
 
 
 Using CLIR

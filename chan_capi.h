@@ -164,6 +164,7 @@ struct ast_capi_gains {
 
 #define CAPI_ISDN_STATE_SETUP_ACK     0x01
 #define CAPI_ISDN_STATE_HOLD          0x02
+#define CAPI_ISDN_STATE_ECT           0x04
 
 /* ! Private data for a capi device */
 struct ast_capi_pvt {

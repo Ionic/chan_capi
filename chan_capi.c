@@ -596,6 +596,13 @@ static void capi_activehangup(struct ast_channel *c)
 		i->cause = atoi(cause);
 	}
 	
+	if (i->isdnstate & CAPI_ISDN_STATE_ECT) {
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: activehangup ECT call\n",
+			i->name);
+		/* we do nothing, just wait for DISCONNECT_IND */
+		return;
+	}
+
 	cc_ast_verbose(2, 1, VERBOSE_PREFIX_3 "%s: activehangingup (cause=%d)\n",
 		i->name, i->cause);
 
@@ -1809,6 +1816,13 @@ static void handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsigned int 
 {
 	_cmsg CMSG2;
 
+	if (i->isdnstate & CAPI_ISDN_STATE_ECT) {
+		cc_ast_verbose(4, 1, VERBOSE_PREFIX_3 "%s: Disconnect ECT call\n",
+			i->name);
+		/* we do nothing, just wait for DISCONNECT_IND */
+		return;
+	}
+
 	if (PLCI == i->onholdPLCI) {
 		cc_ast_verbose(4, 1, VERBOSE_PREFIX_3 "%s: Disconnect onhold call\n",
 			i->name);
@@ -2037,6 +2051,10 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element RELEASE COMPLETE\n",
 			i->name);
 		break;
+	case 0x8062:	/* FACILITY */
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element FACILITY\n",
+			i->name);
+		break;
 	case 0x806e:	/* NOTIFY */
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element NOTIFY\n",
 			i->name);
@@ -2110,14 +2128,23 @@ static void capi_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, unsi
 		ast_log(LOG_NOTICE,"%#x\n",FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]);
 		ast_log(LOG_NOTICE,"%#x\n",FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[5]);
 #endif
+		/* ECT */
+		if ( (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[1] == 0x6) &&
+		     (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[3] == 0x2) ) {
+			cc_ast_verbose(1, 1, VERBOSE_PREFIX_3 "%s: PLCI=%#x ECT  Reason=0x%02x%02x\n",
+				i->name, PLCI,
+				FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[5],
+				FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]);
+		}
+
 		/* RETRIEVE */
 		if ( (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[1] == 0x3) &&
 		     (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[3] == 0x2) ) {
 			if ((FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[5] != 0) || 
 			    (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4] != 0)) { 
 				ast_log(LOG_WARNING, "%s: unable to retrieve PLCI=%#x, REASON = 0x%02x%02x\n",
-					i->name,
-					PLCI, FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[5],
+					i->name, PLCI,
+					FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[5],
 					FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]);
 			} else {
 				/* reason != 0x0000 == problem */
@@ -2144,9 +2171,9 @@ static void capi_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, unsi
 				/* reason != 0x0000 == problem */
 				i->onholdPLCI = 0;
 				i->state = CAPI_STATE_BCONNECTED;
-				ast_log(LOG_WARNING, "%s: unable to put PLCI=%#x onhold, REASON = %#x%#x, maybe you need to subscribe for this...\n",
-					i->name,
-					PLCI, FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[5],
+				ast_log(LOG_WARNING, "%s: unable to put PLCI=%#x onhold, REASON = 0x%02x%02x, maybe you need to subscribe for this...\n",
+					i->name, PLCI,
+					FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[5],
 					FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]);
 			} else {
 				/* reason = 0x0000 == call on hold */
@@ -3006,7 +3033,7 @@ static int capi_retrieve(struct ast_channel *c, char *param)
 	if ((!plci) || (i->state != CAPI_STATE_ONHOLD)) {
 		ast_log(LOG_WARNING, "%s: 0x%x is not valid or not on hold to retrieve!\n",
 			i->name, plci);
-		return -1;
+		return 0;
 	}
 	cc_ast_verbose(2, 1, VERBOSE_PREFIX_4 "%s: using PLCI=%#x for retrieve\n",
 		i->name, plci);
@@ -3032,6 +3059,8 @@ static int capi_retrieve(struct ast_channel *c, char *param)
 		i->name, plci);
 
 	i->isdnstate &= ~CAPI_ISDN_STATE_HOLD;
+	pbx_builtin_setvar_helper(i->owner, "_CALLERHOLDID", NULL);
+
 	return 0;
 }
 
@@ -3042,24 +3071,32 @@ static int capi_ect(struct ast_channel *c, char *param)
 {
 	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
 	struct ast_capi_pvt *ii = NULL;
-	_cmsg	CMSG;
-	char	fac[8];
-	unsigned int plci;
+	_cmsg CMSG;
+	char fac[8];
+	char *id;
+	unsigned int plci = 0;
+	int waitcount = 200;
 
-	return -1;
+	if ((id = pbx_builtin_getvar_helper(c, "CALLERHOLDID"))) {
+		plci = (unsigned int)strtoul(id, NULL, 0);
+	}
+	
+	if (param) {
+		plci = (unsigned int)strtoul(param, NULL, 0);
+	}
 
-	if ((!param) || (!strlen(param))) {
-		ast_log(LOG_WARNING, "capi ECT requires an argument (held call ID)\n");
+	if (!plci) {
+		ast_log(LOG_WARNING, "%s: No id for ECT !\n", i->name);
 		return -1;
 	}
 
-	plci = (unsigned int)strtoul(param, NULL, 0);
 	ast_mutex_lock(&iflock);
 	for (ii = iflist; ii; ii = ii->next) {
 		if (ii->onholdPLCI == plci)
 			break;
 	}
 	ast_mutex_unlock(&iflock);
+
 	if (!ii) {
 		ast_log(LOG_WARNING, "%s: 0x%x is not on hold !\n",
 			i->name, plci);
@@ -3070,8 +3107,30 @@ static int capi_ect(struct ast_channel *c, char *param)
 		i->name, plci);
 
 	if (!(capi_controllers[i->controller]->ECT)) {
-		ast_log(LOG_NOTICE,"%s: ECT for %s not supported by controller.\n",
+		ast_log(LOG_WARNING, "%s: ECT for %s not supported by controller.\n",
 			i->name, c->name);
+		return -1;
+	}
+
+	if (!(ii->isdnstate & CAPI_ISDN_STATE_HOLD)) {
+		ast_log(LOG_WARNING, "%s: PLCI %#x (%s) is not on hold for ECT\n",
+			i->name, plci, ii->name);
+		return -1;
+	}
+
+	if (i->state == CAPI_STATE_BCONNECTED) {
+		DISCONNECT_B3_REQ_HEADER(&CMSG, ast_capi_ApplID, get_ast_capi_MessageNumber(), 0);
+		DISCONNECT_B3_REQ_NCCI(&CMSG) = i->NCCI;
+		_capi_put_cmsg(&CMSG);
+	}
+
+	while ((i->state != CAPI_STATE_CONNECTED) && (waitcount > 0)) {
+		waitcount--;
+		usleep(10000);
+	}
+	if (i->state != CAPI_STATE_CONNECTED) {
+		ast_log(LOG_WARNING, "%s: destination not connected for ECT\n",
+			i->name);
 		return -1;
 	}
 
@@ -3088,6 +3147,11 @@ static int capi_ect(struct ast_channel *c, char *param)
 	FACILITY_REQ_FACILITYREQUESTPARAMETER(&CMSG) = (char *)&fac;
 
 	_capi_put_cmsg(&CMSG);
+	
+	ii->isdnstate &= ~CAPI_ISDN_STATE_HOLD;
+	ii->isdnstate |= CAPI_ISDN_STATE_ECT;
+	i->isdnstate |= CAPI_ISDN_STATE_ECT;
+	
 	cc_ast_verbose(2, 1, VERBOSE_PREFIX_4 "%s: sent ECT for PLCI=%#x to PLCI=%#x\n",
 		i->name, plci, i->PLCI);
 
@@ -3101,7 +3165,14 @@ static int capi_hold(struct ast_channel *c, char *param)
 {
 	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
 	_cmsg	CMSG;
+	char buffer[16];
 	char	fac[4];
+
+	if (i->isdnstate & CAPI_ISDN_STATE_HOLD) {
+		ast_log(LOG_NOTICE,"%s: %s already on hold.\n",
+			i->name, c->name);
+		return 0;
+	}
 
 	if (i->state != CAPI_STATE_BCONNECTED) {
 		ast_log(LOG_NOTICE,"%s: Cannot put on hold %s while not connected.\n",
@@ -3131,11 +3202,11 @@ static int capi_hold(struct ast_channel *c, char *param)
 	i->onholdPLCI= i->PLCI;
 	i->isdnstate |= CAPI_ISDN_STATE_HOLD;
 
+	snprintf(buffer, sizeof(buffer) - 1, "%d", i->PLCI);
 	if (param) {
-		char buffer[16];
-		snprintf(buffer, sizeof(buffer) - 1, "%d", i->PLCI);
 		pbx_builtin_setvar_helper(i->owner, param, buffer);
 	}
+	pbx_builtin_setvar_helper(i->owner, "_CALLERHOLDID", buffer);
 
 	return 0;
 }
@@ -3150,7 +3221,7 @@ static int capi_malicious(struct ast_channel *c, char *param)
 	char	fac[4];
 
 	if (!(capi_controllers[i->controller]->MCID)) {
-		ast_log(LOG_NOTICE,"%s: MCID for %s not supported by controller.\n",
+		ast_log(LOG_NOTICE, "%s: MCID for %s not supported by controller.\n",
 			i->name, c->name);
 		return -1;
 	}
@@ -3313,6 +3384,7 @@ static int capi_indicate(struct ast_channel *c, int condition)
 	case AST_CONTROL_RINGING:
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested RINGING-Indication for %s\n",
 			i->name, c->name);
+#warning TODO somehow enable unhold on ringing, but when wanted only
 /* 		if (i->isdnstate & CAPI_ISDN_STATE_HOLD) */
 /* 			capi_retrieve(c, NULL); */
 		ret = capi_alert(c);
