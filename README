@@ -48,7 +48,6 @@ This chan_capi version includes:
 - Call deflection on circuit busy (deflect=12345678)
 - (Inter)national dialing prefix (for callerid) configurable in capi.conf
 - CLI command "capi info" shows B channel status of chan_capi
-- CapiECT will announce the callerID since it gets lost on most isdn pbxes
   The called party can press # to drop the call
 - Catch all MSN (incomingmsn=*)
 - Some configuration enhancements (msn=123,124,125 and controller=1,2,3,4)
@@ -123,14 +122,20 @@ Malicious Call Identification:
 Hold:
     Puts an answered call on hold, this has nothing to do with asterisk's onhold
     thingie (music et al).
-    After putting a call onhold, never use the Wait application!
+    An optional parameter is the name of the variable which shall be set with
+    the reference ID of the call on hold.
         Example:
         exten => s,1,capicommand(hold)
+         or
+        exten => s,1,capicommand(hold|MYHOLDVAR)
 
 Retrieve:
-    Gets back the holded call
+    Gets back the holded call. An optional parameter is the reference ID of the call
+    on hold.
         Example:
         exten => s,1,capicommand(retrieve)
+         or
+        exten => s,1,capicommand(retrieve|${MYHOLDVAR})
 
 
 Helper applications

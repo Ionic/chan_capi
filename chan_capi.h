@@ -36,6 +36,20 @@
 #define AST_CAPI_ISDNMODE_PTMP          0
 #define AST_CAPI_ISDNMODE_PTP           1
 
+/*
+ * helper for ast_verbose with different verbose settings
+ */
+#define cc_ast_verbose(o_v, c_d, text...)				\
+	do { 								\
+		if ((o_v == 0) || (option_verbose > o_v)) {		\
+			if ((!c_d) || ((c_d) && (capidebug))) {		\
+				ast_mutex_lock(&verbose_lock);		\
+				ast_verbose(text);			\
+				ast_mutex_unlock(&verbose_lock);	\
+			}						\
+		}							\
+	} while(0)
+
 /* some helper functions */
 static inline void write_capi_word(void *m, unsigned short val)
 {
@@ -48,6 +62,13 @@ static inline unsigned short read_capi_word(void *m)
 
 	val = ((unsigned char *)m)[0] | (((unsigned char *)m)[1] << 8);	
 	return (val);
+}
+static inline void write_capi_dword(void *m, unsigned int val)
+{
+	((unsigned char *)m)[0] = val & 0xff;
+	((unsigned char *)m)[1] = (val >> 8) & 0xff;
+	((unsigned char *)m)[2] = (val >> 16) & 0xff;
+	((unsigned char *)m)[3] = (val >> 24) & 0xff;
 }
 static inline unsigned short read_capi_dword(void *m)
 {
@@ -142,6 +163,7 @@ struct ast_capi_gains {
 };
 
 #define CAPI_ISDN_STATE_SETUP_ACK     0x01
+#define CAPI_ISDN_STATE_HOLD          0x02
 
 /* ! Private data for a capi device */
 struct ast_capi_pvt {
@@ -223,6 +245,8 @@ struct ast_capi_pvt {
 	int isdnmode;
 	/* Answer before getting digits? */
 	int immediate;
+	/* Use ISDN HOLD */
+	int hold;
 
 	/* Common ISDN Profile (CIP) */
 	int cip;
@@ -293,6 +317,7 @@ struct ast_capi_conf {
 	int ectail;
 	int isdnmode;
 	int immediate;
+	int hold;
 	int es;
 	unsigned int callgroup;
 	unsigned int group;

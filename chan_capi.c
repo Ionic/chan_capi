@@ -49,8 +49,7 @@
 #include <capi20.h>
 #include <asterisk/dsp.h>
 #include "xlaw.h"
-#include "chan_capi_app.h"
-#include "chan_capi_pvt.h"
+#include "chan_capi.h"
 
 /* #define CC_VERSION "cm-x.y.z" */
 #define CC_VERSION "$Revision$"
@@ -58,7 +57,7 @@
 /*
  * personal stuff
  */
-unsigned ast_capi_ApplID = 0;
+static unsigned ast_capi_ApplID = 0;
 
 static _cword ast_capi_MessageNumber = 1;
 static char *desc = "Common ISDN API for Asterisk";
@@ -84,7 +83,7 @@ AST_MUTEX_DEFINE_STATIC(usecnt_lock);
 AST_MUTEX_DEFINE_STATIC(iflock);
 AST_MUTEX_DEFINE_STATIC(contrlock);
 AST_MUTEX_DEFINE_STATIC(capi_put_lock);
-AST_MUTEX_DEFINE_EXPORTED(verbose_lock);
+AST_MUTEX_DEFINE_STATIC(verbose_lock);
 
 static int capi_capability = AST_FORMAT_ALAW;
 
@@ -97,10 +96,13 @@ static unsigned int capi_counter = 0;
 static unsigned long capi_used_controllers = 0;
 static char *emptyid = "\0";
 
-char capi_national_prefix[AST_MAX_EXTENSION];
-char capi_international_prefix[AST_MAX_EXTENSION];
+static char capi_national_prefix[AST_MAX_EXTENSION];
+static char capi_international_prefix[AST_MAX_EXTENSION];
 
-int capidebug = 0;
+static int capidebug = 0;
+
+/* local prototypes */
+static int capi_indicate(struct ast_channel *c, int condition);
 
 /* */
 #define return_on_no_interface(x)                                       \
@@ -112,7 +114,7 @@ int capidebug = 0;
 /*
  * get a new capi message number atomically
  */
-_cword get_ast_capi_MessageNumber(void)
+static _cword get_ast_capi_MessageNumber(void)
 {
 	_cword mn;
 
@@ -127,7 +129,7 @@ _cword get_ast_capi_MessageNumber(void)
 /*
  * write a capi message to capi device
  */
-MESSAGE_EXCHANGE_ERROR _capi_put_cmsg(_cmsg *CMSG)
+static MESSAGE_EXCHANGE_ERROR _capi_put_cmsg(_cmsg *CMSG)
 {
 	MESSAGE_EXCHANGE_ERROR error;
 	
@@ -160,7 +162,7 @@ MESSAGE_EXCHANGE_ERROR _capi_put_cmsg(_cmsg *CMSG)
 /*
  * wait some time for a new capi message
  */
-MESSAGE_EXCHANGE_ERROR check_wait_get_cmsg(_cmsg *CMSG)
+static MESSAGE_EXCHANGE_ERROR check_wait_get_cmsg(_cmsg *CMSG)
 {
 	MESSAGE_EXCHANGE_ERROR Info;
 	struct timeval tv;
@@ -354,7 +356,7 @@ static void capi_echo_canceller(struct ast_channel *c, int function)
 /*
  * turn on/off DTMF detection
  */
-int capi_detect_dtmf(struct ast_channel *c, int flag)
+static int capi_detect_dtmf(struct ast_channel *c, int flag)
 {
 	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
 	MESSAGE_EXCHANGE_ERROR error;
@@ -731,7 +733,7 @@ static void parse_dialstring(char *buffer, char **interface, char **dest, char *
 /*
  * Asterisk tells us to make a call
  */
-int capi_call(struct ast_channel *c, char *idest, int timeout)
+static int capi_call(struct ast_channel *c, char *idest, int timeout)
 {
 	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
 	char *dest, *interface, *param;
@@ -1087,84 +1089,11 @@ static int capi_fixup(struct ast_channel *oldchan, struct ast_channel *newchan)
 {
 	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(newchan);
 
-	cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: fixup now %s\n",
-		i->name, newchan->name);
+	cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: %s fixup now %s\n",
+		i->name, oldchan->name, newchan->name);
 
 	i->owner = newchan;
 	return 0;
-}
-
-/*
- * we don't support own indications
- */
-static int capi_indicate(struct ast_channel *c, int condition)
-{
-	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
-	_cmsg CMSG;
-	int ret = -1;
-
-	if (i == NULL) {
-		return -1;
-	}
-
-	switch (condition) {
-	case AST_CONTROL_RINGING:
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested RINGING-Indication for %s\n",
-			i->name, c->name);
-		ret = capi_alert(c);
-		break;
-	case AST_CONTROL_BUSY:
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested BUSY-Indication for %s\n",
-			i->name, c->name);
-		if ((i->state == CAPI_STATE_ALERTING) ||
-		    (i->state == CAPI_STATE_DID) || (i->state == CAPI_STATE_INCALL)) {
-			CONNECT_RESP_HEADER(&CMSG, ast_capi_ApplID, i->MessageNumber, 0);
-			CONNECT_RESP_PLCI(&CMSG) = i->PLCI;
-			CONNECT_RESP_REJECT(&CMSG) = 3;
-			_capi_put_cmsg(&CMSG);
-			ret = 0;
-		}
-		break;
-	case AST_CONTROL_CONGESTION:
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested CONGESTION-Indication for %s\n",
-			i->name, c->name);
-		if ((i->state == CAPI_STATE_ALERTING) ||
-		    (i->state == CAPI_STATE_DID) || (i->state == CAPI_STATE_INCALL)) {
-			CONNECT_RESP_HEADER(&CMSG, ast_capi_ApplID, i->MessageNumber, 0);
-			CONNECT_RESP_PLCI(&CMSG) = i->PLCI;
-			CONNECT_RESP_REJECT(&CMSG) = 4;
-			_capi_put_cmsg(&CMSG);
-			ret = 0;
-		}
-		break;
-	case AST_CONTROL_PROGRESS:
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested PROGRESS-Indication for %s\n",
-			i->name, c->name);
-		break;
-	case AST_CONTROL_PROCEEDING:
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested PROCEEDING-Indication for %s\n",
-			i->name, c->name);
-		break;
-#ifdef CC_AST_CONTROL_HOLD
-	case AST_CONTROL_HOLD:
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested HOLD-Indication for %s\n",
-			i->name, c->name);
-		break;
-	case AST_CONTROL_UNHOLD:
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested UNHOLD-Indication for %s\n",
-			i->name, c->name);
-		break;
-#endif
-	case -1: /* stop indications */
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested Indication-STOP for %s\n",
-			i->name, c->name);
-		break;
-	default:
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested unknown Indication %d for %s\n",
-			i->name, condition, c->name);
-		break;
-	}
-	return(ret);
 }
 
 /*
@@ -1325,6 +1254,9 @@ struct ast_channel *capi_request(char *type, int format, void *data)
 
 	if ((!interface) || (!dest)) {
 		ast_log(LOG_ERROR, "Syntax error in dialstring. Read the docs!\n");
+#ifdef CC_AST_HAVE_TECH_PVT
+		*cause = AST_CAUSE_INVALID_NUMBER_FORMAT;
+#endif
 		return NULL;
 	}
 
@@ -1401,6 +1333,9 @@ struct ast_channel *capi_request(char *type, int format, void *data)
 	ast_mutex_unlock(&iflock);
 	cc_ast_verbose(2, 0, VERBOSE_PREFIX_3 "didn't find capi device for interface '%s'\n",
 		interface);
+#ifdef CC_AST_HAVE_TECH_PVT
+	*cause = AST_CAUSE_REQUESTED_CHAN_UNAVAIL;
+#endif
 	return NULL;
 }
 
@@ -2180,7 +2115,7 @@ static void capi_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, unsi
 		     (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[3] == 0x2) ) {
 			if ((FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[5] != 0) || 
 			    (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4] != 0)) { 
-				ast_log(LOG_WARNING, "%s: unable to retrieve PLCI=%#x, REASON = %#x%#x\n",
+				ast_log(LOG_WARNING, "%s: unable to retrieve PLCI=%#x, REASON = 0x%02x%02x\n",
 					i->name,
 					PLCI, FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[5],
 					FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]);
@@ -2791,6 +2726,7 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 				i->name, i->cid, i->dnid);
 			sprintf(buffer, "%d", callednplan);
 			pbx_builtin_setvar_helper(i->owner, "CALLEDTON", buffer);
+#warning TODO set some variables on incoming call
 			/* TODO
 			pbx_builtin_setvar_helper(i->owner, "USERUSERINFO", buffer);
 			pbx_builtin_setvar_helper(i->owner, "CALLINGSUBADDR", buffer);
@@ -3044,12 +2980,37 @@ static int capi_retrieve(struct ast_channel *c, char *param)
 	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
 	_cmsg	CMSG;
 	char	fac[4];
+	unsigned int plci = i->onholdPLCI;
 
-	if (i->onholdPLCI == 0) {
-		ast_log(LOG_WARNING, "%s: %s is not on hold to retrieve!\n",
-			i->name, c->name);
+	if (param) {
+		plci = (unsigned int)strtoul(param, NULL, 0);
+		ast_mutex_lock(&iflock);
+		for (i = iflist; i; i = i->next) {
+			if (i->onholdPLCI == plci)
+				break;
+		}
+		ast_mutex_unlock(&iflock);
+		if (!i) {
+			plci = 0;
+		}
+	}
+
+	if ((i->state != CAPI_STATE_ONHOLD) &&
+	    (i->isdnstate & CAPI_ISDN_STATE_HOLD)) {
+		int waitcount = 200;
+		while ((waitcount > 0) && (i->state != CAPI_STATE_ONHOLD)) {
+			usleep(10000);
+		}
+	}
+
+	if ((!plci) || (i->state != CAPI_STATE_ONHOLD)) {
+		ast_log(LOG_WARNING, "%s: 0x%x is not valid or not on hold to retrieve!\n",
+			i->name, plci);
 		return -1;
 	}
+	cc_ast_verbose(2, 1, VERBOSE_PREFIX_4 "%s: using PLCI=%#x for retrieve\n",
+		i->name, plci);
+
 	if (!(capi_controllers[i->controller]->holdretrieve)) {
 		ast_log(LOG_NOTICE,"%s: RETRIEVE for %s not supported by controller.\n",
 			i->name, c->name);
@@ -3062,13 +3023,73 @@ static int capi_retrieve(struct ast_channel *c, char *param)
 	fac[3] = 0;	
 
 	FACILITY_REQ_HEADER(&CMSG,ast_capi_ApplID, get_ast_capi_MessageNumber(),0);
-	FACILITY_REQ_PLCI(&CMSG) = i->onholdPLCI;
+	FACILITY_REQ_PLCI(&CMSG) = plci;
 	FACILITY_REQ_FACILITYSELECTOR(&CMSG) = FACILITYSELECTOR_SUPPLEMENTARY;
 	FACILITY_REQ_FACILITYREQUESTPARAMETER(&CMSG) = (char *)&fac;
 
 	_capi_put_cmsg(&CMSG);
 	cc_ast_verbose(2, 1, VERBOSE_PREFIX_4 "%s: sent RETRIEVE for PLCI=%#x\n",
-		i->name, i->PLCI);
+		i->name, plci);
+
+	i->isdnstate &= ~CAPI_ISDN_STATE_HOLD;
+	return 0;
+}
+
+/*
+ * explicit transfer a held call
+ */
+static int capi_ect(struct ast_channel *c, char *param)
+{
+	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
+	struct ast_capi_pvt *ii = NULL;
+	_cmsg	CMSG;
+	char	fac[8];
+	unsigned int plci;
+
+	return -1;
+
+	if ((!param) || (!strlen(param))) {
+		ast_log(LOG_WARNING, "capi ECT requires an argument (held call ID)\n");
+		return -1;
+	}
+
+	plci = (unsigned int)strtoul(param, NULL, 0);
+	ast_mutex_lock(&iflock);
+	for (ii = iflist; ii; ii = ii->next) {
+		if (ii->onholdPLCI == plci)
+			break;
+	}
+	ast_mutex_unlock(&iflock);
+	if (!ii) {
+		ast_log(LOG_WARNING, "%s: 0x%x is not on hold !\n",
+			i->name, plci);
+		return -1;
+	}
+
+	cc_ast_verbose(2, 1, VERBOSE_PREFIX_4 "%s: using PLCI=%#x for ECT\n",
+		i->name, plci);
+
+	if (!(capi_controllers[i->controller]->ECT)) {
+		ast_log(LOG_NOTICE,"%s: ECT for %s not supported by controller.\n",
+			i->name, c->name);
+		return -1;
+	}
+
+	fac[0] = 7;	/* len */
+	fac[1] = 0x06;	/* ECT (function) */
+	fac[2] = 0x00;
+	fac[3] = 4;	/* len / sservice specific parameter , cstruct */
+	write_capi_dword(&(fac[4]), plci);
+
+	FACILITY_REQ_HEADER(&CMSG, ast_capi_ApplID, get_ast_capi_MessageNumber(), 0);
+	FACILITY_REQ_CONTROLLER(&CMSG) = i->controller;
+	FACILITY_REQ_PLCI(&CMSG) = i->PLCI;
+	FACILITY_REQ_FACILITYSELECTOR(&CMSG) = FACILITYSELECTOR_SUPPLEMENTARY;
+	FACILITY_REQ_FACILITYREQUESTPARAMETER(&CMSG) = (char *)&fac;
+
+	_capi_put_cmsg(&CMSG);
+	cc_ast_verbose(2, 1, VERBOSE_PREFIX_4 "%s: sent ECT for PLCI=%#x to PLCI=%#x\n",
+		i->name, plci, i->PLCI);
 
 	return 0;
 }
@@ -3108,6 +3129,13 @@ static int capi_hold(struct ast_channel *c, char *param)
 		i->name, i->PLCI);
 
 	i->onholdPLCI= i->PLCI;
+	i->isdnstate |= CAPI_ISDN_STATE_HOLD;
+
+	if (param) {
+		char buffer[16];
+		snprintf(buffer, sizeof(buffer) - 1, "%d", i->PLCI);
+		pbx_builtin_setvar_helper(i->owner, param, buffer);
+	}
 
 	return 0;
 }
@@ -3256,6 +3284,8 @@ static int capicommand_exec(struct ast_channel *chan, void *data)
 		res = capi_hold(chan, params);
 	} else if (!strcasecmp(command, "retrieve")) {
 		res = capi_retrieve(chan, params);
+	} else if (!strcasecmp(command, "ect")) {
+		res = capi_ect(chan, params);
 	} else {
 		res = -1;
 		ast_log(LOG_WARNING, "Unknown command '%s' for capiCommand\n",
@@ -3264,6 +3294,93 @@ static int capicommand_exec(struct ast_channel *chan, void *data)
 
 	LOCAL_USER_REMOVE(u);
 	return(res);
+}
+
+/*
+ * we don't support own indications
+ */
+static int capi_indicate(struct ast_channel *c, int condition)
+{
+	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
+	_cmsg CMSG;
+	int ret = -1;
+
+	if (i == NULL) {
+		return -1;
+	}
+
+	switch (condition) {
+	case AST_CONTROL_RINGING:
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested RINGING-Indication for %s\n",
+			i->name, c->name);
+/* 		if (i->isdnstate & CAPI_ISDN_STATE_HOLD) */
+/* 			capi_retrieve(c, NULL); */
+		ret = capi_alert(c);
+		break;
+	case AST_CONTROL_BUSY:
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested BUSY-Indication for %s\n",
+			i->name, c->name);
+		if ((i->state == CAPI_STATE_ALERTING) ||
+		    (i->state == CAPI_STATE_DID) || (i->state == CAPI_STATE_INCALL)) {
+			CONNECT_RESP_HEADER(&CMSG, ast_capi_ApplID, i->MessageNumber, 0);
+			CONNECT_RESP_PLCI(&CMSG) = i->PLCI;
+			CONNECT_RESP_REJECT(&CMSG) = 3;
+			_capi_put_cmsg(&CMSG);
+			ret = 0;
+		}
+		if (i->isdnstate & CAPI_ISDN_STATE_HOLD)
+			capi_retrieve(c, NULL);
+		break;
+	case AST_CONTROL_CONGESTION:
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested CONGESTION-Indication for %s\n",
+			i->name, c->name);
+		if ((i->state == CAPI_STATE_ALERTING) ||
+		    (i->state == CAPI_STATE_DID) || (i->state == CAPI_STATE_INCALL)) {
+			CONNECT_RESP_HEADER(&CMSG, ast_capi_ApplID, i->MessageNumber, 0);
+			CONNECT_RESP_PLCI(&CMSG) = i->PLCI;
+			CONNECT_RESP_REJECT(&CMSG) = 4;
+			_capi_put_cmsg(&CMSG);
+			ret = 0;
+		}
+		if (i->isdnstate & CAPI_ISDN_STATE_HOLD)
+			capi_retrieve(c, NULL);
+		break;
+	case AST_CONTROL_PROGRESS:
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested PROGRESS-Indication for %s\n",
+			i->name, c->name);
+		break;
+	case AST_CONTROL_PROCEEDING:
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested PROCEEDING-Indication for %s\n",
+			i->name, c->name);
+		break;
+#ifdef CC_AST_CONTROL_HOLD
+	case AST_CONTROL_HOLD:
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested HOLD-Indication for %s\n",
+			i->name, c->name);
+		if (i->hold) {
+			ret = capi_hold(c, NULL);
+		}
+		break;
+	case AST_CONTROL_UNHOLD:
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested UNHOLD-Indication for %s\n",
+			i->name, c->name);
+		if (i->hold) {
+			ret = capi_retrieve(c, NULL);
+		}
+		break;
+#endif
+	case -1: /* stop indications */
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested Indication-STOP for %s\n",
+			i->name, c->name);
+		if (i->isdnstate & CAPI_ISDN_STATE_HOLD)
+			capi_retrieve(c, NULL);
+		break;
+	default:
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested unknown Indication %d for %s\n",
+			i->name, condition, c->name);
+		break;
+	}
+	return(ret);
 }
 
 /*
@@ -3460,6 +3577,7 @@ int mkif(struct ast_capi_conf *conf)
 		tmp->callgroup = conf->callgroup;
 		tmp->group = conf->group;
 		tmp->immediate = conf->immediate;
+		tmp->hold = conf->hold;
 		
 		tmp->smoother = ast_smoother_new(AST_CAPI_MAX_B3_BLOCK_SIZE);
 
@@ -3676,7 +3794,7 @@ static const struct ast_channel_tech capi_tech = {
 	.fixup = capi_fixup,
 	.setoption = NULL,
 };
-#endif								
+#endif
 
 /*
  * init capi stuff
@@ -3826,6 +3944,12 @@ static int conf_interface(struct ast_capi_conf *conf, struct ast_variable *v)
 		if (!strcasecmp(v->name, "immediate")) {
 			if (ast_true(v->value)) {
 				conf->immediate = 1;
+			}
+			continue;
+		}
+		if (!strcasecmp(v->name, "hold")) {
+			if (ast_true(v->value)) {
+				conf->hold = 1;
 			}
 			continue;
 		}
