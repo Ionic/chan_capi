@@ -36,7 +36,7 @@ This chan_capi version includes:
 - Overlap sending (dialtone and additional digits)
 - E(xplicit) C(all) T(ransfer) (...although it's done implicit-but don't tell!)
 - Tuneable latency:  you can configure the size of B3 blocks at compile time
-  (in chan_capi_pvt.h, AST_CAPI_MAX_B3_BLOCK_SIZE)
+  (in chan_capi.h, AST_CAPI_MAX_B3_BLOCK_SIZE)
   The default is 160 samples, for non-VoIP use you can tune it down to 130
 - Use asterisks internal DSP functions for DTMF
 - Alaw support 
