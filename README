@@ -236,3 +236,32 @@ With a DIVA Server, following features are provided:
  - Color Fax 
  - JPEG Compression is disabled (not tested yet)
 
+
+Asterisk variables used/set by chan_capi
+========================================
+
+CALLEDTON
+    The 'type of number' value of the called number is saved in this variable on
+    incomming call.
+
+_CALLERHOLDID
+    If a call is put on hold (ISDN-HOLD), the reference id is saved in this variable.
+    This variable is inherited as CALLERHOLDID to the dialed channel and will be used
+    if e.g. capicommand(ect) is used to transfer the held call.
+
+CONNECTEDNUMBER
+    Can be set before answering and if set, the content is used for
+    IE 'Connected Number' on answering.
+
+FAXEXTEN
+    If chan_capi sends the call to extensions 'fax', the original extension number
+    is saved in this variable.
+
+PRI_CAUSE
+    If set, this value will be used as hangup cause on hangup.
+
+REDIRECTINGNUMBER
+    On incoming call, if the call was redirected to you by someone, the
+    number of the redirecting party is saved in this variable.
+
+
