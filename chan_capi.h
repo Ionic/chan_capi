@@ -271,6 +271,7 @@ struct ast_capi_pvt {
 	ast_mutex_t lockB3q;
 
 	/* do ECHO SURPRESSION */
+	int ES;
 	int doES;
 	short txavg[ECHO_TX_COUNT];
 	float rxmin;

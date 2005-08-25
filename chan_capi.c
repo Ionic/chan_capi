@@ -1157,6 +1157,7 @@ static struct ast_channel *capi_new(struct ast_capi_pvt *i, int state)
 	i->calledPartyIsISDN = 1;
 	i->earlyB3 = -1;
 	i->doB3 = AST_CAPI_B3_DONT;
+	i->doES = i->ES;
 	i->outgoing = 0;
 	i->onholdPLCI = 0;
 	i->B3q = 0;
@@ -3650,7 +3651,7 @@ int mkif(struct ast_capi_conf *conf)
 		tmp->ecOption = conf->ecoption;
 		tmp->ecTail = conf->ectail;
 		tmp->isdnmode = conf->isdnmode;
-		tmp->doES = conf->es;
+		tmp->ES = conf->es;
 		tmp->callgroup = conf->callgroup;
 		tmp->group = conf->group;
 		tmp->immediate = conf->immediate;
