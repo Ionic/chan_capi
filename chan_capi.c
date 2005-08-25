@@ -875,7 +875,7 @@ static int capi_send_answer(struct ast_channel *c, int *bprot, _cstruct b3conf)
 	char *dnid;
 	char *connectednumber;
     
-	if ((i->isdnmode == AST_CAPI_ISDNMODE_PTP) &&
+	if ((i->isdnmode == AST_CAPI_ISDNMODE_DID) &&
 	    ((strlen(i->incomingmsn) < strlen(i->dnid)) && 
 	    (strcmp(i->incomingmsn, "*")))) {
 		dnid = i->dnid + strlen(i->incomingmsn);
@@ -2665,7 +2665,7 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 
 	if ((CONNECT_IND_BCHANNELINFORMATION(CMSG)) &&
 	    ((CONNECT_IND_BCHANNELINFORMATION(CMSG)[1] == 0x02) &&
-	    (capi_controllers[controller]->isdnmode != AST_CAPI_ISDNMODE_PTP))) {
+	    (capi_controllers[controller]->isdnmode == AST_CAPI_ISDNMODE_MSN))) {
 		/*
 		 * this is a call waiting CONNECT_IND with BChannelinformation[1] == 0x02
 		 * meaning "no B or D channel for this call", since we can't do anything with call waiting now
@@ -2699,9 +2699,9 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 				/* make sure the number match exactly or may match on ptp mode */
 				cc_ast_verbose(4, 1, VERBOSE_PREFIX_4 "%s: msn='%s' DNID='%s' %s\n",
 					i->name, msn, DNID,
-					(i->isdnmode == AST_CAPI_ISDNMODE_PTMP)?"PtMP":"PtP");
+					(i->isdnmode == AST_CAPI_ISDNMODE_MSN)?"MSN":"DID");
 				if ((strcasecmp(msn, DNID)) &&
-				   ((i->isdnmode == AST_CAPI_ISDNMODE_PTMP) ||
+				   ((i->isdnmode == AST_CAPI_ISDNMODE_MSN) ||
 				    (strlen(msn) >= strlen(DNID)) ||
 				    (strncasecmp(msn, DNID, strlen(msn)))) &&
 				   (strncasecmp(msn, magicmsn, strlen(msn)))) {
@@ -2728,7 +2728,7 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 			i->MessageNumber = CMSG->Messagenumber;
 			i->cid_ton = callernplan;
 
-			if (i->isdnmode == AST_CAPI_ISDNMODE_PTP) {
+			if (i->isdnmode == AST_CAPI_ISDNMODE_DID) {
 				capi_new(i, AST_STATE_DOWN);
 				i->state = CAPI_STATE_DID;
 				if (!strlen(i->dnid) && (i->immediate) && (i->owner)) {
@@ -3428,6 +3428,7 @@ static int capi_indicate(struct ast_channel *c, int condition)
 	case AST_CONTROL_PROGRESS:
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested PROGRESS-Indication for %s\n",
 			i->name, c->name);
+#warning TODO: in NT-mode we should send progress for early b3 to phone
 		break;
 	case AST_CONTROL_PROCEEDING:
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested PROCEEDING-Indication for %s\n",
@@ -3653,6 +3654,7 @@ int mkif(struct ast_capi_conf *conf)
 		tmp->ecOption = conf->ecoption;
 		tmp->ecTail = conf->ectail;
 		tmp->isdnmode = conf->isdnmode;
+		tmp->ntmode = conf->ntmode;
 		tmp->ES = conf->es;
 		tmp->callgroup = conf->callgroup;
 		tmp->group = conf->group;
@@ -4102,13 +4104,17 @@ static int conf_interface(struct ast_capi_conf *conf, struct ast_variable *v)
 			} 
 			continue;
 		}
+		if (!strcasecmp(v->name, "ntmode")) {
+			if (ast_true(v->value)) {
+				conf->ntmode = 1;
+			}
+			continue;
+		}
 		if (!strcasecmp(v->name, "isdnmode")) {
-			if (!strcasecmp(v->value, "ptp") || !strcasecmp(v->value, "1"))
-			    conf->isdnmode = AST_CAPI_ISDNMODE_PTP;
-			else if (!strcasecmp(v->value, "ptm") ||
-				 !strcasecmp(v->value, "0") ||
-				 !strcasecmp(v->value, "ptmp"))
-			    conf->isdnmode = AST_CAPI_ISDNMODE_PTMP;
+			if (!strcasecmp(v->value, "did"))
+			    conf->isdnmode = AST_CAPI_ISDNMODE_DID;
+			else if (!strcasecmp(v->value, "msn"))
+			    conf->isdnmode = AST_CAPI_ISDNMODE_MSN;
 			else
 			    ast_log(LOG_ERROR,"Unknown isdnmode parameter \"%s\" -- ignoring\n",
 			    	v->value);

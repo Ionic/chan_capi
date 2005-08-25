@@ -33,8 +33,8 @@
 #define AST_CAPI_BCHANS                 120
 #define ALL_SERVICES                    0x1FFF03FF
 
-#define AST_CAPI_ISDNMODE_PTMP          0
-#define AST_CAPI_ISDNMODE_PTP           1
+#define AST_CAPI_ISDNMODE_MSN           0
+#define AST_CAPI_ISDNMODE_DID           1
 
 /*
  * helper for ast_verbose with different verbose settings
@@ -246,8 +246,10 @@ struct ast_capi_pvt {
 	int doEC;
 	int ecOption;
 	int ecTail;
-	/* isdnmode ptp or ptm */
+	/* isdnmode MSN or DID */
 	int isdnmode;
+	/* NT-mode */
+	int ntmode;
 	/* Answer before getting digits? */
 	int immediate;
 	/* which holdtype */
@@ -323,6 +325,7 @@ struct ast_capi_conf {
 	int ecoption;
 	int ectail;
 	int isdnmode;
+	int ntmode;
 	int immediate;
 	int holdtype;
 	int es;
