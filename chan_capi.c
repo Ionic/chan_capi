@@ -1888,6 +1888,7 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 {
 	_cmsg CMSG2;
 	struct ast_frame fr;
+	char *p;
 
 	memset(&CMSG2, 0, sizeof(_cmsg));
 	INFO_RESP_HEADER(&CMSG2, ast_capi_ApplID, CMSG->Messagenumber, PLCI);
@@ -1962,12 +1963,12 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 		handle_did_digits(CMSG, PLCI, NCCI, i);
 		break;
 	case 0x0074:	/* Redirecting Number */
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element REDIRECTING NUMBER\n",
-			i->name);
-		/*
-		strncpy(i->owner->exten, capi_number(INFO_IND_INFOELEMENT(CMSG), 3),
-			sizeof(i->owner->exten) - 1);
-		*/
+		p = capi_number(INFO_IND_INFOELEMENT(CMSG), 3);
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element REDIRECTING NUMBER '%s' Reason=0x%02x\n",
+			i->name, p, (INFO_IND_INFOELEMENT(CMSG)[0] > 2) ? (INFO_IND_INFOELEMENT(CMSG)[3] & 0x0f) : 0xff);
+		if (i->owner) {
+			pbx_builtin_setvar_helper(i->owner, "REDIRECTINGNUMBER", p);
+		}
 		break;
 	case 0x4000:	/* CHARGE in UNITS */
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element CHARGE in UNITS\n",
@@ -2673,7 +2674,7 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 	/* well...somebody is calling us. let's set up a channel */
 	ast_mutex_lock(&iflock);
 	for (i = iflist; i; i = i->next) {
-		if ((i->owner) || (i->incomingmsn == NULL)) {
+		if (i->owner) {
 			/* has already owner */
 			continue;
 		}
