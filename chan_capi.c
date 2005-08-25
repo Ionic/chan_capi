@@ -873,6 +873,7 @@ static int capi_send_answer(struct ast_channel *c, int *bprot, _cstruct b3conf)
 	_cmsg CMSG;
 	char buf[AST_CAPI_MAX_STRING];
 	char *dnid;
+	char *connectednumber;
     
 	if ((i->isdnmode == AST_CAPI_ISDNMODE_PTP) &&
 	    ((strlen(i->incomingmsn) < strlen(i->dnid)) && 
@@ -880,6 +881,9 @@ static int capi_send_answer(struct ast_channel *c, int *bprot, _cstruct b3conf)
 		dnid = i->dnid + strlen(i->incomingmsn);
 	} else {
 		dnid = i->dnid;
+	}
+	if ((connectednumber = pbx_builtin_getvar_helper(c, "CONNECTEDNUMBER"))) {
+		dnid = connectednumber;
 	}
 
 	memset(&CMSG, 0, sizeof(CMSG));
