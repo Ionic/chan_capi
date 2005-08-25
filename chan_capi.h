@@ -129,6 +129,10 @@ typedef struct fax3proto3 {
 #define FACILITYSELECTOR_SUPPLEMENTARY  3
 #define FACILITYSELECTOR_ECHO_CANCEL    6
 
+#define CC_HOLDTYPE_LOCAL               0
+#define CC_HOLDTYPE_HOLD                1
+#define CC_HOLDTYPE_NOTIFY              2
+
 /*
  * state combination for a normal incoming call:
  * DIS -> ALERT -> CON -> BCON -> CON -> DIS
@@ -246,8 +250,9 @@ struct ast_capi_pvt {
 	int isdnmode;
 	/* Answer before getting digits? */
 	int immediate;
-	/* Use ISDN HOLD */
-	int hold;
+	/* which holdtype */
+	int holdtype;
+	int doholdtype;
 
 	/* Common ISDN Profile (CIP) */
 	int cip;
@@ -319,7 +324,7 @@ struct ast_capi_conf {
 	int ectail;
 	int isdnmode;
 	int immediate;
-	int hold;
+	int holdtype;
 	int es;
 	unsigned int callgroup;
 	unsigned int group;

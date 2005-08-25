@@ -1160,6 +1160,7 @@ static struct ast_channel *capi_new(struct ast_capi_pvt *i, int state)
 	i->doES = i->ES;
 	i->outgoing = 0;
 	i->onholdPLCI = 0;
+	i->doholdtype = i->holdtype;
 	i->B3q = 0;
 	ast_mutex_init(&i->lockB3q);
 	memset(i->txavg, 0, ECHO_TX_COUNT);
@@ -3174,6 +3175,7 @@ static int capi_hold(struct ast_channel *c, char *param)
 	char buffer[16];
 	char	fac[4];
 
+#warning TODO: support holdtype notify
 	if (i->isdnstate & CAPI_ISDN_STATE_HOLD) {
 		ast_log(LOG_NOTICE,"%s: %s already on hold.\n",
 			i->name, c->name);
@@ -3435,14 +3437,14 @@ static int capi_indicate(struct ast_channel *c, int condition)
 	case AST_CONTROL_HOLD:
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested HOLD-Indication for %s\n",
 			i->name, c->name);
-		if (i->hold) {
+		if (i->doholdtype != CC_HOLDTYPE_LOCAL) {
 			ret = capi_hold(c, NULL);
 		}
 		break;
 	case AST_CONTROL_UNHOLD:
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested UNHOLD-Indication for %s\n",
 			i->name, c->name);
-		if (i->hold) {
+		if (i->doholdtype != CC_HOLDTYPE_LOCAL) {
 			ret = capi_retrieve(c, NULL);
 		}
 		break;
@@ -3655,7 +3657,7 @@ int mkif(struct ast_capi_conf *conf)
 		tmp->callgroup = conf->callgroup;
 		tmp->group = conf->group;
 		tmp->immediate = conf->immediate;
-		tmp->hold = conf->hold;
+		tmp->holdtype = conf->holdtype;
 		
 		tmp->smoother = ast_smoother_new(AST_CAPI_MAX_B3_BLOCK_SIZE);
 
@@ -4025,9 +4027,13 @@ static int conf_interface(struct ast_capi_conf *conf, struct ast_variable *v)
 			}
 			continue;
 		}
-		if (!strcasecmp(v->name, "hold")) {
-			if (ast_true(v->value)) {
-				conf->hold = 1;
+		if (!strcasecmp(v->name, "holdtype")) {
+			if (!strcasecmp(v->value, "hold")) {
+				conf->holdtype = CC_HOLDTYPE_HOLD;
+			} else if (!strcasecmp(v->value, "notify")) {
+				conf->holdtype = CC_HOLDTYPE_NOTIFY;
+			} else {
+				conf->holdtype = CC_HOLDTYPE_LOCAL;
 			}
 			continue;
 		}
