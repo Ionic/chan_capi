@@ -3277,6 +3277,32 @@ static int capi_echosquelch(struct ast_channel *c, char *param)
 }
 
 /*
+ * set holdtype
+ */
+static int capi_holdtype(struct ast_channel *c, char *param)
+{
+	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
+
+	if (!param) {
+		ast_log(LOG_WARNING, "Parameter for holdtype missing.\n");
+		return -1;
+	}
+	if (!strcasecmp(param, "hold")) {
+		i->doholdtype = CC_HOLDTYPE_HOLD;
+	} else if (!strcasecmp(param, "notify")) {
+		i->doholdtype = CC_HOLDTYPE_NOTIFY;
+	} else if (!strcasecmp(param, "local")) {
+		i->doholdtype = CC_HOLDTYPE_LOCAL;
+	} else {
+		ast_log(LOG_WARNING, "Parameter for holdtype invalid.\n");
+		return -1;
+	}
+	cc_ast_verbose(2, 1, VERBOSE_PREFIX_4 "%s: holdtype switched %s\n",
+		i->name, i->doES ? "ON":"OFF");
+	return 0;
+}
+
+/*
  * set early-B3 for incoming connections
  * (only for NT mode)
  */
@@ -3361,6 +3387,8 @@ static int capicommand_exec(struct ast_channel *chan, void *data)
 		res = capi_malicious(chan, params);
 	} else if (!strcasecmp(command, "hold")) {
 		res = capi_hold(chan, params);
+	} else if (!strcasecmp(command, "holdtype")) {
+		res = capi_holdtype(chan, params);
 	} else if (!strcasecmp(command, "retrieve")) {
 		res = capi_retrieve(chan, params);
 	} else if (!strcasecmp(command, "ect")) {

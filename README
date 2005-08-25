@@ -129,6 +129,18 @@ Hold:
          or
         exten => s,1,capicommand(hold|MYHOLDVAR)
 
+Holdtype:
+    Set the type of 'hold'. When Asterisk wants to put the call on hold, the specified method
+    will be used.
+        Example:
+        exten => s,1,capicommand(holdtype|local)  ;no hold, Asterisk can play MOH
+         or
+        exten => s,1,capicommand(holdtype|hold)   ;ISDN-HOLD 
+         or
+        ; not yet implemented
+        exten => s,1,capicommand(holdtype|notify) ;notify the peer only, Asterisk can play MOH
+
+       
 Retrieve:
     Gets back the holded call. An optional parameter is the reference ID of the call
     on hold.
