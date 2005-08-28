@@ -686,20 +686,33 @@ static int capi_hangup(struct ast_channel *c)
 /*
  * convert a number
  */
-static char *capi_number(char *data, int strip)
+static char *capi_number_func(unsigned char *data, unsigned int strip, char *buf)
 {
-	unsigned len = *data;
+	unsigned int len;
+
+	if (data[0] == 0xff) {
+		len = read_capi_word(&data[1]);
+		data += 2;
+	} else {
+		len = data[0];
+		data += 1;
+	}
+	if (len > AST_MAX_EXTENSION)
+		len = AST_MAX_EXTENSION;
 	
-	/* XXX fix me */
 	/* convert a capi struct to a \0 terminated string */
-	if ((!len) || (len < (unsigned int) strip))
+	if ((!len) || (len < strip))
 		return NULL;
 		
 	len = len - strip;
-	data = (char *)(data + 1 + strip);
+	data += strip;
+
+	memcpy(buf, data, len);
+	buf[len] = '\0';
 	
-	return strndup((char *)data, len);
+	return buf;
 }
+#define capi_number(data, strip) capi_number_func(data, strip, alloca(AST_MAX_EXTENSION))
 
 /*
  * parse the dialstring
@@ -750,6 +763,11 @@ static int capi_call(struct ast_channel *c, char *idest, int timeout)
 	char bchaninfo[3];
 	int CLIR;
 	int callernplan = 0;
+	char *ton, *p;
+	char *osa = NULL;
+	char *dsa = NULL;
+	char callingsubaddress[AST_MAX_EXTENSION];
+	char calledsubaddress[AST_MAX_EXTENSION];
 	
 	_cmsg CMSG;
 	MESSAGE_EXCHANGE_ERROR  error;
@@ -797,15 +815,31 @@ static int capi_call(struct ast_channel *c, char *idest, int timeout)
 #else    
 	CLIR = c->callingpres;
 #endif
-	cc_ast_verbose(1, 1, VERBOSE_PREFIX_2 "%s: Call %s %s%s (pres=0x%02x)\n",
+	if ((ton = pbx_builtin_getvar_helper(c, "CALLERTON"))) {
+		callernplan = atoi(ton) & 0x7f;
+	}
+	cc_ast_verbose(1, 1, VERBOSE_PREFIX_2 "%s: Call %s %s%s (pres=0x%02x, ton=0x%02x)\n",
 		i->name, c->name, i->doB3 ? "with B3 ":" ",
-		i->doOverlap ? "overlap":"", CLIR);
+		i->doOverlap ? "overlap":"", CLIR, callernplan);
     
 	/* set FD for Asterisk*/
 	c->fds[0] = i->fd;
 
 	i->outgoing = 1;
 	
+	if ((p = pbx_builtin_getvar_helper(c, "CALLINGSUBADDRESS"))) {
+		callingsubaddress[0] = strlen(p) + 1;
+		callingsubaddress[1] = 0x80;
+		strncpy(&callingsubaddress[2], p, sizeof(callingsubaddress) - 3);
+		osa = callingsubaddress;
+	}
+	if ((p = pbx_builtin_getvar_helper(c, "CALLEDSUBADDRESS"))) {
+		calledsubaddress[0] = strlen(p) + 1;
+		calledsubaddress[1] = 0x80;
+		strncpy(&calledsubaddress[2], p, sizeof(calledsubaddress) - 3);
+		dsa = calledsubaddress;
+	}
+
 	i->MessageNumber = get_ast_capi_MessageNumber();
 	CONNECT_REQ_HEADER(&CMSG, ast_capi_ApplID, i->MessageNumber, i->controller);
 	CONNECT_REQ_CONTROLLER(&CMSG) = i->controller;
@@ -823,7 +857,7 @@ static int capi_call(struct ast_channel *c, char *idest, int timeout)
 	called[1] = 0x80;
 	strncpy(&called[2], dest, sizeof(called) - 3);
 	CONNECT_REQ_CALLEDPARTYNUMBER(&CMSG) = called;
-	CONNECT_REQ_CALLEDPARTYSUBADDRESS(&CMSG) = NULL;
+	CONNECT_REQ_CALLEDPARTYSUBADDRESS(&CMSG) = dsa;
 
 #ifdef CC_AST_CHANNEL_HAS_CID
 	if (c->cid.cid_num) 
@@ -841,7 +875,7 @@ static int capi_call(struct ast_channel *c, char *idest, int timeout)
 	strncpy(&calling[3], callerid, sizeof(calling) - 4);
 
 	CONNECT_REQ_CALLINGPARTYNUMBER(&CMSG) = calling;
-	CONNECT_REQ_CALLINGPARTYSUBADDRESS(&CMSG) = NULL;
+	CONNECT_REQ_CALLINGPARTYSUBADDRESS(&CMSG) = osa;
 
 	CONNECT_REQ_B1PROTOCOL(&CMSG) = 1;
 	CONNECT_REQ_B2PROTOCOL(&CMSG) = 1;
@@ -1227,19 +1261,6 @@ static struct ast_channel *capi_new(struct ast_capi_pvt *i, int state)
 	
 	ast_setstate(tmp, state);
 
-	if (state == AST_STATE_RING) {
-		if (ast_pbx_start(tmp)) {
-			ast_log(LOG_ERROR, "%s: Unable to start pbx on channel!\n",
-				i->name);
-			ast_hangup(tmp);
-			ast_channel_free(tmp);
-			i->owner = NULL;
-			tmp = NULL;
-		} else {
-			cc_ast_verbose(2, 0, VERBOSE_PREFIX_2 "%s: started pbx on channel (callgroup=%d)!\n",
-				i->name, tmp->callgroup);
-		}
-	}
 	return tmp;
 }
 
@@ -1888,13 +1909,33 @@ static void handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsigned int 
 }
 
 /*
+ * incoming call SETUP
+ */
+static void handle_setup_element(_cmsg *CMSG, unsigned int PLCI, struct ast_capi_pvt *i)
+{
+	if (!i->owner) {
+		ast_log(LOG_ERROR, "No channel for interface!\n");
+		return;
+	}
+
+	if (i->isdnmode == AST_CAPI_ISDNMODE_DID) {
+		if (!strlen(i->dnid) && (i->immediate)) {
+			start_pbx_on_match(i, PLCI, CMSG->Messagenumber);
+		}
+	} else {
+		start_pbx_on_match(i, PLCI, CMSG->Messagenumber);
+	}
+}
+
+/*
  * CAPI INFO_IND
  */
 static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct ast_capi_pvt *i)
 {
 	_cmsg CMSG2;
 	struct ast_frame fr;
-	char *p;
+	char *p = NULL;
+	int val = 0;
 
 	memset(&CMSG2, 0, sizeof(_cmsg));
 	INFO_RESP_HEADER(&CMSG2, ast_capi_ApplID, CMSG->Messagenumber, PLCI);
@@ -1942,8 +1983,8 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 				break;
 			}
 		}
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element NOTIFICATION INDICATOR '%s'\n",
-			i->name, desc);
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element NOTIFICATION INDICATOR '%s' (0x%02x)\n",
+			i->name, desc, INFO_IND_INFOELEMENT(CMSG)[1]);
 		break;
 	}
 	case 0x0028:	/* DSP */
@@ -1970,10 +2011,16 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 		break;
 	case 0x0074:	/* Redirecting Number */
 		p = capi_number(INFO_IND_INFOELEMENT(CMSG), 3);
+		if (INFO_IND_INFOELEMENT(CMSG)[0] > 2) {
+			val = INFO_IND_INFOELEMENT(CMSG)[3] & 0x0f;
+		}
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element REDIRECTING NUMBER '%s' Reason=0x%02x\n",
-			i->name, p, (INFO_IND_INFOELEMENT(CMSG)[0] > 2) ? (INFO_IND_INFOELEMENT(CMSG)[3] & 0x0f) : 0xff);
+			i->name, p, val);
 		if (i->owner) {
+			char reasonbuf[16];
+			snprintf(reasonbuf, sizeof(reasonbuf) - 1, "%d", val); 
 			pbx_builtin_setvar_helper(i->owner, "REDIRECTINGNUMBER", p);
+			pbx_builtin_setvar_helper(i->owner, "REDIRECTREASON", reasonbuf);
 		}
 		break;
 	case 0x4000:	/* CHARGE in UNITS */
@@ -2013,9 +2060,12 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 		 * related to the call setup; then, we could always abort if we
 		 * get a PROGRESS with a hangupcause set (safer?)
 		 */
-		if (i->owner && i->owner->hangupcause == AST_CAUSE_USER_BUSY) {
-			pipe_cause_control(i, 1);
-			break;
+		if (i->doB3 == AST_CAPI_B3_DONT) {
+			if ((i->owner) &&
+			    (i->owner->hangupcause == AST_CAUSE_USER_BUSY)) {
+				pipe_cause_control(i, 1);
+				break;
+			}
 		}
 		fr.frametype = AST_FRAME_CONTROL;
 		fr.subclass = AST_CONTROL_PROGRESS;
@@ -2024,6 +2074,7 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 	case 0x8005:	/* SETUP */
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element SETUP\n",
 			i->name);
+		handle_setup_element(CMSG, PLCI, i);
 		break;
 	case 0x8007:	/* CONNECT */
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element CONNECT\n",
@@ -2728,14 +2779,10 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 			i->MessageNumber = CMSG->Messagenumber;
 			i->cid_ton = callernplan;
 
+			capi_new(i, AST_STATE_DOWN);
 			if (i->isdnmode == AST_CAPI_ISDNMODE_DID) {
-				capi_new(i, AST_STATE_DOWN);
 				i->state = CAPI_STATE_DID;
-				if (!strlen(i->dnid) && (i->immediate) && (i->owner)) {
-					start_pbx_on_match(i, PLCI, CMSG->Messagenumber);
-				}
 			} else {
-				capi_new(i, AST_STATE_RING);
 				i->state = CAPI_STATE_INCALL;
 			}
 
@@ -2760,12 +2807,16 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 				i->name, i->cid, i->dnid);
 			sprintf(buffer, "%d", callednplan);
 			pbx_builtin_setvar_helper(i->owner, "CALLEDTON", buffer);
-#warning TODO set some variables on incoming call
-			/* TODO
-			pbx_builtin_setvar_helper(i->owner, "USERUSERINFO", buffer);
-			pbx_builtin_setvar_helper(i->owner, "CALLINGSUBADDR", buffer);
-			pbx_builtin_setvar_helper(i->owner, "CALLEDSUBADDR", buffer);
-			pbx_builtin_setvar_helper(i->owner, "PRIREDIRECTREASON", buffer);
+			/*
+			pbx_builtin_setvar_helper(i->owner, "CALLINGSUBADDRESS",
+				CONNECT_IND_CALLINGPARTYSUBADDRESS(CMSG));
+			pbx_builtin_setvar_helper(i->owner, "CALLEDSUBADDRESS",
+				CONNECT_IND_CALLEDPARTYSUBADDRESS(CMSG));
+			pbx_builtin_setvar_helper(i->owner, "USERUSERINFO",
+				CONNECT_IND_USERUSERDATA(CMSG));
+			*/
+			/* TODO : set some more variables on incoming call */
+			/*
 			pbx_builtin_setvar_helper(i->owner, "ANI2", buffer);
 			pbx_builtin_setvar_helper(i->owner, "SECONDCALLERID", buffer);
 			*/
@@ -3011,10 +3062,15 @@ static void capi_handle_msg(_cmsg *CMSG)
  */
 static int capi_retrieve(struct ast_channel *c, char *param)
 {
-	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
+	struct ast_capi_pvt *i = NULL;
 	_cmsg	CMSG;
 	char	fac[4];
-	unsigned int plci = i->onholdPLCI;
+	unsigned int plci = 0;
+
+	if (!(strcmp(c->type, "CAPI"))) {
+		i = CC_AST_CHANNEL_PVT(c);
+		plci = i->onholdPLCI;
+	}
 
 	if (param) {
 		plci = (unsigned int)strtoul(param, NULL, 0);
@@ -3027,6 +3083,12 @@ static int capi_retrieve(struct ast_channel *c, char *param)
 		if (!i) {
 			plci = 0;
 		}
+	}
+
+	if (!i) {
+		ast_log(LOG_WARNING, "%s is not valid or not on capi hold to retrieve!\n",
+			c->name);
+		return 0;
 	}
 
 	if ((i->state != CAPI_STATE_ONHOLD) &&
@@ -3175,7 +3237,8 @@ static int capi_hold(struct ast_channel *c, char *param)
 	char buffer[16];
 	char	fac[4];
 
-#warning TODO: support holdtype notify
+	/*  TODO: support holdtype notify */
+
 	if (i->isdnstate & CAPI_ISDN_STATE_HOLD) {
 		ast_log(LOG_NOTICE,"%s: %s already on hold.\n",
 			i->name, c->name);
@@ -3185,12 +3248,12 @@ static int capi_hold(struct ast_channel *c, char *param)
 	if (i->state != CAPI_STATE_BCONNECTED) {
 		ast_log(LOG_NOTICE,"%s: Cannot put on hold %s while not connected.\n",
 			i->name, c->name);
-		return -1;
+		return 0;
 	}
 	if (!(capi_controllers[i->controller]->holdretrieve)) {
 		ast_log(LOG_NOTICE,"%s: HOLD for %s not supported by controller.\n",
 			i->name, c->name);
-		return -1;
+		return 0;
 	}
 
 	fac[0] = 3;	/* len */
@@ -3302,6 +3365,7 @@ static int capi_holdtype(struct ast_channel *c, char *param)
 	return 0;
 }
 
+#if 0
 /*
  * set early-B3 for incoming connections
  * (only for NT mode)
@@ -3347,6 +3411,27 @@ static int capi_set_earlyb3(struct ast_channel *c, char *param)
 
 	return 0;
 }
+#endif
+
+/*
+ * struct of capi commands
+ */
+static struct capicommands_s {
+	char *cmdname;
+	int (*cmd)(struct ast_channel *, char *);
+	int capionly;
+} capicommands[] = {
+	/* { "earlyb3",      capi_set_earlyb3,     1 }, */
+	{ "deflect",      capi_call_deflect,    1 },
+	{ "receivefax",   capi_receive_fax,     1 },
+	{ "echosquelch",  capi_echosquelch,     1 },
+	{ "malicious",    capi_malicious,       1 },
+	{ "hold",         capi_hold,            1 },
+	{ "holdtype",     capi_holdtype,        1 },
+	{ "retrieve",     capi_retrieve,        0 },
+	{ "ect",          capi_ect,             1 },
+	{ NULL, NULL, 0 }
+};
 
 /*
  * capi command interface
@@ -3358,15 +3443,15 @@ static int capicommand_exec(struct ast_channel *chan, void *data)
 	char *s;
 	char *stringp;
 	char *command, *params;
+	struct capicommands_s *capicmd = &capicommands[0];
 
 	if (!data) {
 		ast_log(LOG_WARNING, "capiCommand requires arguments\n");
 		return -1;
 	}
-	if (strcmp(chan->type, "CAPI")) {
-		ast_log(LOG_WARNING, "capiCommand works on CAPI channels only, check your extensions.conf!\n");
-		return -1;
-	}
+
+	LOCAL_USER_ADD(u);
+
 	s = ast_strdupa(data);
 	stringp = s;
 	command = strsep(&stringp, "|");
@@ -3374,31 +3459,26 @@ static int capicommand_exec(struct ast_channel *chan, void *data)
 	cc_ast_verbose(2, 1, VERBOSE_PREFIX_3 "capiCommand: '%s' '%s'\n",
 		command, params);
 
-	LOCAL_USER_ADD(u);
-	if (!strcasecmp(command, "earlyb3")) {
-		res = capi_set_earlyb3(chan, params);
-	} else if (!strcasecmp(command, "deflect")) {
-		res = capi_call_deflect(chan, params);
-	} else if (!strcasecmp(command, "receivefax")) {
-		res = capi_receive_fax(chan, params);
-	} else if (!strcasecmp(command, "echosquelch")) {
-		res = capi_echosquelch(chan, params);
-	} else if (!strcasecmp(command, "malicious")) {
-		res = capi_malicious(chan, params);
-	} else if (!strcasecmp(command, "hold")) {
-		res = capi_hold(chan, params);
-	} else if (!strcasecmp(command, "holdtype")) {
-		res = capi_holdtype(chan, params);
-	} else if (!strcasecmp(command, "retrieve")) {
-		res = capi_retrieve(chan, params);
-	} else if (!strcasecmp(command, "ect")) {
-		res = capi_ect(chan, params);
-	} else {
-		res = -1;
+	while(capicmd->cmd) {
+		if (!strcasecmp(capicmd->cmdname, command))
+			break;
+		capicmd++;
+	}
+	if (!capicmd->cmd) {
+		LOCAL_USER_REMOVE(u);
 		ast_log(LOG_WARNING, "Unknown command '%s' for capiCommand\n",
 			command);
+		return -1;
 	}
 
+	if ((capicmd->capionly) && (strcmp(chan->type, "CAPI"))) {
+		LOCAL_USER_REMOVE(u);
+		ast_log(LOG_WARNING, "capiCommand works on CAPI channels only, check your extensions.conf!\n");
+		return -1;
+	}
+
+	res = (capicmd->cmd)(chan, params);
+	
 	LOCAL_USER_REMOVE(u);
 	return(res);
 }
@@ -3420,9 +3500,9 @@ static int capi_indicate(struct ast_channel *c, int condition)
 	case AST_CONTROL_RINGING:
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested RINGING-Indication for %s\n",
 			i->name, c->name);
-#warning TODO somehow enable unhold on ringing, but when wanted only
-/* 		if (i->isdnstate & CAPI_ISDN_STATE_HOLD) */
-/* 			capi_retrieve(c, NULL); */
+		/* TODO somehow enable unhold on ringing, but when wanted only */
+		if (i->isdnstate & CAPI_ISDN_STATE_HOLD)
+			capi_retrieve(c, NULL);
 		ret = capi_alert(c);
 		break;
 	case AST_CONTROL_BUSY:
@@ -3456,11 +3536,12 @@ static int capi_indicate(struct ast_channel *c, int condition)
 	case AST_CONTROL_PROGRESS:
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested PROGRESS-Indication for %s\n",
 			i->name, c->name);
-#warning TODO: in NT-mode we should send progress for early b3 to phone
+		/* TODO: in NT-mode we should send progress for early b3 to phone */
 		break;
 	case AST_CONTROL_PROCEEDING:
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested PROCEEDING-Indication for %s\n",
 			i->name, c->name);
+		/* TODO: in NT-mode we should send progress for early b3 to phone */
 		break;
 #ifdef CC_AST_CONTROL_HOLD
 	case AST_CONTROL_HOLD:

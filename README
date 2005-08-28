@@ -276,4 +276,8 @@ REDIRECTINGNUMBER
     On incoming call, if the call was redirected to you by someone, the
     number of the redirecting party is saved in this variable.
 
+REDIRECTREASON
+    If the incoming call was redirected to you, this variable is set
+    with the reason value.
+
 
