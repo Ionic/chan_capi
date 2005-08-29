@@ -1913,6 +1913,14 @@ static void handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsigned int 
  */
 static void handle_setup_element(_cmsg *CMSG, unsigned int PLCI, struct ast_capi_pvt *i)
 {
+	if (i->isdnstate & CAPI_ISDN_STATE_SETUP) {
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_4 "%s: IE SETUP already received.\n",
+			i->name);
+		return;
+	}
+
+	i->isdnstate |= CAPI_ISDN_STATE_SETUP;
+
 	if (!i->owner) {
 		ast_log(LOG_ERROR, "No channel for interface!\n");
 		return;
