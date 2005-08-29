@@ -207,21 +207,6 @@ static unsigned ListenOnController(unsigned long CIPmask, unsigned controller)
 	return 0;
 }
 
-/*
- * Echo cancellation is for cards w/ integrated echo cancellation only
- * (i.e. Eicon active cards support it)
- */
-
-#define EC_FUNCTION_ENABLE              1
-#define EC_FUNCTION_DISABLE             2
-#define EC_FUNCTION_FREEZE              3
-#define EC_FUNCTION_RESUME              4
-#define EC_FUNCTION_RESET               5
-#define EC_OPTION_DISABLE_NEVER         0
-#define EC_OPTION_DISABLE_G165          (1<<1)
-#define EC_OPTION_DISABLE_G164_OR_G165  (1<<1 | 1<<2)
-#define EC_DEFAULT_TAIL                 64
-
 #ifdef CC_AST_CHANNEL_HAS_TRANSFERCAP
 /*
  *  TCAP -> CIP Translation Table (TransferCapability->CommonIsdnProfile)
@@ -315,11 +300,25 @@ static char *transfercapability2str(int transfercapability)
 }
 #endif /* CC_AST_CHANNEL_HAS_TRANSFERCAP */
 
+/*
+ * Echo cancellation is for cards w/ integrated echo cancellation only
+ * (i.e. Eicon active cards support it)
+ */
+#define EC_FUNCTION_ENABLE              1
+#define EC_FUNCTION_DISABLE             2
+#define EC_FUNCTION_FREEZE              3
+#define EC_FUNCTION_RESUME              4
+#define EC_FUNCTION_RESET               5
+#define EC_OPTION_DISABLE_NEVER         0
+#define EC_OPTION_DISABLE_G165          (1<<2)
+#define EC_OPTION_DISABLE_G164_OR_G165  (1<<1 | 1<<2)
+#define EC_DEFAULT_TAIL                 64
+
 static void capi_echo_canceller(struct ast_channel *c, int function)
 {
 	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
 	_cmsg CMSG;
-	char buf[7];
+	char buf[10];
 
 	/* If echo cancellation is not requested or supported, don't attempt to enable it */
 	ast_mutex_lock(&contrlock);
@@ -334,14 +333,16 @@ static void capi_echo_canceller(struct ast_channel *c, int function)
 
 	FACILITY_REQ_HEADER(&CMSG, ast_capi_ApplID, get_ast_capi_MessageNumber(), 0);
 	FACILITY_REQ_PLCI(&CMSG) = i->PLCI;
-	FACILITY_REQ_FACILITYSELECTOR(&CMSG) = 6; /* Echo canceller */
+	FACILITY_REQ_FACILITYSELECTOR(&CMSG) = i->ecSelector;
 
 	memset(buf, 0, sizeof(buf));
-        buf[0] = 6; /* msg size */
+        buf[0] = 9; /* msg size */
         write_capi_word(&buf[1], function);
 	if (function == EC_FUNCTION_ENABLE) {
-	        write_capi_word(&buf[3], i->ecOption); /* bit field - ignore echo canceller disable tone */
-		write_capi_word(&buf[5], i->ecTail);   /* Tail length, ms */
+		buf[3] = 6; /* echo cancel param struct size */
+	        write_capi_word(&buf[4], i->ecOption); /* bit field - ignore echo canceller disable tone */
+		write_capi_word(&buf[6], i->ecTail);   /* Tail length, ms */
+		/* buf 8 and 9 are "pre-delay lenght ms" */
 	}
 
 	FACILITY_REQ_FACILITYREQUESTPARAMETER(&CMSG) = buf;
@@ -2895,16 +2896,18 @@ static void capi_handle_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int 
  */
 static void capi_handle_facility_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct ast_capi_pvt *i)
 {
-	switch (FACILITY_CONF_FACILITYSELECTOR(CMSG)) {
-	case FACILITYSELECTOR_DTMF:
+	int selector = FACILITY_CONF_FACILITYSELECTOR(CMSG);
+
+	if (selector == FACILITYSELECTOR_DTMF) {
 		cc_ast_verbose(2, 1, VERBOSE_PREFIX_4 "%s: DTMF conf(PLCI=%#x)\n",
 			i->name, PLCI);
-		break;
-	case FACILITYSELECTOR_ECHO_CANCEL:
+		return;
+	}
+	if (selector == i->ecSelector) {
 		if (FACILITY_CONF_INFO(CMSG)) {
 			cc_ast_verbose(2, 0, VERBOSE_PREFIX_3 "%s: Error setting up echo canceller (PLCI=%#x, Info=%#04x)\n",
 				i->name, PLCI, FACILITY_CONF_INFO(CMSG));
-			break;
+			return;
 		}
 		if (FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[1] == EC_FUNCTION_DISABLE) {
 			cc_ast_verbose(2, 0, VERBOSE_PREFIX_3 "%s: Echo canceller successfully disabled (PLCI=%#x)\n",
@@ -2913,9 +2916,9 @@ static void capi_handle_facility_confirmation(_cmsg *CMSG, unsigned int PLCI, un
 			cc_ast_verbose(2, 0, VERBOSE_PREFIX_3 "%s: Echo canceller successfully set up (PLCI=%#x)\n",
 				i->name, PLCI);
 		}
-		break;
-
-	case FACILITYSELECTOR_SUPPLEMENTARY:
+		return;
+	}
+	if (selector == FACILITYSELECTOR_SUPPLEMENTARY) {
 		/* HOLD */
 		if ((FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[1] == 0x2) &&
 		    (FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[2] == 0x0) &&
@@ -2924,11 +2927,10 @@ static void capi_handle_facility_confirmation(_cmsg *CMSG, unsigned int PLCI, un
 			cc_ast_verbose(2, 0, VERBOSE_PREFIX_3 "%s: Call on hold (PLCI=%#x)\n",
 				i->name, PLCI);
 		}
-		break;
-	default:
-    		ast_log(LOG_ERROR, "%s: unhandled FACILITY_CONF 0x%x\n",
-			i->name, FACILITY_CONF_FACILITYSELECTOR(CMSG));
+		return;
 	}
+	ast_log(LOG_ERROR, "%s: unhandled FACILITY_CONF 0x%x\n",
+		i->name, FACILITY_CONF_FACILITYSELECTOR(CMSG));
 }
 
 /*
@@ -3777,6 +3779,7 @@ int mkif(struct ast_capi_conf *conf)
 		tmp->group = conf->group;
 		tmp->immediate = conf->immediate;
 		tmp->holdtype = conf->holdtype;
+		tmp->ecSelector = conf->ecSelector;
 		
 		tmp->smoother = ast_smoother_new(AST_CAPI_MAX_B3_BLOCK_SIZE);
 
@@ -4188,6 +4191,12 @@ static int conf_interface(struct ast_capi_conf *conf, struct ast_variable *v)
 			}
 			continue;
 		}
+		if (!strcasecmp(v->name, "echocancelold")) {
+			if (ast_true(v->value)) {
+				conf->ecSelector = 6;
+			}
+			continue;
+		}
 		if (!strcasecmp(v->name, "echocancel")) {
 			if (ast_true(v->value)) {
 				conf->echocancel = 1;
@@ -4296,6 +4305,7 @@ static int capi_eval_config(struct ast_config *cfg)
 		conf.txgain = txgain;
 		conf.ecoption = EC_OPTION_DISABLE_G165;
 		conf.ectail = EC_DEFAULT_TAIL;
+		conf.ecSelector = FACILITYSELECTOR_ECHO_CANCEL;
 		strncpy(conf.name, cat, sizeof(conf.name) - 1);
 
 		if (conf_interface(&conf, ast_variable_browse(cfg, cat))) {

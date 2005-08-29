@@ -125,9 +125,10 @@ typedef struct fax3proto3 {
 #define ECHO_EFFECTIVE_TX_COUNT         3 /* 2 x 20ms = 40ms == 40-100ms  ... ignore first 40ms */
 #define ECHO_TXRX_RATIO                 2.3 /* if( rx < (txavg/ECHO_TXRX_RATIO) ) rx=0; */
 
-#define FACILITYSELECTOR_DTMF           1
-#define FACILITYSELECTOR_SUPPLEMENTARY  3
-#define FACILITYSELECTOR_ECHO_CANCEL    6
+#define FACILITYSELECTOR_DTMF              1
+#define FACILITYSELECTOR_SUPPLEMENTARY     3
+#define FACILITYSELECTOR_LINE_INTERCONNECT 5
+#define FACILITYSELECTOR_ECHO_CANCEL       8
 
 #define CC_HOLDTYPE_LOCAL               0
 #define CC_HOLDTYPE_HOLD                1
@@ -247,6 +248,7 @@ struct ast_capi_pvt {
 	int doEC;
 	int ecOption;
 	int ecTail;
+	int ecSelector;
 	/* isdnmode MSN or DID */
 	int isdnmode;
 	/* NT-mode */
@@ -325,6 +327,7 @@ struct ast_capi_conf {
 	int echocancel;
 	int ecoption;
 	int ectail;
+	int ecSelector;
 	int isdnmode;
 	int ntmode;
 	int immediate;
