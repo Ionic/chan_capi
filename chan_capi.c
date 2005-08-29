@@ -697,8 +697,8 @@ static char *capi_number_func(unsigned char *data, unsigned int strip, char *buf
 		len = data[0];
 		data += 1;
 	}
-	if (len > AST_MAX_EXTENSION)
-		len = AST_MAX_EXTENSION;
+	if (len > (AST_MAX_EXTENSION - 1))
+		len = (AST_MAX_EXTENSION - 1);
 	
 	/* convert a capi struct to a \0 terminated string */
 	if ((!len) || (len < strip))
