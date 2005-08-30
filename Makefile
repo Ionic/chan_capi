@@ -60,8 +60,8 @@ clean:
 config.h:
 	./create_config.sh "$(ASTERISK_HEADER_DIR)"
 
-chan_capi.so: chan_capi.o
-	$(CC) -shared -Xlinker -x -o $@ chan_capi.o -lcapi20
+chan_capi.so: chan_capi.o c20msg.o
+	$(CC) -shared -Xlinker -x -o $@ $^ -lcapi20
 
 install: all
 	for x in $(SHAREDOS); do $(INSTALL) -m 755 $$x $(MODULES_DIR) ; done

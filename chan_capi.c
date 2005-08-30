@@ -104,12 +104,36 @@ static int capidebug = 0;
 /* local prototypes */
 static int capi_indicate(struct ast_channel *c, int condition);
 
+/* external prototypes */
+extern char *capi_info_string(unsigned int info);
+
 /* */
 #define return_on_no_interface(x)                                       \
 	if (!i) {                                                       \
 		cc_ast_verbose(4, 1, "CAPI: %s no interface for PLCI=%#x\n", x, PLCI);   \
 		return;                                                 \
 	}
+
+/*
+ * show the text for a CAPI message info value
+ */
+static void show_capi_info(_cword info)
+{
+	char *p;
+	
+	if (info == 0x0000) {
+		/* no error, do nothing */
+		return;
+	}
+
+	if (!(p = capi_info_string((unsigned int)info))) {
+		/* message not available */
+		return;
+	}
+	
+	cc_ast_verbose(3, 0, VERBOSE_PREFIX_4 "CAPI INFO 0x%04x: %s\n",
+		info, p);
+}
 
 /*
  * get a new capi message number atomically
@@ -2202,6 +2226,7 @@ static void capi_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, unsi
 				i->name, PLCI,
 				FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[5],
 				FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]);
+			show_capi_info(read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]));
 		}
 
 		/* RETRIEVE */
@@ -2213,6 +2238,7 @@ static void capi_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, unsi
 					i->name, PLCI,
 					FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[5],
 					FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]);
+				show_capi_info(read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]));
 			} else {
 				/* reason != 0x0000 == problem */
 				i->state = CAPI_STATE_CONNECTED;
@@ -2242,6 +2268,7 @@ static void capi_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, unsi
 					i->name, PLCI,
 					FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[5],
 					FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]);
+				show_capi_info(read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]));
 			} else {
 				/* reason = 0x0000 == call on hold */
 				i->state = CAPI_STATE_ONHOLD;
@@ -2531,6 +2558,8 @@ static void capi_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI, un
 	DISCONNECT_RESP_PLCI(&CMSG2) = PLCI;
 	_capi_put_cmsg(&CMSG2);
 	
+	show_capi_info(DISCONNECT_IND_REASON(CMSG));
+
 	return_on_no_interface("DISCONNECT_IND");
 
 	state = i->state;
@@ -2905,8 +2934,8 @@ static void capi_handle_facility_confirmation(_cmsg *CMSG, unsigned int PLCI, un
 	}
 	if (selector == i->ecSelector) {
 		if (FACILITY_CONF_INFO(CMSG)) {
-			cc_ast_verbose(2, 0, VERBOSE_PREFIX_3 "%s: Error setting up echo canceller (PLCI=%#x, Info=%#04x)\n",
-				i->name, PLCI, FACILITY_CONF_INFO(CMSG));
+			cc_ast_verbose(2, 0, VERBOSE_PREFIX_3 "%s: Error setting up echo canceller (PLCI=%#x)\n",
+				i->name, PLCI);
 			return;
 		}
 		if (FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[1] == EC_FUNCTION_DISABLE) {
@@ -2968,8 +2997,8 @@ static void capi_handle_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned in
 	case CAPI_CONNECT:
 		if (!i->owner)
 			break;
-		cc_ast_verbose(1, 1, VERBOSE_PREFIX_3 "%s: received CONNECT_CONF PLCI = %#x INFO = %#x\n",
-			i->name, PLCI, CONNECT_CONF_INFO(CMSG));
+		cc_ast_verbose(1, 1, VERBOSE_PREFIX_3 "%s: received CONNECT_CONF PLCI = %#x\n",
+			i->name, PLCI);
 		if (CONNECT_CONF_INFO(CMSG) == 0) {
 			i->PLCI = PLCI;
 		} else {
@@ -3063,6 +3092,7 @@ static void capi_handle_msg(_cmsg *CMSG)
 		break;
 	case CAPI_CONF:
 		capi_handle_confirmation(CMSG, PLCI, NCCI);
+		show_capi_info(CMSG->Info);
 		break;
 	}
 }
