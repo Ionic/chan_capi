@@ -10,7 +10,7 @@
 This program is free software and may be modified and distributed under
 the terms of the GNU Public License. There is _NO_ warranty for this!
 
-Thanks go to the debuggers and bugfixers (listed in chronological order) :)
+Thanks go to the debuggers and bugfixers :)
 ===========================================================================
 Lele Forzani <lele@windmill.it>
 Florian Overkamp <florian@obsimref.com>
@@ -24,7 +24,6 @@ Frank Sautter, levigo group
 
 This chan_capi version includes:
 ================================
-
 - Multiple controller support
 - CID,DNID (callling party, called party)
 - CLIR/CLIP
@@ -158,7 +157,7 @@ ECT:
         exten => s,1,capicommand(ect)
         [default]
         exten => s,1,capicommand(hold)
-        exten => s,2,Dial(CAPI/1234,60,M(capiect))
+        exten => s,2,Dial(CAPI/contr1/1234,60,M(capiect))
 
 
 Using CLIR
