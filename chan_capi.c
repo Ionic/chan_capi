@@ -2056,6 +2056,11 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 			pbx_builtin_setvar_helper(i->owner, "REDIRECTREASON", reasonbuf);
 		}
 		break;
+	case 0x00a1:	/* Sending Complete */
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element Sending Complete\n",
+			i->name);
+		handle_setup_element(CMSG, PLCI, i);
+		break;
 	case 0x4000:	/* CHARGE in UNITS */
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element CHARGE in UNITS\n",
 			i->name);
