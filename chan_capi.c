@@ -2584,7 +2584,9 @@ static void capi_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI, un
 		}
 	}
 
-	if ((i->owner) && (state == CAPI_STATE_DID) && (i->owner->pbx == NULL)) {
+	if ((i->owner) &&
+	    ((state == CAPI_STATE_DID) || (state == CAPI_STATE_INCALL)) &&
+	    (i->owner->pbx == NULL)) {
 		/* the pbx was not started yet */
 		ast_hangup(i->owner);
 		return;
