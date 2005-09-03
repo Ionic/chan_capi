@@ -1926,6 +1926,10 @@ static void handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsigned int 
 	    (i->earlyB3 == -1) && (i->outgoing == 1)) {
 		cc_ast_verbose(4, 1, VERBOSE_PREFIX_3 "%s: Disconnect case 4\n",
 			i->name);
+		if (i->state == CAPI_STATE_BCONNECTED) {
+			pipe_cause_control(i, 1);
+			return;
+		}
 		/* wait for the 0x001e (PROGRESS), play audio and wait for a timeout from the network */
 		return;
 	}
