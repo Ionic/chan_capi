@@ -1709,6 +1709,21 @@ static int search_did(struct ast_channel *c)
 }
 
 /*
+ * signal 'progress' to Asterisk
+ */
+static void send_progress(struct ast_capi_pvt *i)
+{
+	struct ast_frame fr;
+
+	if (!(i->isdnstate & CAPI_ISDN_STATE_PROGRESS)) {
+		i->isdnstate |= CAPI_ISDN_STATE_PROGRESS;
+		fr.frametype = AST_FRAME_CONTROL;
+		fr.subclass = AST_CONTROL_PROGRESS;
+		pipe_frame(i, &fr);
+	}
+}
+
+/*
  * Progress Indicator
  */
 static void handle_progress_indicator(_cmsg *CMSG, unsigned int PLCI, struct ast_capi_pvt *i)
@@ -1746,21 +1761,22 @@ static void handle_progress_indicator(_cmsg *CMSG, unsigned int PLCI, struct ast
 	case 0x08:
 		cc_ast_verbose(4, 1, VERBOSE_PREFIX_4 "%s: In-band information available\n",
 			i->name);
-		if ((i->doB3 != AST_CAPI_B3_DONT) &&
-		    (i->earlyB3 == -1) &&
-		    (i->state != CAPI_STATE_BCONNECTED)) {
-			/* we do early B3 Connect */
-			i->earlyB3 = 1;
-			memset(&CMSG2, 0, sizeof(_cmsg));
-			CONNECT_B3_REQ_HEADER(&CMSG2, ast_capi_ApplID, get_ast_capi_MessageNumber(), 0);
-			CONNECT_B3_REQ_PLCI(&CMSG2) = PLCI;
-			_capi_put_cmsg(&CMSG2);
-		}
 		break;
 	default:
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_4 "%s: Unknown progress description %02x\n",
 			i->name, INFO_IND_INFOELEMENT(CMSG)[2]);
 	}
+	if ((i->doB3 != AST_CAPI_B3_DONT) &&
+	    (i->earlyB3 == -1) &&
+	    (i->state != CAPI_STATE_BCONNECTED)) {
+		/* we do early B3 Connect */
+		i->earlyB3 = 1;
+		memset(&CMSG2, 0, sizeof(_cmsg));
+		CONNECT_B3_REQ_HEADER(&CMSG2, ast_capi_ApplID, get_ast_capi_MessageNumber(), 0);
+		CONNECT_B3_REQ_PLCI(&CMSG2) = PLCI;
+		_capi_put_cmsg(&CMSG2);
+	}
+	send_progress(i);
 }
 
 /*
@@ -2109,9 +2125,7 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 				break;
 			}
 		}
-		fr.frametype = AST_FRAME_CONTROL;
-		fr.subclass = AST_CONTROL_PROGRESS;
-		pipe_frame(i, &fr);
+		send_progress(i);
 		break;
 	case 0x8005:	/* SETUP */
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element SETUP\n",

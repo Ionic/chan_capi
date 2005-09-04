@@ -167,10 +167,11 @@ struct ast_capi_gains {
 	unsigned char rxgains[256];
 };
 
-#define CAPI_ISDN_STATE_SETUP         0x01
-#define CAPI_ISDN_STATE_SETUP_ACK     0x02
-#define CAPI_ISDN_STATE_HOLD          0x04
-#define CAPI_ISDN_STATE_ECT           0x08
+#define CAPI_ISDN_STATE_SETUP         0x0001
+#define CAPI_ISDN_STATE_SETUP_ACK     0x0002
+#define CAPI_ISDN_STATE_HOLD          0x0004
+#define CAPI_ISDN_STATE_ECT           0x0008
+#define CAPI_ISDN_STATE_PROGRESS      0x0010
 
 /* ! Private data for a capi device */
 struct ast_capi_pvt {
