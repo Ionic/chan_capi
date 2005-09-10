@@ -1788,6 +1788,7 @@ static void start_pbx_on_match(struct ast_capi_pvt *i, unsigned int PLCI, _cword
 
 	switch(search_did(i->owner)) {
 	case 0: /* match */
+		ast_setstate(i->owner, AST_STATE_RING);
 		if (ast_pbx_start(i->owner)) {
 			ast_log(LOG_ERROR, "%s: Unable to start pbx on channel!\n",
 				i->name);
