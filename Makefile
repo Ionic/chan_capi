@@ -18,19 +18,34 @@
 # distributed under the terms of the GNU Public License.
 #
 
+OSNAME=${shell uname}
+
 .EXPORT_ALL_VARIABLES:
 
 INSTALL_PREFIX=
+
+ifeq (${OSNAME},FreeBSD)
+ASTERISK_HEADER_DIR=$(INSTALL_PREFIX)/usr/local/include
+else
 ASTERISK_HEADER_DIR=$(INSTALL_PREFIX)/usr/include
+endif
+
 ASTERISKVERSION=$(shell if [ -f .version ]; then cat .version; else if [ -d CVS ]; then if [ -f CVS/Tag ] ; then echo "CVS-`sed 's/^T//g' CVS/Tag`-`date +"%D-%T"`"; else echo "CVS-HEAD-`date +"%D-%T"`"; fi; fi; fi)
 
-
+ifeq (${OSNAME},FreeBSD)
+MODULES_DIR=$(INSTALL_PREFIX)/usr/local/lib/asterisk/modules
+else
 MODULES_DIR=$(INSTALL_PREFIX)/usr/lib/asterisk/modules
+endif
 
 PROC=$(shell uname -m)
 
 DEBUG=-g #-pg
 INCLUDE=-I$(ASTERISK_HEADER_DIR)
+ifeq (${OSNAME},FreeBSD)
+INCLUDE+=$(shell [ -d /usr/include/i4b/include ] && \
+	echo -n -I/usr/include/i4b/include)
+endif
 CFLAGS=-pipe -fPIC -Wall -Wmissing-prototypes -Wmissing-declarations $(DEBUG) $(INCLUDE) -D_REENTRANT -D_GNU_SOURCE
 CFLAGS+=-O6
 CFLAGS+=$(shell if $(CC) -march=$(PROC) -S -o /dev/null -xc /dev/null >/dev/null 2>&1; then echo "-march=$(PROC)"; fi)
