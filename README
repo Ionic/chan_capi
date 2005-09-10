@@ -279,4 +279,9 @@ REDIRECTREASON
     If the incoming call was redirected to you, this variable is set
     with the reason value.
 
+CALLINGSUBADDRESS
+    If set on dial(), the calling subaddress will be set to the content.
 
+CALLEDSUBADDRESS
+    If set on dial(), the called subaddress will be set to the content.
+   
