@@ -383,28 +383,28 @@ struct ast_capi_controller {
 #define CAPI_ETSI_NPLAN_INTERNAT                0x10
 
 /* Common ISDN Profiles (CIP) */
-#define CAPI_CIP_SPEECH                         0x01
-#define CAPI_CIP_DIGITAL                        0x02
-#define CAPI_CIP_RESTRICTED_DIGITAL             0x03
-#define CAPI_CIP_3K1AUDIO                       0x04
-#define CAPI_CIP_7KAUDIO                        0x05
-#define CAPI_CIP_VIDEO                          0x06
-#define CAPI_CIP_PACKET_MODE                    0x07
-#define CAPI_CIP_56KBIT_RATE_ADAPTION           0x08
-#define CAPI_CIP_DIGITAL_W_TONES                0x09
-#define CAPI_CIP_TELEPHONY                      0x10
-#define CAPI_CIP_FAX_G2_3                       0x11
-#define CAPI_CIP_FAX_G4C1                       0x12
-#define CAPI_CIP_FAX_G4C2_3                     0x13
-#define CAPI_CIP_TELETEX_PROCESSABLE            0x14
-#define CAPI_CIP_TELETEX_BASIC                  0x15
-#define CAPI_CIP_VIDEOTEX                       0x16
-#define CAPI_CIP_TELEX                          0x17
-#define CAPI_CIP_X400                           0x18
-#define CAPI_CIP_X200                           0x19
-#define CAPI_CIP_7K_TELEPHONY                   0x1a
-#define CAPI_CIP_VIDEO_TELEPHONY_C1             0x1b
-#define CAPI_CIP_VIDEO_TELEPHONY_C2             0x1c
+#define CAPI_CIPI_SPEECH                        0x01
+#define CAPI_CIPI_DIGITAL                       0x02
+#define CAPI_CIPI_RESTRICTED_DIGITAL            0x03
+#define CAPI_CIPI_3K1AUDIO                      0x04
+#define CAPI_CIPI_7KAUDIO                       0x05
+#define CAPI_CIPI_VIDEO                         0x06
+#define CAPI_CIPI_PACKET_MODE                   0x07
+#define CAPI_CIPI_56KBIT_RATE_ADAPTION          0x08
+#define CAPI_CIPI_DIGITAL_W_TONES               0x09
+#define CAPI_CIPI_TELEPHONY                     0x10
+#define CAPI_CIPI_FAX_G2_3                      0x11
+#define CAPI_CIPI_FAX_G4C1                      0x12
+#define CAPI_CIPI_FAX_G4C2_3                    0x13
+#define CAPI_CIPI_TELETEX_PROCESSABLE           0x14
+#define CAPI_CIPI_TELETEX_BASIC                 0x15
+#define CAPI_CIPI_VIDEOTEX                      0x16
+#define CAPI_CIPI_TELEX                         0x17
+#define CAPI_CIPI_X400                          0x18
+#define CAPI_CIPI_X200                          0x19
+#define CAPI_CIPI_7K_TELEPHONY                  0x1a
+#define CAPI_CIPI_VIDEO_TELEPHONY_C1            0x1b
+#define CAPI_CIPI_VIDEO_TELEPHONY_C2            0x1c
 
 /* Transfer capabilities */
 #define PRI_TRANS_CAP_SPEECH                    0x00

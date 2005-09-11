@@ -43,12 +43,9 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/types.h>
-#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined( __NetBSD__ ) || defined(__APPLE__)
-#include <capi_bsd.h>
-#endif
-#include <capi20.h>
 #include <asterisk/dsp.h>
 #include "xlaw.h"
+#include "chan_capi20.h"
 #include "chan_capi.h"
 
 /* #define CC_VERSION "cm-x.y.z" */
@@ -87,7 +84,7 @@ AST_MUTEX_DEFINE_STATIC(verbose_lock);
 
 static int capi_capability = AST_FORMAT_ALAW;
 
-static pthread_t monitor_thread = -1;
+static pthread_t monitor_thread = (pthread_t)(0-1);
 
 static struct ast_capi_pvt *iflist = NULL;
 static struct ast_capi_controller *capi_controllers[AST_CAPI_MAX_CONTROLLERS + 1];
@@ -171,7 +168,7 @@ static MESSAGE_EXCHANGE_ERROR _capi_put_cmsg(_cmsg *CMSG)
 
 	if (error) {
 		ast_log(LOG_ERROR, "CAPI error sending %s (NCCI=%#x) (error=%#x)\n",
-			capi_cmsg2str(CMSG), (unsigned int)CMSG->adr.adrNCCI, error);
+			capi_cmsg2str(CMSG), (unsigned int)HEADER_CID(CMSG), error);
 	} else {
 		if (CMSG->Command == CAPI_DATA_B3) {
 			cc_ast_verbose(7, 1, "%s\n", capi_cmsg2str(CMSG));
@@ -204,6 +201,16 @@ static MESSAGE_EXCHANGE_ERROR check_wait_get_cmsg(_cmsg *CMSG)
     
 	if (Info == 0x0000) {
 		Info = capi_get_cmsg(CMSG, ast_capi_ApplID);
+
+  		/* There is no reason not to
+		 * allow controller 0 !
+ 		 *
+ 		 * For BSD hide problem from "chan_capi":
+ 		 */
+ 		if((HEADER_CID(CMSG) & 0xFF) == 0)
+		{
+		    HEADER_CID(CMSG) += capi_num_controllers;
+ 		}
 	}
 	return Info;
 }
@@ -239,12 +246,12 @@ static struct {
 	unsigned short tcap;
 	unsigned short cip;
 } translate_tcap2cip[] = {
-	{ PRI_TRANS_CAP_SPEECH,                 CAPI_CIP_SPEECH },
-	{ PRI_TRANS_CAP_DIGITAL,                CAPI_CIP_DIGITAL },
-	{ PRI_TRANS_CAP_RESTRICTED_DIGITAL,     CAPI_CIP_RESTRICTED_DIGITAL },
-	{ PRI_TRANS_CAP_3K1AUDIO,               CAPI_CIP_3K1AUDIO },
-	{ PRI_TRANS_CAP_DIGITAL_W_TONES,        CAPI_CIP_DIGITAL_W_TONES },
-	{ PRI_TRANS_CAP_VIDEO,                  CAPI_CIP_VIDEO }
+	{ PRI_TRANS_CAP_SPEECH,                 CAPI_CIPI_SPEECH },
+	{ PRI_TRANS_CAP_DIGITAL,                CAPI_CIPI_DIGITAL },
+	{ PRI_TRANS_CAP_RESTRICTED_DIGITAL,     CAPI_CIPI_RESTRICTED_DIGITAL },
+	{ PRI_TRANS_CAP_3K1AUDIO,               CAPI_CIPI_3K1AUDIO },
+	{ PRI_TRANS_CAP_DIGITAL_W_TONES,        CAPI_CIPI_DIGITAL_W_TONES },
+	{ PRI_TRANS_CAP_VIDEO,                  CAPI_CIPI_VIDEO }
 };
 
 static int tcap2cip(unsigned short tcap)
@@ -265,28 +272,28 @@ static struct {
 	unsigned short cip;
 	unsigned short tcap;
 } translate_cip2tcap[] = {
-	{ CAPI_CIP_SPEECH,                  PRI_TRANS_CAP_SPEECH },
-	{ CAPI_CIP_DIGITAL,                 PRI_TRANS_CAP_DIGITAL },
-	{ CAPI_CIP_RESTRICTED_DIGITAL,      PRI_TRANS_CAP_RESTRICTED_DIGITAL },
-	{ CAPI_CIP_3K1AUDIO,                PRI_TRANS_CAP_3K1AUDIO },
-	{ CAPI_CIP_7KAUDIO,                 PRI_TRANS_CAP_DIGITAL_W_TONES },
-	{ CAPI_CIP_VIDEO,                   PRI_TRANS_CAP_VIDEO },
-	{ CAPI_CIP_PACKET_MODE,             PRI_TRANS_CAP_DIGITAL },
-	{ CAPI_CIP_56KBIT_RATE_ADAPTION,    PRI_TRANS_CAP_DIGITAL },
-	{ CAPI_CIP_DIGITAL_W_TONES,         PRI_TRANS_CAP_DIGITAL_W_TONES },
-	{ CAPI_CIP_TELEPHONY,               PRI_TRANS_CAP_SPEECH },
-	{ CAPI_CIP_FAX_G2_3,                PRI_TRANS_CAP_3K1AUDIO },
-	{ CAPI_CIP_FAX_G4C1,                PRI_TRANS_CAP_DIGITAL },
-	{ CAPI_CIP_FAX_G4C2_3,              PRI_TRANS_CAP_DIGITAL },
-	{ CAPI_CIP_TELETEX_PROCESSABLE,     PRI_TRANS_CAP_DIGITAL },
-	{ CAPI_CIP_TELETEX_BASIC,           PRI_TRANS_CAP_DIGITAL },
-	{ CAPI_CIP_VIDEOTEX,                PRI_TRANS_CAP_DIGITAL },
-	{ CAPI_CIP_TELEX,                   PRI_TRANS_CAP_DIGITAL },
-	{ CAPI_CIP_X400,                    PRI_TRANS_CAP_DIGITAL },
-	{ CAPI_CIP_X200,                    PRI_TRANS_CAP_DIGITAL },
-	{ CAPI_CIP_7K_TELEPHONY,            PRI_TRANS_CAP_DIGITAL_W_TONES },
-	{ CAPI_CIP_VIDEO_TELEPHONY_C1,      PRI_TRANS_CAP_DIGITAL_W_TONES },
-	{ CAPI_CIP_VIDEO_TELEPHONY_C2,      PRI_TRANS_CAP_DIGITAL }
+	{ CAPI_CIPI_SPEECH,                  PRI_TRANS_CAP_SPEECH },
+	{ CAPI_CIPI_DIGITAL,                 PRI_TRANS_CAP_DIGITAL },
+	{ CAPI_CIPI_RESTRICTED_DIGITAL,      PRI_TRANS_CAP_RESTRICTED_DIGITAL },
+	{ CAPI_CIPI_3K1AUDIO,                PRI_TRANS_CAP_3K1AUDIO },
+	{ CAPI_CIPI_7KAUDIO,                 PRI_TRANS_CAP_DIGITAL_W_TONES },
+	{ CAPI_CIPI_VIDEO,                   PRI_TRANS_CAP_VIDEO },
+	{ CAPI_CIPI_PACKET_MODE,             PRI_TRANS_CAP_DIGITAL },
+	{ CAPI_CIPI_56KBIT_RATE_ADAPTION,    PRI_TRANS_CAP_DIGITAL },
+	{ CAPI_CIPI_DIGITAL_W_TONES,         PRI_TRANS_CAP_DIGITAL_W_TONES },
+	{ CAPI_CIPI_TELEPHONY,               PRI_TRANS_CAP_SPEECH },
+	{ CAPI_CIPI_FAX_G2_3,                PRI_TRANS_CAP_3K1AUDIO },
+	{ CAPI_CIPI_FAX_G4C1,                PRI_TRANS_CAP_DIGITAL },
+	{ CAPI_CIPI_FAX_G4C2_3,              PRI_TRANS_CAP_DIGITAL },
+	{ CAPI_CIPI_TELETEX_PROCESSABLE,     PRI_TRANS_CAP_DIGITAL },
+	{ CAPI_CIPI_TELETEX_BASIC,           PRI_TRANS_CAP_DIGITAL },
+	{ CAPI_CIPI_VIDEOTEX,                PRI_TRANS_CAP_DIGITAL },
+	{ CAPI_CIPI_TELEX,                   PRI_TRANS_CAP_DIGITAL },
+	{ CAPI_CIPI_X400,                    PRI_TRANS_CAP_DIGITAL },
+	{ CAPI_CIPI_X200,                    PRI_TRANS_CAP_DIGITAL },
+	{ CAPI_CIPI_7K_TELEPHONY,            PRI_TRANS_CAP_DIGITAL_W_TONES },
+	{ CAPI_CIPI_VIDEO_TELEPHONY_C1,      PRI_TRANS_CAP_DIGITAL_W_TONES },
+	{ CAPI_CIPI_VIDEO_TELEPHONY_C2,      PRI_TRANS_CAP_DIGITAL }
 };
 
 static unsigned short cip2tcap(int cip)
@@ -737,7 +744,8 @@ static char *capi_number_func(unsigned char *data, unsigned int strip, char *buf
 	
 	return buf;
 }
-#define capi_number(data, strip) capi_number_func(data, strip, alloca(AST_MAX_EXTENSION))
+#define capi_number(data, strip) \
+  capi_number_func(data, strip, alloca(AST_MAX_EXTENSION))
 
 /*
  * parse the dialstring
@@ -1586,7 +1594,7 @@ static void capi_handle_dtmf_fax(struct ast_channel *ast)
 static struct ast_capi_pvt *find_interface(_cmsg *CMSG)
 {
 	struct ast_capi_pvt *i;
-	unsigned int NCCI = CMSG->adr.adrNCCI;
+	unsigned int NCCI = HEADER_CID(CMSG);
 	unsigned int PLCI = (NCCI & 0xffff);
 	int MN = CMSG->Messagenumber;
 
@@ -2202,7 +2210,7 @@ static void capi_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, unsi
 
 	FACILITY_RESP_HEADER(&CMSG2, ast_capi_ApplID, CMSG->Messagenumber, PLCI);
 	FACILITY_RESP_FACILITYSELECTOR(&CMSG2) = FACILITY_IND_FACILITYSELECTOR(CMSG);
-	CMSG2.FacilityResponseParameters = FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG);
+	FACILITY_RESP_FACILITYRESPONSEPARAMETERS(&CMSG2) = FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG);
 	_capi_put_cmsg(&CMSG2);
 	
 	return_on_no_interface("FACILITY_IND");
@@ -2991,20 +2999,26 @@ static void capi_handle_facility_confirmation(_cmsg *CMSG, unsigned int PLCI, un
 /*
  * show error in confirmation
  */
-static void show_capi_conf_error(char *msg, struct ast_capi_pvt *i, unsigned int PLCI, _cmsg *CMSG)
+static void show_capi_conf_error(char *msg, struct ast_capi_pvt *i, 
+				 unsigned int PLCI, u_int16_t wInfo, 
+				 u_int16_t wCmd)
 {
 	const char *name = channeltype;
 
 	if (i)
 		name = i->name;
 		
-	if (CMSG->Info == 0x2002) {
-		cc_ast_verbose(1, 1, VERBOSE_PREFIX_3 "%s: %s_CONF 0x%x (wrong state) PLCI=0x%x Command.Subcommand = %#x.%#x\n",
-			name, msg, CMSG->Info, PLCI, CMSG->Command, CMSG->Subcommand);
+	if (wInfo == 0x2002) {
+		cc_ast_verbose(1, 1, VERBOSE_PREFIX_3 "%s: %s_CONF "
+			       "0x%x (wrong state) PLCI=0x%x "
+			       "Command = 0x%04x\n",
+			       name, msg, wInfo, PLCI, wCmd);
 	} else {
-		ast_log(LOG_WARNING, "%s: %s conf_error 0x%x PLCI=0x%x Command.Subcommand = %#x.%#x\n",
-			name, msg, CMSG->Info, PLCI, CMSG->Command, CMSG->Subcommand);
+		ast_log(LOG_WARNING, "%s: %s conf_error 0x%04x "
+			"PLCI=0x%x Command = 0x%04x\n",
+			name, msg, wInfo, PLCI, wCmd);
 	}
+	return;
 }
 
 /*
@@ -3013,6 +3027,7 @@ static void show_capi_conf_error(char *msg, struct ast_capi_pvt *i, unsigned int
 static void capi_handle_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI)
 {
 	struct ast_capi_pvt *i;
+	u_int16_t wInfo = 0;
 
 	i = find_interface(CMSG);
 
@@ -3025,7 +3040,8 @@ static void capi_handle_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned in
 			break;
 		cc_ast_verbose(1, 1, VERBOSE_PREFIX_3 "%s: received CONNECT_CONF PLCI = %#x\n",
 			i->name, PLCI);
-		if (CONNECT_CONF_INFO(CMSG) == 0) {
+		wInfo = CONNECT_CONF_INFO(CMSG);
+		if (wInfo == 0) {
 			i->PLCI = PLCI;
 		} else {
 			/* here, something has to be done --> */
@@ -3037,7 +3053,8 @@ static void capi_handle_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned in
 		}
 		break;
 	case CAPI_CONNECT_B3:
-		if (CONNECT_B3_CONF_INFO(CMSG) == 0) {
+		wInfo = CONNECT_B3_CONF_INFO(CMSG);
+		if (wInfo == 0) {
 			i->NCCI = NCCI;
 		} else {
 			i->earlyB3 = -1;
@@ -3047,10 +3064,13 @@ static void capi_handle_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned in
 	case CAPI_ALERT:
 		if (!i->owner)
 			break;
-		if ((ALERT_CONF_INFO(CMSG) & 0xff00) == 0) {
-			if (ALERT_CONF_INFO(CMSG) == 0x0003) {
-				cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: Alert already sent by another app.\n",
-					i->name);
+		wInfo = ALERT_CONF_INFO(CMSG);
+		if ((wInfo & 0xff00) == 0) {
+			if (wInfo == 0x0003) {
+				cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 
+					       "%s: Alert already sent by "
+					       "another app.\n",
+					       i->name);
 			}
 			if (i->state != CAPI_STATE_DISCONNECTING) {
 				i->state = CAPI_STATE_ALERTING;
@@ -3059,12 +3079,15 @@ static void capi_handle_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned in
 				}
 			}
 		} else {
-			show_capi_conf_error("ALERT", i, PLCI, CMSG);
+			show_capi_conf_error("ALERT", i, PLCI, wInfo, 
+					     HEADER_CMD(CMSG));
 		}
 		break;	    
 	case CAPI_SELECT_B_PROTOCOL:
-		if (CMSG->Info) {
-			show_capi_conf_error("SELECT_B_PROTOCOL", i, PLCI, CMSG);
+		wInfo = SELECT_B_PROTOCOL_CONF_INFO(CMSG);
+		if (wInfo) {
+			show_capi_conf_error("SELECT_B_PROTOCOL", i, PLCI, 
+					     wInfo, HEADER_CMD(CMSG));
 		} else {
 			if ((i->owner) && (i->FaxState)) {
 				capi_echo_canceller(i->owner, EC_FUNCTION_DISABLE);
@@ -3073,22 +3096,41 @@ static void capi_handle_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned in
 		}
 		break;
 	case CAPI_DATA_B3:
-		if (CMSG->Info) {
-			show_capi_conf_error("DATA_B3", i, PLCI, CMSG);
+		wInfo = DATA_B3_CONF_INFO(CMSG);
+		if (wInfo) {
+			show_capi_conf_error("DATA_B3", i, PLCI, 
+					     wInfo, HEADER_CMD(CMSG));
 		}
 		break;
-	case CAPI_DISCONNECT:
+ 
+ 	case CAPI_DISCONNECT:
+		wInfo = DISCONNECT_CONF_INFO(CMSG);
+		goto conf_error;
+
 	case CAPI_DISCONNECT_B3:
+		wInfo = DISCONNECT_B3_CONF_INFO(CMSG);
+		goto conf_error;
+
 	case CAPI_LISTEN:
-	case CAPI_INFO:
-		if (CMSG->Info) {
-			show_capi_conf_error("", i, PLCI, CMSG);
+		wInfo = LISTEN_CONF_INFO(CMSG);
+		goto conf_error;
+
+ 	case CAPI_INFO:
+		wInfo = INFO_CONF_INFO(CMSG);
+
+	conf_error:
+
+		if (wInfo) {
+			show_capi_conf_error("", i, PLCI, wInfo,
+					     HEADER_CMD(CMSG));
 		}
 		break;
 	default:
-		ast_log(LOG_ERROR,"CAPI: Command.Subcommand = %#x.%#x\n",
-			CMSG->Command, CMSG->Subcommand);
+		ast_log(LOG_ERROR,"CAPI: Command = 0x%04x\n",
+			HEADER_CMD(CMSG));
 	}
+	show_capi_info(wInfo);
+	return;
 }
 
 /*
@@ -3096,7 +3138,7 @@ static void capi_handle_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned in
  */
 static void capi_handle_msg(_cmsg *CMSG)
 {
-	unsigned int NCCI = CMSG->adr.adrNCCI;
+	unsigned int NCCI = HEADER_CID(CMSG);
 	unsigned int PLCI = (NCCI & 0xffff);
 
 	if ((CMSG->Subcommand != CAPI_IND) &&
@@ -3118,9 +3160,9 @@ static void capi_handle_msg(_cmsg *CMSG)
 		break;
 	case CAPI_CONF:
 		capi_handle_confirmation(CMSG, PLCI, NCCI);
-		show_capi_info(CMSG->Info);
 		break;
 	}
+	return;
 }
 
 /*
@@ -3813,11 +3855,32 @@ int mkif(struct ast_capi_conf *conf)
 		strncpy(buffer, conf->controllerstr, sizeof(buffer) - 1);
 		contr = strtok_r(buffer, ",", &buffer_rp);
 		while (contr != NULL) {
-			contrmap |= (1 << atoi(contr));
-			if (capi_controllers[atoi(contr)]) {
-				capi_controllers[atoi(contr)]->isdnmode = conf->isdnmode;
+			u_int16_t unit = atoi(contr);
+ 
+			/* There is no reason not to
+			 * allow controller 0 !
+			 *
+			 * Hide problem from user:
+			 */
+			if (unit == 0) {
+				/* The ISDN4BSD kernel will modulo
+				 * the controller number by 
+				 * "capi_num_controllers", so this
+				 * is equivalent to "0":
+				 */
+				unit = capi_num_controllers;
+			}
+
+			/* always range check user input */
+ 
+			if (unit >= AST_CAPI_MAX_CONTROLLERS)
+				unit = AST_CAPI_MAX_CONTROLLERS - 1;
+
+			contrmap |= (1 << unit);
+			if (capi_controllers[unit]) {
+				capi_controllers[unit]->isdnmode = conf->isdnmode;
 				/* ast_log(LOG_NOTICE, "contr %d isdnmode %d\n",
-					atoi(contr), isdnmode); */
+					unit, isdnmode); */
 			}
 			contr = strtok_r(NULL, ",", &buffer_rp);
 		}
@@ -4059,7 +4122,7 @@ static const struct ast_channel_tech capi_tech = {
  */
 static int cc_init_capi(void)
 {
-#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined( __NetBSD__ ) || defined(__APPLE__)
+#if (CAPI_OS_HINT == 1)
 	CAPIProfileBuffer_t profile;
 #else
 	struct ast_capi_profile profile;
@@ -4079,8 +4142,10 @@ static int cc_init_capi(void)
 		return -1;
 	}
 
-#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined( __NetBSD__ ) || defined(__APPLE__)
+#if (CAPI_OS_HINT == 1)
 	if (capi20_get_profile(0, &profile) != 0) {
+#elif (CAPI_OS_HINT == 2)
+	if (capi20_get_profile(0, &profile, sizeof(profile)) != 0) {
 #else
 	if (capi20_get_profile(0, (char *)&profile) != 0) {
 #endif
@@ -4088,7 +4153,7 @@ static int cc_init_capi(void)
 		return -1;
 	} 
 
-#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined( __NetBSD__ ) || defined(__APPLE__)
+#if (CAPI_OS_HINT == 1)
 	capi_num_controllers = profile.wCtlr;
 #else
 	capi_num_controllers = profile.ncontrollers;
@@ -4100,8 +4165,10 @@ static int cc_init_capi(void)
 	for (controller = 1 ;controller <= capi_num_controllers; controller++) {
 
 		memset(&profile, 0, sizeof(profile));
-#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined( __NetBSD__ ) || defined(__APPLE__)
+#if (CAPI_OS_HINT == 1)
 		capi20_get_profile(controller, &profile);
+#elif (CAPI_OS_HINT == 2)
+		capi20_get_profile(controller, &profile, sizeof(profile));
 #else
 		capi20_get_profile(controller, (char *)&profile);
 #endif
@@ -4112,7 +4179,7 @@ static int cc_init_capi(void)
 		}
 		memset(cp, 0, sizeof(struct ast_capi_controller));
 		cp->controller = controller;
-#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined( __NetBSD__ ) || defined(__APPLE__)
+#if (CAPI_OS_HINT == 1)
 		cp->nbchannels = profile.wNumBChannels;
 		cp->nfreebchannels = profile.wNumBChannels;
 		if (profile.dwGlobalOptions & CAPI_PROFILE_DTMF_SUPPORT) {
@@ -4126,7 +4193,7 @@ static int cc_init_capi(void)
 			cp->dtmf = 1;
 		}
 		
-#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined( __NetBSD__ ) || defined(__APPLE__)
+#if (CAPI_OS_HINT == 1)
 		if (profile.dwGlobalOptions & CAPI_PROFILE_ECHO_CANCELLATION) {
 #else
 		if (profile.globaloptions2 & 1) {
@@ -4136,7 +4203,7 @@ static int cc_init_capi(void)
 			cp->echocancel = 1;
 		}
 		
-#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined( __NetBSD__ ) || defined(__APPLE__)
+#if (CAPI_OS_HINT == 1)
 		if (profile.dwGlobalOptions & CAPI_PROFILE_SUPPLEMENTARY_SERVICES)  {
 #else
 		if ((profile.globaloptions & 16) >> 4 == 1) {
@@ -4437,6 +4504,7 @@ int load_module(void)
 	ast_register_application(commandapp, capicommand_exec, commandsynopsis, commandtdesc);
 
 	if (ast_pthread_create(&monitor_thread, NULL, do_monitor, NULL) < 0) {
+		monitor_thread = (pthread_t)(0-1);
 		ast_log(LOG_ERROR, "Unable to start monitor thread!\n");
 		return -1;
 	}
@@ -4460,7 +4528,7 @@ int unload_module()
 
 	ast_rtp_proto_unregister(&capi_rtp);
 
-	if (monitor_thread != -1) {
+	if (monitor_thread != (pthread_t)(0-1)) {
 		pthread_cancel(monitor_thread);
 		pthread_kill(monitor_thread, SIGURG);
 		pthread_join(monitor_thread, NULL);
