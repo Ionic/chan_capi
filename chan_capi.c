@@ -110,6 +110,41 @@ extern char *capi_info_string(unsigned int info);
 		cc_ast_verbose(4, 1, "CAPI: %s no interface for PLCI=%#x\n", x, PLCI);   \
 		return;                                                 \
 	}
+/*
+ * command to string function
+ */
+static const char * capi_command_to_string(unsigned short wCmd)
+{
+	enum { lowest_value = CAPI_P_MIN,
+	       end_value = CAPI_P_MAX,
+	       range = end_value - lowest_value,
+	};
+
+#undef  CHAN_CAPI_COMMAND_DESC
+#define CHAN_CAPI_COMMAND_DESC(n, ENUM, value)		\
+	[CAPI_P_REQ(ENUM)-(n)]  = #ENUM "_REQ",		\
+	[CAPI_P_CONF(ENUM)-(n)] = #ENUM "_CONF",	\
+	[CAPI_P_IND(ENUM)-(n)]  = #ENUM "_IND",		\
+	[CAPI_P_RESP(ENUM)-(n)] = #ENUM "_RESP",
+
+	static const char * const table[range] = {
+	    CAPI_COMMANDS(CHAN_CAPI_COMMAND_DESC, lowest_value)
+	};
+
+	wCmd -= lowest_value;
+
+	if (wCmd >= range) {
+	    goto error;
+	}
+
+	if (table[wCmd] == NULL) {
+	    goto error;
+	}
+	return table[wCmd];
+
+ error:
+	return "UNDEFINED";
+}
 
 /*
  * show the text for a CAPI message info value
@@ -130,10 +165,11 @@ static void show_capi_info(_cword info)
 	
 	cc_ast_verbose(3, 0, VERBOSE_PREFIX_4 "CAPI INFO 0x%04x: %s\n",
 		info, p);
+	return;
 }
 
 /*
- * get a new capi message number atomically
+ * get a new capi message number automically
  */
 static _cword get_ast_capi_MessageNumber(void)
 {
@@ -170,7 +206,9 @@ static MESSAGE_EXCHANGE_ERROR _capi_put_cmsg(_cmsg *CMSG)
 		ast_log(LOG_ERROR, "CAPI error sending %s (NCCI=%#x) (error=%#x)\n",
 			capi_cmsg2str(CMSG), (unsigned int)HEADER_CID(CMSG), error);
 	} else {
-		if (CMSG->Command == CAPI_DATA_B3) {
+		unsigned short wCmd = HEADER_CMD(CMSG);
+		if ((wCmd == CAPI_P_REQ(DATA_B3)) ||
+		    (wCmd == CAPI_P_RESP(DATA_B3))) {
 			cc_ast_verbose(7, 1, "%s\n", capi_cmsg2str(CMSG));
 		} else {
 			cc_ast_verbose(4, 1, "%s\n", capi_cmsg2str(CMSG));
@@ -603,6 +641,7 @@ static void interface_cleanup(struct ast_capi_pvt *i)
 	i->cid_ton = 0;
 
 	i->owner = NULL;
+	return;
 }
 
 /*
@@ -781,6 +820,7 @@ static void parse_dialstring(char *buffer, char **interface, char **dest, char *
 	}
 	cc_ast_verbose(3, 1, VERBOSE_PREFIX_4 "parsed dialstring: '%s' '%s' '%s'\n",
 		*interface, *dest, *param);
+	return;
 }
 
 /*
@@ -1425,6 +1465,7 @@ static void setup_b3_fax_config(B3_PROTO_FAXG3 *b3conf, int fax_format, char *st
 	b3conf->Infos[len1 + 1] = (unsigned char)len2;
 	strcpy((char *)&b3conf->Infos[len1 + 2], headline);
 	b3conf->len = (unsigned char)(2 * sizeof(unsigned short) + len1 + len2 + 2);
+	return;
 }
 
 /*
@@ -1586,6 +1627,7 @@ static void capi_handle_dtmf_fax(struct ast_channel *ast)
 	
 	if (ast_async_goto(ast, ast->context, "fax", 1))
 		ast_log(LOG_WARNING, "Failed to async goto '%s' into fax of '%s'\n", ast->name, ast->context);
+	return;
 }
 
 /*
@@ -1596,7 +1638,7 @@ static struct ast_capi_pvt *find_interface(_cmsg *CMSG)
 	struct ast_capi_pvt *i;
 	unsigned int NCCI = HEADER_CID(CMSG);
 	unsigned int PLCI = (NCCI & 0xffff);
-	int MN = CMSG->Messagenumber;
+	int MN = HEADER_MSGNUM(CMSG);
 
 	ast_mutex_lock(&iflock);
 	for (i = iflist; i; i = i->next) {
@@ -1729,6 +1771,7 @@ static void send_progress(struct ast_capi_pvt *i)
 		fr.subclass = AST_CONTROL_PROGRESS;
 		pipe_frame(i, &fr);
 	}
+	return;
 }
 
 /*
@@ -1785,6 +1828,7 @@ static void handle_progress_indicator(_cmsg *CMSG, unsigned int PLCI, struct ast
 		_capi_put_cmsg(&CMSG2);
 	}
 	send_progress(i);
+	return;
 }
 
 /*
@@ -1819,6 +1863,7 @@ static void start_pbx_on_match(struct ast_capi_pvt *i, unsigned int PLCI, _cword
 		CONNECT_RESP_REJECT(&CMSG2) = 1; /* ignore */
 		_capi_put_cmsg(&CMSG2);
 	}
+	return;
 }
 
 /*
@@ -1858,7 +1903,8 @@ static void handle_did_digits(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI,
 		return;
 	}
 
-	start_pbx_on_match(i, PLCI, CMSG->Messagenumber);
+	start_pbx_on_match(i, PLCI, HEADER_MSGNUM(CMSG));
+	return;
 }
 
 /*
@@ -1884,6 +1930,7 @@ static void pipe_cause_control(struct ast_capi_pvt *i, int control)
 		}
 	}
 	pipe_frame(i, &fr);
+	return;
 }
 
 /*
@@ -1960,6 +2007,7 @@ static void handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsigned int 
 	}
 	cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: Other case DISCONNECT INFO_IND\n",
 		i->name);
+	return;
 }
 
 /*
@@ -1982,11 +2030,12 @@ static void handle_setup_element(_cmsg *CMSG, unsigned int PLCI, struct ast_capi
 
 	if (i->isdnmode == AST_CAPI_ISDNMODE_DID) {
 		if (!strlen(i->dnid) && (i->immediate)) {
-			start_pbx_on_match(i, PLCI, CMSG->Messagenumber);
+			start_pbx_on_match(i, PLCI, HEADER_MSGNUM(CMSG));
 		}
 	} else {
-		start_pbx_on_match(i, PLCI, CMSG->Messagenumber);
+		start_pbx_on_match(i, PLCI, HEADER_MSGNUM(CMSG));
 	}
+	return;
 }
 
 /*
@@ -2000,7 +2049,7 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 	int val = 0;
 
 	memset(&CMSG2, 0, sizeof(_cmsg));
-	INFO_RESP_HEADER(&CMSG2, ast_capi_ApplID, CMSG->Messagenumber, PLCI);
+	INFO_RESP_HEADER(&CMSG2, ast_capi_ApplID, HEADER_MSGNUM(CMSG), PLCI);
 	_capi_put_cmsg(&CMSG2);
 
 	return_on_no_interface("INFO_IND");
@@ -2195,6 +2244,7 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 			i->name, INFO_IND_INFONUMBER(CMSG), PLCI);
 		break;
 	}
+	return;
 }
 
 /*
@@ -2208,7 +2258,7 @@ static void capi_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, unsi
 	unsigned dtmflen;
 	unsigned dtmfpos = 0;
 
-	FACILITY_RESP_HEADER(&CMSG2, ast_capi_ApplID, CMSG->Messagenumber, PLCI);
+	FACILITY_RESP_HEADER(&CMSG2, ast_capi_ApplID, HEADER_MSGNUM(CMSG), PLCI);
 	FACILITY_RESP_FACILITYSELECTOR(&CMSG2) = FACILITY_IND_FACILITYSELECTOR(CMSG);
 	FACILITY_RESP_FACILITYRESPONSEPARAMETERS(&CMSG2) = FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG);
 	_capi_put_cmsg(&CMSG2);
@@ -2309,6 +2359,7 @@ static void capi_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, unsi
 			}
 		}
 	}
+	return;
 }
 
 /*
@@ -2329,7 +2380,7 @@ static void capi_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 	memcpy(b3buf, (char *)DATA_B3_IND_DATA(CMSG), b3len);
 	
 	/* send a DATA_B3_RESP very quickly to free the buffer in capi */
-	DATA_B3_RESP_HEADER(&CMSG2, ast_capi_ApplID, CMSG->Messagenumber, 0);
+	DATA_B3_RESP_HEADER(&CMSG2, ast_capi_ApplID, HEADER_MSGNUM(CMSG), 0);
 	DATA_B3_RESP_NCCI(&CMSG2) = NCCI;
 	DATA_B3_RESP_DATAHANDLE(&CMSG2) = DATA_B3_IND_DATAHANDLE(CMSG);
 	_capi_put_cmsg(&CMSG2);
@@ -2397,6 +2448,7 @@ static void capi_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 	cc_ast_verbose(8, 1, VERBOSE_PREFIX_3 "%s: DATA_B3_IND (len=%d) fr.datalen=%d fr.subclass=%d\n",
 		i->name, b3len, fr.datalen, fr.subclass);
 	pipe_frame(i, &fr);
+	return;
 }
 
 /*
@@ -2407,7 +2459,7 @@ static void capi_handle_connect_active_indication(_cmsg *CMSG, unsigned int PLCI
 	_cmsg CMSG2;
 	struct ast_frame fr;
 	
-	CONNECT_ACTIVE_RESP_HEADER(&CMSG2, ast_capi_ApplID, CMSG->Messagenumber, 0);
+	CONNECT_ACTIVE_RESP_HEADER(&CMSG2, ast_capi_ApplID, HEADER_MSGNUM(CMSG), 0);
 	CONNECT_ACTIVE_RESP_PLCI(&CMSG2) = PLCI;
 	
 	if (_capi_put_cmsg(&CMSG2) != 0) {
@@ -2461,6 +2513,7 @@ static void capi_handle_connect_active_indication(_cmsg *CMSG, unsigned int PLCI
 		fr.datalen = 0;
 		pipe_frame(i, &fr);
 	}
+	return;
 }
 
 /*
@@ -2472,7 +2525,7 @@ static void capi_handle_connect_b3_active_indication(_cmsg *CMSG, unsigned int P
 	struct ast_frame fr;
 
 	/* then send a CONNECT_B3_ACTIVE_RESP */
-	CONNECT_B3_ACTIVE_RESP_HEADER(&CMSG2, ast_capi_ApplID, CMSG->Messagenumber, 0);
+	CONNECT_B3_ACTIVE_RESP_HEADER(&CMSG2, ast_capi_ApplID, HEADER_MSGNUM(CMSG), 0);
 	CONNECT_B3_ACTIVE_RESP_NCCI(&CMSG2) = NCCI;
 
 	if (_capi_put_cmsg(&CMSG2) != 0) {
@@ -2516,6 +2569,7 @@ static void capi_handle_connect_b3_active_indication(_cmsg *CMSG, unsigned int P
 		fr.datalen = 0;
 		pipe_frame(i, &fr);
 	}
+	return;
 }
 
 /*
@@ -2525,7 +2579,7 @@ static void capi_handle_disconnect_b3_indication(_cmsg *CMSG, unsigned int PLCI,
 {
 	_cmsg CMSG2;
 
-	DISCONNECT_B3_RESP_HEADER(&CMSG2, ast_capi_ApplID, CMSG->Messagenumber, 0);
+	DISCONNECT_B3_RESP_HEADER(&CMSG2, ast_capi_ApplID, HEADER_MSGNUM(CMSG), 0);
 	DISCONNECT_B3_RESP_NCCI(&CMSG2) = NCCI;
 
 	_capi_put_cmsg(&CMSG2);
@@ -2568,13 +2622,14 @@ static void capi_handle_connect_b3_indication(_cmsg *CMSG, unsigned int PLCI, un
 
 	/* then send a CONNECT_B3_RESP */
 	memset(&CMSG2, 0, sizeof(_cmsg));
-	CONNECT_B3_RESP_HEADER(&CMSG2, ast_capi_ApplID, CMSG->Messagenumber, 0);
+	CONNECT_B3_RESP_HEADER(&CMSG2, ast_capi_ApplID, HEADER_MSGNUM(CMSG), 0);
 	CONNECT_B3_RESP_NCCI(&CMSG2) = NCCI;
 	CONNECT_B3_RESP_REJECT(&CMSG2) = 0;
 
 	i->NCCI = NCCI;
 
 	_capi_put_cmsg(&CMSG2);
+	return;
 }
 
 /*
@@ -2586,7 +2641,7 @@ static void capi_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI, un
 	struct ast_frame fr;
 	int state;
 
-	DISCONNECT_RESP_HEADER(&CMSG2, ast_capi_ApplID, CMSG->Messagenumber , 0);
+	DISCONNECT_RESP_HEADER(&CMSG2, ast_capi_ApplID, HEADER_MSGNUM(CMSG) , 0);
 	DISCONNECT_RESP_PLCI(&CMSG2) = PLCI;
 	_capi_put_cmsg(&CMSG2);
 	
@@ -2646,6 +2701,7 @@ static void capi_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI, un
 	if (state == CAPI_STATE_DISCONNECTING) {
 		interface_cleanup(i);
 	}
+	return;
 }
 
 /*
@@ -2751,9 +2807,8 @@ static int capi_call_deflect(struct ast_channel *c, char *param)
 /*
  * CAPI CONNECT_IND
  */
-static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI)
+static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct ast_capi_pvt *i)
 {
-	struct ast_capi_pvt *i;
 	_cmsg CMSG2;
 	char *DNID;
 	char *CID;
@@ -2767,6 +2822,16 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 	char *emptydnid = "\0";
 	int deflect = 0;
 	int callpres = 0;
+
+	if (i) {
+	    /* chan_capi does not support 
+	     * double connect indications !
+	     * (This is used to update 
+	     *  telephone numbers and 
+	     *  other information)
+	     */
+		return;
+	}
 
 	DNID = capi_number(CONNECT_IND_CALLEDPARTYNUMBER(CMSG), 1);
 	if (!DNID) {
@@ -2848,7 +2913,7 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 			i->cip = CONNECT_IND_CIPVALUE(CMSG);
 			i->controller = controller;
 			i->PLCI = PLCI;
-			i->MessageNumber = CMSG->Messagenumber;
+			i->MessageNumber = HEADER_MSGNUM(CMSG);
 			i->cid_ton = callernplan;
 
 			capi_new(i, AST_STATE_DOWN);
@@ -2903,55 +2968,11 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 		ast_log(LOG_WARNING, "did not find device for msn = %s\n", DNID);
 	}
 	
-	CONNECT_RESP_HEADER(&CMSG2, ast_capi_ApplID, CMSG->Messagenumber, 0);
+	CONNECT_RESP_HEADER(&CMSG2, ast_capi_ApplID, HEADER_MSGNUM(CMSG), 0);
 	CONNECT_RESP_PLCI(&CMSG2) = CONNECT_IND_PLCI(CMSG);
 	CONNECT_RESP_REJECT(&CMSG2) = 1; /* ignore */
 	_capi_put_cmsg(&CMSG2);
-}
-
-/*
- * CAPI *_IND
- */
-static void capi_handle_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI)
-{
-	struct ast_capi_pvt *i;
-
-	if (CMSG->Command == CAPI_CONNECT) { /* only connect_ind are global (not channel specific) */
-		capi_handle_connect_indication(CMSG, PLCI, NCCI);
-		return;
-	}
-
-	i = find_interface(CMSG);
-
-	switch (CMSG->Command) {
-	case CAPI_DATA_B3:
-		capi_handle_data_b3_indication(CMSG, PLCI, NCCI, i);
-		break;
-	case CAPI_CONNECT_B3:
-		capi_handle_connect_b3_indication(CMSG, PLCI, NCCI, i);
-		break;
-	case CAPI_CONNECT_B3_ACTIVE:
-		capi_handle_connect_b3_active_indication(CMSG, PLCI, NCCI, i);
-		break;
-	case CAPI_DISCONNECT_B3:
-		capi_handle_disconnect_b3_indication(CMSG, PLCI, NCCI, i);
-		break;
-	case CAPI_DISCONNECT:
-		capi_handle_disconnect_indication(CMSG, PLCI, NCCI, i);
-		break;
-	case CAPI_FACILITY:
-		capi_handle_facility_indication(CMSG, PLCI, NCCI, i);
-		break;
-	case CAPI_INFO:
-		capi_handle_info_indication(CMSG, PLCI, NCCI, i);
-		break;
-	case CAPI_CONNECT_ACTIVE:
-		capi_handle_connect_active_indication(CMSG, PLCI, NCCI, i);
-		break;
-	default:
-		ast_log(LOG_ERROR, "Command.Subcommand = %#x.%#x\n",
-			CMSG->Command, CMSG->Subcommand);
-	}
+	return;
 }
 
 /*
@@ -2999,7 +3020,7 @@ static void capi_handle_facility_confirmation(_cmsg *CMSG, unsigned int PLCI, un
 /*
  * show error in confirmation
  */
-static void show_capi_conf_error(char *msg, struct ast_capi_pvt *i, 
+static void show_capi_conf_error(struct ast_capi_pvt *i, 
 				 unsigned int PLCI, u_int16_t wInfo, 
 				 u_int16_t wCmd)
 {
@@ -3009,38 +3030,94 @@ static void show_capi_conf_error(char *msg, struct ast_capi_pvt *i,
 		name = i->name;
 		
 	if (wInfo == 0x2002) {
-		cc_ast_verbose(1, 1, VERBOSE_PREFIX_3 "%s: %s_CONF "
+		cc_ast_verbose(1, 1, VERBOSE_PREFIX_3 "%s: "
 			       "0x%x (wrong state) PLCI=0x%x "
-			       "Command = 0x%04x\n",
-			       name, msg, wInfo, PLCI, wCmd);
+			       "Command=%s,0x%04x\n",
+			       name, wInfo, PLCI, capi_command_to_string(wCmd), wCmd);
 	} else {
-		ast_log(LOG_WARNING, "%s: %s conf_error 0x%04x "
-			"PLCI=0x%x Command = 0x%04x\n",
-			name, msg, wInfo, PLCI, wCmd);
+		ast_log(LOG_WARNING, "%s: conf_error 0x%04x "
+			"PLCI=0x%x Command=%s,0x%04x\n",
+			name, wInfo, PLCI, capi_command_to_string(wCmd), wCmd);
 	}
 	return;
 }
 
 /*
- * CAPI *_CONF
+ * handle CAPI msg
  */
-static void capi_handle_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI)
+static void capi_handle_msg(_cmsg *CMSG)
 {
-	struct ast_capi_pvt *i;
-	u_int16_t wInfo = 0;
+	struct ast_capi_pvt *i = find_interface(CMSG);
+	unsigned int NCCI = HEADER_CID(CMSG);
+	unsigned int PLCI = (NCCI & 0xffff);
+	unsigned short wCmd = HEADER_CMD(CMSG);
+	unsigned short wInfo = 0xffff;
 
-	i = find_interface(CMSG);
+	if ((wCmd == CAPI_P_IND(DATA_B3)) ||
+	    (wCmd == CAPI_P_CONF(DATA_B3))) {
+		cc_ast_verbose(7, 1, "%s\n", capi_cmsg2str(CMSG));
+	} else {
+		cc_ast_verbose(4, 1, "%s\n", capi_cmsg2str(CMSG));
+	}
 
-	switch (CMSG->Command) {
-	case CAPI_FACILITY:
+	/* main switch table */
+
+	switch (wCmd) {
+
+	  /*
+	   * CAPI indications
+	   */
+	case CAPI_P_IND(CONNECT):
+		capi_handle_connect_indication(CMSG, PLCI, NCCI, i);
+		break;
+	case CAPI_P_IND(DATA_B3):
+		if(i == NULL) break;
+		capi_handle_data_b3_indication(CMSG, PLCI, NCCI, i);
+		break;
+	case CAPI_P_IND(CONNECT_B3):
+		if(i == NULL) break;
+		capi_handle_connect_b3_indication(CMSG, PLCI, NCCI, i);
+		break;
+	case CAPI_P_IND(CONNECT_B3_ACTIVE):
+		if(i == NULL) break;
+		capi_handle_connect_b3_active_indication(CMSG, PLCI, NCCI, i);
+		break;
+	case CAPI_P_IND(DISCONNECT_B3):
+		if(i == NULL) break;
+		capi_handle_disconnect_b3_indication(CMSG, PLCI, NCCI, i);
+		break;
+	case CAPI_P_IND(DISCONNECT):
+		if(i == NULL) break;
+		capi_handle_disconnect_indication(CMSG, PLCI, NCCI, i);
+		break;
+	case CAPI_P_IND(FACILITY):
+		if(i == NULL) break;
+		capi_handle_facility_indication(CMSG, PLCI, NCCI, i);
+		break;
+	case CAPI_P_IND(INFO):
+		if(i == NULL) break;
+		capi_handle_info_indication(CMSG, PLCI, NCCI, i);
+		break;
+	case CAPI_P_IND(CONNECT_ACTIVE):
+		if(i == NULL) break;
+		capi_handle_connect_active_indication(CMSG, PLCI, NCCI, i);
+		break;
+
+	  /*
+	   * CAPI confirmations
+	   */
+
+	case CAPI_P_CONF(FACILITY):
+		wInfo = FACILITY_CONF_INFO(CMSG);
+		if(i == NULL) break;
 		capi_handle_facility_confirmation(CMSG, PLCI, NCCI, i);
 		break;
-	case CAPI_CONNECT:
-		if (!i->owner)
-			break;
+	case CAPI_P_CONF(CONNECT):
+		wInfo = CONNECT_CONF_INFO(CMSG);
+		if(i == NULL) break;
+		if (!i->owner) break;
 		cc_ast_verbose(1, 1, VERBOSE_PREFIX_3 "%s: received CONNECT_CONF PLCI = %#x\n",
 			i->name, PLCI);
-		wInfo = CONNECT_CONF_INFO(CMSG);
 		if (wInfo == 0) {
 			i->PLCI = PLCI;
 		} else {
@@ -3052,8 +3129,9 @@ static void capi_handle_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned in
 			pipe_frame(i, &fr);
 		}
 		break;
-	case CAPI_CONNECT_B3:
+	case CAPI_P_CONF(CONNECT_B3):
 		wInfo = CONNECT_B3_CONF_INFO(CMSG);
+		if(i == NULL) break;
 		if (wInfo == 0) {
 			i->NCCI = NCCI;
 		} else {
@@ -3061,106 +3139,60 @@ static void capi_handle_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned in
 			i->doB3 = AST_CAPI_B3_DONT;
 		}
 		break;
-	case CAPI_ALERT:
-		if (!i->owner)
-			break;
+	case CAPI_P_CONF(ALERT):
 		wInfo = ALERT_CONF_INFO(CMSG);
+		if(i == NULL) break;
+		if (!i->owner) break;
 		if ((wInfo & 0xff00) == 0) {
-			if (wInfo == 0x0003) {
-				cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 
-					       "%s: Alert already sent by "
-					       "another app.\n",
-					       i->name);
-			}
 			if (i->state != CAPI_STATE_DISCONNECTING) {
 				i->state = CAPI_STATE_ALERTING;
 				if (i->owner->_state == AST_STATE_RING) {
 					i->owner->rings = 1;
 				}
 			}
-		} else {
-			show_capi_conf_error("ALERT", i, PLCI, wInfo, 
-					     HEADER_CMD(CMSG));
 		}
 		break;	    
-	case CAPI_SELECT_B_PROTOCOL:
+	case CAPI_P_CONF(SELECT_B_PROTOCOL):
 		wInfo = SELECT_B_PROTOCOL_CONF_INFO(CMSG);
-		if (wInfo) {
-			show_capi_conf_error("SELECT_B_PROTOCOL", i, PLCI, 
-					     wInfo, HEADER_CMD(CMSG));
-		} else {
+		if(i == NULL) break;
+		if (!wInfo) {
 			if ((i->owner) && (i->FaxState)) {
 				capi_echo_canceller(i->owner, EC_FUNCTION_DISABLE);
 				capi_detect_dtmf(i->owner, 0);
 			}
 		}
 		break;
-	case CAPI_DATA_B3:
+	case CAPI_P_CONF(DATA_B3):
 		wInfo = DATA_B3_CONF_INFO(CMSG);
-		if (wInfo) {
-			show_capi_conf_error("DATA_B3", i, PLCI, 
-					     wInfo, HEADER_CMD(CMSG));
-		}
 		break;
  
- 	case CAPI_DISCONNECT:
+	case CAPI_P_CONF(DISCONNECT):
 		wInfo = DISCONNECT_CONF_INFO(CMSG);
-		goto conf_error;
+		break;
 
-	case CAPI_DISCONNECT_B3:
+	case CAPI_P_CONF(DISCONNECT_B3):
 		wInfo = DISCONNECT_B3_CONF_INFO(CMSG);
-		goto conf_error;
+		break;
 
-	case CAPI_LISTEN:
+	case CAPI_P_CONF(LISTEN):
 		wInfo = LISTEN_CONF_INFO(CMSG);
-		goto conf_error;
+		break;
 
- 	case CAPI_INFO:
+	case CAPI_P_CONF(INFO):
 		wInfo = INFO_CONF_INFO(CMSG);
-
-	conf_error:
-
-		if (wInfo) {
-			show_capi_conf_error("", i, PLCI, wInfo,
-					     HEADER_CMD(CMSG));
-		}
 		break;
+
 	default:
-		ast_log(LOG_ERROR,"CAPI: Command = 0x%04x\n",
-			HEADER_CMD(CMSG));
-	}
-	show_capi_info(wInfo);
-	return;
-}
-
-/*
- * handle CAPI msg
- */
-static void capi_handle_msg(_cmsg *CMSG)
-{
-	unsigned int NCCI = HEADER_CID(CMSG);
-	unsigned int PLCI = (NCCI & 0xffff);
-
-	if ((CMSG->Subcommand != CAPI_IND) &&
-	    (CMSG->Subcommand != CAPI_CONF)) {
-		ast_log(LOG_ERROR, "CAPI: unknown Command.Subcommand = %#x.%#x\n",
-			CMSG->Command, CMSG->Subcommand);
-		return;
-	}
-
-	if (CMSG->Command == CAPI_DATA_B3) {
-		cc_ast_verbose(7, 1, "%s\n", capi_cmsg2str(CMSG));
-	} else {
-		cc_ast_verbose(4, 1, "%s\n", capi_cmsg2str(CMSG));
-	}
-
-	switch (CMSG->Subcommand) {
-	case CAPI_IND:
-		capi_handle_indication(CMSG, PLCI, NCCI);
+		ast_log(LOG_ERROR, "CAPI: Command=%s,0x%04x",
+			capi_command_to_string(wCmd), wCmd);
 		break;
-	case CAPI_CONF:
-		capi_handle_confirmation(CMSG, PLCI, NCCI);
-		break;
+	}
+
+	if (wInfo != 0xffff) {
+		if (wInfo) {
+			show_capi_conf_error(i, PLCI, wInfo, wCmd);
+		}
+		show_capi_info(wInfo);
 	}
 	return;
 }
@@ -4020,6 +4052,7 @@ static void supported_sservices(struct ast_capi_controller *cp)
 		cp->CONF = 1;
 		cc_ast_verbose(3, 0, VERBOSE_PREFIX_4 "CONF\n");
 	}
+	return;
 }
 
 /*

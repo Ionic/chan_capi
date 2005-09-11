@@ -1,7 +1,7 @@
 /*
- * This header file is common to all CAPI 2.0
- * implementations, and must be included first.
- * Else the checks below will fail.
+ * The "capi20.h" header file is common to all 
+ * CAPI 2.0 implementations, and must be included 
+ * first. Else the checks below will fail.
  */
 
 #include <capi20.h>
@@ -113,7 +113,12 @@ static __inline u_int16_t CAPI_COMMAND_PACK(u_int16_t cmd)
 
 #endif /* HEADER_CMD */
 
+#ifndef HEADER_MSGNUM
+#define HEADER_MSGNUM(x) ((x)->Messagenumber)
+#endif
+
 #ifndef FACILITY_RESP_FACILITYRESPONSEPARAMETERS
 #define FACILITY_RESP_FACILITYRESPONSEPARAMETERS(x) \
   ((x)->FacilityResponseParameters)
 #endif
+
