@@ -59,6 +59,8 @@ INSTALL=install
 
 SHAREDOS=chan_capi.so
 
+OBJECTS=chan_capi.o c20msg.o
+
 CFLAGS+=-Wno-missing-prototypes -Wno-missing-declarations
 
 CFLAGS+=-DCRYPTO
@@ -69,13 +71,10 @@ clean:
 	rm -f config.h
 	rm -f *.so *.o
 
-%.so : %.o
-	$(CC) -shared -Xlinker -x -o $@ $<
-
 config.h:
 	./create_config.sh "$(ASTERISK_HEADER_DIR)"
 
-chan_capi.so: chan_capi.o c20msg.o
+chan_capi.so: $(OBJECTS)
 	$(CC) -shared -Xlinker -x -o $@ $^ -lcapi20
 
 install: all
