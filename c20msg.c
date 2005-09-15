@@ -320,6 +320,14 @@ char *capi_info_string(unsigned int info)
 	case 0x3707:
 		return "Unexpected child operation";
 
+	/* Line Interconnect */
+	case 0x3800:
+		return "PLCI has no B-channel";
+	case 0x3801:
+		return "Lines not compatible";
+	case 0x3802:
+		return "PLCI(s) is (are) not in any or not in the same interconnection";
+
 	default:
 		return NULL;
 	}

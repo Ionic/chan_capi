@@ -88,6 +88,22 @@ static inline unsigned short read_capi_dword(void *m)
 #define CC_AST_CHANNEL_PVT(c) c->pvt->pvt
 #endif
 
+#ifdef CC_AST_HAS_BRIDGED_CHANNEL
+#define CC_AST_BRIDGED_CHANNEL(x) ast_bridged_channel(x)
+#else
+#define CC_AST_BRIDGED_CHANNEL(x) x->bridge
+#endif
+
+#ifdef CC_AST_HAS_BRIDGE_RESULT
+#define CC_BRIDGE_RETURN enum ast_bridge_result
+#else
+#define CC_BRIDGE_RETURN int
+#define AST_BRIDGE_COMPLETE        0
+#define AST_BRIDGE_FAILED         -1
+#define AST_BRIDGE_FAILED_NOWARN  -2
+#define AST_BRIDGE_RETRY          -3
+#endif
+
 #ifndef AST_MUTEX_DEFINE_STATIC
 #define AST_MUTEX_DEFINE_STATIC(mutex)		\
 	static ast_mutex_t mutex = AST_MUTEX_INITIALIZER
@@ -172,6 +188,8 @@ struct ast_capi_gains {
 #define CAPI_ISDN_STATE_HOLD          0x0004
 #define CAPI_ISDN_STATE_ECT           0x0008
 #define CAPI_ISDN_STATE_PROGRESS      0x0010
+#define CAPI_ISDN_STATE_LI            0x0020
+#define CAPI_ISDN_STATE_DISCONNECT    0x0040
 
 /* ! Private data for a capi device */
 struct ast_capi_pvt {
@@ -259,6 +277,8 @@ struct ast_capi_pvt {
 	/* which holdtype */
 	int holdtype;
 	int doholdtype;
+	/* line interconnect allowed */
+	int bridge;
 
 	/* Common ISDN Profile (CIP) */
 	int cip;
@@ -296,9 +316,9 @@ struct ast_capi_pvt {
 
 	unsigned int reason;
 	unsigned int reasonb3;
-	
+
 	/*! Next channel in list */
-	struct ast_capi_pvt *next;			
+	struct ast_capi_pvt *next;
 };
 
 struct ast_capi_profile {
@@ -334,6 +354,7 @@ struct ast_capi_conf {
 	int immediate;
 	int holdtype;
 	int es;
+	int bridge;
 	unsigned int callgroup;
 	unsigned int group;
 	float rxgain;
@@ -353,6 +374,7 @@ struct ast_capi_controller {
 	int dtmf;
 	int echocancel;
 	int sservices;	/* supplementray services */
+	int lineinterconnect;
 	/* supported sservices: */
 	int holdretrieve;
 	int terminalportability;

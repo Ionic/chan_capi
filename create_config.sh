@@ -42,6 +42,22 @@ else
 	echo " * no 'struct ast_channel_tech', using old pvt"
 fi
 
+if grep -q "ast_bridged_channel" $INCLUDEDIR/channel.h; then
+	echo "#define CC_AST_HAS_BRIDGED_CHANNEL" >>$CONFIGFILE
+	echo " * found 'ast_bridged_channel'"
+else
+	echo "#undef CC_AST_HAS_BRIDGED_CHANNEL" >>$CONFIGFILE
+	echo " * no 'ast_bridged_channel'"
+fi
+
+if grep -q "ast_bridge_result" $INCLUDEDIR/channel.h; then
+	echo "#define CC_AST_HAS_BRIDGE_RESULT" >>$CONFIGFILE
+	echo " * found 'ast_bridge_result'"
+else
+	echo "#undef CC_AST_HAS_BRIDGE_RESULT" >>$CONFIGFILE
+	echo " * no 'ast_bridge_result'"
+fi
+
 if grep -q "ast_dsp_process*needlock" $INCLUDEDIR/dsp.h; then
 	echo "#define CC_AST_DSP_PROCESS_NEEDLOCK" >>$CONFIGFILE
 	echo " * ast_dsp_process() needs 'needlock'"

@@ -33,7 +33,6 @@
 #include <asterisk/utils.h>
 #include <asterisk/cli.h>
 #include <asterisk/causes.h>
-#include <asterisk/rtp.h>
 #include <sys/time.h>
 #include <sys/signal.h>
 #include <stdlib.h>
@@ -389,6 +388,9 @@ static void capi_echo_canceller(struct ast_channel *c, int function)
 	_cmsg CMSG;
 	char buf[10];
 
+	if (i->isdnstate & CAPI_ISDN_STATE_DISCONNECT)
+		return;
+
 	/* If echo cancellation is not requested or supported, don't attempt to enable it */
 	ast_mutex_lock(&contrlock);
 	if (!capi_controllers[i->controller]->echocancel || !i->doEC) {
@@ -432,6 +434,9 @@ static int capi_detect_dtmf(struct ast_channel *c, int flag)
 	MESSAGE_EXCHANGE_ERROR error;
 	_cmsg CMSG;
 	char buf[9];
+
+	if (i->isdnstate & CAPI_ISDN_STATE_DISCONNECT)
+		return 0;
 
 	memset(buf, 0, sizeof(buf));
 	
@@ -626,7 +631,7 @@ static void interface_cleanup(struct ast_capi_pvt *i)
 		close(i->fd2);
 		i->fd2 = -1;
 	}
-	
+
 	i->isdnstate = 0;
 	i->cause = 0;
 
@@ -1215,6 +1220,144 @@ static int capi_fixup(struct ast_channel *oldchan, struct ast_channel *newchan)
 }
 
 /*
+ * do line initerconnect
+ */
+static int line_interconnect(struct ast_capi_pvt *i0, struct ast_capi_pvt *i1, int start)
+{
+	_cmsg CMSG;
+	char buf[20];
+	u_int16_t enable = (start) ? 0x0001 : 0x0002;
+
+	if ((i0->isdnstate & CAPI_ISDN_STATE_DISCONNECT) ||
+	    (i1->isdnstate & CAPI_ISDN_STATE_DISCONNECT))
+		return -1;
+
+	if ((i0->state != CAPI_STATE_BCONNECTED) || 
+	    (i1->state != CAPI_STATE_BCONNECTED)) {
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2
+			"%s:%s line interconnect aborted, at least "
+			"one channel is not connected.\n",
+			i0->name, i1->name);
+		return -1;
+	}
+	
+	FACILITY_REQ_HEADER(&CMSG, ast_capi_ApplID, get_ast_capi_MessageNumber(), 0);
+	FACILITY_REQ_PLCI(&CMSG) = i0->PLCI;
+	FACILITY_REQ_FACILITYSELECTOR(&CMSG) = FACILITYSELECTOR_LINE_INTERCONNECT;
+
+	memset(buf, 0, sizeof(buf));
+
+       	buf[0] = 16; /* msg size */
+        write_capi_word(&buf[1], enable);
+       	buf[3] = 13; /* struct size */
+        write_capi_dword(&buf[4], 0x00000000);
+       	buf[8] = 8; /* struct size */
+        write_capi_dword(&buf[9], i1->PLCI);
+        write_capi_dword(&buf[13], 0x00000000);
+
+	FACILITY_REQ_FACILITYREQUESTPARAMETER(&CMSG) = buf;
+        
+	_capi_put_cmsg(&CMSG);
+
+	if (start) {
+		i0->isdnstate |= CAPI_ISDN_STATE_LI;
+		i1->isdnstate |= CAPI_ISDN_STATE_LI;
+	} else {
+		i0->isdnstate &= ~CAPI_ISDN_STATE_LI;
+		i1->isdnstate &= ~CAPI_ISDN_STATE_LI;
+	}
+	return 0;
+}
+
+/*
+ * native bridging / line interconnect
+ */
+static CC_BRIDGE_RETURN capi_bridge(struct ast_channel *c0,
+                                    struct ast_channel *c1,
+                                    int flags, struct ast_frame **fo, struct ast_channel **rc)
+{
+	struct ast_capi_pvt *i0 = CC_AST_CHANNEL_PVT(c0);
+	struct ast_capi_pvt *i1 = CC_AST_CHANNEL_PVT(c1);
+	CC_BRIDGE_RETURN ret = AST_BRIDGE_COMPLETE;
+
+	cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s:%s Requested native bridge for %s and %s\n",
+		i0->name, i1->name, c0->name, c1->name);
+
+	if ((!i0->bridge) || (!i1->bridge))
+		return AST_BRIDGE_FAILED_NOWARN;
+
+	ast_mutex_lock(&contrlock);
+	if ((!capi_controllers[i0->controller]->lineinterconnect) ||
+	    (!capi_controllers[i1->controller]->lineinterconnect)) {
+		ast_mutex_unlock(&contrlock);
+		return AST_BRIDGE_FAILED_NOWARN;
+	}
+	ast_mutex_unlock(&contrlock);
+
+	if (!(flags & AST_BRIDGE_DTMF_CHANNEL_0))
+		capi_detect_dtmf(i0->owner, 0);
+
+	if (!(flags & AST_BRIDGE_DTMF_CHANNEL_1))
+		capi_detect_dtmf(i1->owner, 0);
+
+	capi_echo_canceller(i0->owner, EC_FUNCTION_DISABLE);
+	capi_echo_canceller(i1->owner, EC_FUNCTION_DISABLE);
+
+	if (line_interconnect(i0, i1, 1)) {
+		ret = AST_BRIDGE_FAILED;
+		goto return_from_bridge;
+	}
+
+	for (;;) {
+		struct ast_channel *c0_priority[2] = {c0, c1};
+		struct ast_channel *c1_priority[2] = {c1, c0};
+		int priority = 0;
+		int to;
+		struct ast_frame *f;
+		struct ast_channel *who;
+
+		to = -1;
+		who = ast_waitfor_n(priority ? c0_priority : c1_priority, 2, &to);
+		if (!who) {
+			ast_log(LOG_DEBUG, "Ooh, empty read...\n");
+			continue;
+		}
+		f = ast_read(who);
+		if (!f || (f->frametype == AST_FRAME_CONTROL)
+		       || (f->frametype == AST_FRAME_DTMF)) {
+			*fo = f;
+			*rc = who;
+			ret = AST_BRIDGE_COMPLETE;
+			break;
+		}
+		if (who == c0) {
+			ast_write(c1, f);
+		} else {
+			ast_write(c0, f);
+		}
+		ast_frfree(f);
+
+		/* Swap who gets priority */
+		priority = !priority;
+	}
+
+	line_interconnect(i0, i1, 0);
+
+return_from_bridge:
+
+	if (!(flags & AST_BRIDGE_DTMF_CHANNEL_0))
+		capi_detect_dtmf(i0->owner, 1);
+
+	if (!(flags & AST_BRIDGE_DTMF_CHANNEL_1))
+		capi_detect_dtmf(i1->owner, 1);
+
+	capi_echo_canceller(i0->owner, EC_FUNCTION_ENABLE);
+	capi_echo_canceller(i1->owner, EC_FUNCTION_ENABLE);
+
+	return ret;
+}
+
+/*
  * a new channel is needed
  */
 static struct ast_channel *capi_new(struct ast_capi_pvt *i, int state)
@@ -1246,7 +1389,7 @@ static struct ast_channel *capi_new(struct ast_capi_pvt *i, int state)
 		ast_channel_free(tmp);
 		return NULL;
 	}
-	
+
 	i->fd = fds[0];
 	i->fd2 = fds[1];
 	
@@ -1296,7 +1439,7 @@ static struct ast_channel *capi_new(struct ast_capi_pvt *i, int state)
 	tmp->pvt->call = capi_call;
 	tmp->pvt->fixup = capi_fixup;
 	tmp->pvt->indicate = capi_indicate;
-	tmp->pvt->bridge = ast_rtp_bridge;
+	tmp->pvt->bridge = capi_bridge;
 	tmp->pvt->answer = capi_answer;
 	tmp->pvt->hangup = capi_hangup;
 	tmp->pvt->read = capi_read;
@@ -1631,29 +1774,39 @@ static void capi_handle_dtmf_fax(struct ast_channel *ast)
 }
 
 /*
- * find the interface (pvt) the CMSG belongs to
+ * find the interface (pvt) the PLCI belongs to
  */
-static struct ast_capi_pvt *find_interface(_cmsg *CMSG)
+static struct ast_capi_pvt *find_interface_by_plci(unsigned int plci)
 {
 	struct ast_capi_pvt *i;
-	unsigned int NCCI = HEADER_CID(CMSG);
-	unsigned int PLCI = (NCCI & 0xffff);
-	int MN = HEADER_MSGNUM(CMSG);
+
+	if (plci == 0)
+		return NULL;
 
 	ast_mutex_lock(&iflock);
 	for (i = iflist; i; i = i->next) {
-		if ((i->PLCI == PLCI) ||
-		    ((i->PLCI == 0) && (i->MessageNumber == MN)))
+		if (i->PLCI == plci)
 			break;
 	}
 	ast_mutex_unlock(&iflock);
 
-	if (!i) {
-		cc_ast_verbose(2, 1, VERBOSE_PREFIX_4
-			"CAPI: no interface for PLCI = %#x MN = %#x\n",
-			PLCI, MN);
+	return i;
+}
+
+/*
+ * find the interface (pvt) the messagenumber belongs to
+ */
+static struct ast_capi_pvt *find_interface_by_msgnum(unsigned short msgnum)
+{
+	struct ast_capi_pvt *i;
+
+	ast_mutex_lock(&iflock);
+	for (i = iflist; i; i = i->next) {
+		    if ((i->PLCI == 0) && (i->MessageNumber == msgnum))
+			break;
 	}
-	
+	ast_mutex_unlock(&iflock);
+
 	return i;
 }
 
@@ -1939,6 +2092,8 @@ static void pipe_cause_control(struct ast_capi_pvt *i, int control)
 static void handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct ast_capi_pvt *i)
 {
 	_cmsg CMSG2;
+
+	i->isdnstate |= CAPI_ISDN_STATE_DISCONNECT;
 
 	if (i->isdnstate & CAPI_ISDN_STATE_ECT) {
 		cc_ast_verbose(4, 1, VERBOSE_PREFIX_3 "%s: Disconnect ECT call\n",
@@ -2807,8 +2962,9 @@ static int capi_call_deflect(struct ast_channel *c, char *param)
 /*
  * CAPI CONNECT_IND
  */
-static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct ast_capi_pvt *i)
+static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct ast_capi_pvt **interface)
 {
+	struct ast_capi_pvt *i;
 	_cmsg CMSG2;
 	char *DNID;
 	char *CID;
@@ -2823,7 +2979,7 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 	int deflect = 0;
 	int callpres = 0;
 
-	if (i) {
+	if (*interface) {
 	    /* chan_capi does not support 
 	     * double connect indications !
 	     * (This is used to update 
@@ -2957,6 +3113,7 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 			pbx_builtin_setvar_helper(i->owner, "ANI2", buffer);
 			pbx_builtin_setvar_helper(i->owner, "SECONDCALLERID", buffer);
 			*/
+			*interface = i;
 			return;
 		}
 	}
@@ -3013,6 +3170,27 @@ static void capi_handle_facility_confirmation(_cmsg *CMSG, unsigned int PLCI, un
 		}
 		return;
 	}
+	if (selector == FACILITYSELECTOR_LINE_INTERCONNECT) {
+		if ((FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[1] == 0x1) &&
+		    (FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[2] == 0x0)) {
+			/* enable */
+			if ((FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[4] != 0x0) ||
+			    (FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[5] != 0x0)) {
+				ast_log(LOG_ERROR, "%s: unable to start line interconnect\n",
+					i->name);
+			show_capi_info(read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]));
+			}
+		} else {
+			/* disable */
+			if ((FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[4] != 0x0) ||
+			    (FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[5] != 0x0)) {
+				ast_log(LOG_ERROR, "%s: unable to stop line interconnect\n",
+					i->name);
+			}
+			show_capi_info(read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]));
+		}
+		return;
+	}
 	ast_log(LOG_ERROR, "%s: unhandled FACILITY_CONF 0x%x\n",
 		i->name, FACILITY_CONF_FACILITYSELECTOR(CMSG));
 }
@@ -3047,11 +3225,12 @@ static void show_capi_conf_error(struct ast_capi_pvt *i,
  */
 static void capi_handle_msg(_cmsg *CMSG)
 {
-	struct ast_capi_pvt *i = find_interface(CMSG);
 	unsigned int NCCI = HEADER_CID(CMSG);
 	unsigned int PLCI = (NCCI & 0xffff);
 	unsigned short wCmd = HEADER_CMD(CMSG);
+	unsigned short wMsgNum = HEADER_MSGNUM(CMSG);
 	unsigned short wInfo = 0xffff;
+	struct ast_capi_pvt *i = find_interface_by_plci(PLCI);
 
 	if ((wCmd == CAPI_P_IND(DATA_B3)) ||
 	    (wCmd == CAPI_P_CONF(DATA_B3))) {
@@ -3068,7 +3247,7 @@ static void capi_handle_msg(_cmsg *CMSG)
 	   * CAPI indications
 	   */
 	case CAPI_P_IND(CONNECT):
-		capi_handle_connect_indication(CMSG, PLCI, NCCI, i);
+		capi_handle_connect_indication(CMSG, PLCI, NCCI, &i);
 		break;
 	case CAPI_P_IND(DATA_B3):
 		if(i == NULL) break;
@@ -3114,8 +3293,14 @@ static void capi_handle_msg(_cmsg *CMSG)
 		break;
 	case CAPI_P_CONF(CONNECT):
 		wInfo = CONNECT_CONF_INFO(CMSG);
-		if(i == NULL) break;
-		if (!i->owner) break;
+		if (i) {
+			ast_log(LOG_ERROR, "CAPI: CONNECT_CONF for already "
+				"defined interface received\n");
+			break;
+		}
+		i = find_interface_by_msgnum(wMsgNum);
+		if ((i == NULL) || (!i->owner))
+			break;
 		cc_ast_verbose(1, 1, VERBOSE_PREFIX_3 "%s: received CONNECT_CONF PLCI = %#x\n",
 			i->name, PLCI);
 		if (wInfo == 0) {
@@ -3186,6 +3371,13 @@ static void capi_handle_msg(_cmsg *CMSG)
 		ast_log(LOG_ERROR, "CAPI: Command=%s,0x%04x",
 			capi_command_to_string(wCmd), wCmd);
 		break;
+	}
+
+	if (i == NULL) {
+		cc_ast_verbose(2, 1, VERBOSE_PREFIX_4
+			"CAPI: Command=%s,0x%04x: no interface for PLCI="
+			"%#x, MSGNUM=%#x!\n", capi_command_to_string(wCmd),
+			wCmd, PLCI, wMsgNum);
 	}
 
 	if (wInfo != 0xffff) {
@@ -3714,65 +3906,6 @@ static int capi_indicate(struct ast_channel *c, int condition)
 }
 
 /*
- * do the bridge
- */
-static int capi_set_rtp_peer(struct ast_channel *c, struct ast_rtp *rtp, struct ast_rtp *vrtp, int codecs)
-{
-	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
-
-	if (!i)
-		return -1;
-
-	cc_ast_verbose(4, 1, VERBOSE_PREFIX_3 "%s: set RTP peer for %s\n",
-		i->name, c->name);
-
-
-	return -1;
-}
-
-/*
- * return bridge capability/rtp
- */
-static struct ast_rtp *capi_get_rtp_info(struct ast_channel *c)
-{
-	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
-	struct ast_rtp *rtp = NULL;
-
-	if (!i)
-		return NULL;
-
-	cc_ast_verbose(4, 1, VERBOSE_PREFIX_3 "%s: get RTP info for %s\n",
-		i->name, c->name);
-
-	return rtp;
-}
-
-/*
- * return codec
- */
-static int capi_get_codec(struct ast_channel *c)
-{
-	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
-
-	cc_ast_verbose(4, 1, VERBOSE_PREFIX_3 "%s: get codec for %s\n",
-		i->name, c->name);
-
-	return capi_capability;
-}
-
-/*
- * RTP callbacks
- */
-static struct ast_rtp_protocol capi_rtp = {
-#ifdef CC_AST_HAVE_TECH_PVT
-	.type = channeltype,
-#endif
-	.get_rtp_info = capi_get_rtp_info,
-	.set_rtp_peer = capi_set_rtp_peer,
-	.get_codec = capi_get_codec,
-};
-
-/*
  * module stuff, monitor...
  */
 static void *do_monitor(void *data)
@@ -3931,6 +4064,7 @@ int mkif(struct ast_capi_conf *conf)
 		tmp->immediate = conf->immediate;
 		tmp->holdtype = conf->holdtype;
 		tmp->ecSelector = conf->ecSelector;
+		tmp->bridge = conf->bridge;
 		
 		tmp->smoother = ast_smoother_new(AST_CAPI_MAX_B3_BLOCK_SIZE);
 
@@ -4142,7 +4276,7 @@ static const struct ast_channel_tech capi_tech = {
 	.answer = capi_answer,
 	.read = capi_read,
 	.write = capi_write,
-	.bridge = ast_rtp_bridge,
+	.bridge = capi_bridge,
 	.exception = NULL,
 	.indicate = capi_indicate,
 	.fixup = capi_fixup,
@@ -4219,7 +4353,7 @@ static int cc_init_capi(void)
 #else
 		cp->nbchannels = profile.nbchannels;
 		cp->nfreebchannels = profile.nbchannels;
-		if ((profile.globaloptions & 8) >> 3 == 1) {
+		if (profile.globaloptions & 0x08) {
 #endif
 			cc_ast_verbose(3, 0, VERBOSE_PREFIX_3 "CAPI/contr%d supports DTMF\n",
 				controller);
@@ -4229,7 +4363,7 @@ static int cc_init_capi(void)
 #if (CAPI_OS_HINT == 1)
 		if (profile.dwGlobalOptions & CAPI_PROFILE_ECHO_CANCELLATION) {
 #else
-		if (profile.globaloptions2 & 1) {
+		if (profile.globaloptions2 & 0x01) {
 #endif
 			cc_ast_verbose(3, 0, VERBOSE_PREFIX_3 "CAPI/contr%d supports echo cancellation\n",
 				controller);
@@ -4239,9 +4373,19 @@ static int cc_init_capi(void)
 #if (CAPI_OS_HINT == 1)
 		if (profile.dwGlobalOptions & CAPI_PROFILE_SUPPLEMENTARY_SERVICES)  {
 #else
-		if ((profile.globaloptions & 16) >> 4 == 1) {
+		if (profile.globaloptions & 0x10) {
 #endif
 			cp->sservices = 1;
+		}
+
+#if (CAPI_OS_HINT == 1)
+		if (profile.dwGlobalOptions & 0x80)  {
+#else
+		if (profile.globaloptions & 0x80) {
+#endif
+			cc_ast_verbose(3, 0, VERBOSE_PREFIX_3 "CAPI/contr%d supports line interconnect\n",
+				controller);
+			cp->lineinterconnect = 1;
 		}
 		
 		if (cp->sservices == 1) {
@@ -4324,6 +4468,12 @@ static int conf_interface(struct ast_capi_conf *conf, struct ast_variable *v)
 		if (!strcasecmp(v->name, "echosquelch")) {
 			if (ast_true(v->value)) {
 				conf->es = 1;
+			}
+			continue;
+		}
+		if (!strcasecmp(v->name, "bridge")) {
+			if (ast_true(v->value)) {
+				conf->bridge = 1;
 			}
 			continue;
 		}
@@ -4524,12 +4674,6 @@ int load_module(void)
 		return -1;
 	}
 
-	/* Tell the RTP subdriver that we're here */
-#ifndef CC_AST_HAVE_TECH_PVT
-	capi_rtp.type = channeltype;
-#endif
-	ast_rtp_proto_register(&capi_rtp);
-
 	ast_cli_register(&cli_info);
 	ast_cli_register(&cli_debug);
 	ast_cli_register(&cli_no_debug);
@@ -4558,8 +4702,6 @@ int unload_module()
 	ast_cli_unregister(&cli_info);
 	ast_cli_unregister(&cli_debug);
 	ast_cli_unregister(&cli_no_debug);
-
-	ast_rtp_proto_unregister(&capi_rtp);
 
 	if (monitor_thread != (pthread_t)(0-1)) {
 		pthread_cancel(monitor_thread);
