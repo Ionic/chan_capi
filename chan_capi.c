@@ -3833,8 +3833,10 @@ static int capi_indicate(struct ast_channel *c, int condition)
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested RINGING-Indication for %s\n",
 			i->name, c->name);
 		/* TODO somehow enable unhold on ringing, but when wanted only */
+		/* 
 		if (i->isdnstate & CAPI_ISDN_STATE_HOLD)
 			capi_retrieve(c, NULL);
+		*/
 		ret = capi_alert(c);
 		break;
 	case AST_CONTROL_BUSY:
