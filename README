@@ -61,6 +61,7 @@ This chan_capi version includes:
 - Fixes and compatibility for BSD (Jan Stocker and Hans Petter Selasky)
 - Support 'type of number'.
 - ISDN hold.
+- CAPI Line Interconnect.
 
 The Dial string
 ===============
