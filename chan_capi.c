@@ -3179,7 +3179,7 @@ static void capi_handle_facility_confirmation(_cmsg *CMSG, unsigned int PLCI, un
 			    (FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[5] != 0x0)) {
 				ast_log(LOG_ERROR, "%s: unable to start line interconnect\n",
 					i->name);
-			show_capi_info(read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]));
+			show_capi_info(read_capi_word(&FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[4]));
 			}
 		} else {
 			/* disable */
@@ -3188,7 +3188,7 @@ static void capi_handle_facility_confirmation(_cmsg *CMSG, unsigned int PLCI, un
 				ast_log(LOG_ERROR, "%s: unable to stop line interconnect\n",
 					i->name);
 			}
-			show_capi_info(read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]));
+			show_capi_info(read_capi_word(&FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[4]));
 		}
 		return;
 	}
