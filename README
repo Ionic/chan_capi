@@ -287,4 +287,14 @@ CALLINGSUBADDRESS
 
 CALLEDSUBADDRESS
     If set on dial(), the called subaddress will be set to the content.
-   
+  
+
+Functions (available with newer Asterisk only)
+==============================================
+
+VANITYNUMBER(<vanitynumber>)
+    Converts the 'vanitynumber' into a digit-only string. International keypad is
+    used, e.g. ABC=1, DEF=2, ...
+
+
+
