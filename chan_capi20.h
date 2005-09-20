@@ -18,6 +18,7 @@
  * ISDN4BSD!
  */
 #include <capi_bsd.h>
+#include <capiutils.h>
 #define CAPI_OS_HINT 1
 #else /* (CAPI_STACK_VERSION < 204) */
 #define CAPI_OS_HINT 2
@@ -25,6 +26,7 @@
 
 #else /* BSD */
 #include <linux/capi.h>
+#include <capiutils.h>
 #endif /* BSD */
 
 #ifndef HEADER_CID
