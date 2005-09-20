@@ -1,0 +1,51 @@
+CHANGES
+=======
+
+chan_capi-cm-0.6
+----------------
+- added 'relaxdtmf'.
+- more BSD compatibility
+- correct PROGRESS handling
+- start PBX on SETUP/SENDING-COMPLETE for PtP only.
+- added verbose text for capi info/reason error messages.
+- fixed echo-cancel setup structure
+- use correct facility-selector for echo-cancel
+- use capi.conf option 'echocancelold' for old facility-selector (6)
+- changed isdnmode configuration from ptp/ptmp to msn/did
+- added ntmode configuration
+- added application capicommand() for CAPI based applications
+  (removed standalone applications)
+- capicommand(RETRIEVE) can now be called from other channels
+- support ISDN hold (holdtype in capi.conf)
+- added HOLD/RETRIEVE for Asterisk indications.
+- added custom function VANITYNUMBER to convert letters into digits.
+- added CAPI Line Interconnect (native bridging)
+- use variable CONNECTEDNUMBER on Answer().
+- set variable REDIRECTINGNUMBER on incomming call if it was diverted.
+- added variable REDIRECTREASON
+- fixed unload
+- removed obsolete thread mutex
+- fixed dnid/exten/immediate handling on PtP.
+- receive a fax via CAPI is now done with capicommand(receivefax|...) and added stationid...
+- fixed call-deflection and moved this feature from separate application
+  to capicommand().
+- added config option 'immediate' to start pbx if no dnid has been received yet.
+- endian fixes
+- compile fixes with newer Asterisk
+- update channel name on did changes.
+- support 'type of number' (numbering-plan).
+- U-Law setting is now done in capi.conf instead of Makefile define.
+- allow using interface name in Dial().
+- on hangup, use hangupcause from other channel or from var PRI_CAUSE.
+- improved DID handling on PtP connections.
+- capi.conf structure changes: one own section for each interface,
+  no global 'interfaces' any more. Section name will be interface name.
+- restructured module loading and init.
+- dial string changed: parameters like 'b' not as part of number any more.
+- send alert on alerting only (busy() and congestion() work now).
+- better overlap sending (new parameter 'o' for dialstring to
+  send only the first two digits with CONNECT_REQ only, the remaining
+  digits and even digits following the dial() command, will be send
+  as INFO_REQ/Overlap).
+- further fixups
+
