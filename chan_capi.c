@@ -2578,7 +2578,7 @@ static void capi_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 			if (capi_capability == AST_FORMAT_ULAW) {
 				memset(b3buf, 255, b3len);
 			} else {
-				memset(b3buf, 84, b3len);
+				memset(b3buf, 85, b3len);
 			}
 			cc_ast_verbose(6, 1, VERBOSE_PREFIX_3 "%s: SUPPRESSING ECHO rx=%d, tx=%d\n",
 					i->name, rxavg, txavg);
