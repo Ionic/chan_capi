@@ -1139,6 +1139,11 @@ int capi_write(struct ast_channel *c, struct ast_frame *f)
 		ast_log(LOG_ERROR,"not a voice frame\n");
 		return -1;
 	}
+	if (i->FaxState) {
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: write on fax_receive?\n",
+			i->name);
+		return 0;
+	}
 	if (f->subclass != capi_capability) {
 		ast_log(LOG_ERROR, "dont know how to write subclass %d\n", f->subclass);
 		return -1;
@@ -2148,7 +2153,10 @@ static void handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsigned int 
 		cc_ast_verbose(4, 1, VERBOSE_PREFIX_3 "%s: Disconnect case 3\n",
 			i->name);
 		if (i->FaxState) {
-			/* in capiFax */
+			/* in fax mode, we just hangup */
+			DISCONNECT_REQ_HEADER(&CMSG2, ast_capi_ApplID, get_ast_capi_MessageNumber(), 0);
+			DISCONNECT_REQ_PLCI(&CMSG2) = i->PLCI;
+			_capi_put_cmsg(&CMSG2);
 			return;
 		}
 		pipe_cause_control(i, 0);
