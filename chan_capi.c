@@ -1180,8 +1180,14 @@ int capi_write(struct ast_channel *c, struct ast_frame *f)
 			}
 			i->txavg[ECHO_TX_COUNT - 1] = txavg;
 		} else {
-			for (j = 0; j < fsmooth->datalen; j++) {
-				buf[j] = i->g.txgains[reversebits[((unsigned char *)fsmooth->data)[j]]]; 
+			if (i->txgain == 1.0) {
+				for (j = 0; j < fsmooth->datalen; j++) {
+					buf[j] = reversebits[((unsigned char *)fsmooth->data)[j]]; 
+				}
+			} else {
+				for (j = 0; j < fsmooth->datalen; j++) {
+					buf[j] = i->g.txgains[reversebits[((unsigned char *)fsmooth->data)[j]]]; 
+				}
 			}
 		}
    
@@ -2584,8 +2590,14 @@ static void capi_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 					i->name, rxavg, txavg);
 		}
 	} else {
-		for (j = 0; j < b3len; j++) {
-			*(b3buf + j) = reversebits[i->g.rxgains[*(b3buf + j)]]; 
+		if (i->rxgain == 1.0) {
+			for (j = 0; j < b3len; j++) {
+				*(b3buf + j) = reversebits[*(b3buf + j)]; 
+			}
+		} else {
+			for (j = 0; j < b3len; j++) {
+				*(b3buf + j) = reversebits[i->g.rxgains[*(b3buf + j)]]; 
+			}
 		}
 	}
 
@@ -3962,10 +3974,6 @@ static void capi_gains(struct ast_capi_gains *g, float rxgain, float txgain)
 				g->rxgains[i] = capi_int2alaw(x);
 			}
 		}
-	} else {
-		for (i = 0; i < 256; i++) {
-			g->rxgains[i] = i;
-		}
 	}
 	
 	if (txgain != 1.0) {
@@ -3984,10 +3992,6 @@ static void capi_gains(struct ast_capi_gains *g, float rxgain, float txgain)
 			} else {
 				g->txgains[i] = capi_int2alaw(x);
 			}
-		}
-	} else {
-		for (i = 0; i < 256; i++) {
-			g->txgains[i] = i;
 		}
 	}
 }
