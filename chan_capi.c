@@ -1924,11 +1924,32 @@ static int search_did(struct ast_channel *c)
 }
 
 /*
+ * send CONNECT_B3_REQ for early B3
+ */
+static void start_early_b3(struct ast_capi_pvt *i)
+{
+	_cmsg CMSG;
+
+	if ((i->doB3 != AST_CAPI_B3_DONT) &&
+	    (i->earlyB3 == -1) &&
+	    (i->state != CAPI_STATE_BCONNECTED)) {
+		/* we do early B3 Connect */
+		i->earlyB3 = 1;
+		memset(&CMSG, 0, sizeof(_cmsg));
+		CONNECT_B3_REQ_HEADER(&CMSG, ast_capi_ApplID, get_ast_capi_MessageNumber(), 0);
+		CONNECT_B3_REQ_PLCI(&CMSG) = i->PLCI;
+		_capi_put_cmsg(&CMSG);
+	}
+}
+
+/*
  * signal 'progress' to Asterisk
  */
 static void send_progress(struct ast_capi_pvt *i)
 {
 	struct ast_frame fr;
+
+	start_early_b3(i);
 
 	if (!(i->isdnstate & CAPI_ISDN_STATE_PROGRESS)) {
 		i->isdnstate |= CAPI_ISDN_STATE_PROGRESS;
@@ -1944,8 +1965,6 @@ static void send_progress(struct ast_capi_pvt *i)
  */
 static void handle_progress_indicator(_cmsg *CMSG, unsigned int PLCI, struct ast_capi_pvt *i)
 {
-	_cmsg CMSG2;
-
 	if (INFO_IND_INFOELEMENT(CMSG)[0] < 2) {
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_4 "%s: Progress description missing\n",
 			i->name);
@@ -1981,16 +2000,6 @@ static void handle_progress_indicator(_cmsg *CMSG, unsigned int PLCI, struct ast
 	default:
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_4 "%s: Unknown progress description %02x\n",
 			i->name, INFO_IND_INFOELEMENT(CMSG)[2]);
-	}
-	if ((i->doB3 != AST_CAPI_B3_DONT) &&
-	    (i->earlyB3 == -1) &&
-	    (i->state != CAPI_STATE_BCONNECTED)) {
-		/* we do early B3 Connect */
-		i->earlyB3 = 1;
-		memset(&CMSG2, 0, sizeof(_cmsg));
-		CONNECT_B3_REQ_HEADER(&CMSG2, ast_capi_ApplID, get_ast_capi_MessageNumber(), 0);
-		CONNECT_B3_REQ_PLCI(&CMSG2) = PLCI;
-		_capi_put_cmsg(&CMSG2);
 	}
 	send_progress(i);
 	return;
@@ -2327,6 +2336,7 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 	case 0x8002:	/* CALL PROCEEDING */
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element CALL PROCEEDING\n",
 			i->name);
+		start_early_b3(i);
 		fr.frametype = AST_FRAME_CONTROL;
 		fr.subclass = AST_CONTROL_PROCEEDING;
 		pipe_frame(i, &fr);
