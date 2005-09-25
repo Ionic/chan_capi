@@ -1259,13 +1259,21 @@ static int line_interconnect(struct ast_capi_pvt *i0, struct ast_capi_pvt *i1, i
 
 	memset(buf, 0, sizeof(buf));
 
-       	buf[0] = 16; /* msg size */
-        write_capi_word(&buf[1], enable);
-       	buf[3] = 13; /* struct size */
-        write_capi_dword(&buf[4], 0x00000000);
-       	buf[8] = 8; /* struct size */
-        write_capi_dword(&buf[9], i1->PLCI);
-        write_capi_dword(&buf[13], 0x00000000);
+	if (!start) {
+	       	buf[0] = 16; /* msg size */
+        	write_capi_word(&buf[1], enable);
+	       	buf[3] = 13; /* struct size */
+	        write_capi_dword(&buf[4], 0x00000000);
+	       	buf[8] = 8; /* struct size */
+	        write_capi_dword(&buf[9], i1->PLCI);
+	        write_capi_dword(&buf[13], 0x00000003);
+	} else {
+	       	buf[0] = 11; /* msg size */
+        	write_capi_word(&buf[1], enable);
+	       	buf[3] = 8; /* struct size */
+	        write_capi_dword(&buf[4], i1->PLCI);
+	        write_capi_dword(&buf[8], 0x00000003);
+	}
 
 	FACILITY_REQ_FACILITYREQUESTPARAMETER(&CMSG) = buf;
         
@@ -2445,6 +2453,20 @@ static void capi_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, unsi
 	
 	return_on_no_interface("FACILITY_IND");
 
+	if (FACILITY_IND_FACILITYSELECTOR(CMSG) == FACILITYSELECTOR_LINE_INTERCONNECT) {
+		/* line interconnect */
+		if ((FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[1] == 0x01) &&
+		    (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[2] == 0x00)) {
+			cc_ast_verbose(1, 1, VERBOSE_PREFIX_3 "%s: Line Interconnect activated\n",
+				i->name);
+		}
+		if ((FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[1] == 0x02) &&
+		    (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[2] == 0x00) &&
+		    (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[0] > 8)) {
+			show_capi_info(read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[8]));
+		}
+	}
+	
 	if (FACILITY_IND_FACILITYSELECTOR(CMSG) == FACILITYSELECTOR_DTMF) {
 		/* DTMF received */
 		if (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[0] != (0xff)) {
@@ -3164,7 +3186,7 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 }
 
 /*
- * CAPI FACILITY_IND
+ * CAPI FACILITY_CONF
  */
 static void capi_handle_facility_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct ast_capi_pvt *i)
 {
@@ -3205,20 +3227,14 @@ static void capi_handle_facility_confirmation(_cmsg *CMSG, unsigned int PLCI, un
 		if ((FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[1] == 0x1) &&
 		    (FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[2] == 0x0)) {
 			/* enable */
-			if ((FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[4] != 0x0) ||
-			    (FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[5] != 0x0)) {
-				ast_log(LOG_ERROR, "%s: unable to start line interconnect\n",
-					i->name);
-			show_capi_info(read_capi_word(&FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[4]));
+			if (FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[0] > 7) {
+				show_capi_info(read_capi_word(&FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[8]));
 			}
 		} else {
 			/* disable */
-			if ((FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[4] != 0x0) ||
-			    (FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[5] != 0x0)) {
-				ast_log(LOG_ERROR, "%s: unable to stop line interconnect\n",
-					i->name);
+			if (FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[0] > 7) {
+				show_capi_info(read_capi_word(&FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[8]));
 			}
-			show_capi_info(read_capi_word(&FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[4]));
 		}
 		return;
 	}
