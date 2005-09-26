@@ -2020,8 +2020,15 @@ static void start_pbx_on_match(struct ast_capi_pvt *i, unsigned int PLCI, _cword
 {
 	_cmsg CMSG2;
 
+	if (i->isdnstate & CAPI_ISDN_STATE_PBX) {
+			cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: pbx already started on channel %s\n",
+				i->name, i->owner->name);
+		return;
+	}
+
 	switch(search_did(i->owner)) {
 	case 0: /* match */
+		i->isdnstate |= CAPI_ISDN_STATE_PBX;
 		ast_setstate(i->owner, AST_STATE_RING);
 		if (ast_pbx_start(i->owner)) {
 			ast_log(LOG_ERROR, "%s: Unable to start pbx on channel!\n",
@@ -2034,10 +2041,13 @@ static void start_pbx_on_match(struct ast_capi_pvt *i, unsigned int PLCI, _cword
 		break;
 	case 1:
 		/* would possibly match */
-		break;
+		if (i->isdnmode == AST_CAPI_ISDNMODE_DID)
+			break;
+		/* fall through for MSN mode, because there won't be a longer msn */
 	case -1:
 	default:
 		/* doesn't match */
+		i->isdnstate |= CAPI_ISDN_STATE_PBX; /* don't try again */
 		ast_log(LOG_ERROR, "%s: did not find exten for '%s', ignoring call.\n",
 			i->name, i->dnid);
 		CONNECT_RESP_HEADER(&CMSG2, ast_capi_ApplID, MessageNumber, 0);
@@ -2203,7 +2213,7 @@ static void handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsigned int 
 static void handle_setup_element(_cmsg *CMSG, unsigned int PLCI, struct ast_capi_pvt *i)
 {
 	if (i->isdnstate & CAPI_ISDN_STATE_SETUP) {
-		cc_ast_verbose(3, 1, VERBOSE_PREFIX_4 "%s: IE SETUP already received.\n",
+		cc_ast_verbose(3, 1, VERBOSE_PREFIX_4 "%s: IE SETUP / SENDING-COMPLETE already received.\n",
 			i->name);
 		return;
 	}
@@ -3167,6 +3177,10 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 			pbx_builtin_setvar_helper(i->owner, "SECONDCALLERID", buffer);
 			*/
 			*interface = i;
+			if ((i->isdnmode == AST_CAPI_ISDNMODE_MSN) && (i->immediate)) {
+				/* if we don't want to wait for SETUP/SENDING-COMPLETE in MSN mode */
+				start_pbx_on_match(i, PLCI, HEADER_MSGNUM(CMSG));
+			}
 			return;
 		}
 	}
@@ -4469,6 +4483,13 @@ static int conf_interface(struct ast_capi_conf *conf, struct ast_variable *v)
 		var = atoi(v->value);      \
 		continue;                  \
 	}
+#define CONF_TRUE(var, token, val)         \
+	if (!strcasecmp(v->name, token)) { \
+		if (ast_true(v->value))    \
+			var = val;         \
+		continue;                  \
+	}
+	
 
 	for (; v; v = v->next) {
 		CONF_INTEGER(conf->devices, "devices");
@@ -4478,18 +4499,15 @@ static int conf_interface(struct ast_capi_conf *conf, struct ast_variable *v)
 		CONF_STRING(conf->deflect2, "deflect");
 		CONF_STRING(conf->prefix, "prefix");
 		CONF_STRING(conf->accountcode, "accountcode");
+
 		if (!strcasecmp(v->name, "softdtmf")) {
 			if ((!conf->softdtmf) && (ast_true(v->value))) {
 				conf->softdtmf = 1;
 			}
 			continue;
 		}
-		if (!strcasecmp(v->name, "immediate")) {
-			if (ast_true(v->value)) {
-				conf->immediate = 1;
-			}
-			continue;
-		}
+		CONF_TRUE(conf->softdtmf, "relaxdtmf", 2);
+
 		if (!strcasecmp(v->name, "holdtype")) {
 			if (!strcasecmp(v->value, "hold")) {
 				conf->holdtype = CC_HOLDTYPE_HOLD;
@@ -4500,24 +4518,12 @@ static int conf_interface(struct ast_capi_conf *conf, struct ast_variable *v)
 			}
 			continue;
 		}
-		if (!strcasecmp(v->name, "relaxdtmf")) {
-			if (ast_true(v->value)) {
-				conf->softdtmf = 2;
-			}
-			continue;
-		}
-		if (!strcasecmp(v->name, "echosquelch")) {
-			if (ast_true(v->value)) {
-				conf->es = 1;
-			}
-			continue;
-		}
-		if (!strcasecmp(v->name, "bridge")) {
-			if (ast_true(v->value)) {
-				conf->bridge = 1;
-			}
-			continue;
-		}
+
+		CONF_TRUE(conf->immediate, "immediate", 1);
+		CONF_TRUE(conf->es, "echosquelch", 1);
+		CONF_TRUE(conf->bridge, "bridge", 1);
+		CONF_TRUE(conf->ntmode, "ntmode", 1);
+
 		if (!strcasecmp(v->name, "callgroup")) {
 			conf->callgroup = ast_get_group(v->value);
 			continue;
@@ -4575,12 +4581,6 @@ static int conf_interface(struct ast_capi_conf *conf, struct ast_variable *v)
 			if (conf->ectail > 255) {
 				conf->ectail = 255;
 			} 
-			continue;
-		}
-		if (!strcasecmp(v->name, "ntmode")) {
-			if (ast_true(v->value)) {
-				conf->ntmode = 1;
-			}
 			continue;
 		}
 		if (!strcasecmp(v->name, "isdnmode")) {

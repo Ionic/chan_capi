@@ -190,6 +190,7 @@ struct ast_capi_gains {
 #define CAPI_ISDN_STATE_PROGRESS      0x0010
 #define CAPI_ISDN_STATE_LI            0x0020
 #define CAPI_ISDN_STATE_DISCONNECT    0x0040
+#define CAPI_ISDN_STATE_PBX           0x8000
 
 /* ! Private data for a capi device */
 struct ast_capi_pvt {
