@@ -1084,11 +1084,7 @@ struct ast_frame *capi_read(struct ast_channel *c)
 	}
 	if ((i->fr.frametype == AST_FRAME_DTMF) && (i->fr.subclass == 'f')) {
 		if (strcmp(c->exten, "fax")) {
-#ifdef CC_AST_CHANNEL_HAS_CID
-			if (ast_exists_extension(c, ast_strlen_zero(c->macrocontext) ? c->context : c->macrocontext, "fax", 1, c->cid.cid_num)) {
-#else
-			if (ast_exists_extension(c, ast_strlen_zero(c->macrocontext) ? c->context : c->macrocontext, "fax", 1, c->callerid)) {
-#endif
+			if (ast_exists_extension(c, ast_strlen_zero(c->macrocontext) ? c->context : c->macrocontext, "fax", 1, i->cid)) {
 				cc_ast_verbose(2, 0, VERBOSE_PREFIX_3 "%s: Redirecting %s to fax extension\n",
 					i->name, c->name);
 				/* Save the DID/DNIS when we transfer the fax call to a "fax" extension */
@@ -1753,7 +1749,6 @@ static int capi_receive_fax(struct ast_channel *c, char *data)
 static void capi_handle_dtmf_fax(struct ast_channel *ast)
 {
 	struct ast_capi_pvt *p;
-	char *cid;
 
 	if (!ast) {
 		ast_log(LOG_ERROR, "No channel!\n");
@@ -1772,12 +1767,8 @@ static void capi_handle_dtmf_fax(struct ast_channel *ast)
 		ast_log(LOG_DEBUG, "Already in a fax extension, not redirecting\n");
 		return;
 	}
-#ifdef CC_AST_CHANNEL_HAS_CID
-	cid = ast->cid.cid_num;
-#else
-	cid = ast->callerid;
-#endif
-	if (!ast_exists_extension(ast, ast->context, "fax", 1, cid)) {
+
+	if (!ast_exists_extension(ast, ast->context, "fax", 1, p->cid)) {
 		cc_ast_verbose(3, 0, VERBOSE_PREFIX_3 "Fax tone detected, but no fax extension for %s\n", ast->name);
 		return;
 	}
