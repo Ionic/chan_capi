@@ -1914,7 +1914,7 @@ static int search_did(struct ast_channel *c)
 		exten = i->dnid;
 	}
 
-	if (ast_exists_extension(NULL, c->context, exten, 1, NULL)) {
+	if (ast_exists_extension(NULL, c->context, exten, 1, i->cid)) {
 		c->priority = 1;
 		strncpy(c->exten, exten, sizeof(c->exten) - 1);
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: %s: %s matches in context %s\n",
@@ -1922,7 +1922,7 @@ static int search_did(struct ast_channel *c)
 		return 0;
 	}
 
-	if (ast_canmatch_extension(NULL, c->context, exten, 1, NULL)) {
+	if (ast_canmatch_extension(NULL, c->context, exten, 1, i->cid)) {
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_3 "%s: %s: %s would possibly match in context %s\n",
 			i->name, c->name, exten, c->context);
 		return 1;
