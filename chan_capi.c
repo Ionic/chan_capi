@@ -3142,8 +3142,6 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 				i->state = CAPI_STATE_INCALL;
 			}
 
-			ast_mutex_unlock(&iflock);
-
 			if (!i->owner) {
 				interface_cleanup(i);
 				break;
@@ -3153,14 +3151,19 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 #else    
 			i->owner->callingpres = callpres;
 #endif
+			cc_ast_verbose(3, 0, VERBOSE_PREFIX_2 "%s: Incoming call '%s' -> '%s'\n",
+				i->name, i->cid, i->dnid);
+
 			if (deflect == 1) {
-				if (i->deflect2) {
+				if ((i->deflect2) && (strlen(i->deflect2))) {
 					capi_call_deflect(i->owner, i->deflect2);
 				} else
 					break;
 			}
-			cc_ast_verbose(3, 0, VERBOSE_PREFIX_2 "%s: Incoming call '%s' -> '%s'\n",
-				i->name, i->cid, i->dnid);
+
+			*interface = i;
+			ast_mutex_unlock(&iflock);
+			
 			sprintf(buffer, "%d", callednplan);
 			pbx_builtin_setvar_helper(i->owner, "CALLEDTON", buffer);
 			/*
@@ -3176,8 +3179,7 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 			pbx_builtin_setvar_helper(i->owner, "ANI2", buffer);
 			pbx_builtin_setvar_helper(i->owner, "SECONDCALLERID", buffer);
 			*/
-			*interface = i;
-			if ((i->isdnmode == AST_CAPI_ISDNMODE_MSN) && (i->immediate)) {
+			if ((i->isdnmode == AST_CAPI_ISDNMODE_MSN) && (i->immediate) && (!deflect)) {
 				/* if we don't want to wait for SETUP/SENDING-COMPLETE in MSN mode */
 				start_pbx_on_match(i, PLCI, HEADER_MSGNUM(CMSG));
 			}
