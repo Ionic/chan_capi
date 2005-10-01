@@ -77,9 +77,10 @@ The Dial string
   The string consists of a list of characters with the following meaning:
    'b' : early B3 always.
    'B' : early B3 on successful calls only.
-   'o' : use overlap sending of number if number is longer than 2 digits
-         (This is useful, when further digits shall be send to complete the
-	 destination address).
+   'o' : use overlap sending of number.
+         (Useful if additional digits shall be send afterwards or together
+          with 'b' to get dialtone and then send the number, e.g. if otherwise
+          no progress tones are available)
 
   If the <interface-name> is used in dialstring, be sure the name (specified
   in capi.conf) does not start with 'contr' or 'g'.

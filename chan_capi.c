@@ -938,9 +938,9 @@ static int capi_call(struct ast_channel *c, char *idest, int timeout)
 #else
 	CONNECT_REQ_CIPVALUE(&CMSG) = 0x10; /* Telephony */
 #endif
-	if ((i->doOverlap) && (strlen(dest) > 2)) {
-		strncpy(i->overlapdigits, dest + 2, sizeof(i->overlapdigits) - 1);
-		called[0] = 3;
+	if ((i->doOverlap) && (strlen(dest))) {
+		strncpy(i->overlapdigits, dest, sizeof(i->overlapdigits) - 1);
+		called[0] = 1;
 	} else {
 		called[0] = strlen(dest) + 1;
 	}
