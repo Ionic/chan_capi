@@ -92,6 +92,7 @@ static int capi_num_controllers = 0;
 static unsigned int capi_counter = 0;
 static unsigned long capi_used_controllers = 0;
 static char *emptyid = "\0";
+static struct ast_channel *chan_to_hangup = NULL;
 
 static char capi_national_prefix[AST_MAX_EXTENSION];
 static char capi_international_prefix[AST_MAX_EXTENSION];
@@ -245,9 +246,8 @@ static MESSAGE_EXCHANGE_ERROR check_wait_get_cmsg(_cmsg *CMSG)
  		 *
  		 * For BSD hide problem from "chan_capi":
  		 */
- 		if((HEADER_CID(CMSG) & 0xFF) == 0)
-		{
-		    HEADER_CID(CMSG) += capi_num_controllers;
+ 		if((HEADER_CID(CMSG) & 0xFF) == 0) {
+			HEADER_CID(CMSG) += capi_num_controllers;
  		}
 	}
 	return Info;
@@ -524,10 +524,10 @@ static int capi_send_info_digits(struct ast_capi_pvt *i, char *digits, int len)
 static int capi_send_digit(struct ast_channel *c, char digit)
 {
 	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
-	MESSAGE_EXCHANGE_ERROR error;
 	_cmsg CMSG;
 	char buf[10];
 	char did[2];
+	int ret = 0;
     
 	if (i == NULL) {
 		ast_log(LOG_ERROR, "No interface!\n");
@@ -536,6 +536,8 @@ static int capi_send_digit(struct ast_channel *c, char digit)
 
 	memset(buf, 0, sizeof(buf));
 	
+	ast_mutex_lock(&i->lock);
+
 	if ((c->_state == AST_STATE_DIALING) &&
 	    (i->state != CAPI_STATE_DISCONNECTING)) {
 		did[0] = digit;
@@ -544,13 +546,14 @@ static int capi_send_digit(struct ast_channel *c, char digit)
 		update_channel_name(i);	
 		if ((i->isdnstate & CAPI_ISDN_STATE_SETUP_ACK) &&
 		    (i->doOverlap == 0)) {
-			return (capi_send_info_digits(i, &digit, 1));
+			ret = capi_send_info_digits(i, &digit, 1);
 		} else {
 			/* if no SETUP-ACK yet, add it to the overlap list */
 			strncat(i->overlapdigits, &digit, 1);
 			i->doOverlap = 1;
-			return 0;
 		}
+		ast_mutex_unlock(&i->lock);
+		return ret;
 	}
 
 	if ((i->earlyB3 != 1) && (i->state == CAPI_STATE_BCONNECTED)) {
@@ -559,6 +562,7 @@ static int capi_send_digit(struct ast_channel *c, char digit)
 		if ((capi_controllers[i->controller]->dtmf == 0) || (i->doDTMF > 0)) {
 			/* let * fake it */
 			ast_mutex_unlock(&contrlock);
+			ast_mutex_unlock(&i->lock);
 			return -1;
 		}
 		
@@ -575,13 +579,13 @@ static int capi_send_digit(struct ast_channel *c, char digit)
 		buf[8] = digit;
 		FACILITY_REQ_FACILITYREQUESTPARAMETER(&CMSG) = buf;
         
-		if ((error = _capi_put_cmsg(&CMSG)) != 0) {
-			return error;
+		if ((ret = _capi_put_cmsg(&CMSG)) == 0) {
+			cc_ast_verbose(3, 0, VERBOSE_PREFIX_4 "%s: sent dtmf '%c'\n",
+				i->name, digit);
 		}
-		cc_ast_verbose(3, 0, VERBOSE_PREFIX_4 "%s: sent dtmf '%c'\n",
-			i->name, digit);
 	}
-	return 0;
+	ast_mutex_unlock(&i->lock);
+	return ret;
 }
 
 /*
@@ -728,6 +732,8 @@ static int capi_hangup(struct ast_channel *c)
 		return -1;
 	}
 
+	ast_mutex_lock(&i->lock);
+
 	cc_ast_verbose(3, 0, VERBOSE_PREFIX_2 "%s: CAPI Hangingup\n",
 		i->name);
   
@@ -756,6 +762,8 @@ static int capi_hangup(struct ast_channel *c)
 		/* disconnect already done, so cleanup */
 		interface_cleanup(i);
 	}
+
+	ast_mutex_unlock(&i->lock);
 
 	return 0;
 }
@@ -854,6 +862,8 @@ static int capi_call(struct ast_channel *c, char *idest, int timeout)
 	strncpy(buffer, idest, sizeof(buffer) - 1);
 	parse_dialstring(buffer, &interface, &dest, &param);
 	
+	ast_mutex_lock(&i->lock);
+
 	/* init param settings */
 	i->doB3 = AST_CAPI_B3_DONT;
 	i->doOverlap = 0;
@@ -885,6 +895,7 @@ static int capi_call(struct ast_channel *c, char *idest, int timeout)
 	}
 	if (((!dest) || (!dest[0])) && (i->doB3 != AST_CAPI_B3_ALWAYS)) {
 		ast_log(LOG_ERROR, "No destination or dialtone requested in '%s'\n", idest);
+		ast_mutex_unlock(&i->lock);
 		return -1;
 	}
 
@@ -967,6 +978,7 @@ static int capi_call(struct ast_channel *c, char *idest, int timeout)
 
         if ((error = _capi_put_cmsg(&CMSG))) {
 		interface_cleanup(i);
+		ast_mutex_unlock(&i->lock);
 		return error;
 	}
 
@@ -974,6 +986,7 @@ static int capi_call(struct ast_channel *c, char *idest, int timeout)
 	ast_setstate(c, AST_STATE_DIALING);
 
 	/* now we shall return .... the rest has to be done by handle_msg */
+	ast_mutex_unlock(&i->lock);
 	return 0;
 }
 
@@ -1036,9 +1049,14 @@ static int capi_send_answer(struct ast_channel *c, int *bprot, _cstruct b3conf)
  */
 static int capi_answer(struct ast_channel *c)
 {
+	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
+	int ret;
 	int bprot[3] = { 1, 1, 0 };
 
-	return capi_send_answer(c, bprot, NULL);
+	ast_mutex_lock(&i->lock);
+	ret = capi_send_answer(c, bprot, NULL);
+	ast_mutex_unlock(&i->lock);
+	return ret;
 }
 
 /*
@@ -1054,8 +1072,11 @@ struct ast_frame *capi_read(struct ast_channel *c)
 		return NULL;
 	}
 
+	ast_mutex_lock(&i->lock);
+
 	if (i->state == CAPI_STATE_ONHOLD) {
 		i->fr.frametype = AST_FRAME_NULL;
+		ast_mutex_unlock(&i->lock);
 		return &i->fr;
 	}
 	
@@ -1080,6 +1101,7 @@ struct ast_frame *capi_read(struct ast_channel *c)
 	i->fr.mallocd = 0;	
 	
 	if (i->fr.frametype == AST_FRAME_NULL) {
+		ast_mutex_unlock(&i->lock);
 		return NULL;
 	}
 	if ((i->fr.frametype == AST_FRAME_DTMF) && (i->fr.subclass == 'f')) {
@@ -1098,6 +1120,7 @@ struct ast_frame *capi_read(struct ast_channel *c)
 			ast_log(LOG_DEBUG, "Already in a fax extension, not redirecting\n");
 		}
 	}
+	ast_mutex_unlock(&i->lock);
 	return &i->fr;
 }
 
@@ -1119,38 +1142,48 @@ int capi_write(struct ast_channel *c, struct ast_frame *f)
 		return -1;
 	} 
 
+	ast_mutex_lock(&i->lock);
+
 	/* dont send audio to the local exchange! */
 	if ((i->earlyB3 == 1) || (!i->NCCI)) {
+		ast_mutex_unlock(&i->lock);
 		return 0;
 	}
 
 	if (f->frametype == AST_FRAME_NULL) {
+		ast_mutex_unlock(&i->lock);
 		return 0;
 	}
 	if (f->frametype == AST_FRAME_DTMF) {
 		ast_log(LOG_ERROR, "dtmf frame should be written\n");
+		ast_mutex_unlock(&i->lock);
 		return 0;
 	}
 	if (f->frametype != AST_FRAME_VOICE) {
 		ast_log(LOG_ERROR,"not a voice frame\n");
+		ast_mutex_unlock(&i->lock);
 		return -1;
 	}
 	if (i->FaxState) {
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: write on fax_receive?\n",
 			i->name);
+		ast_mutex_unlock(&i->lock);
 		return 0;
 	}
 	if (f->subclass != capi_capability) {
 		ast_log(LOG_ERROR, "dont know how to write subclass %d\n", f->subclass);
+		ast_mutex_unlock(&i->lock);
 		return -1;
 	}
 	if ((!f->data) || (!f->datalen) || (!i->smoother)) {
 		ast_log(LOG_ERROR, "No data for FRAME_VOICE %s\n", c->name);
+		ast_mutex_unlock(&i->lock);
 		return 0;
 	}
 
 	if (ast_smoother_feed(i->smoother, f) != 0) {
 		ast_log(LOG_ERROR, "%s: failed to fill smoother\n", i->name);
+		ast_mutex_unlock(&i->lock);
 		return -1;
 	}
 
@@ -1210,6 +1243,7 @@ int capi_write(struct ast_channel *c, struct ast_frame *f)
 
 	        fsmooth = ast_smoother_read(i->smoother);
 	}
+	ast_mutex_unlock(&i->lock);
 	return 0;
 }
 
@@ -1223,7 +1257,9 @@ static int capi_fixup(struct ast_channel *oldchan, struct ast_channel *newchan)
 	cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: %s fixup now %s\n",
 		i->name, oldchan->name, newchan->name);
 
+	ast_mutex_lock(&i->lock);
 	i->owner = newchan;
+	ast_mutex_unlock(&i->lock);
 	return 0;
 }
 
@@ -1680,6 +1716,8 @@ static int capi_receive_fax(struct ast_channel *c, char *data)
 		return -1;
 	}
 
+	ast_mutex_lock(&i->lock);
+
 	filename = strsep(&data, "|");
 	stationid = strsep(&data, "|");
 	headline = data;
@@ -1690,6 +1728,7 @@ static int capi_receive_fax(struct ast_channel *c, char *data)
 		headline = emptyid;
 
 	if ((i->fFax = fopen(filename, "wb")) == NULL) {
+		ast_mutex_unlock(&i->lock);
 		ast_log(LOG_WARNING, "can't create fax output file (%s)\n", strerror(errno));
 		return -1;
 	}
@@ -1709,6 +1748,7 @@ static int capi_receive_fax(struct ast_channel *c, char *data)
 		break;
 	default:
 		i->FaxState = 0;
+		ast_mutex_unlock(&i->lock);
 		ast_log(LOG_WARNING, "capi receive fax in wrong state (%d)\n",
 			i->state);
 		return -1;
@@ -1740,6 +1780,7 @@ static int capi_receive_fax(struct ast_channel *c, char *data)
 			VERBOSE_PREFIX_1 "capi receivefax: fax receive successful.\n");
 	}
 	
+	ast_mutex_unlock(&i->lock);
 	return res;
 }
 
@@ -2024,7 +2065,7 @@ static void start_pbx_on_match(struct ast_capi_pvt *i, unsigned int PLCI, _cword
 		if (ast_pbx_start(i->owner)) {
 			ast_log(LOG_ERROR, "%s: Unable to start pbx on channel!\n",
 				i->name);
-			ast_hangup(i->owner);
+			chan_to_hangup = i->owner;
 		} else {
 			cc_ast_verbose(2, 1, VERBOSE_PREFIX_2 "Started pbx on channel %s\n",
 				i->owner->name);
@@ -2891,7 +2932,7 @@ static void capi_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI, un
 	    ((state == CAPI_STATE_DID) || (state == CAPI_STATE_INCALL)) &&
 	    (i->owner->pbx == NULL)) {
 		/* the pbx was not started yet */
-		ast_hangup(i->owner);
+		chan_to_hangup = i->owner;
 		return;
 	}
 
@@ -2946,9 +2987,12 @@ static int capi_call_deflect(struct ast_channel *c, char *param)
 		return -1;
 	}
 	
+	ast_mutex_lock(&i->lock);
+
 	if ((i->state != CAPI_STATE_INCALL) &&
 	    (i->state != CAPI_STATE_DID) &&
 	    (i->state != CAPI_STATE_ALERTING)) {
+		ast_mutex_unlock(&i->lock);
 		ast_log(LOG_WARNING, "wrong state of call for call deflection\n");
 		return -1;
 	}
@@ -3022,6 +3066,7 @@ static int capi_call_deflect(struct ast_channel *c, char *param)
 	cc_ast_verbose(2, 1, VERBOSE_PREFIX_3 "%s: sent INFO_REQ for CD PLCI = %#x\n",
 		i->name, i->PLCI);
 
+	ast_mutex_unlock(&i->lock);
 	return(res);
 }
 
@@ -3042,7 +3087,6 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 	char *buffer_rp = buffer_r;
 	char *magicmsn = "*\0";
 	char *emptydnid = "\0";
-	int deflect = 0;
 	int callpres = 0;
 
 	if (*interface) {
@@ -3084,7 +3128,6 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 		 * so it will look like a callwaiting connect_ind to us
 		 */
 		ast_log(LOG_NOTICE, "Received a call waiting CONNECT_IND\n");
-		deflect = 1;
 	}
 
 	/* well...somebody is calling us. let's set up a channel */
@@ -3157,14 +3200,8 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 			cc_ast_verbose(3, 0, VERBOSE_PREFIX_2 "%s: Incoming call '%s' -> '%s'\n",
 				i->name, i->cid, i->dnid);
 
-			if (deflect == 1) {
-				if ((i->deflect2) && (strlen(i->deflect2))) {
-					capi_call_deflect(i->owner, i->deflect2);
-				} else
-					break;
-			}
-
 			*interface = i;
+			ast_mutex_lock(&i->lock);
 			ast_mutex_unlock(&iflock);
 			
 			sprintf(buffer, "%d", callednplan);
@@ -3182,7 +3219,7 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 			pbx_builtin_setvar_helper(i->owner, "ANI2", buffer);
 			pbx_builtin_setvar_helper(i->owner, "SECONDCALLERID", buffer);
 			*/
-			if ((i->isdnmode == AST_CAPI_ISDNMODE_MSN) && (i->immediate) && (!deflect)) {
+			if ((i->isdnmode == AST_CAPI_ISDNMODE_MSN) && (i->immediate)) {
 				/* if we don't want to wait for SETUP/SENDING-COMPLETE in MSN mode */
 				start_pbx_on_match(i, PLCI, HEADER_MSGNUM(CMSG));
 			}
@@ -3304,6 +3341,9 @@ static void capi_handle_msg(_cmsg *CMSG)
 	} else {
 		cc_ast_verbose(4, 1, "%s\n", capi_cmsg2str(CMSG));
 	}
+
+	if (i != NULL)
+		ast_mutex_lock(&i->lock);
 
 	/* main switch table */
 
@@ -3452,6 +3492,10 @@ static void capi_handle_msg(_cmsg *CMSG)
 		}
 		show_capi_info(wInfo);
 	}
+
+	if (i != NULL)
+		ast_mutex_unlock(&i->lock);
+		
 	return;
 }
 
@@ -3695,6 +3739,8 @@ static int capi_malicious(struct ast_channel *c, char *param)
 		return -1;
 	}
 
+	ast_mutex_lock(&i->lock);
+
 	fac[0] = 3;      /* len */
 	fac[1] = 0x0e;   /* MCID */
 	fac[2] = 0x00;
@@ -3710,6 +3756,7 @@ static int capi_malicious(struct ast_channel *c, char *param)
 	cc_ast_verbose(2, 1, VERBOSE_PREFIX_4 "%s: sent MCID for PLCI=%#x\n",
 		i->name, i->PLCI);
 
+	ast_mutex_unlock(&i->lock);
 	return 0;
 }
 
@@ -3894,6 +3941,8 @@ static int capi_indicate(struct ast_channel *c, int condition)
 		return -1;
 	}
 
+	ast_mutex_lock(&i->lock);
+
 	switch (condition) {
 	case AST_CONTROL_RINGING:
 		cc_ast_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested RINGING-Indication for %s\n",
@@ -3970,6 +4019,7 @@ static int capi_indicate(struct ast_channel *c, int condition)
 			i->name, condition, c->name);
 		break;
 	}
+	ast_mutex_unlock(&i->lock);
 	return(ret);
 }
 
@@ -3988,6 +4038,11 @@ static void *do_monitor(void *data)
 		switch(Info = check_wait_get_cmsg(&monCMSG)) {
 		case 0x0000:
 			capi_handle_msg(&monCMSG);
+			if (chan_to_hangup != NULL) {
+				/* deferred (out of lock) hangup */
+				ast_hangup(chan_to_hangup);
+				chan_to_hangup = NULL;
+			}
 			break;
 		case 0x1104:
 			/* CAPI queue is empty */
@@ -4131,8 +4186,6 @@ int mkif(struct ast_capi_conf *conf)
 		tmp->rxgain = conf->rxgain;
 		tmp->txgain = conf->txgain;
 		capi_gains(&tmp->g, conf->rxgain, conf->txgain);
-
-		strncpy(tmp->deflect2, conf->deflect2, sizeof(tmp->deflect2) - 1);
 
 		tmp->doDTMF = conf->softdtmf;
 
@@ -4510,7 +4563,6 @@ static int conf_interface(struct ast_capi_conf *conf, struct ast_variable *v)
 		CONF_STRING(conf->context, "context");
 		CONF_STRING(conf->incomingmsn, "incomingmsn");
 		CONF_STRING(conf->controllerstr, "controller");
-		CONF_STRING(conf->deflect2, "deflect");
 		CONF_STRING(conf->prefix, "prefix");
 		CONF_STRING(conf->accountcode, "accountcode");
 

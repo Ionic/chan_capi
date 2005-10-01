@@ -292,9 +292,6 @@ struct ast_capi_pvt {
 	/* Fax ready ? */
 	int FaxState;
 
-	/* deflect on circuitbusy */
-	char deflect2[AST_MAX_EXTENSION];
-	
 	/* not all codecs supply frames in nice 160 byte chunks */
 	struct ast_smoother *smoother;
 	/* ok, we stop to be nice and give them the lowest possible latency 130 samples * 2 = 260 bytes */
