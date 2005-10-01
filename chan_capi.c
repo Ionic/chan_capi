@@ -2320,6 +2320,11 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 			snprintf(reasonbuf, sizeof(reasonbuf) - 1, "%d", val); 
 			pbx_builtin_setvar_helper(i->owner, "REDIRECTINGNUMBER", p);
 			pbx_builtin_setvar_helper(i->owner, "REDIRECTREASON", reasonbuf);
+#ifdef CC_AST_CHANNEL_HAS_CID
+			i->owner->cid.cid_num = strdup(p);
+#else
+			i->owner->rdnis = strdup(p);
+#endif
 		}
 		break;
 	case 0x00a1:	/* Sending Complete */
