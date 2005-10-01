@@ -4456,6 +4456,15 @@ static int cc_init_capi(void)
 
 		capi_controllers[controller] = cp;
 	}
+	return 0;
+}
+
+/*
+ * final capi init
+ */
+static int cc_post_init_capi(void)
+{
+	int controller;
 
 	for (controller = 1; controller <= capi_num_controllers; controller++) {
 		if (capi_used_controllers & (1 << controller)) {
@@ -4755,6 +4764,11 @@ int load_module(void)
 		return -1;
 	}
 
+	if ((res = cc_init_capi()) != 0) {
+		ast_mutex_unlock(&iflock);
+		return(res);
+	}
+
 	res = capi_eval_config(cfg);
 	ast_config_destroy(cfg);
 
@@ -4763,7 +4777,7 @@ int load_module(void)
 		return(res);
 	}
 
-	if ((res = cc_init_capi()) != 0) {
+	if ((res = cc_post_init_capi()) != 0) {
 		ast_mutex_unlock(&iflock);
 		return(res);
 	}
