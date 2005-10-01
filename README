@@ -45,7 +45,6 @@ This chan_capi version includes:
 - Reject call waiting (ACO)
 - DID for Point to Point mode (a.k.a overlap receiving)
 - Rx/Tx gains (rxgain=1.0)
-- Call deflection on circuit busy (deflect=12345678)
 - (Inter)national dialing prefix (for callerid) configurable in capi.conf
 - CLI command "capi info" shows B channel status of chan_capi
   The called party can press # to drop the call
@@ -255,6 +254,15 @@ With a DIVA Server, following features are provided:
 Asterisk variables used/set by chan_capi
 ========================================
 
+BCHANNELINFO
+    On incomming call, this variable is set with the B-channel information value:
+     '0' : B-channel is used (default)
+     '1' : D-channel is used (not implemented yet)
+     '2' : neither B nor D channel is used (e.g. call waiting)
+    Call-Waiting: an incoming call with BCHANNELINFO not '0' cannot be accepted.
+    Another connection must be dropped before accepting or use
+    capicommand(deflect|<number>) to initiate call deflection to another destination.
+
 CALLEDTON
     The 'type of number' value of the called number is saved in this variable on
     incomming call.
@@ -264,6 +272,12 @@ _CALLERHOLDID
     This variable is inherited as CALLERHOLDID to the dialed channel and will be used
     if e.g. capicommand(ect) is used to transfer the held call.
 
+CALLINGSUBADDRESS
+    If set on dial(), the calling subaddress will be set to the content.
+
+CALLEDSUBADDRESS
+    If set on dial(), the called subaddress will be set to the content.
+ 
 CONNECTEDNUMBER
     Can be set before answering and if set, the content is used for
     IE 'Connected Number' on answering.
@@ -278,17 +292,12 @@ PRI_CAUSE
 REDIRECTINGNUMBER
     On incoming call, if the call was redirected to you by someone, the
     number of the redirecting party is saved in this variable.
+    RDNIS is set as well.
 
 REDIRECTREASON
     If the incoming call was redirected to you, this variable is set
     with the reason value.
-
-CALLINGSUBADDRESS
-    If set on dial(), the calling subaddress will be set to the content.
-
-CALLEDSUBADDRESS
-    If set on dial(), the called subaddress will be set to the content.
-  
+ 
 
 Functions (available with newer Asterisk only)
 ==============================================

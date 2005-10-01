@@ -1578,7 +1578,8 @@ struct ast_channel *capi_request(char *type, int format, void *data)
 	ast_mutex_lock(&iflock);
 	
 	for (i = iflist; (i && notfound); i = i->next) {
-		if (i->owner) {
+		if ((i->owner) || (i->channeltype != CAPI_CHANNELTYPE_B)) {
+			/* if already in use or no real channel */
 			continue;
 		}
 		/* unused channel */
@@ -3088,6 +3089,7 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 	char *magicmsn = "*\0";
 	char *emptydnid = "\0";
 	int callpres = 0;
+	char bchannelinfo[2] = { '0', 0 };
 
 	if (*interface) {
 	    /* chan_capi does not support 
@@ -3117,17 +3119,8 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 	cc_ast_verbose(1, 1, VERBOSE_PREFIX_3 "CONNECT_IND (PLCI=%#x,DID=%s,CID=%s,CIP=%#x,CONTROLLER=%#x)\n",
 		PLCI, DNID, CID, CONNECT_IND_CIPVALUE(CMSG), controller);
 
-	if ((CONNECT_IND_BCHANNELINFORMATION(CMSG)) &&
-	    ((CONNECT_IND_BCHANNELINFORMATION(CMSG)[1] == 0x02) &&
-	    (capi_controllers[controller]->isdnmode == AST_CAPI_ISDNMODE_MSN))) {
-		/*
-		 * this is a call waiting CONNECT_IND with BChannelinformation[1] == 0x02
-		 * meaning "no B or D channel for this call", since we can't do anything with call waiting now
-		 * just reject it with "user busy"
-		 * however...if we are a p2p BRI then the telco switch will allow us to choose the b channel
-		 * so it will look like a callwaiting connect_ind to us
-		 */
-		ast_log(LOG_NOTICE, "Received a call waiting CONNECT_IND\n");
+	if (CONNECT_IND_BCHANNELINFORMATION(CMSG)) {
+		bchannelinfo[0] = CONNECT_IND_BCHANNELINFORMATION(CMSG)[1] + '0';
 	}
 
 	/* well...somebody is calling us. let's set up a channel */
@@ -3139,6 +3132,13 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 		}
 		if (!(i->controllers & (1 << controller))) {
 			continue;
+		}
+		if (i->channeltype == CAPI_CHANNELTYPE_B) {
+			if (bchannelinfo[0] != '0')
+				continue;
+		} else {
+			if (bchannelinfo[0] == '0')
+				continue;
 		}
 		strncpy(buffer, i->incomingmsn, sizeof(buffer) - 1);
 		for (msn = strtok_r(buffer, ",", &buffer_rp); msn; msn = strtok_r(NULL, ",", &buffer_rp)) {
@@ -3204,6 +3204,7 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 			ast_mutex_lock(&i->lock);
 			ast_mutex_unlock(&iflock);
 			
+			pbx_builtin_setvar_helper(i->owner, "BCHANNELINFO", bchannelinfo);
 			sprintf(buffer, "%d", callednplan);
 			pbx_builtin_setvar_helper(i->owner, "CALLEDTON", buffer);
 			/*
@@ -4117,7 +4118,7 @@ int mkif(struct ast_capi_conf *conf)
 	char *contr;
 	unsigned long contrmap = 0;
 
-	for (i = 0; i < conf->devices; i++) {
+	for (i = 0; i <= conf->devices; i++) {
 		tmp = malloc(sizeof(struct ast_capi_pvt));
 		if (!tmp) {
 			return -1;
@@ -4125,8 +4126,14 @@ int mkif(struct ast_capi_conf *conf)
 		memset(tmp, 0, sizeof(struct ast_capi_pvt));
 		
 		ast_pthread_mutex_init(&(tmp->lock),NULL);
-		
-		strncpy(tmp->name, conf->name, sizeof(tmp->name) - 1);
+	
+		if (i == 0) {
+			snprintf(tmp->name, sizeof(tmp->name) - 1, "%s-pseudo-D", conf->name);
+			tmp->channeltype = CAPI_CHANNELTYPE_D;
+		} else {
+			strncpy(tmp->name, conf->name, sizeof(tmp->name) - 1);
+			tmp->channeltype = CAPI_CHANNELTYPE_B;
+		}
 		strncpy(tmp->context, conf->context, sizeof(tmp->context) - 1);
 		strncpy(tmp->incomingmsn, conf->incomingmsn, sizeof(tmp->incomingmsn) - 1);
 		strncpy(tmp->prefix, conf->prefix, sizeof(tmp->prefix)-1);
@@ -4157,11 +4164,6 @@ int mkif(struct ast_capi_conf *conf)
 				unit = AST_CAPI_MAX_CONTROLLERS - 1;
 
 			contrmap |= (1 << unit);
-			if (capi_controllers[unit]) {
-				capi_controllers[unit]->isdnmode = conf->isdnmode;
-				/* ast_log(LOG_NOTICE, "contr %d isdnmode %d\n",
-					unit, isdnmode); */
-			}
 			contr = strtok_r(NULL, ",", &buffer_rp);
 		}
 		

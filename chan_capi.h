@@ -193,6 +193,9 @@ struct ast_capi_gains {
 #define CAPI_ISDN_STATE_DID           0x0080
 #define CAPI_ISDN_STATE_PBX           0x8000
 
+#define CAPI_CHANNELTYPE_B            0
+#define CAPI_CHANNELTYPE_D            1
+
 /* ! Private data for a capi device */
 struct ast_capi_pvt {
 	ast_mutex_t lock;
@@ -281,6 +284,8 @@ struct ast_capi_pvt {
 	int doholdtype;
 	/* line interconnect allowed */
 	int bridge;
+	/* channeltype */
+	int channeltype;
 
 	/* Common ISDN Profile (CIP) */
 	int cip;
@@ -367,8 +372,6 @@ struct ast_capi_controller {
 	int nbchannels;
 	/* free bchans */
 	int nfreebchannels;
-	/* DID */
-	int isdnmode;
 	/* features: */
 	int dtmf;
 	int echocancel;
