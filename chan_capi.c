@@ -2070,9 +2070,16 @@ static void handle_did_digits(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI,
 	}
 
 	did = capi_number(INFO_IND_INFOELEMENT(CMSG), 1);
-	if (strcasecmp(i->dnid, did)) {
-		strncat(i->dnid, did, sizeof(i->dnid) - 1);
+
+	if ((!(i->isdnstate & CAPI_ISDN_STATE_DID)) && 
+	    (strlen(i->dnid) && !strcasecmp(i->dnid, did))) {
+		did = NULL;
 	}
+
+	if ((did) && (strlen(i->dnid) < (sizeof(i->dnid) - 1)))
+		strcat(i->dnid, did);
+
+	i->isdnstate |= CAPI_ISDN_STATE_DID;
 	
 	update_channel_name(i);	
 	
