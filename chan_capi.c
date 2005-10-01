@@ -3811,19 +3811,22 @@ static int capi_holdtype(struct ast_channel *c, char *param)
 	return 0;
 }
 
-#if 0
 /*
- * set early-B3 for incoming connections
+ * set early-B3 (progress) for incoming connections
  * (only for NT mode)
  */
-static int capi_set_earlyb3(struct ast_channel *c, char *param)
+static int capi_signal_progress(struct ast_channel *c, char *param)
 {
 	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
 	_cmsg CMSG;
 	unsigned char fac[12];
 
 	if ((i->state != CAPI_STATE_DID) && (i->state != CAPI_STATE_INCALL)) {
-		ast_log(LOG_WARNING, "wrong channel state to signal early-B3\n");
+		ast_log(LOG_WARNING, "wrong channel state to signal PROGRESS\n");
+		return 0;
+	}
+	if (!(i->ntmode)) {
+		ast_log(LOG_WARNING, "PROGRESS sending for non NT-mode not possible\n");
 		return 0;
 	}
 
@@ -3857,7 +3860,6 @@ static int capi_set_earlyb3(struct ast_channel *c, char *param)
 
 	return 0;
 }
-#endif
 
 /*
  * struct of capi commands
@@ -3867,7 +3869,7 @@ static struct capicommands_s {
 	int (*cmd)(struct ast_channel *, char *);
 	int capionly;
 } capicommands[] = {
-	/* { "earlyb3",      capi_set_earlyb3,     1 }, */
+	{ "progress",     capi_signal_progress, 1 },
 	{ "deflect",      capi_call_deflect,    1 },
 	{ "receivefax",   capi_receive_fax,     1 },
 	{ "echosquelch",  capi_echosquelch,     1 },
