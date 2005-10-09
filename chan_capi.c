@@ -93,6 +93,7 @@ static unsigned int capi_counter = 0;
 static unsigned long capi_used_controllers = 0;
 static char *emptyid = "\0";
 static struct ast_channel *chan_to_hangup = NULL;
+static struct ast_channel *chan_to_softhangup = NULL;
 
 static char capi_national_prefix[AST_MAX_EXTENSION];
 static char capi_international_prefix[AST_MAX_EXTENSION];
@@ -1072,11 +1073,8 @@ struct ast_frame *capi_read(struct ast_channel *c)
 		return NULL;
 	}
 
-	ast_mutex_lock(&i->lock);
-
 	if (i->state == CAPI_STATE_ONHOLD) {
 		i->fr.frametype = AST_FRAME_NULL;
-		ast_mutex_unlock(&i->lock);
 		return &i->fr;
 	}
 	
@@ -1101,7 +1099,6 @@ struct ast_frame *capi_read(struct ast_channel *c)
 	i->fr.mallocd = 0;	
 	
 	if (i->fr.frametype == AST_FRAME_NULL) {
-		ast_mutex_unlock(&i->lock);
 		return NULL;
 	}
 	if ((i->fr.frametype == AST_FRAME_DTMF) && (i->fr.subclass == 'f')) {
@@ -1120,7 +1117,6 @@ struct ast_frame *capi_read(struct ast_channel *c)
 			ast_log(LOG_DEBUG, "Already in a fax extension, not redirecting\n");
 		}
 	}
-	ast_mutex_unlock(&i->lock);
 	return &i->fr;
 }
 
@@ -2954,7 +2950,7 @@ static void capi_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI, un
 		     (state != CAPI_STATE_DISCONNECTING) && (ast_check_hangup(i->owner) == 0)) {
 			cc_ast_verbose(1, 0, VERBOSE_PREFIX_3 "%s: soft hangup by capi\n",
 				i->name);
-			ast_softhangup(i->owner, AST_SOFTHANGUP_DEV);
+			chan_to_softhangup = i->owner;
 		} else {
 			/* dont ever hangup while hanging up! */
 			/* ast_log(LOG_NOTICE,"no soft hangup by capi\n"); */
@@ -4045,6 +4041,11 @@ static void *do_monitor(void *data)
 				/* deferred (out of lock) hangup */
 				ast_hangup(chan_to_hangup);
 				chan_to_hangup = NULL;
+			}
+			if (chan_to_softhangup != NULL) {
+				/* deferred (out of lock) soft-hangup */
+				ast_softhangup(chan_to_softhangup, AST_SOFTHANGUP_DEV);
+				chan_to_softhangup = NULL;
 			}
 			break;
 		case 0x1104:
