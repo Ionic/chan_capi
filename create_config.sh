@@ -106,7 +106,7 @@ else
 	echo " * no 'AST_CONTROL_HOLD'"
 fi
 
-if grep -q "struct ast_custom_function" $INCLUDEDIR/pbx.h; then
+if grep -q "struct ast_custom_function " $INCLUDEDIR/pbx.h; then
 	echo "#define CC_AST_CUSTOM_FUNCTION" >>$CONFIGFILE
 	echo " * found 'struct ast_custom_function'"
 else
