@@ -4127,7 +4127,7 @@ int mkif(struct ast_capi_conf *conf)
 		}
 		memset(tmp, 0, sizeof(struct ast_capi_pvt));
 		
-		ast_pthread_mutex_init(&(tmp->lock),NULL);
+		ast_mutex_init(&tmp->lock);
 	
 		if (i == 0) {
 			snprintf(tmp->name, sizeof(tmp->name) - 1, "%s-pseudo-D", conf->name);
