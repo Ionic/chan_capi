@@ -65,13 +65,16 @@ This chan_capi version includes:
 The Dial string
 ===============
 
-  Example:        Dial(CAPI/g<group>/<destination>[/<params>])
-  Or:             Dial(CAPI/contr<controller>/<destination>[/<params>])
-  Or:             Dial(CAPI/<interface-name>/<destination>[/<params>])
+  Example:        Dial(CAPI/g<group>/[<callerid>:]<destination>[/<params>])
+  Or:             Dial(CAPI/contr<controller>/[<callerid>:]<destination>[/<params>])
+  Or:             Dial(CAPI/<interface-name>/[<callerid>:]<destination>[/<params>])
 
   'group' can be a value, comma separated list of values or a range
   using '-'. The according interface is found by searching a match with
   the 'group' specified in the capi.conf for each interface.
+
+  The optional <callerid> followed by an ':' can be used to set a callerid
+  for this dial() command, without changing the original channel's callerid.
 
   'params' is an optional part to set special settings for this call.
   The string consists of a list of characters with the following meaning:

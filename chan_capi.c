@@ -804,10 +804,11 @@ static char *capi_number_func(unsigned char *data, unsigned int strip, char *buf
 /*
  * parse the dialstring
  */
-static void parse_dialstring(char *buffer, char **interface, char **dest, char **param)
+static void parse_dialstring(char *buffer, char **interface, char **dest, char **param, char **ocid)
 {
 	int cp = 0;
 	char *buffer_p = buffer;
+	char *oc;
 
 	/* interface is the first part of the string */
 	*interface = buffer;
@@ -833,8 +834,13 @@ static void parse_dialstring(char *buffer, char **interface, char **dest, char *
 		}
 		buffer_p++;
 	}
-	cc_ast_verbose(3, 1, VERBOSE_PREFIX_4 "parsed dialstring: '%s' '%s' '%s'\n",
-		*interface, *dest, *param);
+	if ((oc = strchr(*dest, ':')) != NULL) {
+		*ocid = *dest;
+		*oc = '\0';
+		*dest = oc + 1;
+	}
+	cc_ast_verbose(3, 1, VERBOSE_PREFIX_4 "parsed dialstring: '%s' '%s' '%s' '%s'\n",
+		*interface, (*ocid) ? *ocid:"", *dest, *param);
 	return;
 }
 
@@ -844,7 +850,7 @@ static void parse_dialstring(char *buffer, char **interface, char **dest, char *
 static int capi_call(struct ast_channel *c, char *idest, int timeout)
 {
 	struct ast_capi_pvt *i = CC_AST_CHANNEL_PVT(c);
-	char *dest, *interface, *param;
+	char *dest, *interface, *param, *ocid;
 	char buffer[AST_MAX_EXTENSION];
 	char called[AST_MAX_EXTENSION], calling[AST_MAX_EXTENSION];
 	char callerid[AST_MAX_EXTENSION];
@@ -862,7 +868,7 @@ static int capi_call(struct ast_channel *c, char *idest, int timeout)
 	MESSAGE_EXCHANGE_ERROR  error;
 
 	strncpy(buffer, idest, sizeof(buffer) - 1);
-	parse_dialstring(buffer, &interface, &dest, &param);
+	parse_dialstring(buffer, &interface, &dest, &param, &ocid);
 	
 	ast_mutex_lock(&i->lock);
 
@@ -968,6 +974,8 @@ static int capi_call(struct ast_channel *c, char *idest, int timeout)
 
 	if (use_defaultcid) {
 		strncpy(callerid, i->defaultcid, sizeof(callerid) - 1);
+	} else if (ocid) {
+		strncpy(callerid, ocid, sizeof(callerid) - 1);
 	}
 
 	calling[0] = strlen(callerid) + 2;
@@ -1549,7 +1557,7 @@ struct ast_channel *capi_request(char *type, int format, void *data)
 {
 	struct ast_capi_pvt *i;
 	struct ast_channel *tmp = NULL;
-	char *dest, *interface, *param;
+	char *dest, *interface, *param, *ocid;
 	char buffer[AST_CAPI_MAX_STRING];
 	unsigned int capigroup = 0, controller = 0;
 	unsigned int foundcontroller;
@@ -1558,7 +1566,7 @@ struct ast_channel *capi_request(char *type, int format, void *data)
 	cc_ast_verbose(1, 1, VERBOSE_PREFIX_4 "data = %s\n", (char *)data);
 
 	strncpy(buffer, (char *)data, sizeof(buffer) - 1);
-	parse_dialstring(buffer, &interface, &dest, &param);
+	parse_dialstring(buffer, &interface, &dest, &param, &ocid);
 
 	if ((!interface) || (!dest)) {
 		ast_log(LOG_ERROR, "Syntax error in dialstring. Read the docs!\n");
