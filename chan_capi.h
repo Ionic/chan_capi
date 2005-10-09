@@ -237,6 +237,8 @@ struct ast_capi_pvt {
 	char incomingmsn[AST_CAPI_MAX_STRING];	
 	/*! Prefix to Build CID */
 	char prefix[AST_MAX_EXTENSION];	
+	/* the default caller id */
+	char defaultcid[AST_CAPI_MAX_STRING];	
 
 	/*! Caller ID if available */
 	char cid[AST_MAX_EXTENSION];	
@@ -342,6 +344,7 @@ struct ast_capi_profile {
 struct ast_capi_conf {
 	char name[AST_CAPI_MAX_STRING];	
 	char incomingmsn[AST_CAPI_MAX_STRING];
+	char defaultcid[AST_CAPI_MAX_STRING];
 	char context[AST_MAX_EXTENSION];
 	char controllerstr[AST_CAPI_MAX_STRING];
 	char prefix[AST_MAX_EXTENSION];

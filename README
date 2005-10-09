@@ -77,6 +77,7 @@ The Dial string
   The string consists of a list of characters with the following meaning:
    'b' : early B3 always.
    'B' : early B3 on successful calls only.
+   'd' : use the default caller id which is set by defaultcid= in capi.conf
    'o' : use overlap sending of number.
          (Useful if additional digits shall be send afterwards or together
           with 'b' to get dialtone and then send the number, e.g. if otherwise

@@ -851,6 +851,7 @@ static int capi_call(struct ast_channel *c, char *idest, int timeout)
 	char bchaninfo[3];
 	int CLIR;
 	int callernplan = 0;
+	int use_defaultcid = 0;
 	char *ton, *p;
 	char *osa = NULL;
 	char *dsa = NULL;
@@ -883,10 +884,15 @@ static int capi_call(struct ast_channel *c, char *idest, int timeout)
 				ast_log(LOG_WARNING, "B3 already set in '%s'\n", idest);
 			i->doB3 = AST_CAPI_B3_ON_SUCCESS;
 			break;
-		case 'o':	/* overlap sending of digits len > 2 */
+		case 'o':	/* overlap sending of digits */
 			if (i->doOverlap)
 				ast_log(LOG_WARNING, "Overlap already set in '%s'\n", idest);
 			i->doOverlap = 1;
+			break;
+		case 'd':	/* use default cid */
+			if (i->doOverlap)
+				ast_log(LOG_WARNING, "Default CID already set in '%s'\n", idest);
+			use_defaultcid = 1;
 			break;
 		default:
 			ast_log(LOG_WARNING, "Unknown parameter '%c' in '%s', ignoring.\n",
@@ -959,6 +965,10 @@ static int capi_call(struct ast_channel *c, char *idest, int timeout)
 #endif
 	else
 		memset(callerid, 0, sizeof(callerid));
+
+	if (use_defaultcid) {
+		strncpy(callerid, i->defaultcid, sizeof(callerid) - 1);
+	}
 
 	calling[0] = strlen(callerid) + 2;
 	calling[1] = callernplan;
@@ -4139,6 +4149,7 @@ int mkif(struct ast_capi_conf *conf)
 		}
 		strncpy(tmp->context, conf->context, sizeof(tmp->context) - 1);
 		strncpy(tmp->incomingmsn, conf->incomingmsn, sizeof(tmp->incomingmsn) - 1);
+		strncpy(tmp->defaultcid, conf->defaultcid, sizeof(tmp->defaultcid) - 1);
 		strncpy(tmp->prefix, conf->prefix, sizeof(tmp->prefix)-1);
 		strncpy(tmp->accountcode, conf->accountcode, sizeof(tmp->accountcode) - 1);
 	    
@@ -4567,6 +4578,7 @@ static int conf_interface(struct ast_capi_conf *conf, struct ast_variable *v)
 		CONF_INTEGER(conf->devices, "devices");
 		CONF_STRING(conf->context, "context");
 		CONF_STRING(conf->incomingmsn, "incomingmsn");
+		CONF_STRING(conf->defaultcid, "defaultcid");
 		CONF_STRING(conf->controllerstr, "controller");
 		CONF_STRING(conf->prefix, "prefix");
 		CONF_STRING(conf->accountcode, "accountcode");
