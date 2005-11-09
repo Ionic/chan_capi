@@ -2384,7 +2384,7 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 			pbx_builtin_setvar_helper(i->owner, "REDIRECTINGNUMBER", p);
 			pbx_builtin_setvar_helper(i->owner, "REDIRECTREASON", reasonbuf);
 #ifdef CC_AST_CHANNEL_HAS_CID
-			i->owner->cid.cid_num = strdup(p);
+			i->owner->cid.cid_rdnis = strdup(p);
 #else
 			i->owner->rdnis = strdup(p);
 #endif
