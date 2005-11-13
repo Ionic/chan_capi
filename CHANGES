@@ -1,6 +1,38 @@
 CHANGES
 =======
 
+chan_capi-cm-0.6.1
+------------------
+- fixed setting of redirecting number rdnis instead of cid.
+- allow setting a callerid in the dial() command without changing
+  the original channel callerid.
+- added config 'defaultcid' to set a default caller id which will be
+  used if dial option 'd' is specified.
+- moved ast_softhangup() out of interface lock
+- use correct mutex_init call for interface lock
+- when 'o' option is used for overlap dialing, don't send any digits
+  with the CONNECT_REQ. This gives better progress together with 'b'.
+- create a pseudo channel for each interface for incoming signalling
+  without B-channel.
+- added channel locks
+- fixed capi init order (thanks to Hans Petter Selasky)
+- fixed did handling
+- set RDNIS if redirecting number was received.
+- simplified call to ast_exists_extension()
+- when check for valid extension, check the callerid as well
+- changed call-waiting and deflect handling in CONNECT_IND
+- use 'immediate' config in MSN mode, if pbx shall be started on
+  CONNECT_IND and shall not wait until SETUP/SENDING-COMPLETE was received.
+  Since info like REDIRECTINGNUMBER will come after CONNECT_IND, this may
+  be lost then. But for some drivers/telcos/pbx, this setting is needed.
+- fix start of line interconnect in old mode.
+- start early-b3 on PROCEEDING too.
+- don't send audio data, if in fax receive mode
+- disconnect on finished fax immediately
+- don't run through gain list, if gain is 1.0.
+- use correct A-law idle value.
+- removed old example from capi.conf
+
 chan_capi-cm-0.6
 ----------------
 - added 'relaxdtmf'.
