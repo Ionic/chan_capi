@@ -58,6 +58,14 @@ else
 	echo " * no 'ast_bridge_result'"
 fi
 
+if grep -q "struct ast_channel \*\*rc, int timeoutms" $INCLUDEDIR/channel.h; then
+	echo "#define CC_AST_BRIDGE_WITH_TIMEOUTMS" >>$CONFIGFILE
+	echo " * found bridge with timeoutms"
+else
+	echo "#undef CC_AST_BRIDGE_WITH_TIMEOUTMS" >>$CONFIGFILE
+	echo " * no timeoutms in bridge"
+fi
+
 if grep -q "ast_dsp_process*needlock" $INCLUDEDIR/dsp.h; then
 	echo "#define CC_AST_DSP_PROCESS_NEEDLOCK" >>$CONFIGFILE
 	echo " * ast_dsp_process() needs 'needlock'"

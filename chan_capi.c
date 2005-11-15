@@ -1340,7 +1340,11 @@ static int line_interconnect(struct ast_capi_pvt *i0, struct ast_capi_pvt *i1, i
  */
 static CC_BRIDGE_RETURN capi_bridge(struct ast_channel *c0,
                                     struct ast_channel *c1,
-                                    int flags, struct ast_frame **fo, struct ast_channel **rc)
+                                    int flags, struct ast_frame **fo, struct ast_channel **rc
+#ifdef CC_AST_BRIDGE_WITH_TIMEOUTMS
+                                    , int timeoutms
+#endif
+				    )
 {
 	struct ast_capi_pvt *i0 = CC_AST_CHANNEL_PVT(c0);
 	struct ast_capi_pvt *i1 = CC_AST_CHANNEL_PVT(c1);
@@ -1378,12 +1382,14 @@ static CC_BRIDGE_RETURN capi_bridge(struct ast_channel *c0,
 		struct ast_channel *c0_priority[2] = {c0, c1};
 		struct ast_channel *c1_priority[2] = {c1, c0};
 		int priority = 0;
-		int to;
 		struct ast_frame *f;
 		struct ast_channel *who;
+#ifndef CC_AST_BRIDGE_WITH_TIMEOUTMS
+		int timeoutms;
 
-		to = -1;
-		who = ast_waitfor_n(priority ? c0_priority : c1_priority, 2, &to);
+		timeoutms = -1;
+#endif
+		who = ast_waitfor_n(priority ? c0_priority : c1_priority, 2, &timeoutms);
 		if (!who) {
 			ast_log(LOG_DEBUG, "Ooh, empty read...\n");
 			continue;
