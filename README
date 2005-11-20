@@ -1,4 +1,5 @@
-(CAPI*) chan_capi a Common ISDN API 2.0 implementation for Asterisk
+(CAPI*) chan_capi a Common ISDN API 2.0 implementation
+for Asterisk/OpenPBX
 
  Copyright (C) 2005 Cytronics & Melware
  Armin Schindler <armin@melware.de>
@@ -6,6 +7,9 @@
  Reworked, but based on the work of
  Copyright (C) 2002-2005 Junghanns.NET GmbH
  Klaus-Peter Junghanns <kpj@junghanns.net>
+
+ Ported to OpenPBX.org 22nd October 2004,
+ Rob Thomas, <xrobau@gmail.com>
 
 This program is free software and may be modified and distributed under
 the terms of the GNU Public License. There is _NO_ warranty for this!
@@ -61,6 +65,14 @@ This chan_capi version includes:
 - Support 'type of number'.
 - ISDN hold.
 - CAPI Line Interconnect.
+
+Permissions
+===========
+
+OpenPBX.org, by default, runs as the non-root user/group
+openpbx/openpbx.  You must make sure that the /dev/capi* device files
+are readable by OpenPBX.org either by changing the ownership or the
+permissions of the the device files or by running OpenPBX.org as root.
 
 The Dial string
 ===============

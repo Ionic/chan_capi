@@ -19,27 +19,24 @@
 #ifndef _ASTERISK_CAPI_H
 #define _ASTERISK_CAPI_H
 
-#define AST_CAPI_MAX_CONTROLLERS        16
-#define AST_CAPI_MAX_DEVICES            30
-#define AST_CAPI_MAX_BUF                160
-
-#define AST_CAPI_MAX_B3_BLOCKS          7
+#define CAPI_MAX_CONTROLLERS             16
+#define CAPI_MAX_B3_BLOCKS                7
 
 /* was : 130 bytes Alaw = 16.25 ms audio not suitable for VoIP */
 /* now : 160 bytes Alaw = 20 ms audio */
 /* you can tune this to your need. higher value == more latency */
-#define AST_CAPI_MAX_B3_BLOCK_SIZE      160
+#define CAPI_MAX_B3_BLOCK_SIZE          160
 
-#define AST_CAPI_BCHANS                 120
-#define ALL_SERVICES                    0x1FFF03FF
+#define CAPI_BCHANS                     120
+#define ALL_SERVICES             0x1FFF03FF
 
-#define AST_CAPI_ISDNMODE_MSN           0
-#define AST_CAPI_ISDNMODE_DID           1
+#define CAPI_ISDNMODE_MSN                 0
+#define CAPI_ISDNMODE_DID                 1
 
 /*
  * helper for ast_verbose with different verbose settings
  */
-#define cc_ast_verbose(o_v, c_d, text...)				\
+#define cc_verbose(o_v, c_d, text...)					\
 	do { 								\
 		if ((o_v == 0) || (option_verbose > o_v)) {		\
 			if ((!c_d) || ((c_d) && (capidebug))) {		\
@@ -83,9 +80,9 @@ static inline unsigned short read_capi_dword(void *m)
  * definitions for compatibility with older versions of ast*
  */
 #ifdef CC_AST_HAVE_TECH_PVT
-#define CC_AST_CHANNEL_PVT(c) c->tech_pvt
+#define CC_CHANNEL_PVT(c) c->tech_pvt
 #else
-#define CC_AST_CHANNEL_PVT(c) c->pvt->pvt
+#define CC_CHANNEL_PVT(c) c->pvt->pvt
 #endif
 
 #ifdef CC_AST_HAS_BRIDGED_CHANNEL
@@ -132,10 +129,10 @@ typedef struct fax3proto3 {
 } B3_PROTO_FAXG3;
 
 /* duration in ms for sending and detecting dtmfs */
-#define AST_CAPI_DTMF_DURATION          0x40
+#define CAPI_DTMF_DURATION              0x40
 
-#define AST_CAPI_NATIONAL_PREF          "0"
-#define AST_CAPI_INTERNAT_PREF          "00"
+#define CAPI_NATIONAL_PREF               "0"
+#define CAPI_INTERNAT_PREF              "00"
 
 #define ECHO_TX_COUNT                   5 /* 5 x 20ms = 100ms */
 #define ECHO_EFFECTIVE_TX_COUNT         3 /* 2 x 20ms = 40ms == 40-100ms  ... ignore first 40ms */
@@ -170,15 +167,15 @@ typedef struct fax3proto3 {
 #define CAPI_STATE_DID                  8
 #define CAPI_STATE_INCALL               9
 
-#define CAPI_STATE_ONHOLD               10
+#define CAPI_STATE_ONHOLD              10
 
-#define AST_CAPI_B3_DONT                0
-#define AST_CAPI_B3_ALWAYS              1
-#define AST_CAPI_B3_ON_SUCCESS          2
+#define CAPI_B3_DONT                    0
+#define CAPI_B3_ALWAYS                  1
+#define CAPI_B3_ON_SUCCESS              2
 
-#define AST_CAPI_MAX_STRING             2048
+#define CAPI_MAX_STRING              2048
 
-struct ast_capi_gains {
+struct cc_capi_gains {
 	unsigned char txgains[256];
 	unsigned char rxgains[256];
 };
@@ -197,12 +194,12 @@ struct ast_capi_gains {
 #define CAPI_CHANNELTYPE_D            1
 
 /* ! Private data for a capi device */
-struct ast_capi_pvt {
+struct capi_pvt {
 	ast_mutex_t lock;
 	int fd;
 	int fd2;
 
-	char name[AST_CAPI_MAX_STRING];	
+	char name[CAPI_MAX_STRING];
 
 	/*! Channel we belong to, possibly NULL */
 	struct ast_channel *owner;		
@@ -220,11 +217,11 @@ struct ast_capi_pvt {
 	unsigned long controllers;
 
 	/* send buffer */
-	unsigned char send_buffer[AST_CAPI_MAX_B3_BLOCKS * AST_CAPI_MAX_B3_BLOCK_SIZE];
+	unsigned char send_buffer[CAPI_MAX_B3_BLOCKS * CAPI_MAX_B3_BLOCK_SIZE];
 	unsigned short send_buffer_handle;
 
 	/* receive buffer */
-	unsigned char rec_buffer[AST_CAPI_MAX_BUF + AST_FRIENDLY_OFFSET];
+	unsigned char rec_buffer[CAPI_MAX_B3_BLOCK_SIZE + AST_FRIENDLY_OFFSET];
 
 	/* current state */
 	int state;
@@ -234,11 +231,11 @@ struct ast_capi_pvt {
 	
 	char context[AST_MAX_EXTENSION];
 	/*! Multiple Subscriber Number we listen to (, seperated list) */
-	char incomingmsn[AST_CAPI_MAX_STRING];	
+	char incomingmsn[CAPI_MAX_STRING];	
 	/*! Prefix to Build CID */
 	char prefix[AST_MAX_EXTENSION];	
 	/* the default caller id */
-	char defaultcid[AST_CAPI_MAX_STRING];	
+	char defaultcid[CAPI_MAX_STRING];
 
 	/*! Caller ID if available */
 	char cid[AST_MAX_EXTENSION];	
@@ -314,7 +311,7 @@ struct ast_capi_pvt {
 	float rxmin;
 	float txmin;
 	
-	struct ast_capi_gains g;
+	struct cc_capi_gains g;
 
 	float txgain;
 	float rxgain;
@@ -324,10 +321,10 @@ struct ast_capi_pvt {
 	unsigned int reasonb3;
 
 	/*! Next channel in list */
-	struct ast_capi_pvt *next;
+	struct capi_pvt *next;
 };
 
-struct ast_capi_profile {
+struct cc_capi_profile {
 	unsigned short ncontrollers;
 	unsigned short nbchannels;
 	unsigned char globaloptions;
@@ -341,14 +338,13 @@ struct ast_capi_profile {
 	unsigned int manufacturer[5];
 };
 
-struct ast_capi_conf {
-	char name[AST_CAPI_MAX_STRING];	
-	char incomingmsn[AST_CAPI_MAX_STRING];
-	char defaultcid[AST_CAPI_MAX_STRING];
+struct cc_capi_conf {
+	char name[CAPI_MAX_STRING];	
+	char incomingmsn[CAPI_MAX_STRING];
+	char defaultcid[CAPI_MAX_STRING];
 	char context[AST_MAX_EXTENSION];
-	char controllerstr[AST_CAPI_MAX_STRING];
+	char controllerstr[CAPI_MAX_STRING];
 	char prefix[AST_MAX_EXTENSION];
-	char deflect2[AST_MAX_EXTENSION];
 	char accountcode[20];
 	int devices;
 	int softdtmf;
@@ -368,7 +364,7 @@ struct ast_capi_conf {
 	float txgain;
 };
 
-struct ast_capi_controller {
+struct cc_capi_controller {
 	/* which controller is this? */
 	int controller;
 	/* how many bchans? */
