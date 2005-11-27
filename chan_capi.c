@@ -1391,7 +1391,14 @@ static CC_BRIDGE_RETURN capi_bridge(struct ast_channel *c0,
 #endif
 		who = ast_waitfor_n(priority ? c0_priority : c1_priority, 2, &timeoutms);
 		if (!who) {
+#ifdef CC_AST_BRIDGE_WITH_TIMEOUTMS
+			if (!timeoutms) {
+				ret = AST_BRIDGE_RETRY;
+				break;
+			}
+#else
 			cc_log(LOG_DEBUG, "Ooh, empty read...\n");
+#endif
 			continue;
 		}
 		f = ast_read(who);
