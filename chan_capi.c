@@ -815,6 +815,7 @@ static void parse_dialstring(char *buffer, char **interface, char **dest, char *
 
 	*dest = emptyid;
 	*param = emptyid;
+	*ocid = emptyid;
 
 	while (*buffer_p) {
 		if (*buffer_p == '/') {
