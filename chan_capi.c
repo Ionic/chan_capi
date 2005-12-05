@@ -841,7 +841,7 @@ static void parse_dialstring(char *buffer, char **interface, char **dest, char *
 		*dest = oc + 1;
 	}
 	cc_verbose(3, 1, VERBOSE_PREFIX_4 "parsed dialstring: '%s' '%s' '%s' '%s'\n",
-		*interface, (*ocid) ? *ocid:"", *dest, *param);
+		*interface, *ocid, *dest, *param);
 	return;
 }
 
@@ -975,7 +975,7 @@ static int capi_call(struct ast_channel *c, char *idest, int timeout)
 
 	if (use_defaultcid) {
 		strncpy(callerid, i->defaultcid, sizeof(callerid) - 1);
-	} else if (ocid) {
+	} else if (strlen(ocid)) {
 		strncpy(callerid, ocid, sizeof(callerid) - 1);
 	}
 
