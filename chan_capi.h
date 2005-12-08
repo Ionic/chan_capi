@@ -156,23 +156,22 @@ typedef struct fax3proto3 {
 
 /*
  * state combination for a normal incoming call:
- * DIS -> ALERT -> CON -> BCON -> CON -> DIS
+ * DIS -> ALERT -> CON -> DIS
  *
  * outgoing call:
- * DIS -> CONP -> BCONNECTED -> CON -> DIS
+ * DIS -> CONP -> CON -> DIS
  */
 
 #define CAPI_STATE_ALERTING             1
 #define CAPI_STATE_CONNECTED            2
-#define CAPI_STATE_BCONNECTED           3
 
-#define CAPI_STATE_DISCONNECTING        4
-#define CAPI_STATE_DISCONNECTED         5
+#define CAPI_STATE_DISCONNECTING        3
+#define CAPI_STATE_DISCONNECTED         4
 
-#define CAPI_STATE_CONNECTPENDING       6
-#define CAPI_STATE_ANSWERING            7
-#define CAPI_STATE_DID                  8
-#define CAPI_STATE_INCALL               9
+#define CAPI_STATE_CONNECTPENDING       5
+#define CAPI_STATE_ANSWERING            6
+#define CAPI_STATE_DID                  7
+#define CAPI_STATE_INCALL               8
 
 #define CAPI_STATE_ONHOLD              10
 
@@ -187,15 +186,17 @@ struct cc_capi_gains {
 	unsigned char rxgains[256];
 };
 
-#define CAPI_ISDN_STATE_SETUP         0x0001
-#define CAPI_ISDN_STATE_SETUP_ACK     0x0002
-#define CAPI_ISDN_STATE_HOLD          0x0004
-#define CAPI_ISDN_STATE_ECT           0x0008
-#define CAPI_ISDN_STATE_PROGRESS      0x0010
-#define CAPI_ISDN_STATE_LI            0x0020
-#define CAPI_ISDN_STATE_DISCONNECT    0x0040
-#define CAPI_ISDN_STATE_DID           0x0080
-#define CAPI_ISDN_STATE_PBX           0x8000
+#define CAPI_ISDN_STATE_SETUP         0x00000001
+#define CAPI_ISDN_STATE_SETUP_ACK     0x00000002
+#define CAPI_ISDN_STATE_HOLD          0x00000004
+#define CAPI_ISDN_STATE_ECT           0x00000008
+#define CAPI_ISDN_STATE_PROGRESS      0x00000010
+#define CAPI_ISDN_STATE_LI            0x00000020
+#define CAPI_ISDN_STATE_DISCONNECT    0x00000040
+#define CAPI_ISDN_STATE_DID           0x00000080
+#define CAPI_ISDN_STATE_B3_PEND       0x00000100
+#define CAPI_ISDN_STATE_B3_UP         0x00000200
+#define CAPI_ISDN_STATE_PBX           0x80000000
 
 #define CAPI_CHANNELTYPE_B            0
 #define CAPI_CHANNELTYPE_D            1
@@ -233,6 +234,7 @@ struct capi_pvt {
 	/* current state */
 	int state;
 
+	/* the state of the line */
 	unsigned int isdnstate;
 	int cause;
 	
@@ -266,8 +268,6 @@ struct capi_pvt {
 	int calledPartyIsISDN;
 	/* this is an outgoing channel */
 	int outgoing;
-	/* are we doing early B3 connect on this interface? */
-	int earlyB3;
 	/* should we do early B3 on this interface? */
 	int doB3;
 	/* store plci here for the call that is onhold */

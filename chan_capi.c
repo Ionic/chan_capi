@@ -557,7 +557,7 @@ static int capi_send_digit(struct ast_channel *c, char digit)
 		return ret;
 	}
 
-	if ((i->earlyB3 != 1) && (i->state == CAPI_STATE_BCONNECTED)) {
+	if ((i->state == CAPI_STATE_CONNECTED) && (i->isdnstate & CAPI_ISDN_STATE_B3_UP)) {
 		/* we have a real connection, so send real DTMF */
 		cc_mutex_lock(&contrlock);
 		if ((capi_controllers[i->controller]->dtmf == 0) || (i->doDTMF > 0)) {
@@ -699,7 +699,7 @@ static void capi_activehangup(struct ast_channel *c)
 	}
 
 	/* active disconnect */
-	if (state == CAPI_STATE_BCONNECTED) {
+	if (i->isdnstate & CAPI_ISDN_STATE_B3_UP) {
 		DISCONNECT_B3_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
 		DISCONNECT_B3_REQ_NCCI(&CMSG) = i->NCCI;
 		_capi_put_cmsg(&CMSG);
@@ -1059,7 +1059,6 @@ static int capi_send_answer(struct ast_channel *c, int *bprot, _cstruct b3conf)
 	i->state = CAPI_STATE_ANSWERING;
 	i->doB3 = CAPI_B3_DONT;
 	i->outgoing = 0;
-	i->earlyB3 = -1;
 
 	return 0;
 }
@@ -1159,8 +1158,7 @@ int capi_write(struct ast_channel *c, struct ast_frame *f)
 
 	cc_mutex_lock(&i->lock);
 
-	/* dont send audio to the local exchange! */
-	if ((i->earlyB3 == 1) || (!i->NCCI)) {
+	if ((!(i->isdnstate & CAPI_ISDN_STATE_B3_UP)) || (!i->NCCI)) {
 		cc_mutex_unlock(&i->lock);
 		return 0;
 	}
@@ -1291,8 +1289,8 @@ static int line_interconnect(struct capi_pvt *i0, struct capi_pvt *i1, int start
 	    (i1->isdnstate & CAPI_ISDN_STATE_DISCONNECT))
 		return -1;
 
-	if ((i0->state != CAPI_STATE_BCONNECTED) || 
-	    (i1->state != CAPI_STATE_BCONNECTED)) {
+	if ((!(i0->isdnstate & CAPI_ISDN_STATE_B3_UP)) || 
+	    (!(i1->isdnstate & CAPI_ISDN_STATE_B3_UP))) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_2
 			"%s:%s line interconnect aborted, at least "
 			"one channel is not connected.\n",
@@ -1485,7 +1483,6 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 #endif
 	i->state = CAPI_STATE_DISCONNECTED;
 	i->calledPartyIsISDN = 1;
-	i->earlyB3 = -1;
 	i->doB3 = CAPI_B3_DONT;
 	i->doES = i->ES;
 	i->outgoing = 0;
@@ -1656,7 +1653,6 @@ struct ast_channel *capi_request(char *type, int format, void *data)
 		}
 		i->PLCI = 0;
 		i->outgoing = 1;	/* this is an outgoing line */
-		i->earlyB3 = -1;
 		cc_mutex_unlock(&contrlock);
 		cc_mutex_unlock(&iflock);
 		return tmp;
@@ -1700,18 +1696,19 @@ static void capi_change_bchan_fax(struct ast_channel *c, B3_PROTO_FAXG3 *b3conf)
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	_cmsg CMSG;
 
-	if (i->state == CAPI_STATE_BCONNECTED) {
+	if ((i->isdnstate & (CAPI_ISDN_STATE_B3_UP | CAPI_ISDN_STATE_B3_PEND))) {
 		int waitcount = 200;
 		DISCONNECT_B3_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
 		DISCONNECT_B3_REQ_NCCI(&CMSG) = i->NCCI;
 		_capi_put_cmsg(&CMSG);
 	
 		/* wait for the B3 layer to go down */
-		while ((waitcount > 0) && (i->state == CAPI_STATE_BCONNECTED)) {
+		while ((waitcount > 0) &&
+		       (i->isdnstate & (CAPI_ISDN_STATE_B3_UP | CAPI_ISDN_STATE_B3_PEND))) {
 			usleep(10000);
 			waitcount--;
 		}
-		if (i->state != CAPI_STATE_CONNECTED) {
+		if (i->isdnstate & CAPI_ISDN_STATE_B3_UP) {
 			cc_log(LOG_WARNING, "capi receivefax disconnect b3 wait error\n");
 		}
 	}
@@ -1772,7 +1769,6 @@ static int capi_receive_fax(struct ast_channel *c, char *data)
 		capi_send_answer(c, bprot, (_cstruct)&b3conf);
 		break;
 	case CAPI_STATE_CONNECTED:
-	case CAPI_STATE_BCONNECTED:
 		capi_change_bchan_fax(c, &b3conf);
 		break;
 	default:
@@ -1994,21 +1990,31 @@ static int search_did(struct ast_channel *c)
 }
 
 /*
- * send CONNECT_B3_REQ for early B3
+ * send CONNECT_B3_REQ
  */
-static void start_early_b3(struct capi_pvt *i)
+static void start_b3(struct capi_pvt *i)
 {
 	_cmsg CMSG;
 
-	if ((i->doB3 != CAPI_B3_DONT) &&
-	    (i->earlyB3 == -1) &&
-	    (i->state != CAPI_STATE_BCONNECTED)) {
-		/* we do early B3 Connect */
-		i->earlyB3 = 1;
+	if (!(i->isdnstate & (CAPI_ISDN_STATE_B3_UP | CAPI_ISDN_STATE_B3_PEND))) {
+		i->isdnstate |= CAPI_ISDN_STATE_B3_PEND;
 		memset(&CMSG, 0, sizeof(_cmsg));
 		CONNECT_B3_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
 		CONNECT_B3_REQ_PLCI(&CMSG) = i->PLCI;
 		_capi_put_cmsg(&CMSG);
+		cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s: sent CONNECT_B3_REQ PLCI=%#x\n",
+			i->name, i->PLCI);
+	}
+}
+
+/*
+ * send CONNECT_B3_REQ for early B3
+ */
+static void start_early_b3(struct capi_pvt *i)
+{
+	if (i->doB3 != CAPI_B3_DONT) { 
+		/* we do early B3 Connect */
+		start_b3(i);
 	}
 }
 
@@ -2110,7 +2116,7 @@ static void start_pbx_on_match(struct capi_pvt *i, unsigned int PLCI, _cword Mes
 	default:
 		/* doesn't match */
 		i->isdnstate |= CAPI_ISDN_STATE_PBX; /* don't try again */
-		cc_log(LOG_ERROR, "%s: did not find exten for '%s', ignoring call.\n",
+		cc_log(LOG_NOTICE, "%s: did not find exten for '%s', ignoring call.\n",
 			i->name, i->dnid);
 		CONNECT_RESP_HEADER(&CMSG2, capi_ApplID, MessageNumber, 0);
 		CONNECT_RESP_PLCI(&CMSG2) = PLCI;
@@ -2226,14 +2232,13 @@ static void handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsigned int 
 	if ((i->doB3 != CAPI_B3_ALWAYS) && (i->outgoing == 1)) {
 		cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s: Disconnect case 1\n",
 			i->name);
-		i->earlyB3 = 0; /* !!! */
 		pipe_cause_control(i, 1);
 		return;
 	}
 	
 	/* case 2: we are doing B3, and receive the 0x8045 after a successful call */
 	if ((i->doB3 != CAPI_B3_DONT) &&
-	    (i->earlyB3 == 0) && (i->outgoing == 1)) {
+	    (i->state == CAPI_STATE_CONNECTED) && (i->outgoing == 1)) {
 		cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s: Disconnect case 2\n",
 			i->name);
 		pipe_cause_control(i, 1);
@@ -2260,11 +2265,11 @@ static void handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsigned int 
 	}
 	
 	/* case 4 (a.k.a. the italian case): B3 always. call is unsuccessful */
-	if ((i->doB3 == CAPI_B3_ALWAYS) &&
-	    (i->earlyB3 == -1) && (i->outgoing == 1)) {
+	if ((i->doB3 == CAPI_B3_ALWAYS) && (i->outgoing == 1)) {
 		cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s: Disconnect case 4\n",
 			i->name);
-		if (i->state == CAPI_STATE_BCONNECTED) {
+		if ((i->state == CAPI_STATE_CONNECTED) &&
+		    (i->isdnstate & CAPI_ISDN_STATE_B3_UP)) {
 			pipe_cause_control(i, 1);
 			return;
 		}
@@ -2614,13 +2619,7 @@ static void capi_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, unsi
 				i->onholdPLCI = 0;
 				cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: PLCI=%#x retrieved\n",
 					i->name, PLCI);
-				/* send a CONNECT_B3_REQ */
-				memset(&CMSG2, 0, sizeof(_cmsg));
-				CONNECT_B3_REQ_HEADER(&CMSG2, capi_ApplID, get_capi_MessageNumber(),0);
-				CONNECT_B3_REQ_PLCI(&CMSG2) = i->PLCI;
-				_capi_put_cmsg(&CMSG2);
-				cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s: sent CONNECT_B3_REQ PLCI=%#x\n",
-					i->name, PLCI);
+				start_b3(i);
 			}
 		}
 		
@@ -2631,7 +2630,6 @@ static void capi_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, unsi
 			    (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4] != 0)) { 
 				/* reason != 0x0000 == problem */
 				i->onholdPLCI = 0;
-				i->state = CAPI_STATE_BCONNECTED;
 				cc_log(LOG_WARNING, "%s: unable to put PLCI=%#x onhold, REASON = 0x%02x%02x, maybe you need to subscribe for this...\n",
 					i->name, PLCI,
 					FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[5],
@@ -2744,12 +2742,24 @@ static void capi_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 }
 
 /*
+ * signal 'answer' to PBX
+ */
+static void capi_signal_answer(struct capi_pvt *i)
+{
+	struct ast_frame fr;
+
+	fr.frametype = AST_FRAME_CONTROL;
+	fr.subclass = AST_CONTROL_ANSWER;
+	fr.datalen = 0;
+	pipe_frame(i, &fr);
+}
+
+/*
  * CAPI CONNECT_ACTIVE_IND
  */
 static void capi_handle_connect_active_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
 {
 	_cmsg CMSG2;
-	struct ast_frame fr;
 	
 	CONNECT_ACTIVE_RESP_HEADER(&CMSG2, capi_ApplID, HEADER_MSGNUM(CMSG), 0);
 	CONNECT_ACTIVE_RESP_PLCI(&CMSG2) = PLCI;
@@ -2766,44 +2776,31 @@ static void capi_handle_connect_active_indication(_cmsg *CMSG, unsigned int PLCI
 		return;
 	}
 
+	i->state = CAPI_STATE_CONNECTED;
+
 	if ((i->owner) && (i->FaxState)) {
-		i->state = CAPI_STATE_CONNECTED;
 		ast_setstate(i->owner, AST_STATE_UP);
-		fr.frametype = AST_FRAME_CONTROL;
-		fr.subclass = AST_CONTROL_ANSWER;
-		fr.datalen = 0;
-		pipe_frame(i, &fr);
+		capi_signal_answer(i);
 		return;
 	}
 	
 	/* normal processing */
-	if (i->earlyB3 != 1) {
-		i->state = CAPI_STATE_CONNECTED;
 			    
+	if (!(i->isdnstate & CAPI_ISDN_STATE_B3_UP)) {
 		/* send a CONNECT_B3_REQ */
 		if (i->outgoing == 1) {
 			/* outgoing call */
-			memset(&CMSG2, 0, sizeof(_cmsg));
-			CONNECT_B3_REQ_HEADER(&CMSG2, capi_ApplID, get_capi_MessageNumber(),0);
-			CONNECT_B3_REQ_PLCI(&CMSG2) = PLCI;
-			if (_capi_put_cmsg(&CMSG2) != 0) {
-				return;
-			}
+			start_b3(i);
 		} else {
 			/* incoming call */
 			/* RESP already sent ... wait for CONNECT_B3_IND */
 		}
 	} else {
 		/* special treatment for early B3 connects */
-		i->state = CAPI_STATE_BCONNECTED;
 		if ((i->owner) && (i->owner->_state != AST_STATE_UP)) {
 			ast_setstate(i->owner, AST_STATE_UP);
 		}
-		i->earlyB3 = 0; /* not early anymore */
-		fr.frametype = AST_FRAME_CONTROL;
-		fr.subclass = AST_CONTROL_ANSWER;
-		fr.datalen = 0;
-		pipe_frame(i, &fr);
+		capi_signal_answer(i);
 	}
 	return;
 }
@@ -2814,7 +2811,6 @@ static void capi_handle_connect_active_indication(_cmsg *CMSG, unsigned int PLCI
 static void capi_handle_connect_b3_active_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
 {
 	_cmsg CMSG2;
-	struct ast_frame fr;
 
 	/* then send a CONNECT_B3_ACTIVE_RESP */
 	CONNECT_B3_ACTIVE_RESP_HEADER(&CMSG2, capi_ApplID, HEADER_MSGNUM(CMSG), 0);
@@ -2838,7 +2834,8 @@ static void capi_handle_connect_b3_active_indication(_cmsg *CMSG, unsigned int P
 		return;
 	}
 
-	i->state = CAPI_STATE_BCONNECTED;
+	i->isdnstate |= CAPI_ISDN_STATE_B3_UP;
+	i->isdnstate &= ~CAPI_ISDN_STATE_B3_PEND;
 
 	if (!i->owner) {
 		cc_log(LOG_ERROR, "%s: No channel for interface!\n",
@@ -2854,12 +2851,9 @@ static void capi_handle_connect_b3_active_indication(_cmsg *CMSG, unsigned int P
 		capi_detect_dtmf(i->owner, 1);
 	}
 
-	if (i->earlyB3 != 1) {
+	if (i->state == CAPI_STATE_CONNECTED) {
 		ast_setstate(i->owner, AST_STATE_UP);
-		fr.frametype = AST_FRAME_CONTROL;
-		fr.subclass = AST_CONTROL_ANSWER;
-		fr.datalen = 0;
-		pipe_frame(i, &fr);
+		capi_signal_answer(i);
 	}
 	return;
 }
@@ -2881,21 +2875,14 @@ static void capi_handle_disconnect_b3_indication(_cmsg *CMSG, unsigned int PLCI,
 	i->reasonb3 = DISCONNECT_B3_IND_REASON_B3(CMSG);
 	i->NCCI = 0;
 
-	switch(i->state) {
-	case CAPI_STATE_BCONNECTED:
-		/* passive disconnect */
-		i->state = CAPI_STATE_CONNECTED;
-		break;
-	case CAPI_STATE_DISCONNECTING:
+	i->isdnstate &= ~(CAPI_ISDN_STATE_B3_UP | CAPI_ISDN_STATE_B3_PEND);
+
+	if (i->state == CAPI_STATE_DISCONNECTING) {
 		/* active disconnect */
 		memset(&CMSG2, 0, sizeof(_cmsg));
 		DISCONNECT_REQ_HEADER(&CMSG2, capi_ApplID, get_capi_MessageNumber(), 0);
 		DISCONNECT_REQ_PLCI(&CMSG2) = PLCI;
 		_capi_put_cmsg(&CMSG2);
-		break;
-	case CAPI_STATE_ONHOLD:
-		/* no hangup */
-		break;
 	}
 
 	cc_mutex_lock(&contrlock);
@@ -2959,6 +2946,12 @@ static void capi_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI, un
 	}
 
 	if ((i->owner) &&
+	    (state == CAPI_STATE_CONNECTPENDING)) {
+		/* hangup before SETUP ACK (line error) */
+		chan_to_softhangup = i->owner;
+		return;
+	}
+	if ((i->owner) &&
 	    ((state == CAPI_STATE_DID) || (state == CAPI_STATE_INCALL)) &&
 	    (i->owner->pbx == NULL)) {
 		/* the pbx was not started yet */
@@ -3016,7 +3009,7 @@ static int capi_call_deflect(struct ast_channel *c, char *param)
 			i->name, c->name);
 		return -1;
 	}
-	
+
 	cc_mutex_lock(&i->lock);
 
 	if ((i->state != CAPI_STATE_INCALL) &&
@@ -3456,7 +3449,7 @@ static void capi_handle_msg(_cmsg *CMSG)
 		if (wInfo == 0) {
 			i->NCCI = NCCI;
 		} else {
-			i->earlyB3 = -1;
+			i->isdnstate &= ~(CAPI_ISDN_STATE_B3_UP | CAPI_ISDN_STATE_B3_PEND);
 			i->doB3 = CAPI_B3_DONT;
 		}
 		break;
@@ -3525,7 +3518,7 @@ static void capi_handle_msg(_cmsg *CMSG)
 
 	if (i != NULL)
 		cc_mutex_unlock(&i->lock);
-		
+
 	return;
 }
 
@@ -3659,7 +3652,7 @@ static int capi_ect(struct ast_channel *c, char *param)
 		return -1;
 	}
 
-	if (i->state == CAPI_STATE_BCONNECTED) {
+	if (i->isdnstate & CAPI_ISDN_STATE_B3_UP) {
 		DISCONNECT_B3_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
 		DISCONNECT_B3_REQ_NCCI(&CMSG) = i->NCCI;
 		_capi_put_cmsg(&CMSG);
@@ -3717,7 +3710,7 @@ static int capi_hold(struct ast_channel *c, char *param)
 		return 0;
 	}
 
-	if (i->state != CAPI_STATE_BCONNECTED) {
+	if (!(i->isdnstate & CAPI_ISDN_STATE_B3_UP)) {
 		cc_log(LOG_NOTICE,"%s: Cannot put on hold %s while not connected.\n",
 			i->name, c->name);
 		return 0;
@@ -3848,7 +3841,6 @@ static int capi_signal_progress(struct ast_channel *c, char *param)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	_cmsg CMSG;
-	unsigned char fac[12];
 
 	if ((i->state != CAPI_STATE_DID) && (i->state != CAPI_STATE_INCALL)) {
 		cc_log(LOG_WARNING, "wrong channel state to signal PROGRESS\n");
@@ -3856,6 +3848,11 @@ static int capi_signal_progress(struct ast_channel *c, char *param)
 	}
 	if (!(i->ntmode)) {
 		cc_log(LOG_WARNING, "PROGRESS sending for non NT-mode not possible\n");
+		return 0;
+	}
+	if (i->isdnstate & CAPI_ISDN_STATE_B3_UP) {
+		cc_verbose(4, 1, VERBOSE_PREFIX_4 "%s: signal_progress in NT: B-channel already up\n",
+			i->name);
 		return 0;
 	}
 
@@ -3867,23 +3864,6 @@ static int capi_signal_progress(struct ast_channel *c, char *param)
 	SELECT_B_PROTOCOL_REQ_B1CONFIGURATION(&CMSG) = NULL;
 	SELECT_B_PROTOCOL_REQ_B2CONFIGURATION(&CMSG) = NULL;
 	SELECT_B_PROTOCOL_REQ_B3CONFIGURATION(&CMSG) = NULL;
-
-	_capi_put_cmsg(&CMSG);
-
-	sleep(1);
-
-	fac[0] = 4;
-	fac[1] = 0x1e;
-	fac[2] = 0x02;
-	fac[3] = 0x82;
-	fac[4] = 0x88;
-
-	INFO_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
-	INFO_REQ_PLCI(&CMSG) = i->PLCI;
-	INFO_REQ_BCHANNELINFORMATION(&CMSG) = 0;
-	INFO_REQ_KEYPADFACILITY(&CMSG) = 0;
-	INFO_REQ_USERUSERDATA(&CMSG) = 0;
-	INFO_REQ_FACILITYDATAARRAY(&CMSG) = fac;
 
 	_capi_put_cmsg(&CMSG);
 
@@ -3984,7 +3964,12 @@ static int capi_indicate(struct ast_channel *c, int condition)
 		if (i->isdnstate & CAPI_ISDN_STATE_HOLD)
 			capi_retrieve(c, NULL);
 		*/
-		ret = capi_alert(c);
+		if (i->ntmode) {
+			capi_signal_progress(c, NULL);
+			capi_alert(c);
+		} else {
+			ret = capi_alert(c);
+		}
 		break;
 	case AST_CONTROL_BUSY:
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested BUSY-Indication for %s\n",
@@ -4017,12 +4002,12 @@ static int capi_indicate(struct ast_channel *c, int condition)
 	case AST_CONTROL_PROGRESS:
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested PROGRESS-Indication for %s\n",
 			i->name, c->name);
-		/* TODO: in NT-mode we should send progress for early b3 to phone */
+		if (i->ntmode) capi_signal_progress(c, NULL);
 		break;
 	case AST_CONTROL_PROCEEDING:
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested PROCEEDING-Indication for %s\n",
 			i->name, c->name);
-		/* TODO: in NT-mode we should send progress for early b3 to phone */
+		if (i->ntmode) capi_signal_progress(c, NULL);
 		break;
 #ifdef CC_AST_CONTROL_HOLD
 	case AST_CONTROL_HOLD:
@@ -4206,7 +4191,6 @@ int mkif(struct cc_capi_conf *conf)
 		
 		tmp->controllers = contrmap;
 		capi_used_controllers |= contrmap;
-		tmp->earlyB3 = -1;
 		tmp->doEC = conf->echocancel;
 		tmp->ecOption = conf->ecoption;
 		tmp->ecTail = conf->ectail;
