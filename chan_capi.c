@@ -1783,6 +1783,8 @@ static int capi_receive_fax(struct ast_channel *c, char *data)
 		return -1;
 	}
 
+	cc_mutex_unlock(&i->lock);
+
 	while (i->FaxState == 1) {
 		usleep(10000);
 	}
@@ -1809,7 +1811,6 @@ static int capi_receive_fax(struct ast_channel *c, char *data)
 			VERBOSE_PREFIX_1 "capi receivefax: fax receive successful.\n");
 	}
 	
-	cc_mutex_unlock(&i->lock);
 	return res;
 }
 
