@@ -1283,7 +1283,6 @@ static int line_interconnect(struct capi_pvt *i0, struct capi_pvt *i1, int start
 {
 	_cmsg CMSG;
 	char buf[20];
-	u_int16_t enable = (start) ? 0x0001 : 0x0002;
 
 	if ((i0->isdnstate & CAPI_ISDN_STATE_DISCONNECT) ||
 	    (i1->isdnstate & CAPI_ISDN_STATE_DISCONNECT))
@@ -1304,20 +1303,22 @@ static int line_interconnect(struct capi_pvt *i0, struct capi_pvt *i1, int start
 
 	memset(buf, 0, sizeof(buf));
 
-	if (!start) {
-		buf[0] = 16; /* msg size */
-		write_capi_word(&buf[1], enable);
-		buf[3] = 13; /* struct size */
-		write_capi_dword(&buf[4], 0x00000000);
-		buf[8] = 8; /* struct size */
-		write_capi_dword(&buf[9], i1->PLCI);
-		write_capi_dword(&buf[13], 0x00000003);
+	if (start) {
+		/* connect */
+		buf[0] = 17; /* msg size */
+		write_capi_word(&buf[1], 0x0001);
+		buf[3] = 14; /* struct size LI Request Parameter */
+		write_capi_dword(&buf[4], 0x00000000); /* Data Path */
+		buf[8] = 9; /* struct size */
+		buf[9] = 8; /* struct size LI Request Connect Participant */
+		write_capi_dword(&buf[10], i1->PLCI);
+		write_capi_dword(&buf[14], 0x00000003); /* Data Path Participant */
 	} else {
-		buf[0] = 11; /* msg size */
-		write_capi_word(&buf[1], enable);
-		buf[3] = 8; /* struct size */
+		/* disconnect */
+		buf[0] = 7; /* msg size */
+		write_capi_word(&buf[1], 0x0002);
+		buf[3] = 4; /* struct size */
 		write_capi_dword(&buf[4], i1->PLCI);
-		write_capi_dword(&buf[8], 0x00000003);
 	}
 
 	FACILITY_REQ_FACILITYREQUESTPARAMETER(&CMSG) = buf;
@@ -1348,6 +1349,7 @@ static CC_BRIDGE_RETURN capi_bridge(struct ast_channel *c0,
 	struct capi_pvt *i0 = CC_CHANNEL_PVT(c0);
 	struct capi_pvt *i1 = CC_CHANNEL_PVT(c1);
 	CC_BRIDGE_RETURN ret = AST_BRIDGE_COMPLETE;
+	int waitcount = 20;
 
 	cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s:%s Requested native bridge for %s and %s\n",
 		i0->name, i1->name, c0->name, c1->name);
@@ -1363,6 +1365,14 @@ static CC_BRIDGE_RETURN capi_bridge(struct ast_channel *c0,
 	}
 	cc_mutex_unlock(&contrlock);
 
+	while (((!(i0->isdnstate & CAPI_ISDN_STATE_B3_UP)) || 
+	       (!(i1->isdnstate & CAPI_ISDN_STATE_B3_UP))) &&
+	       (waitcount > 0)) {
+		/* wait a moment for B to come up */
+		usleep(20000);
+		waitcount--;
+	}
+
 	if (!(flags & AST_BRIDGE_DTMF_CHANNEL_0))
 		capi_detect_dtmf(i0->owner, 0);
 
@@ -1371,7 +1381,7 @@ static CC_BRIDGE_RETURN capi_bridge(struct ast_channel *c0,
 
 	capi_echo_canceller(i0->owner, EC_FUNCTION_DISABLE);
 	capi_echo_canceller(i1->owner, EC_FUNCTION_DISABLE);
-
+	
 	if (line_interconnect(i0, i1, 1)) {
 		ret = AST_BRIDGE_FAILED;
 		goto return_from_bridge;
@@ -2546,7 +2556,7 @@ static void capi_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, unsi
 		/* line interconnect */
 		if ((FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[1] == 0x01) &&
 		    (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[2] == 0x00)) {
-			cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: Line Interconnect activated\n",
+			cc_verbose(3, 0, VERBOSE_PREFIX_3 "%s: Line Interconnect activated\n",
 				i->name);
 		}
 		if ((FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[1] == 0x02) &&
@@ -2670,7 +2680,7 @@ static void capi_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 	_capi_put_cmsg(&CMSG2);
 
 	return_on_no_interface("DATA_B3_IND");
-	
+
 	if (i->fFax) {
 		/* we are in fax-receive and have a file open */
 		cc_verbose(6, 1, VERBOSE_PREFIX_3 "%s: DATA_B3_IND (len=%d) Fax\n",
@@ -2946,15 +2956,11 @@ static void capi_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI, un
 	}
 
 	if ((i->owner) &&
-	    (state == CAPI_STATE_CONNECTPENDING)) {
-		/* hangup before SETUP ACK (line error) */
-		chan_to_softhangup = i->owner;
-		return;
-	}
-	if ((i->owner) &&
 	    ((state == CAPI_STATE_DID) || (state == CAPI_STATE_INCALL)) &&
 	    (i->owner->pbx == NULL)) {
 		/* the pbx was not started yet */
+		cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s: DISCONNECT_IND on incoming without pbx, doing hangup.\n",
+			i->name);
 		chan_to_hangup = i->owner;
 		return;
 	}
@@ -3965,6 +3971,9 @@ static int capi_indicate(struct ast_channel *c, int condition)
 			capi_retrieve(c, NULL);
 		*/
 		if (i->ntmode) {
+			if (i->isdnstate & CAPI_ISDN_STATE_B3_UP) {
+				ret = 0;
+			}
 			capi_signal_progress(c, NULL);
 			capi_alert(c);
 		} else {
