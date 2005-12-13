@@ -2579,12 +2579,14 @@ static void capi_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, unsi
 			dtmf = (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG))[dtmfpos];
 			cc_verbose(1, 1, VERBOSE_PREFIX_4 "%s: c_dtmf = %c\n",
 				i->name, dtmf);
-			if ((dtmf == 'X') || (dtmf == 'Y')) {
-				capi_handle_dtmf_fax(i->owner);
-			} else {
-				fr.frametype = AST_FRAME_DTMF;
-				fr.subclass = dtmf;
-				pipe_frame(i, &fr);
+			if ((!(i->ntmode)) || (i->state == CAPI_STATE_CONNECTED)) {
+				if ((dtmf == 'X') || (dtmf == 'Y')) {
+					capi_handle_dtmf_fax(i->owner);
+				} else {
+					fr.frametype = AST_FRAME_DTMF;
+					fr.subclass = dtmf;
+					pipe_frame(i, &fr);
+				}
 			}
 			dtmflen--;
 			dtmfpos++;
