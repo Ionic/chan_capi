@@ -716,7 +716,7 @@ static void capi_activehangup(struct ast_channel *c)
 }
 
 /*
- * Asterisk tells us to hangup a line
+ * PBX tells us to hangup a line
  */
 static int capi_hangup(struct ast_channel *c)
 {
@@ -846,7 +846,7 @@ static void parse_dialstring(char *buffer, char **interface, char **dest, char *
 }
 
 /*
- * Asterisk tells us to make a call
+ * PBX tells us to make a call
  */
 static int capi_call(struct ast_channel *c, char *idest, int timeout)
 {
@@ -897,7 +897,7 @@ static int capi_call(struct ast_channel *c, char *idest, int timeout)
 			i->doOverlap = 1;
 			break;
 		case 'd':	/* use default cid */
-			if (i->doOverlap)
+			if (use_defaultcid)
 				cc_log(LOG_WARNING, "Default CID already set in '%s'\n", idest);
 			use_defaultcid = 1;
 			break;
@@ -926,7 +926,7 @@ static int capi_call(struct ast_channel *c, char *idest, int timeout)
 		i->name, c->name, i->doB3 ? "with B3 ":" ",
 		i->doOverlap ? "overlap":"", CLIR, callernplan);
     
-	/* set FD for Asterisk*/
+	/* set FD for PBX */
 	c->fds[0] = i->fd;
 
 	i->outgoing = 1;
@@ -956,6 +956,7 @@ static int capi_call(struct ast_channel *c, char *idest, int timeout)
 		strncpy(i->overlapdigits, dest, sizeof(i->overlapdigits) - 1);
 		called[0] = 1;
 	} else {
+		i->doOverlap = 0;
 		called[0] = strlen(dest) + 1;
 	}
 	called[1] = 0x80;
@@ -1064,7 +1065,7 @@ static int capi_send_answer(struct ast_channel *c, int *bprot, _cstruct b3conf)
 }
 
 /*
- * Asterisk tells us to answer a call
+ * PBX tells us to answer a call
  */
 static int capi_answer(struct ast_channel *c)
 {
@@ -1079,7 +1080,7 @@ static int capi_answer(struct ast_channel *c)
 }
 
 /*
- * Asterisk tells us to read for a channel
+ * PBX tells us to read for a channel
  */
 struct ast_frame *capi_read(struct ast_channel *c) 
 {
@@ -1139,7 +1140,7 @@ struct ast_frame *capi_read(struct ast_channel *c)
 }
 
 /*
- * Asterisk tells us to write for a channel
+ * PBX tells us to write for a channel
  */
 int capi_write(struct ast_channel *c, struct ast_frame *f)
 {
@@ -1549,11 +1550,6 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 		tmp->dnid = strdup(i->dnid);
 #endif
 	
-#ifdef CC_AST_CHANNEL_HAS_TRANSFERCAP
-	tmp->transfercapability = cip2tcap(i->cip);
-	pbx_builtin_setvar_helper(tmp, "TRANSFERCAPABILITY", transfercapability2str(tmp->transfercapability));
-#endif
-
 	strncpy(tmp->exten, i->dnid, sizeof(tmp->exten) - 1);
 	strncpy(tmp->accountcode, i->accountcode, sizeof(tmp->accountcode) - 1);
 	i->owner = tmp;
@@ -1568,7 +1564,7 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 }
 
 /*
- * Asterisk wants us to dial ...
+ * PBX wants us to dial ...
  */
 #ifdef CC_AST_HAVE_TECH_PVT
 struct ast_channel *capi_request(const char *type, int format, void *data, int *cause)
@@ -1899,7 +1895,7 @@ static struct capi_pvt *find_interface_by_msgnum(unsigned short msgnum)
 }
 
 /*
- * send a frame to Asterisk via pipe
+ * send a frame to PBX via pipe
  */
 static int pipe_frame(struct capi_pvt *i, struct ast_frame *f)
 {
@@ -2029,7 +2025,7 @@ static void start_early_b3(struct capi_pvt *i)
 }
 
 /*
- * signal 'progress' to Asterisk
+ * signal 'progress' to PBX 
  */
 static void send_progress(struct capi_pvt *i)
 {
@@ -3222,6 +3218,9 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 				interface_cleanup(i);
 				break;
 			}
+#ifdef CC_AST_CHANNEL_HAS_TRANSFERCAP	
+ 			i->owner->transfercapability = cip2tcap(i->cip);
+#endif
 #ifdef CC_AST_CHANNEL_HAS_CID
 			i->owner->cid.cid_pres = callpres;
 #else    
@@ -3233,7 +3232,10 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 			*interface = i;
 			cc_mutex_lock(&i->lock);
 			cc_mutex_unlock(&iflock);
-			
+		
+#ifdef CC_AST_CHANNEL_HAS_TRANSFERCAP	
+			pbx_builtin_setvar_helper(i->owner, "TRANSFERCAPABILITY", transfercapability2str(i->owner->transfercapability));
+#endif
 			pbx_builtin_setvar_helper(i->owner, "BCHANNELINFO", bchannelinfo);
 			sprintf(buffer, "%d", callednplan);
 			pbx_builtin_setvar_helper(i->owner, "CALLEDTON", buffer);
