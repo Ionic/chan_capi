@@ -1164,6 +1164,11 @@ int capi_write(struct ast_channel *c, struct ast_frame *f)
 		return 0;
 	}
 
+	if ((!(i->ntmode)) && (i->state != CAPI_STATE_CONNECTED)) {
+		cc_mutex_unlock(&i->lock);
+		return 0;
+	}
+
 	if (f->frametype == AST_FRAME_NULL) {
 		cc_mutex_unlock(&i->lock);
 		return 0;
