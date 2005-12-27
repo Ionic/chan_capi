@@ -59,6 +59,7 @@ INCLUDE+=$(shell [ -d /usr/include/i4b/include ] && \
         echo -n -I/usr/include/i4b/include)
 endif
 CFLAGS=-pipe -fPIC -Wall -Wmissing-prototypes -Wmissing-declarations $(DEBUG) $(INCLUDE) -D_REENTRANT -D_GNU_SOURCE
+CFLAGS+=$(OPTIMIZE)
 CFLAGS+=-O6
 CFLAGS+=$(shell if $(CC) -march=$(PROC) -S -o /dev/null -xc /dev/null >/dev/null 2>&1; then echo "-march=$(PROC)"; fi)
 CFLAGS+=$(shell if uname -m | grep -q ppc; then echo "-fsigned-char"; fi)
@@ -90,10 +91,12 @@ chan_capi.so: $(OBJECTS)
 	$(CC) -shared -Xlinker -x -o $@ $^ -lcapi20
 
 install: all
+	$(INSTALL) -d -m 755 $(MODULES_DIR)
 	for x in $(SHAREDOS); do $(INSTALL) -m 755 $$x $(MODULES_DIR) ; done
 
-config: all
-	cp capi.conf $(INSTALL_PREFIX)/etc/asterisk/
+install_config: capi.conf
+	$(INSTALL) -d -m 755  $(INSTALL_PREFIX)/etc/asterisk/
+	$(INSTALL) -m 644 capi.conf $(INSTALL_PREFIX)/etc/asterisk/
 
-samples: config
+samples: install_config
 
