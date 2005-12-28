@@ -33,6 +33,9 @@
 #include <asterisk/utils.h>
 #include <asterisk/cli.h>
 #include <asterisk/causes.h>
+#ifndef CC_AST_NO_DEVICESTATE
+#include <asterisk/devicestate.h>
+#endif
 #include <sys/time.h>
 #include <sys/signal.h>
 #include <stdlib.h>
@@ -97,6 +100,8 @@ static struct ast_channel *chan_to_softhangup = NULL;
 
 static char capi_national_prefix[AST_MAX_EXTENSION];
 static char capi_international_prefix[AST_MAX_EXTENSION];
+
+static char default_language[MAX_LANGUAGE] = "";
 
 static int capidebug = 0;
 
@@ -1557,6 +1562,7 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 	
 	strncpy(tmp->exten, i->dnid, sizeof(tmp->exten) - 1);
 	strncpy(tmp->accountcode, i->accountcode, sizeof(tmp->accountcode) - 1);
+	strncpy(tmp->language, i->language, sizeof(tmp->language) - 1);
 	i->owner = tmp;
 	cc_mutex_lock(&usecnt_lock);
 	usecnt++;
@@ -3561,9 +3567,10 @@ static int capi_retrieve(struct ast_channel *c, char *param)
 
 	if ((i->state != CAPI_STATE_ONHOLD) &&
 	    (i->isdnstate & CAPI_ISDN_STATE_HOLD)) {
-		int waitcount = 200;
+		int waitcount = 20;
 		while ((waitcount > 0) && (i->state != CAPI_STATE_ONHOLD)) {
 			usleep(10000);
+			waitcount--;
 		}
 	}
 
@@ -3738,7 +3745,7 @@ static int capi_hold(struct ast_channel *c, char *param)
 	cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: sent HOLD for PLCI=%#x\n",
 		i->name, i->PLCI);
 
-	i->onholdPLCI= i->PLCI;
+	i->onholdPLCI = i->PLCI;
 	i->isdnstate |= CAPI_ISDN_STATE_HOLD;
 
 	snprintf(buffer, sizeof(buffer) - 1, "%d", i->PLCI);
@@ -4045,6 +4052,26 @@ static int capi_indicate(struct ast_channel *c, int condition)
 	cc_mutex_unlock(&i->lock);
 	return(ret);
 }
+
+#ifndef CC_AST_NO_DEVICESTATE
+/*
+ * PBX wants to know the state for a specific device
+ */
+static int capi_devicestate(void *data)
+{
+	int res = AST_DEVICE_UNKNOWN;
+
+	if (!data) {
+		cc_verbose(3, 1, VERBOSE_PREFIX_2 "No data for capi_devicestate\n");
+		return res;
+	}
+
+	cc_verbose(3, 1, VERBOSE_PREFIX_4 "CAPI devicestate requested for %s\n",
+		(char *)data);
+
+	return res;
+}
+#endif
 
 /*
  * module stuff, monitor...
@@ -4423,6 +4450,9 @@ static const struct ast_channel_tech capi_tech = {
 	.indicate = capi_indicate,
 	.fixup = capi_fixup,
 	.setoption = NULL,
+#ifndef CC_AST_NO_DEVICESTATE
+	.devicestate = capi_devicestate,
+#endif
 };
 #endif
 
@@ -4595,6 +4625,7 @@ static int conf_interface(struct cc_capi_conf *conf, struct ast_variable *v)
 		CONF_STRING(conf->controllerstr, "controller");
 		CONF_STRING(conf->prefix, "prefix");
 		CONF_STRING(conf->accountcode, "accountcode");
+		CONF_STRING(conf->language, "language");
 
 		if (!strcasecmp(v->name, "softdtmf")) {
 			if ((!conf->softdtmf) && (ast_true(v->value))) {
@@ -4716,6 +4747,8 @@ static int capi_eval_config(struct ast_config *cfg)
 			strncpy(capi_national_prefix, v->value, sizeof(capi_national_prefix) - 1);
 		} else if (!strcasecmp(v->name, "internationalprefix")) {
 			strncpy(capi_international_prefix, v->value, sizeof(capi_international_prefix) - 1);
+		} else if (!strcasecmp(v->name, "language")) {
+			strncpy(default_language, v->value, sizeof(default_language) - 1);
 		} else if (!strcasecmp(v->name, "rxgain")) {
 			if (sscanf(v->value,"%f",&rxgain) != 1) {
 				cc_log(LOG_ERROR,"invalid rxgain\n");
@@ -4751,6 +4784,7 @@ static int capi_eval_config(struct ast_config *cfg)
 		conf.ectail = EC_DEFAULT_TAIL;
 		conf.ecSelector = FACILITYSELECTOR_ECHO_CANCEL;
 		strncpy(conf.name, cat, sizeof(conf.name) - 1);
+		strncpy(conf.language, default_language, sizeof(conf.language) - 1);
 
 		if (conf_interface(&conf, ast_variable_browse(cfg, cat))) {
 			cc_log(LOG_ERROR, "Error interface config.\n");

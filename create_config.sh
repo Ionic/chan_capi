@@ -122,6 +122,14 @@ else
 	echo " * no 'struct ast_custom_function'"
 fi
 
+if [ -f "$INCLUDEDIR/devicestate.h" ]; then
+	echo "#undef CC_AST_NO_DEVICESTATE" >>$CONFIGFILE
+	echo " * found 'devicestate.h'"
+else
+	echo "#define CC_AST_NO_DEVICESTATE" >>$CONFIGFILE
+	echo " * no 'devicestate.h'"
+fi
+
 echo "" >>$CONFIGFILE
 echo "#endif /* CHAN_CAPI_CONFIG_H */" >>$CONFIGFILE
 echo "" >>$CONFIGFILE
