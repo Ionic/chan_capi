@@ -3454,7 +3454,6 @@ static void capi_handle_msg(_cmsg *CMSG)
 			i->NCCI = NCCI;
 		} else {
 			i->isdnstate &= ~(CAPI_ISDN_STATE_B3_UP | CAPI_ISDN_STATE_B3_PEND);
-			i->doB3 = CAPI_B3_DONT;
 		}
 		break;
 	case CAPI_P_CONF(ALERT):
