@@ -2891,6 +2891,25 @@ static void capi_handle_disconnect_b3_indication(_cmsg *CMSG, unsigned int PLCI,
 
 	i->isdnstate &= ~(CAPI_ISDN_STATE_B3_UP | CAPI_ISDN_STATE_B3_PEND);
 
+	if ((i->FaxState == 1) && (i->owner)) {
+		char buffer[CAPI_MAX_STRING];
+		unsigned char *ncpi = (unsigned char *)DISCONNECT_B3_IND_NCPI(CMSG);
+		/* if we have fax infos, set them as variables */
+		if (ncpi) {
+			snprintf(buffer, CAPI_MAX_STRING-1, "%d", read_capi_word(&ncpi[1]));
+			pbx_builtin_setvar_helper(i->owner, "FAXRATE", buffer);
+			snprintf(buffer, CAPI_MAX_STRING-1, "%d", read_capi_word(&ncpi[3]));
+			pbx_builtin_setvar_helper(i->owner, "FAXRESOLUTION", buffer);
+			snprintf(buffer, CAPI_MAX_STRING-1, "%d", read_capi_word(&ncpi[5]));
+			pbx_builtin_setvar_helper(i->owner, "FAXFORMAT", buffer);
+			snprintf(buffer, CAPI_MAX_STRING-1, "%d", read_capi_word(&ncpi[7]));
+			pbx_builtin_setvar_helper(i->owner, "FAXPAGES", buffer);
+			memcpy(buffer, &ncpi[10], ncpi[9]);
+			buffer[ncpi[9]] = 0;
+			pbx_builtin_setvar_helper(i->owner, "FAXID", buffer);
+		}
+	}
+
 	if (i->state == CAPI_STATE_DISCONNECTING) {
 		/* active disconnect */
 		memset(&CMSG2, 0, sizeof(_cmsg));
