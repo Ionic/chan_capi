@@ -267,6 +267,12 @@ With a DIVA Server, following features are provided:
  - Color Fax 
  - JPEG Compression is disabled (not tested yet)
 
+After successful receive of a fax, the following variables will be set for that channel:
+FAXRATE       : The baud rate of the fax connection
+FAXRESOLUTION : 0 = standard, 1 = high
+FAXFORMAT     : 0 = SFF
+FAXPAGES      : Number of pages received
+FAXID         : The ID of the remote fax maschine
 
 Asterisk variables used/set by chan_capi
 ========================================
