@@ -1,6 +1,27 @@
 CHANGES
 =======
 
+chan_capi-cm-0.6.2
+------------------
+- set some info variables when receiving fax
+- added language support
+- prepared devicestate(hint) support
+- don't change early-B3 setting on conf error for CONNECT_B3
+- small fixes in Makefile targets (thanks to Karsten Keil)
+- don't send audio to local exchange when in TE mode.
+- fix missing CONF messages when no interface is found
+- small transfercap and overlapdial fix
+- don't forward DTMF if in NT-mode and the line is not connected yet.
+- fixed line interconnect
+- b-channel handling better
+- NT mode progress
+- removed deadlock in faxreceive.
+- initialize variable ocid
+- correct use of timeoutms in native bridge
+- use more common defines for mutex_lock/unlock and _log()
+- clean up and OpenPBX portability.
+- adapted to latest asterisk bridge function prototype.
+
 chan_capi-cm-0.6.1
 ------------------
 - fixed setting of redirecting number rdnis instead of cid.
