@@ -264,31 +264,44 @@ static MESSAGE_EXCHANGE_ERROR check_wait_get_cmsg(_cmsg *CMSG)
 {
 	MESSAGE_EXCHANGE_ERROR Info;
 	struct timeval tv;
-	
-	tv.tv_sec = 0;
-	tv.tv_usec = 10000;
-	
-	Info = capi20_waitformessage(capi_ApplID, &tv);
-	if ((Info != 0x0000) && (Info != 0x1104)) {
-		if (capidebug) {
-			cc_log(LOG_DEBUG, "Error waiting for cmsg... INFO = %#x\n", Info);
-		}
-		return Info;
-	}
-    
-	if (Info == 0x0000) {
-		Info = capi_get_cmsg(CMSG, capi_ApplID);
 
-  		/* There is no reason not to
-		 * allow controller 0 !
- 		 *
- 		 * For BSD hide problem from "chan_capi":
- 		 */
- 		if((HEADER_CID(CMSG) & 0xFF) == 0) {
-			HEADER_CID(CMSG) += capi_num_controllers;
- 		}
+ repeat:
+
+#if (CAPI_OS_HINT != 2)
+	/* this should be done by libcapi20: */
+	memset(CMSG, 0, sizeof(*CMSG));
+#endif
+	Info = capi_get_cmsg(CMSG, capi_ApplID);
+
+	/* There is no reason not to
+	 * allow controller 0 !
+	 *
+	 * For BSD hide problem from "chan_capi":
+	 */
+	if ((HEADER_CID(CMSG) & 0xFF) == 0) {
+	     HEADER_CID(CMSG) += capi_num_controllers;
 	}
-	return Info;
+
+	if (Info != 0x0000) {
+
+	    /* try waiting a maximum of 0.100 seconds for a message */
+
+	    tv.tv_sec = 0;
+	    tv.tv_usec = 100000;
+
+	    Info = capi20_waitformessage(capi_ApplID, &tv);
+
+	    if (Info == 0x0000) {
+	        goto repeat;
+	    }
+
+	    if (Info != 0x1104) {
+	        if (capidebug) {
+		    cc_log(LOG_DEBUG, "Error waiting for cmsg... INFO = %#x\n", Info);
+		}
+	    }
+	}
+    	return Info;
 }
 
 /*
@@ -297,7 +310,7 @@ static MESSAGE_EXCHANGE_ERROR check_wait_get_cmsg(_cmsg *CMSG)
 static unsigned ListenOnController(unsigned long CIPmask, unsigned controller)
 {
 	MESSAGE_EXCHANGE_ERROR error;
-	_cmsg                  CMSG,CMSG2;
+	_cmsg                  CMSG;
 
 	LISTEN_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), controller);
 
@@ -305,13 +318,26 @@ static unsigned ListenOnController(unsigned long CIPmask, unsigned controller)
 		/* 0x00ff if no early B3 should be done */
 		
 	LISTEN_REQ_CIPMASK(&CMSG) = CIPmask;
-	if ((error = _capi_put_cmsg(&CMSG)) != 0) {
-		return error;
+	error = _capi_put_cmsg(&CMSG);
+
+	if (error) {
+	     goto done;
 	}
-	while (!IS_LISTEN_CONF(&CMSG2)) {
-		error = check_wait_get_cmsg(&CMSG2);
+
+	while(1) {
+	    error = check_wait_get_cmsg(&CMSG);
+
+	    if ((error == 0x0000) && IS_LISTEN_CONF(&CMSG)) {
+	        break;
+	    }
+
+	    if (error == 0x1101) {
+	        /* application ID is no longer valid */
+	        break;
+	    }
 	}
-	return 0;
+ done:
+	return error;
 }
 
 #ifdef CC_AST_CHANNEL_HAS_TRANSFERCAP
@@ -905,6 +931,7 @@ static int capi_call(struct ast_channel *c, char *idest, int timeout)
 	_cmsg CMSG;
 	MESSAGE_EXCHANGE_ERROR  error;
 
+	buffer[sizeof(buffer) - 1] = 0;
 	strncpy(buffer, idest, sizeof(buffer) - 1);
 	parse_dialstring(buffer, &interface, &dest, &param, &ocid);
 
@@ -3032,7 +3059,7 @@ static void capi_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI, un
 	
 	if (pipe_frame(i, &fr) == -1) {
 		/*
-		 * in this case * did not read our hangup control frame
+		 * in this case the PBX did not read our hangup control frame
 		 * so we must hangup the channel!
 		 */
 		if ( (i->owner) && (state != CAPI_STATE_DISCONNECTED) && (state != CAPI_STATE_INCALL) &&
@@ -4134,8 +4161,6 @@ static void *do_monitor(void *data)
 	
 	for (/* for ever */;;) {
 
-		memset(&monCMSG, 0, sizeof(_cmsg));
-	
 		switch(Info = check_wait_get_cmsg(&monCMSG)) {
 		case 0x0000:
 			capi_handle_msg(&monCMSG);
@@ -4153,6 +4178,12 @@ static void *do_monitor(void *data)
 		case 0x1104:
 			/* CAPI queue is empty */
 			break;
+		case 0x1101:
+			/* The application ID is no longer valid.
+			 * This error is fatal, and "chan_capi" 
+			 * should restart.
+			 */
+			return NULL;
 		default:
 			/* something is wrong! */
 			break;
