@@ -78,6 +78,37 @@ LOCAL_USER_DECL;
 
 static int usecnt;
 
+/*
+ * LOCKING RULES
+ * =============
+ *
+ * This channel driver uses several locks. One must be 
+ * careful not to reverse the locking order, which will
+ * lead to a so called deadlock. Here is the locking order
+ * that must be followed:
+ *
+ * struct capi_pvt *i;
+ *
+ * 1. cc_mutex_lock(&i->owner->lock); **
+ *
+ * 2. cc_mutex_lock(&i->lock);
+ * 3. cc_mutex_lock(&i->lockB3q);
+ *
+ * 4. cc_mutex_lock(&iflock);
+ * 5. cc_mutex_lock(&contrlock);
+ *
+ * 6. cc_mutex_lock(&messagenumber_lock);
+ * 7. cc_mutex_lock(&usecnt_lock);
+ * 8. cc_mutex_lock(&capi_put_lock);
+ *
+ *
+ *  ** the PBX will call the callback functions with 
+ *     this lock locked. This lock protects the 
+ *     structure pointed to by 'i->owner'. Also note
+ *     that calling some PBX functions will lock
+ *     this lock!
+ */
+
 AST_MUTEX_DEFINE_STATIC(messagenumber_lock);
 AST_MUTEX_DEFINE_STATIC(usecnt_lock);
 AST_MUTEX_DEFINE_STATIC(iflock);
@@ -112,11 +143,12 @@ static int capi_indicate(struct ast_channel *c, int condition);
 extern char *capi_info_string(unsigned int info);
 
 /* */
-#define return_on_no_interface(x)                                       \
-	if (!i) {                                                       \
-		cc_verbose(4, 1, "CAPI: %s no interface for PLCI=%#x\n", x, PLCI);   \
-		return;                                                 \
-	}
+#define return_on_no_interface(i,PLCI,msg)		\
+    if (!(i)) {						\
+        cc_verbose(4, 1, "CAPI: %s no interface for "	\
+		   "PLCI=%#x\n", msg, PLCI);		\
+	return;						\
+    }
 /*
  * command to string function
  */
@@ -2340,7 +2372,7 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 	INFO_RESP_HEADER(&CMSG2, capi_ApplID, HEADER_MSGNUM(CMSG), PLCI);
 	_capi_put_cmsg(&CMSG2);
 
-	return_on_no_interface("INFO_IND");
+	return_on_no_interface(i,PLCI,"INFO_IND");
 
 	switch(INFO_IND_INFONUMBER(CMSG)) {
 	case 0x0008:	/* Cause */
@@ -2557,7 +2589,7 @@ static void capi_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, unsi
 	FACILITY_RESP_FACILITYRESPONSEPARAMETERS(&CMSG2) = FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG);
 	_capi_put_cmsg(&CMSG2);
 	
-	return_on_no_interface("FACILITY_IND");
+	return_on_no_interface(i,PLCI,"FACILITY_IND");
 
 	if (FACILITY_IND_FACILITYSELECTOR(CMSG) == FACILITYSELECTOR_LINE_INTERCONNECT) {
 		/* line interconnect */
@@ -2690,7 +2722,7 @@ static void capi_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 	DATA_B3_RESP_DATAHANDLE(&CMSG2) = DATA_B3_IND_DATAHANDLE(CMSG);
 	_capi_put_cmsg(&CMSG2);
 
-	return_on_no_interface("DATA_B3_IND");
+	return_on_no_interface(i,PLCI,"DATA_B3_IND");
 
 	if (i->fFax) {
 		/* we are in fax-receive and have a file open */
@@ -2786,7 +2818,7 @@ static void capi_handle_connect_active_indication(_cmsg *CMSG, unsigned int PLCI
 	CONNECT_ACTIVE_RESP_PLCI(&CMSG2) = PLCI;
 	_capi_put_cmsg(&CMSG2);
 	
-	return_on_no_interface("CONNECT_ACTIVE_IND");
+	return_on_no_interface(i,PLCI,"CONNECT_ACTIVE_IND");
 
 	if (i->state == CAPI_STATE_DISCONNECTING) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: CONNECT_ACTIVE in DISCONNECTING.\n",
@@ -2835,7 +2867,7 @@ static void capi_handle_connect_b3_active_indication(_cmsg *CMSG, unsigned int P
 	CONNECT_B3_ACTIVE_RESP_NCCI(&CMSG2) = NCCI;
 	_capi_put_cmsg(&CMSG2);
 
-	return_on_no_interface("CONNECT_ACTIVE_B3_IND");
+	return_on_no_interface(i,PLCI,"CONNECT_ACTIVE_B3_IND");
 
 	cc_mutex_lock(&contrlock);
 	if (i->controller > 0) {
@@ -2884,7 +2916,7 @@ static void capi_handle_disconnect_b3_indication(_cmsg *CMSG, unsigned int PLCI,
 	DISCONNECT_B3_RESP_NCCI(&CMSG2) = NCCI;
 	_capi_put_cmsg(&CMSG2);
 
-	return_on_no_interface("DISCONNECT_B3_IND");
+	return_on_no_interface(i,PLCI,"DISCONNECT_B3_IND");
 
 	i->reasonb3 = DISCONNECT_B3_IND_REASON_B3(CMSG);
 	i->NCCI = 0;
@@ -2939,7 +2971,7 @@ static void capi_handle_connect_b3_indication(_cmsg *CMSG, unsigned int PLCI, un
 	CONNECT_B3_RESP_REJECT(&CMSG2) = 0;
 	_capi_put_cmsg(&CMSG2);
 
-	return_on_no_interface("CONNECT_B3_IND");
+	return_on_no_interface(i,PLCI,"CONNECT_B3_IND");
 
 	i->NCCI = NCCI;
 
@@ -2961,7 +2993,7 @@ static void capi_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI, un
 	
 	show_capi_info(DISCONNECT_IND_REASON(CMSG));
 
-	return_on_no_interface("DISCONNECT_IND");
+	return_on_no_interface(i,PLCI,"DISCONNECT_IND");
 
 	state = i->state;
 	i->state = CAPI_STATE_DISCONNECTED;

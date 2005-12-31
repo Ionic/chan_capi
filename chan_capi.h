@@ -81,21 +81,26 @@ static inline unsigned short read_capi_dword(void *m)
  */
 #define cc_mutex_lock(x) ast_mutex_lock(x)
 #define cc_mutex_unlock(x) ast_mutex_unlock(x)
+#define cc_mutex_assert(x,what) 
+#define MA_OWNED        0x01
+#define MA_NOTOWNED     0x02
+#define MA_RECURSED     0x04
+#define MA_NOTRECURSED  0x08
 #define cc_log(x...) ast_log(x)
 
 /*
  * definitions for compatibility with older versions of ast*
  */
 #ifdef CC_AST_HAVE_TECH_PVT
-#define CC_CHANNEL_PVT(c) c->tech_pvt
+#define CC_CHANNEL_PVT(c) (c)->tech_pvt
 #else
-#define CC_CHANNEL_PVT(c) c->pvt->pvt
+#define CC_CHANNEL_PVT(c) (c)->pvt->pvt
 #endif
 
 #ifdef CC_AST_HAS_BRIDGED_CHANNEL
 #define CC_AST_BRIDGED_CHANNEL(x) ast_bridged_channel(x)
 #else
-#define CC_AST_BRIDGED_CHANNEL(x) x->bridge
+#define CC_AST_BRIDGED_CHANNEL(x) (x)->bridge
 #endif
 
 #ifdef CC_AST_HAS_BRIDGE_RESULT
@@ -128,12 +133,14 @@ static inline unsigned short read_capi_dword(void *m)
 #define FAX_BINARY_FILE_TRANSFER_FORMAT 7
 
 /* Fax struct */
-typedef struct fax3proto3 {
+struct fax3proto3 {
 	unsigned char len;
-	unsigned short resolution __attribute__ ((packed));
-	unsigned short format __attribute__ ((packed));
-	unsigned char Infos[100] __attribute__ ((packed));
-} B3_PROTO_FAXG3;
+	unsigned short resolution;
+	unsigned short format;
+	unsigned char Infos[100];
+} __attribute__((__packed__));
+
+typedef struct fax3proto3 B3_PROTO_FAXG3;
 
 /* duration in ms for sending and detecting dtmfs */
 #define CAPI_DTMF_DURATION              0x40
@@ -343,7 +350,7 @@ struct cc_capi_profile {
 	unsigned int b3protocols;
 	unsigned int reserved3[6];
 	unsigned int manufacturer[5];
-};
+} __attribute__((__packed__));
 
 struct cc_capi_conf {
 	char name[CAPI_MAX_STRING];	
