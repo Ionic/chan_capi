@@ -1642,6 +1642,7 @@ struct ast_channel *capi_request(char *type, int format, void *data)
 
 	cc_verbose(1, 1, VERBOSE_PREFIX_4 "data = %s\n", (char *)data);
 
+	buffer[sizeof(buffer)-1] = '\0';
 	strncpy(buffer, (char *)data, sizeof(buffer) - 1);
 	parse_dialstring(buffer, &interface, &dest, &param, &ocid);
 
@@ -3196,6 +3197,9 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 		return;
 	}
 
+	buffer[sizeof(buffer)-1] = '\0';
+	buffer_r[sizeof(buffer_r)-1] = '\0';
+
 	DNID = capi_number(CONNECT_IND_CALLEDPARTYNUMBER(CMSG), 1);
 	if (!DNID) {
 		DNID = emptydnid;
@@ -4236,6 +4240,9 @@ int mkif(struct cc_capi_conf *conf)
 	char *buffer_rp = buffer_r;
 	char *contr;
 	unsigned long contrmap = 0;
+
+	buffer[sizeof(buffer)-1] = '\0';
+	buffer_r[sizeof(buffer_r)-1] = '\0';
 
 	for (i = 0; i <= conf->devices; i++) {
 		tmp = malloc(sizeof(struct capi_pvt));
