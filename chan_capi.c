@@ -266,10 +266,6 @@ static MESSAGE_EXCHANGE_ERROR check_wait_get_cmsg(_cmsg *CMSG)
 
  repeat:
 
-#if (CAPI_OS_HINT != 2)
-	/* this should be done by libcapi20: */
-	memset(CMSG, 0, sizeof(*CMSG));
-#endif
 	Info = capi_get_cmsg(CMSG, capi_ApplID);
 
 	/* There is no reason not to
@@ -1095,8 +1091,6 @@ static int capi_send_answer(struct ast_channel *c, int *bprot, _cstruct b3conf)
 	if ((connectednumber = pbx_builtin_getvar_helper(c, "CONNECTEDNUMBER"))) {
 		dnid = connectednumber;
 	}
-
-	memset(&CMSG, 0, sizeof(CMSG));
 
 	CONNECT_RESP_HEADER(&CMSG, capi_ApplID, i->MessageNumber, 0);
 	CONNECT_RESP_PLCI(&CMSG) = i->PLCI;
@@ -2070,7 +2064,6 @@ static void start_b3(struct capi_pvt *i)
 
 	if (!(i->isdnstate & (CAPI_ISDN_STATE_B3_UP | CAPI_ISDN_STATE_B3_PEND))) {
 		i->isdnstate |= CAPI_ISDN_STATE_B3_PEND;
-		memset(&CMSG, 0, sizeof(_cmsg));
 		CONNECT_B3_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
 		CONNECT_B3_REQ_PLCI(&CMSG) = i->PLCI;
 		_capi_put_cmsg(&CMSG);
@@ -2293,7 +2286,6 @@ static void handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsigned int 
 			i->name);
 		/* the caller onhold hung up (or ECTed away) */
 		/* send a disconnect_req , we cannot hangup the channel here!!! */
-		memset(&CMSG2, 0, sizeof(_cmsg));
 		DISCONNECT_REQ_HEADER(&CMSG2, capi_ApplID, get_capi_MessageNumber(), 0);
 		DISCONNECT_REQ_PLCI(&CMSG2) = i->onholdPLCI;
 		_capi_put_cmsg(&CMSG2);
@@ -2391,7 +2383,6 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 	char *p = NULL;
 	int val = 0;
 
-	memset(&CMSG2, 0, sizeof(_cmsg));
 	INFO_RESP_HEADER(&CMSG2, capi_ApplID, HEADER_MSGNUM(CMSG), PLCI);
 	_capi_put_cmsg(&CMSG2);
 
@@ -2965,7 +2956,6 @@ static void capi_handle_disconnect_b3_indication(_cmsg *CMSG, unsigned int PLCI,
 
 	if (i->state == CAPI_STATE_DISCONNECTING) {
 		/* active disconnect */
-		memset(&CMSG2, 0, sizeof(_cmsg));
 		DISCONNECT_REQ_HEADER(&CMSG2, capi_ApplID, get_capi_MessageNumber(), 0);
 		DISCONNECT_REQ_PLCI(&CMSG2) = PLCI;
 		_capi_put_cmsg(&CMSG2);
@@ -2986,7 +2976,6 @@ static void capi_handle_connect_b3_indication(_cmsg *CMSG, unsigned int PLCI, un
 	_cmsg CMSG2;
 
 	/* then send a CONNECT_B3_RESP */
-	memset(&CMSG2, 0, sizeof(_cmsg));
 	CONNECT_B3_RESP_HEADER(&CMSG2, capi_ApplID, HEADER_MSGNUM(CMSG), 0);
 	CONNECT_B3_RESP_NCCI(&CMSG2) = NCCI;
 	CONNECT_B3_RESP_REJECT(&CMSG2) = 0;
