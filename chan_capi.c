@@ -92,14 +92,13 @@ static int usecnt;
  * 1. cc_mutex_lock(&i->owner->lock); **
  *
  * 2. cc_mutex_lock(&i->lock);
- * 3. cc_mutex_lock(&i->lockB3q);
  *
- * 4. cc_mutex_lock(&iflock);
- * 5. cc_mutex_lock(&contrlock);
+ * 3. cc_mutex_lock(&iflock);
+ * 4. cc_mutex_lock(&contrlock);
  *
- * 6. cc_mutex_lock(&messagenumber_lock);
- * 7. cc_mutex_lock(&usecnt_lock);
- * 8. cc_mutex_lock(&capi_put_lock);
+ * 5. cc_mutex_lock(&messagenumber_lock);
+ * 6. cc_mutex_lock(&usecnt_lock);
+ * 7. cc_mutex_lock(&capi_put_lock);
  *
  *
  *  ** the PBX will call the callback functions with 
@@ -1317,11 +1316,9 @@ int capi_write(struct ast_channel *c, struct ast_frame *f)
 		}
 
 		if (!error) {
-			cc_mutex_lock(&i->lockB3q);
 			i->B3q -= fsmooth->datalen;
 			if (i->B3q < 0)
 				i->B3q = 0;
-			cc_mutex_unlock(&i->lockB3q);
 		}
 
 	        fsmooth = ast_smoother_read(i->smoother);
@@ -1569,7 +1566,6 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 	i->onholdPLCI = 0;
 	i->doholdtype = i->holdtype;
 	i->B3q = 0;
-	ast_mutex_init(&i->lockB3q);
 	memset(i->txavg, 0, ECHO_TX_COUNT);
 
 	if (i->doDTMF > 0) {
@@ -2761,11 +2757,9 @@ static void capi_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 		return;
 	}
 	    
-	cc_mutex_lock(&i->lockB3q);
 	if (i->B3q < 800) {
 		i->B3q += b3len;
 	}
-	cc_mutex_unlock(&i->lockB3q);
 
 	if ((i->doES == 1)) {
 		for (j = 0; j < b3len; j++) {
