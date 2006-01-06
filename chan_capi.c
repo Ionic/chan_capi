@@ -555,13 +555,17 @@ static int capi_send_info_digits(struct capi_pvt *i, char *digits, int len)
 {
 	MESSAGE_EXCHANGE_ERROR error;
 	_cmsg CMSG;
-	char buf[16];
+	char buf[64];
 	int a;
     
 	memset(buf, 0, sizeof(buf));
 
 	INFO_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
 	INFO_REQ_PLCI(&CMSG) = i->PLCI;
+
+	if (len > (sizeof(buf) - 2))
+		len = sizeof(buf) - 2;
+	
 	buf[0] = len + 1;
 	buf[1] = 0x80;
 	for (a = 0; a < len; a++) {
