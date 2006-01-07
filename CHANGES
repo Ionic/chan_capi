@@ -1,6 +1,11 @@
 CHANGES
 =======
 
+chan_capi-cm-0.6.3
+------------------
+- fixed buffer overflow in overlap dial
+- remove some compiler warnings
+
 chan_capi-cm-0.6.2
 ------------------
 - set some info variables when receiving fax
