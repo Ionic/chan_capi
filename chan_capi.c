@@ -3737,7 +3737,7 @@ static int capi_ect(struct ast_channel *c, char *param)
 		_capi_put_cmsg(&CMSG);
 	}
 
-	while ((i->state != CAPI_STATE_CONNECTED) && (waitcount > 0)) {
+	while ((i->isdnstate & CAPI_ISDN_STATE_B3_UP) && (waitcount > 0)) {
 		waitcount--;
 		usleep(10000);
 	}
