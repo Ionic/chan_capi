@@ -1924,6 +1924,8 @@ static void capi_handle_dtmf_fax(struct ast_channel *c)
 
 /*
  * find the interface (pvt) the PLCI belongs to
+ *
+ * NOTE: returns a locked interface
  */
 static struct capi_pvt *find_interface_by_plci(unsigned int plci)
 {
@@ -1939,11 +1941,16 @@ static struct capi_pvt *find_interface_by_plci(unsigned int plci)
 	}
 	cc_mutex_unlock(&iflock);
 
+	if (i != NULL)
+		cc_mutex_lock(&i->lock);
+
 	return i;
 }
 
 /*
  * find the interface (pvt) the messagenumber belongs to
+ *
+ * NOTE: returns a locked interface
  */
 static struct capi_pvt *find_interface_by_msgnum(unsigned short msgnum)
 {
@@ -1955,6 +1962,9 @@ static struct capi_pvt *find_interface_by_msgnum(unsigned short msgnum)
 			break;
 	}
 	cc_mutex_unlock(&iflock);
+
+	if (i != NULL)
+		cc_mutex_lock(&i->lock);
 
 	return i;
 }
@@ -3451,9 +3461,6 @@ static void capi_handle_msg(_cmsg *CMSG)
 	} else {
 		cc_verbose(4, 1, "%s\n", capi_cmsg2str(CMSG));
 	}
-
-	if (i != NULL)
-		cc_mutex_lock(&i->lock);
 
 	/* main switch table */
 
