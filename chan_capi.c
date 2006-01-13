@@ -3990,7 +3990,7 @@ static int capicommand_exec(struct ast_channel *chan, void *data)
 {
 	int res = 0;
 	struct localuser *u;
-	char *s;
+	char buffer[CAPI_MAX_STRING];
 	char *stringp;
 	char *command, *params;
 	struct capicommands_s *capicmd = &capicommands[0];
@@ -4002,8 +4002,9 @@ static int capicommand_exec(struct ast_channel *chan, void *data)
 
 	LOCAL_USER_ADD(u);
 
-	s = ast_strdupa(data);
-	stringp = s;
+	buffer[sizeof(buffer)-1] = '\0';
+	strncpy(buffer, data, sizeof(buffer)-1);
+	stringp = buffer;
 	command = strsep(&stringp, "|");
 	params = stringp;
 	cc_verbose(2, 1, VERBOSE_PREFIX_3 "capiCommand: '%s' '%s'\n",
