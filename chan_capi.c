@@ -59,7 +59,7 @@
  */
 static unsigned capi_ApplID = 0;
 
-static _cword capi_MessageNumber = 1;
+static _cword capi_MessageNumber;
 static char *desc = "Common ISDN API for Asterisk";
 #ifdef CC_AST_HAVE_TECH_PVT
 static const char tdesc[] = "Common ISDN API Driver (" CC_VERSION ") " ASTERISKVERSION;
@@ -214,8 +214,15 @@ static _cword get_capi_MessageNumber(void)
 	_cword mn;
 
 	cc_mutex_lock(&messagenumber_lock);
-	mn = capi_MessageNumber;
+
 	capi_MessageNumber++;
+	if (capi_MessageNumber == 0) {
+	    /* avoid zero */
+	    capi_MessageNumber = 1;
+	}
+
+	mn = capi_MessageNumber;
+
 	cc_mutex_unlock(&messagenumber_lock);
 
 	return(mn);
@@ -706,6 +713,7 @@ static void interface_cleanup(struct capi_pvt *i)
 	i->faxhandled = 0;
 
 	i->PLCI = 0;
+	i->MessageNumber = 0;
 	i->NCCI = 0;
 	i->onholdPLCI = 0;
 
@@ -1955,6 +1963,9 @@ static struct capi_pvt *find_interface_by_plci(unsigned int plci)
 static struct capi_pvt *find_interface_by_msgnum(unsigned short msgnum)
 {
 	struct capi_pvt *i;
+
+	if (msgnum == 0x0000)
+		return NULL;
 
 	cc_mutex_lock(&iflock);
 	for (i = iflist; i; i = i->next) {
