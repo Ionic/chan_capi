@@ -3317,9 +3317,16 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 				i->name, i->cid, i->dnid);
 
 			*interface = i;
-			cc_mutex_lock(&i->lock);
+
+			/*
+			 * NOTE: one cannot lock "i->lock" while holding
+			 * "iflock", hence it violates the "LOCKING RULES"
+			 */ 
+
 			cc_mutex_unlock(&iflock);
-		
+
+			cc_mutex_lock(&i->lock);
+
 #ifdef CC_AST_CHANNEL_HAS_TRANSFERCAP	
 			pbx_builtin_setvar_helper(i->owner, "TRANSFERCAPABILITY", transfercapability2str(i->owner->transfercapability));
 #endif
