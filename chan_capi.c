@@ -4295,7 +4295,8 @@ int mkif(struct cc_capi_conf *conf)
 		strncpy(tmp->defaultcid, conf->defaultcid, sizeof(tmp->defaultcid) - 1);
 		strncpy(tmp->prefix, conf->prefix, sizeof(tmp->prefix)-1);
 		strncpy(tmp->accountcode, conf->accountcode, sizeof(tmp->accountcode) - 1);
-	    
+		strncpy(tmp->language, conf->language, sizeof(tmp->language) - 1);
+
 		strncpy(buffer, conf->controllerstr, sizeof(buffer) - 1);
 		contr = strtok_r(buffer, ",", &buffer_rp);
 		while (contr != NULL) {
