@@ -3780,7 +3780,7 @@ static int capi_ect(struct ast_channel *c, char *param)
 
 	FACILITY_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
 	FACILITY_REQ_CONTROLLER(&CMSG) = i->controller;
-	FACILITY_REQ_PLCI(&CMSG) = i->PLCI;
+	FACILITY_REQ_PLCI(&CMSG) = plci;
 	FACILITY_REQ_FACILITYSELECTOR(&CMSG) = FACILITYSELECTOR_SUPPLEMENTARY;
 	FACILITY_REQ_FACILITYREQUESTPARAMETER(&CMSG) = (_cstruct)&fac;
 
