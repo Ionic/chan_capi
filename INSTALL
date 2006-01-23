@@ -17,7 +17,7 @@ make install
 
 To install a sample configuration:
 ----------------------------------
-make config
+make install_config
 
 
 In /etc/asterisk/modules.conf insert the line:
