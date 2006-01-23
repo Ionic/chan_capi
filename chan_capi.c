@@ -733,7 +733,7 @@ static void capi_activehangup(struct ast_channel *c)
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	_cmsg CMSG;
 	int state;
-	char *cause;
+	const char *cause;
 
 	if (i == NULL) {
 		cc_log(LOG_WARNING, "No interface!\n");
@@ -929,7 +929,7 @@ static int capi_call(struct ast_channel *c, char *idest, int timeout)
 	int CLIR;
 	int callernplan = 0;
 	int use_defaultcid = 0;
-	char *ton, *p;
+	const char *ton, *p;
 	char *osa = NULL;
 	char *dsa = NULL;
 	char callingsubaddress[AST_MAX_EXTENSION];
@@ -1090,8 +1090,8 @@ static int capi_send_answer(struct ast_channel *c, int *bprot, _cstruct b3conf)
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	_cmsg CMSG;
 	char buf[CAPI_MAX_STRING];
-	char *dnid;
-	char *connectednumber;
+	const char *dnid;
+	const char *connectednumber;
     
 	if ((i->isdnmode == CAPI_ISDNMODE_DID) &&
 	    ((strlen(i->incomingmsn) < strlen(i->dnid)) && 
@@ -3711,7 +3711,7 @@ static int capi_ect(struct ast_channel *c, char *param)
 	struct capi_pvt *ii = NULL;
 	_cmsg CMSG;
 	char fac[8];
-	char *id;
+	const char *id;
 	unsigned int plci = 0;
 	int waitcount = 200;
 
