@@ -2502,6 +2502,7 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 	case 0x8001:	/* ALERTING */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element ALERTING\n",
 			i->name);
+		send_progress(i);
 		fr.frametype = AST_FRAME_CONTROL;
 		fr.subclass = AST_CONTROL_RINGING;
 		pipe_frame(i, &fr);
@@ -2509,7 +2510,6 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 	case 0x8002:	/* CALL PROCEEDING */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element CALL PROCEEDING\n",
 			i->name);
-		start_early_b3(i);
 		fr.frametype = AST_FRAME_CONTROL;
 		fr.subclass = AST_CONTROL_PROCEEDING;
 		pipe_frame(i, &fr);
