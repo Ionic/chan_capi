@@ -48,8 +48,10 @@ endif
 
 PROC=$(shell uname -m)
 
+LIBLINUX=
 DEBUG=-g #-pg
 INCLUDE=-I$(ASTERISK_HEADER_DIR)
+ifndef C4B
 ifeq (${OSNAME},FreeBSD)
 INCLUDE+=$(shell [ -d /usr/include/i4b/include ] && \
 	echo -n -I/usr/include/i4b/include)
@@ -58,6 +60,12 @@ ifeq (${OSNAME},NetBSD)
 INCLUDE+=$(shell [ -d /usr/include/i4b/include ] && \
         echo -n -I/usr/include/i4b/include)
 endif
+endif #C4B
+
+ifdef C4B
+LIBLINUX=-L/usr/local/lib -llinuxcapi20
+endif
+
 CFLAGS=-pipe -fPIC -Wall -Wmissing-prototypes -Wmissing-declarations $(DEBUG) $(INCLUDE) -D_REENTRANT -D_GNU_SOURCE
 CFLAGS+=$(OPTIMIZE)
 CFLAGS+=-O6
@@ -88,7 +96,7 @@ config.h:
 	./create_config.sh "$(ASTERISK_HEADER_DIR)"
 
 chan_capi.so: $(OBJECTS)
-	$(CC) -shared -Xlinker -x -o $@ $^ -lcapi20
+	$(CC) -shared -Xlinker -x -o $@ $^ $(LIBLINUX) -lcapi20
 
 install: all
 	$(INSTALL) -d -m 755 $(MODULES_DIR)
