@@ -67,7 +67,7 @@ static inline void write_capi_dword(void *m, unsigned int val)
 	((unsigned char *)m)[2] = (val >> 16) & 0xff;
 	((unsigned char *)m)[3] = (val >> 24) & 0xff;
 }
-static inline unsigned short read_capi_dword(void *m)
+static inline unsigned int read_capi_dword(void *m)
 {
 	unsigned int val;
 
