@@ -82,6 +82,7 @@ static inline unsigned short read_capi_dword(void *m)
 #define cc_mutex_lock(x) ast_mutex_lock(x)
 #define cc_mutex_unlock(x) ast_mutex_unlock(x)
 #define cc_log(x...) ast_log(x)
+#define cc_copy_string(dst, src, size) ast_copy_string(dst, src, size)
 
 /*
  * definitions for compatibility with older versions of ast*

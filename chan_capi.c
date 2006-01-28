@@ -33,6 +33,7 @@
 #include <asterisk/utils.h>
 #include <asterisk/cli.h>
 #include <asterisk/causes.h>
+#include <asterisk/strings.h>
 #ifndef CC_AST_NO_DEVICESTATE
 #include <asterisk/devicestate.h>
 #endif
@@ -142,12 +143,11 @@ static int capi_indicate(struct ast_channel *c, int condition);
 extern char *capi_info_string(unsigned int info);
 
 /* */
-#define return_on_no_interface(i,PLCI,msg)		\
-    if (!(i)) {						\
-        cc_verbose(4, 1, "CAPI: %s no interface for "	\
-		   "PLCI=%#x\n", msg, PLCI);		\
-	return;						\
-    }
+#define return_on_no_interface(x)                                       \
+	if (!i) {                                                       \
+		cc_verbose(4, 1, "CAPI: %s no interface for PLCI=%#x\n", x, PLCI);   \
+		return;                                                 \
+	}
 /*
  * command to string function
  */
@@ -272,38 +272,36 @@ static MESSAGE_EXCHANGE_ERROR check_wait_get_cmsg(_cmsg *CMSG)
 	struct timeval tv;
 
  repeat:
-
 	Info = capi_get_cmsg(CMSG, capi_ApplID);
 
-	/* There is no reason not to
-	 * allow controller 0 !
-	 *
-	 * For BSD hide problem from "chan_capi":
+#if (CAPI_OS_HINT == 1) || (CAPI_OS_HINT == 2)
+	/*
+	 * For BSD allow controller 0:
 	 */
 	if ((HEADER_CID(CMSG) & 0xFF) == 0) {
-	     HEADER_CID(CMSG) += capi_num_controllers;
+		HEADER_CID(CMSG) += capi_num_controllers;
+ 	}
+#endif
+
+	/* if queue is empty */
+	if (Info == 0x1104) {
+		/* try waiting a maximum of 0.100 seconds for a message */
+		tv.tv_sec = 0;
+		tv.tv_usec = 10000;
+		
+		Info = capi20_waitformessage(capi_ApplID, &tv);
+
+		if (Info == 0x0000)
+			goto repeat;
 	}
-
-	if (Info != 0x0000) {
-
-	    /* try waiting a maximum of 0.100 seconds for a message */
-
-	    tv.tv_sec = 0;
-	    tv.tv_usec = 100000;
-
-	    Info = capi20_waitformessage(capi_ApplID, &tv);
-
-	    if (Info == 0x0000) {
-	        goto repeat;
-	    }
-
-	    if (Info != 0x1104) {
-	        if (capidebug) {
-		    cc_log(LOG_DEBUG, "Error waiting for cmsg... INFO = %#x\n", Info);
+	
+	if ((Info != 0x0000) && (Info != 0x1104)) {
+		if (capidebug) {
+			cc_log(LOG_DEBUG, "Error waiting for cmsg... INFO = %#x\n", Info);
 		}
-	    }
 	}
-    	return Info;
+    
+	return Info;
 }
 
 /*
@@ -312,7 +310,8 @@ static MESSAGE_EXCHANGE_ERROR check_wait_get_cmsg(_cmsg *CMSG)
 static unsigned ListenOnController(unsigned long CIPmask, unsigned controller)
 {
 	MESSAGE_EXCHANGE_ERROR error;
-	_cmsg                  CMSG;
+	_cmsg CMSG;
+	int waitcount = 100;
 
 	LISTEN_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), controller);
 
@@ -322,22 +321,22 @@ static unsigned ListenOnController(unsigned long CIPmask, unsigned controller)
 	LISTEN_REQ_CIPMASK(&CMSG) = CIPmask;
 	error = _capi_put_cmsg(&CMSG);
 
-	if (error) {
-	     goto done;
+	if (error)
+		goto done;
+
+	while (waitcount) {
+		error = check_wait_get_cmsg(&CMSG);
+
+		if (IS_LISTEN_CONF(&CMSG)) {
+			error = LISTEN_CONF_INFO(&CMSG);
+			break;
+		}
+		usleep(20000);
+		waitcount--;
 	}
+	if (!waitcount)
+		error = 0x100F;
 
-	while(1) {
-	    error = check_wait_get_cmsg(&CMSG);
-
-	    if ((error == 0x0000) && IS_LISTEN_CONF(&CMSG)) {
-	        break;
-	    }
-
-	    if (error == 0x1101) {
-	        /* application ID is no longer valid */
-	        break;
-	    }
-	}
  done:
 	return error;
 }
@@ -938,8 +937,7 @@ static int capi_call(struct ast_channel *c, char *idest, int timeout)
 	_cmsg CMSG;
 	MESSAGE_EXCHANGE_ERROR  error;
 
-	buffer[sizeof(buffer) - 1] = 0;
-	strncpy(buffer, idest, sizeof(buffer) - 1);
+	cc_copy_string(buffer, idest, sizeof(buffer));
 	parse_dialstring(buffer, &interface, &dest, &param, &ocid);
 
 	cc_mutex_lock(&i->lock);
@@ -1024,7 +1022,7 @@ static int capi_call(struct ast_channel *c, char *idest, int timeout)
 	CONNECT_REQ_CIPVALUE(&CMSG) = 0x10; /* Telephony */
 #endif
 	if ((i->doOverlap) && (strlen(dest))) {
-		strncpy(i->overlapdigits, dest, sizeof(i->overlapdigits) - 1);
+		cc_copy_string(i->overlapdigits, dest, sizeof(i->overlapdigits));
 		called[0] = 1;
 	} else {
 		i->doOverlap = 0;
@@ -1037,18 +1035,18 @@ static int capi_call(struct ast_channel *c, char *idest, int timeout)
 
 #ifdef CC_AST_CHANNEL_HAS_CID
 	if (c->cid.cid_num) 
-		strncpy(callerid, c->cid.cid_num, sizeof(callerid) - 1);
+		cc_copy_string(callerid, c->cid.cid_num, sizeof(callerid));
 #else
 	if (c->callerid) 
-		strncpy(callerid, c->callerid, sizeof(callerid) - 1);
+		cc_copy_string(callerid, c->callerid, sizeof(callerid));
 #endif
 	else
 		memset(callerid, 0, sizeof(callerid));
 
 	if (use_defaultcid) {
-		strncpy(callerid, i->defaultcid, sizeof(callerid) - 1);
+		cc_copy_string(callerid, i->defaultcid, sizeof(callerid));
 	} else if (ocid) {
-		strncpy(callerid, ocid, sizeof(callerid) - 1);
+		cc_copy_string(callerid, ocid, sizeof(callerid));
 	}
 
 	calling[0] = strlen(callerid) + 2;
@@ -1607,7 +1605,7 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 	tmp->pvt->rawreadformat = fmt;
 	tmp->pvt->rawwriteformat = fmt;
 #endif
-	strncpy(tmp->context, i->context, sizeof(tmp->context) - 1);
+	cc_copy_string(tmp->context, i->context, sizeof(tmp->context));
 #ifdef CC_AST_CHANNEL_HAS_CID
 	if (!ast_strlen_zero(i->cid))
 		tmp->cid.cid_num = strdup(i->cid);
@@ -1621,9 +1619,9 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 		tmp->dnid = strdup(i->dnid);
 #endif
 	
-	strncpy(tmp->exten, i->dnid, sizeof(tmp->exten) - 1);
-	strncpy(tmp->accountcode, i->accountcode, sizeof(tmp->accountcode) - 1);
-	strncpy(tmp->language, i->language, sizeof(tmp->language) - 1);
+	cc_copy_string(tmp->exten, i->dnid, sizeof(tmp->exten));
+	cc_copy_string(tmp->accountcode, i->accountcode, sizeof(tmp->accountcode));
+	cc_copy_string(tmp->language, i->language, sizeof(tmp->language));
 	i->owner = tmp;
 	cc_mutex_lock(&usecnt_lock);
 	usecnt++;
@@ -1654,8 +1652,7 @@ struct ast_channel *capi_request(char *type, int format, void *data)
 
 	cc_verbose(1, 1, VERBOSE_PREFIX_4 "data = %s\n", (char *)data);
 
-	buffer[sizeof(buffer)-1] = '\0';
-	strncpy(buffer, (char *)data, sizeof(buffer) - 1);
+	cc_copy_string(buffer, (char *)data, sizeof(buffer));
 	parse_dialstring(buffer, &interface, &dest, &param, &ocid);
 
 	if ((!interface) || (!dest)) {
@@ -1723,7 +1720,7 @@ struct ast_channel *capi_request(char *type, int format, void *data)
 			}
 		}
 		/* when we come here, we found a free controller match */
-		strncpy(i->dnid, dest, sizeof(i->dnid) - 1);
+		cc_copy_string(i->dnid, dest, sizeof(i->dnid));
 		i->controller = foundcontroller;
 		tmp = capi_new(i, AST_STATE_RESERVED);
 		if (!tmp) {
@@ -1932,8 +1929,6 @@ static void capi_handle_dtmf_fax(struct ast_channel *c)
 
 /*
  * find the interface (pvt) the PLCI belongs to
- *
- * NOTE: returns a locked interface
  */
 static struct capi_pvt *find_interface_by_plci(unsigned int plci)
 {
@@ -1949,16 +1944,11 @@ static struct capi_pvt *find_interface_by_plci(unsigned int plci)
 	}
 	cc_mutex_unlock(&iflock);
 
-	if (i != NULL)
-		cc_mutex_lock(&i->lock);
-
 	return i;
 }
 
 /*
  * find the interface (pvt) the messagenumber belongs to
- *
- * NOTE: returns a locked interface
  */
 static struct capi_pvt *find_interface_by_msgnum(unsigned short msgnum)
 {
@@ -1973,9 +1963,6 @@ static struct capi_pvt *find_interface_by_msgnum(unsigned short msgnum)
 			break;
 	}
 	cc_mutex_unlock(&iflock);
-
-	if (i != NULL)
-		cc_mutex_lock(&i->lock);
 
 	return i;
 }
@@ -2066,7 +2053,7 @@ static int search_did(struct ast_channel *c)
 
 	if (ast_exists_extension(NULL, c->context, exten, 1, i->cid)) {
 		c->priority = 1;
-		strncpy(c->exten, exten, sizeof(c->exten) - 1);
+		cc_copy_string(c->exten, exten, sizeof(c->exten));
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: %s: %s matches in context %s\n",
 			i->name, c->name, exten, c->context);
 		return 0;
@@ -2412,7 +2399,7 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 	INFO_RESP_HEADER(&CMSG2, capi_ApplID, HEADER_MSGNUM(CMSG), PLCI);
 	_capi_put_cmsg(&CMSG2);
 
-	return_on_no_interface(i,PLCI,"INFO_IND");
+	return_on_no_interface("INFO_IND");
 
 	switch(INFO_IND_INFONUMBER(CMSG)) {
 	case 0x0008:	/* Cause */
@@ -2629,7 +2616,7 @@ static void capi_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, unsi
 	FACILITY_RESP_FACILITYRESPONSEPARAMETERS(&CMSG2) = FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG);
 	_capi_put_cmsg(&CMSG2);
 	
-	return_on_no_interface(i,PLCI,"FACILITY_IND");
+	return_on_no_interface("FACILITY_IND");
 
 	if (FACILITY_IND_FACILITYSELECTOR(CMSG) == FACILITYSELECTOR_LINE_INTERCONNECT) {
 		/* line interconnect */
@@ -2762,7 +2749,7 @@ static void capi_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 	DATA_B3_RESP_DATAHANDLE(&CMSG2) = DATA_B3_IND_DATAHANDLE(CMSG);
 	_capi_put_cmsg(&CMSG2);
 
-	return_on_no_interface(i,PLCI,"DATA_B3_IND");
+	return_on_no_interface("DATA_B3_IND");
 
 	if (i->fFax) {
 		/* we are in fax-receive and have a file open */
@@ -2856,7 +2843,7 @@ static void capi_handle_connect_active_indication(_cmsg *CMSG, unsigned int PLCI
 	CONNECT_ACTIVE_RESP_PLCI(&CMSG2) = PLCI;
 	_capi_put_cmsg(&CMSG2);
 	
-	return_on_no_interface(i,PLCI,"CONNECT_ACTIVE_IND");
+	return_on_no_interface("CONNECT_ACTIVE_IND");
 
 	if (i->state == CAPI_STATE_DISCONNECTING) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: CONNECT_ACTIVE in DISCONNECTING.\n",
@@ -2905,7 +2892,7 @@ static void capi_handle_connect_b3_active_indication(_cmsg *CMSG, unsigned int P
 	CONNECT_B3_ACTIVE_RESP_NCCI(&CMSG2) = NCCI;
 	_capi_put_cmsg(&CMSG2);
 
-	return_on_no_interface(i,PLCI,"CONNECT_ACTIVE_B3_IND");
+	return_on_no_interface("CONNECT_ACTIVE_B3_IND");
 
 	cc_mutex_lock(&contrlock);
 	if (i->controller > 0) {
@@ -2954,7 +2941,7 @@ static void capi_handle_disconnect_b3_indication(_cmsg *CMSG, unsigned int PLCI,
 	DISCONNECT_B3_RESP_NCCI(&CMSG2) = NCCI;
 	_capi_put_cmsg(&CMSG2);
 
-	return_on_no_interface(i,PLCI,"DISCONNECT_B3_IND");
+	return_on_no_interface("DISCONNECT_B3_IND");
 
 	i->reasonb3 = DISCONNECT_B3_IND_REASON_B3(CMSG);
 	i->NCCI = 0;
@@ -3007,7 +2994,7 @@ static void capi_handle_connect_b3_indication(_cmsg *CMSG, unsigned int PLCI, un
 	CONNECT_B3_RESP_REJECT(&CMSG2) = 0;
 	_capi_put_cmsg(&CMSG2);
 
-	return_on_no_interface(i,PLCI,"CONNECT_B3_IND");
+	return_on_no_interface("CONNECT_B3_IND");
 
 	i->NCCI = NCCI;
 
@@ -3029,7 +3016,7 @@ static void capi_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI, un
 	
 	show_capi_info(DISCONNECT_IND_REASON(CMSG));
 
-	return_on_no_interface(i,PLCI,"DISCONNECT_IND");
+	return_on_no_interface("DISCONNECT_IND");
 
 	state = i->state;
 	i->state = CAPI_STATE_DISCONNECTED;
@@ -3222,9 +3209,6 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 		return;
 	}
 
-	buffer[sizeof(buffer)-1] = '\0';
-	buffer_r[sizeof(buffer_r)-1] = '\0';
-
 	DNID = capi_number(CONNECT_IND_CALLEDPARTYNUMBER(CMSG), 1);
 	if (!DNID) {
 		DNID = emptydnid;
@@ -3264,14 +3248,14 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 			if (bchannelinfo[0] == '0')
 				continue;
 		}
-		strncpy(buffer, i->incomingmsn, sizeof(buffer) - 1);
+		cc_copy_string(buffer, i->incomingmsn, sizeof(buffer));
 		for (msn = strtok_r(buffer, ",", &buffer_rp); msn; msn = strtok_r(NULL, ",", &buffer_rp)) {
 			if (!strlen(DNID)) {
 				/* if no DNID, only accept if '*' was specified */
 				if (strncasecmp(msn, magicmsn, strlen(msn))) {
 					continue;
 				}
-				strncpy(i->dnid, emptydnid, sizeof(i->dnid) - 1);
+				cc_copy_string(i->dnid, emptydnid, sizeof(i->dnid));
 			} else {
 				/* make sure the number match exactly or may match on ptp mode */
 				cc_verbose(4, 1, VERBOSE_PREFIX_4 "%s: msn='%s' DNID='%s' %s\n",
@@ -3284,7 +3268,7 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 				   (strncasecmp(msn, magicmsn, strlen(msn)))) {
 					continue;
 				}
-				strncpy(i->dnid, DNID, sizeof(i->dnid) - 1);
+				cc_copy_string(i->dnid, DNID, sizeof(i->dnid));
 			}
 			if (CID != NULL) {
 				if ((callernplan & 0x70) == CAPI_ETSI_NPLAN_NATIONAL)
@@ -3297,7 +3281,7 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 					snprintf(i->cid, (sizeof(i->cid)-1), "%s%s",
 						i->prefix, CID);
 			} else {
-				strncpy(i->cid, emptyid, sizeof(i->cid) - 1);
+				cc_copy_string(i->cid, emptyid, sizeof(i->cid));
 			}
 			i->cip = CONNECT_IND_CIPVALUE(CMSG);
 			i->controller = controller;
@@ -3328,16 +3312,9 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 				i->name, i->cid, i->dnid);
 
 			*interface = i;
-
-			/*
-			 * NOTE: one cannot lock "i->lock" while holding
-			 * "iflock", hence it violates the "LOCKING RULES"
-			 */ 
-
 			cc_mutex_unlock(&iflock);
-
 			cc_mutex_lock(&i->lock);
-
+		
 #ifdef CC_AST_CHANNEL_HAS_TRANSFERCAP	
 			pbx_builtin_setvar_helper(i->owner, "TRANSFERCAPABILITY", transfercapability2str(i->owner->transfercapability));
 #endif
@@ -3479,6 +3456,9 @@ static void capi_handle_msg(_cmsg *CMSG)
 	} else {
 		cc_verbose(4, 1, "%s\n", capi_cmsg2str(CMSG));
 	}
+
+	if (i != NULL)
+		cc_mutex_lock(&i->lock);
 
 	/* main switch table */
 
@@ -4001,7 +3981,7 @@ static int capicommand_exec(struct ast_channel *chan, void *data)
 {
 	int res = 0;
 	struct localuser *u;
-	char buffer[CAPI_MAX_STRING];
+	char *s;
 	char *stringp;
 	char *command, *params;
 	struct capicommands_s *capicmd = &capicommands[0];
@@ -4013,9 +3993,8 @@ static int capicommand_exec(struct ast_channel *chan, void *data)
 
 	LOCAL_USER_ADD(u);
 
-	buffer[sizeof(buffer)-1] = '\0';
-	strncpy(buffer, data, sizeof(buffer)-1);
-	stringp = buffer;
+	s = ast_strdupa(data);
+	stringp = s;
 	command = strsep(&stringp, "|");
 	params = stringp;
 	cc_verbose(2, 1, VERBOSE_PREFIX_3 "capiCommand: '%s' '%s'\n",
@@ -4177,7 +4156,6 @@ static void *do_monitor(void *data)
 	_cmsg monCMSG;
 	
 	for (/* for ever */;;) {
-
 		switch(Info = check_wait_get_cmsg(&monCMSG)) {
 		case 0x0000:
 			capi_handle_msg(&monCMSG);
@@ -4200,6 +4178,7 @@ static void *do_monitor(void *data)
 			 * This error is fatal, and "chan_capi" 
 			 * should restart.
 			 */
+			cc_log(LOG_ERROR, "CAPI reports application ID no longer valid, PANIC\n");
 			return NULL;
 		default:
 			/* something is wrong! */
@@ -4271,9 +4250,6 @@ int mkif(struct cc_capi_conf *conf)
 	char *contr;
 	unsigned long contrmap = 0;
 
-	buffer[sizeof(buffer)-1] = '\0';
-	buffer_r[sizeof(buffer_r)-1] = '\0';
-
 	for (i = 0; i <= conf->devices; i++) {
 		tmp = malloc(sizeof(struct capi_pvt));
 		if (!tmp) {
@@ -4287,17 +4263,17 @@ int mkif(struct cc_capi_conf *conf)
 			snprintf(tmp->name, sizeof(tmp->name) - 1, "%s-pseudo-D", conf->name);
 			tmp->channeltype = CAPI_CHANNELTYPE_D;
 		} else {
-			strncpy(tmp->name, conf->name, sizeof(tmp->name) - 1);
+			cc_copy_string(tmp->name, conf->name, sizeof(tmp->name));
 			tmp->channeltype = CAPI_CHANNELTYPE_B;
 		}
-		strncpy(tmp->context, conf->context, sizeof(tmp->context) - 1);
-		strncpy(tmp->incomingmsn, conf->incomingmsn, sizeof(tmp->incomingmsn) - 1);
-		strncpy(tmp->defaultcid, conf->defaultcid, sizeof(tmp->defaultcid) - 1);
-		strncpy(tmp->prefix, conf->prefix, sizeof(tmp->prefix)-1);
-		strncpy(tmp->accountcode, conf->accountcode, sizeof(tmp->accountcode) - 1);
-		strncpy(tmp->language, conf->language, sizeof(tmp->language) - 1);
+		cc_copy_string(tmp->context, conf->context, sizeof(tmp->context));
+		cc_copy_string(tmp->incomingmsn, conf->incomingmsn, sizeof(tmp->incomingmsn));
+		cc_copy_string(tmp->defaultcid, conf->defaultcid, sizeof(tmp->defaultcid));
+		cc_copy_string(tmp->prefix, conf->prefix, sizeof(tmp->prefix));
+		cc_copy_string(tmp->accountcode, conf->accountcode, sizeof(tmp->accountcode));
+		cc_copy_string(tmp->language, conf->language, sizeof(tmp->language));
 
-		strncpy(buffer, conf->controllerstr, sizeof(buffer) - 1);
+		cc_copy_string(buffer, conf->controllerstr, sizeof(buffer));
 		contr = strtok_r(buffer, ",", &buffer_rp);
 		while (contr != NULL) {
 			u_int16_t unit = atoi(contr);
@@ -4680,11 +4656,13 @@ static int cc_init_capi(void)
 static int cc_post_init_capi(void)
 {
 	int controller;
+	unsigned error;
 
 	for (controller = 1; controller <= capi_num_controllers; controller++) {
 		if (capi_used_controllers & (1 << controller)) {
-			if (ListenOnController(ALL_SERVICES, controller) != 0) {
-				cc_log(LOG_ERROR,"Unable to listen on contr%d\n", controller);
+			if ((error = ListenOnController(ALL_SERVICES, controller)) != 0) {
+				cc_log(LOG_ERROR,"Unable to listen on contr%d (error=0x%x)\n",
+					controller, error);
 			} else {
 				cc_verbose(2, 0, VERBOSE_PREFIX_3 "listening on contr%d CIPmask = %#x\n",
 					controller, ALL_SERVICES);
@@ -4704,7 +4682,7 @@ static int conf_interface(struct cc_capi_conf *conf, struct ast_variable *v)
 {
 #define CONF_STRING(var, token)            \
 	if (!strcasecmp(v->name, token)) { \
-		strncpy(var, v->value, sizeof(var) - 1); \
+		cc_copy_string(var, v->value, sizeof(var)); \
 		continue;                  \
 	}
 #define CONF_INTEGER(var, token)           \
@@ -4841,17 +4819,17 @@ static int capi_eval_config(struct ast_config *cfg)
 	float txgain = 1.0;
 
 	/* prefix defaults */
-	strncpy(capi_national_prefix, CAPI_NATIONAL_PREF, sizeof(capi_national_prefix) - 1);
-	strncpy(capi_international_prefix, CAPI_INTERNAT_PREF, sizeof(capi_international_prefix) - 1);
+	cc_copy_string(capi_national_prefix, CAPI_NATIONAL_PREF, sizeof(capi_national_prefix));
+	cc_copy_string(capi_international_prefix, CAPI_INTERNAT_PREF, sizeof(capi_international_prefix));
 
 	/* read the general section */
 	for (v = ast_variable_browse(cfg, "general"); v; v = v->next) {
 		if (!strcasecmp(v->name, "nationalprefix")) {
-			strncpy(capi_national_prefix, v->value, sizeof(capi_national_prefix) - 1);
+			cc_copy_string(capi_national_prefix, v->value, sizeof(capi_national_prefix));
 		} else if (!strcasecmp(v->name, "internationalprefix")) {
-			strncpy(capi_international_prefix, v->value, sizeof(capi_international_prefix) - 1);
+			cc_copy_string(capi_international_prefix, v->value, sizeof(capi_international_prefix));
 		} else if (!strcasecmp(v->name, "language")) {
-			strncpy(default_language, v->value, sizeof(default_language) - 1);
+			cc_copy_string(default_language, v->value, sizeof(default_language));
 		} else if (!strcasecmp(v->name, "rxgain")) {
 			if (sscanf(v->value,"%f",&rxgain) != 1) {
 				cc_log(LOG_ERROR,"invalid rxgain\n");
@@ -4886,8 +4864,8 @@ static int capi_eval_config(struct ast_config *cfg)
 		conf.ecoption = EC_OPTION_DISABLE_G165;
 		conf.ectail = EC_DEFAULT_TAIL;
 		conf.ecSelector = FACILITYSELECTOR_ECHO_CANCEL;
-		strncpy(conf.name, cat, sizeof(conf.name) - 1);
-		strncpy(conf.language, default_language, sizeof(conf.language) - 1);
+		cc_copy_string(conf.name, cat, sizeof(conf.name));
+		cc_copy_string(conf.language, default_language, sizeof(conf.language));
 
 		if (conf_interface(&conf, ast_variable_browse(cfg, cat))) {
 			cc_log(LOG_ERROR, "Error interface config.\n");
