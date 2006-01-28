@@ -81,11 +81,6 @@ static inline unsigned short read_capi_dword(void *m)
  */
 #define cc_mutex_lock(x) ast_mutex_lock(x)
 #define cc_mutex_unlock(x) ast_mutex_unlock(x)
-#define cc_mutex_assert(x,what) 
-#define MA_OWNED        0x01
-#define MA_NOTOWNED     0x02
-#define MA_RECURSED     0x04
-#define MA_NOTRECURSED  0x08
 #define cc_log(x...) ast_log(x)
 
 /*
