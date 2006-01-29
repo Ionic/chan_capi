@@ -1843,8 +1843,10 @@ static int capi_receive_fax(struct ast_channel *c, char *data)
 	case CAPI_STATE_DID:
 	case CAPI_STATE_INCALL:
 		capi_send_answer(c, bprot, (_cstruct)&b3conf);
+		cc_mutex_unlock(&i->lock);
 		break;
 	case CAPI_STATE_CONNECTED:
+		cc_mutex_unlock(&i->lock);
 		capi_change_bchan_fax(c, &b3conf);
 		break;
 	default:
@@ -1854,8 +1856,6 @@ static int capi_receive_fax(struct ast_channel *c, char *data)
 			i->state);
 		return -1;
 	}
-
-	cc_mutex_unlock(&i->lock);
 
 	while (i->FaxState == 1) {
 		usleep(10000);
