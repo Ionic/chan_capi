@@ -1,7 +1,7 @@
 (CAPI*) chan_capi a Common ISDN API 2.0 implementation
 for Asterisk/OpenPBX
 
- Copyright (C) 2005 Cytronics & Melware
+ Copyright (C) 2005-2006 Cytronics & Melware
  Armin Schindler <armin@melware.de>
  
  Reworked, but based on the work of
@@ -65,6 +65,7 @@ This chan_capi version includes:
 - Support 'type of number'.
 - ISDN hold.
 - CAPI Line Interconnect.
+- Eicon DIVA Server VoIP/RTP
 
 Permissions
 ===========

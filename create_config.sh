@@ -42,14 +42,6 @@ else
 	echo " * no 'struct ast_channel_tech', using old pvt"
 fi
 
-if grep -q "ast_bridged_channel" $INCLUDEDIR/channel.h; then
-	echo "#define CC_AST_HAS_BRIDGED_CHANNEL" >>$CONFIGFILE
-	echo " * found 'ast_bridged_channel'"
-else
-	echo "#undef CC_AST_HAS_BRIDGED_CHANNEL" >>$CONFIGFILE
-	echo " * no 'ast_bridged_channel'"
-fi
-
 if grep -q "ast_bridge_result" $INCLUDEDIR/channel.h; then
 	echo "#define CC_AST_HAS_BRIDGE_RESULT" >>$CONFIGFILE
 	echo " * found 'ast_bridge_result'"
@@ -128,6 +120,22 @@ if [ -f "$INCLUDEDIR/devicestate.h" ]; then
 else
 	echo "#define CC_AST_NO_DEVICESTATE" >>$CONFIGFILE
 	echo " * no 'devicestate.h'"
+fi
+
+if [ -f "$INCLUDEDIR/strings.h" ]; then
+	echo "#undef CC_AST_NO_STRINGS" >>$CONFIGFILE
+	echo " * found 'strings.h'"
+else
+	echo "#define CC_AST_NO_STRINGS" >>$CONFIGFILE
+	echo " * no 'strings.h'"
+fi
+
+if grep -q "ast_group_t" $INCLUDEDIR/channel.h; then
+	echo "#define CC_AST_GROUP_T" >>$CONFIGFILE
+	echo " * found 'ast_group_t'"
+else
+	echo "#undef CC_AST_GROUP_T" >>$CONFIGFILE
+	echo " * no 'ast_group_t'"
 fi
 
 echo "" >>$CONFIGFILE

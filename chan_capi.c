@@ -1,9 +1,10 @@
 /*
  * (CAPI*)
  *
- * An implementation of Common ISDN API 2.0 for Asterisk
+ * An implementation of Common ISDN API 2.0 for
+ * Asterisk / OpenPBX.org
  *
- * Copyright (C) 2005 Cytronics & Melware
+ * Copyright (C) 2005-2006 Cytronics & Melware
  *
  * Armin Schindler <armin@melware.de>
  * 
@@ -15,7 +16,49 @@
  * This program is free software and may be modified and 
  * distributed under the terms of the GNU Public License.
  */
+#ifdef PBX_IS_OPBX
+#ifdef HAVE_CONFIG_H
+#include "confdefs.h"
+#endif
+#endif
 
+#include <sys/time.h>
+#include <sys/signal.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <ctype.h>
+#include <errno.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/types.h>
+
+#ifdef PBX_IS_OPBX
+#include "openpbx.h"
+
+OPENPBX_FILE_VERSION("$HeadURL$", "$Revision$")
+
+#include "openpbx/lock.h"
+#include "openpbx/frame.h" 
+#include "openpbx/channel.h"
+#include "openpbx/logger.h"
+#include "openpbx/module.h"
+#include "openpbx/pbx.h"
+#include "openpbx/config.h"
+#include "openpbx/options.h"
+#include "openpbx/features.h"
+#include "openpbx/utils.h"
+#include "openpbx/cli.h"
+#include "openpbx/rtp.h"
+#include "openpbx/causes.h"
+#include "openpbx/strings.h"
+#include "openpbx/devicestate.h"
+#include "openpbx/dsp.h"
+#include "openpbx/xlaw.h"
+#include "openpbx/chan_capi20.h"
+#include "openpbx/chan_capi.h"
+#include "openpbx/chan_capi_rtp.h"
+#else
 #include "config.h"
 
 #include <asterisk/lock.h>
@@ -32,36 +75,39 @@
 #include <asterisk/features.h>
 #include <asterisk/utils.h>
 #include <asterisk/cli.h>
+#include <asterisk/rtp.h>
 #include <asterisk/causes.h>
+#ifndef CC_AST_NO_STRINGS
 #include <asterisk/strings.h>
+#endif
+#include <asterisk/dsp.h>
 #ifndef CC_AST_NO_DEVICESTATE
 #include <asterisk/devicestate.h>
 #endif
-#include <sys/time.h>
-#include <sys/signal.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <ctype.h>
-#include <errno.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/types.h>
-#include <asterisk/dsp.h>
 #include "xlaw.h"
 #include "chan_capi20.h"
 #include "chan_capi.h"
+#include "chan_capi_rtp.h"
+#endif
 
+#ifdef PBX_IS_OPBX
+#define CC_VERSION "cm-opbx-0.7"
+#else
 /* #define CC_VERSION "cm-x.y.z" */
 #define CC_VERSION "$Revision$"
+#endif
 
 /*
  * personal stuff
  */
-static unsigned capi_ApplID = 0;
+unsigned capi_ApplID = 0;
 
 static _cword capi_MessageNumber;
-static char *desc = "Common ISDN API for Asterisk";
+#ifdef PBX_IS_OPBX
+static char *ccdesc = "Common ISDN API for OpenPBX";
+#else
+static char *ccdesc = "Common ISDN API for Asterisk";
+#endif
 #ifdef CC_AST_HAVE_TECH_PVT
 static const char tdesc[] = "Common ISDN API Driver (" CC_VERSION ") " ASTERISKVERSION;
 static const char channeltype[] = "CAPI";
@@ -114,7 +160,7 @@ AST_MUTEX_DEFINE_STATIC(usecnt_lock);
 AST_MUTEX_DEFINE_STATIC(iflock);
 AST_MUTEX_DEFINE_STATIC(contrlock);
 AST_MUTEX_DEFINE_STATIC(capi_put_lock);
-AST_MUTEX_DEFINE_STATIC(verbose_lock);
+AST_MUTEX_DEFINE_EXPORTED(verbose_lock);
 
 static int capi_capability = AST_FORMAT_ALAW;
 
@@ -134,7 +180,7 @@ static char capi_international_prefix[AST_MAX_EXTENSION];
 
 static char default_language[MAX_LANGUAGE] = "";
 
-static int capidebug = 0;
+int capidebug = 0;
 
 /* local prototypes */
 static int capi_indicate(struct ast_channel *c, int condition);
@@ -148,6 +194,39 @@ extern char *capi_info_string(unsigned int info);
 		cc_verbose(4, 1, "CAPI: %s no interface for PLCI=%#x\n", x, PLCI);   \
 		return;                                                 \
 	}
+
+/*
+ * B protocol settings
+ */
+#define CC_BPROTO_TRANSPARENT   0
+#define CC_BPROTO_FAXG3         1
+#define CC_BPROTO_RTP           2
+static struct {
+	_cword b1protocol;
+	_cword b2protocol;
+	_cword b3protocol;
+	_cstruct b1configuration;
+	_cstruct b2configuration;
+	_cstruct b3configuration;
+} b_protocol_table[] =
+{
+	{ 0x01, 0x01, 0x00,	/* 0 */
+		NULL,
+		NULL,
+		NULL
+	},
+	{ 0x04, 0x04, 0x04,	/* 1 */
+		NULL,
+		NULL,
+		NULL
+	},
+	{ 0x1f, 0x1f, 0x1f,	/* 2 */
+		(_cstruct) "\x00",
+		(_cstruct) "\x02\x01\x00",
+		(_cstruct) "\x00"
+	}
+};
+
 /*
  * command to string function
  */
@@ -209,7 +288,7 @@ static void show_capi_info(_cword info)
 /*
  * get a new capi message number automically
  */
-static _cword get_capi_MessageNumber(void)
+_cword get_capi_MessageNumber(void)
 {
 	_cword mn;
 
@@ -231,7 +310,7 @@ static _cword get_capi_MessageNumber(void)
 /*
  * write a capi message to capi device
  */
-static MESSAGE_EXCHANGE_ERROR _capi_put_cmsg(_cmsg *CMSG)
+MESSAGE_EXCHANGE_ERROR _capi_put_cmsg(_cmsg *CMSG)
 {
 	MESSAGE_EXCHANGE_ERROR error;
 	
@@ -720,6 +799,11 @@ static void interface_cleanup(struct capi_pvt *i)
 	memset(i->dnid, 0, sizeof(i->dnid));
 	i->cid_ton = 0;
 
+	i->rtpcodec = 0;
+	if (i->rtp) {
+		ast_rtp_destroy(i->rtp);
+	}
+
 	i->owner = NULL;
 	return;
 }
@@ -1057,9 +1141,12 @@ static int capi_call(struct ast_channel *c, char *idest, int timeout)
 	CONNECT_REQ_CALLINGPARTYNUMBER(&CMSG) = (_cstruct)calling;
 	CONNECT_REQ_CALLINGPARTYSUBADDRESS(&CMSG) = (_cstruct)osa;
 
-	CONNECT_REQ_B1PROTOCOL(&CMSG) = 1;
-	CONNECT_REQ_B2PROTOCOL(&CMSG) = 1;
-	CONNECT_REQ_B3PROTOCOL(&CMSG) = 0;
+	CONNECT_REQ_B1PROTOCOL(&CMSG) = b_protocol_table[i->bproto].b1protocol;
+	CONNECT_REQ_B2PROTOCOL(&CMSG) = b_protocol_table[i->bproto].b2protocol;
+	CONNECT_REQ_B3PROTOCOL(&CMSG) = b_protocol_table[i->bproto].b3protocol;
+	CONNECT_REQ_B1CONFIGURATION(&CMSG) = b_protocol_table[i->bproto].b1configuration;
+	CONNECT_REQ_B2CONFIGURATION(&CMSG) = b_protocol_table[i->bproto].b2configuration;
+	CONNECT_REQ_B3CONFIGURATION(&CMSG) = b_protocol_table[i->bproto].b3configuration;
 
 	bchaninfo[0] = 2;
 	bchaninfo[1] = 0x0;
@@ -1083,7 +1170,7 @@ static int capi_call(struct ast_channel *c, char *idest, int timeout)
 /*
  * answer a capi call
  */
-static int capi_send_answer(struct ast_channel *c, int *bprot, _cstruct b3conf)
+static int capi_send_answer(struct ast_channel *c, _cstruct b3conf)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	_cmsg CMSG;
@@ -1112,10 +1199,14 @@ static int capi_send_answer(struct ast_channel *c, int *bprot, _cstruct b3conf)
 		strncpy(&buf[3], dnid, sizeof(buf) - 4);
 		CONNECT_RESP_CONNECTEDNUMBER(&CMSG) = (_cstruct)buf;
 	}
-	CONNECT_RESP_B1PROTOCOL(&CMSG) = bprot[0];
-	CONNECT_RESP_B2PROTOCOL(&CMSG) = bprot[1];
-	CONNECT_RESP_B3PROTOCOL(&CMSG) = bprot[2];
-	CONNECT_RESP_B3CONFIGURATION(&CMSG) = (_cstruct)b3conf;
+	CONNECT_RESP_B1PROTOCOL(&CMSG) = b_protocol_table[i->bproto].b1protocol;
+	CONNECT_RESP_B2PROTOCOL(&CMSG) = b_protocol_table[i->bproto].b2protocol;
+	CONNECT_RESP_B3PROTOCOL(&CMSG) = b_protocol_table[i->bproto].b3protocol;
+	CONNECT_RESP_B1CONFIGURATION(&CMSG) = b_protocol_table[i->bproto].b1configuration;
+	CONNECT_RESP_B2CONFIGURATION(&CMSG) = b_protocol_table[i->bproto].b2configuration;
+	if (!b3conf)
+		b3conf = b_protocol_table[i->bproto].b3configuration;
+	CONNECT_RESP_B3CONFIGURATION(&CMSG) = b3conf;
 
 	cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: Answering for %s\n",
 		i->name, dnid);
@@ -1138,10 +1229,15 @@ static int capi_answer(struct ast_channel *c)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	int ret;
-	int bprot[3] = { 1, 1, 0 };
+
+	if (i->rtp) {
+		i->bproto = CC_BPROTO_RTP;
+	} else {
+		i->bproto = CC_BPROTO_TRANSPARENT;
+	}
 
 	cc_mutex_lock(&i->lock);
-	ret = capi_send_answer(c, bprot, NULL);
+	ret = capi_send_answer(c, NULL);
 	cc_mutex_unlock(&i->lock);
 	return ret;
 }
@@ -1149,7 +1245,7 @@ static int capi_answer(struct ast_channel *c)
 /*
  * PBX tells us to read for a channel
  */
-struct ast_frame *capi_read(struct ast_channel *c) 
+static struct ast_frame *capi_read(struct ast_channel *c) 
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	int readsize = 0;
@@ -1209,7 +1305,7 @@ struct ast_frame *capi_read(struct ast_channel *c)
 /*
  * PBX tells us to write for a channel
  */
-int capi_write(struct ast_channel *c, struct ast_frame *f)
+static int capi_write(struct ast_channel *c, struct ast_frame *f)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	MESSAGE_EXCHANGE_ERROR error;
@@ -1218,6 +1314,7 @@ int capi_write(struct ast_channel *c, struct ast_frame *f)
 	unsigned char *buf;
 	struct ast_frame *fsmooth;
 	int txavg=0;
+	int ret = 0;
 
 	if (!i) {
 		cc_log(LOG_ERROR, "channel has no interface\n");
@@ -1256,15 +1353,21 @@ int capi_write(struct ast_channel *c, struct ast_frame *f)
 		cc_mutex_unlock(&i->lock);
 		return 0;
 	}
-	if (f->subclass != capi_capability) {
-		cc_log(LOG_ERROR, "dont know how to write subclass %d\n", f->subclass);
-		cc_mutex_unlock(&i->lock);
-		return -1;
-	}
 	if ((!f->data) || (!f->datalen) || (!i->smoother)) {
 		cc_log(LOG_ERROR, "No data for FRAME_VOICE %s\n", c->name);
 		cc_mutex_unlock(&i->lock);
 		return 0;
+	}
+	if ((i->isdnstate & CAPI_ISDN_STATE_RTP) && (f->subclass & i->codec)) {
+		ret = capi_write_rtp(c, f);
+		cc_mutex_unlock(&i->lock);
+		return ret;
+	}
+	if (f->subclass != capi_capability) {
+		cc_log(LOG_ERROR, "dont know how to write subclass %s(%d)\n",
+			ast_getformatname(f->subclass), f->subclass);
+		cc_mutex_unlock(&i->lock);
+		return -1;
 	}
 
 	if (ast_smoother_feed(i->smoother, f) != 0) {
@@ -1281,7 +1384,8 @@ int capi_write(struct ast_channel *c, struct ast_frame *f)
 		DATA_B3_REQ_FLAGS(&CMSG) = 0; 
 
 		DATA_B3_REQ_DATAHANDLE(&CMSG) = i->send_buffer_handle;
-		buf = &(i->send_buffer[(i->send_buffer_handle % CAPI_MAX_B3_BLOCKS) * CAPI_MAX_B3_BLOCK_SIZE]);
+		buf = &(i->send_buffer[(i->send_buffer_handle % CAPI_MAX_B3_BLOCKS) *
+			(CAPI_MAX_B3_BLOCK_SIZE + AST_FRIENDLY_OFFSET)]);
 		DATA_B3_REQ_DATA(&CMSG) = buf;
 		i->send_buffer_handle++;
 
@@ -1411,7 +1515,8 @@ static int line_interconnect(struct capi_pvt *i0, struct capi_pvt *i1, int start
  */
 static CC_BRIDGE_RETURN capi_bridge(struct ast_channel *c0,
                                     struct ast_channel *c1,
-                                    int flags, struct ast_frame **fo, struct ast_channel **rc
+                                    int flags, struct ast_frame **fo,
+				    struct ast_channel **rc
 #ifdef CC_AST_BRIDGE_WITH_TIMEOUTMS
                                     , int timeoutms
 #endif
@@ -1583,8 +1688,22 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 	CC_CHANNEL_PVT(tmp) = i;
 
 	tmp->callgroup = i->callgroup;
+
 	tmp->nativeformats = capi_capability;
+	i->bproto = CC_BPROTO_TRANSPARENT;
+	if ((i->rtpcodec = (capi_controllers[i->controller]->rtpcodec & i->capability))) {
+		if (capi_alloc_rtp(i)) {
+			/* error on rtp alloc */
+			i->rtpcodec = 0;
+		} else {
+			/* start with rtp */
+			tmp->nativeformats = i->rtpcodec;
+			i->bproto = CC_BPROTO_RTP;
+			i->isdnstate |= CAPI_ISDN_STATE_RTP;
+		}
+	}
 	fmt = ast_best_codec(tmp->nativeformats);
+	i->codec = fmt;
 	tmp->readformat = fmt;
 	tmp->writeformat = fmt;
 
@@ -1605,6 +1724,11 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 	tmp->pvt->rawreadformat = fmt;
 	tmp->pvt->rawwriteformat = fmt;
 #endif
+	cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: setting format %s - %s%s\n",
+		i->name, ast_getformatname(fmt),
+		ast_getformatname_multiple(alloca(80), 80,
+		tmp->nativeformats),
+		(i->rtp) ? " (RTP)" : "");
 	cc_copy_string(tmp->context, i->context, sizeof(tmp->context));
 #ifdef CC_AST_CHANNEL_HAS_CID
 	if (!ast_strlen_zero(i->cid))
@@ -1637,16 +1761,17 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
  * PBX wants us to dial ...
  */
 #ifdef CC_AST_HAVE_TECH_PVT
-struct ast_channel *capi_request(const char *type, int format, void *data, int *cause)
+static struct ast_channel *capi_request(const char *type, int format, void *data, int *cause)
 #else
-struct ast_channel *capi_request(char *type, int format, void *data)
+static struct ast_channel *capi_request(char *type, int format, void *data)
 #endif
 {
 	struct capi_pvt *i;
 	struct ast_channel *tmp = NULL;
 	char *dest, *interface, *param, *ocid;
 	char buffer[CAPI_MAX_STRING];
-	unsigned int capigroup = 0, controller = 0;
+	ast_group_t capigroup = 0;
+	unsigned int controller = 0;
 	unsigned int foundcontroller;
 	int notfound = 1;
 
@@ -1666,7 +1791,7 @@ struct ast_channel *capi_request(char *type, int format, void *data)
 	if (interface[0] == 'g') {
 		capigroup = ast_get_group(interface + 1);
 		cc_verbose(1, 1, VERBOSE_PREFIX_4 "capi request group = %d\n",
-				capigroup);
+				(unsigned int)capigroup);
 	} else if (!strncmp(interface, "contr", 5)) {
 		controller = atoi(interface + 5);
 		cc_verbose(1, 1, VERBOSE_PREFIX_4 "capi request controller = %d\n",
@@ -1791,11 +1916,11 @@ static void capi_change_bchan_fax(struct ast_channel *c, B3_PROTO_FAXG3 *b3conf)
 
 	SELECT_B_PROTOCOL_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
 	SELECT_B_PROTOCOL_REQ_PLCI(&CMSG) = i->PLCI;
-	SELECT_B_PROTOCOL_REQ_B1PROTOCOL(&CMSG) = 4;
-	SELECT_B_PROTOCOL_REQ_B2PROTOCOL(&CMSG) = 4;
-	SELECT_B_PROTOCOL_REQ_B3PROTOCOL(&CMSG) = 4;
-	SELECT_B_PROTOCOL_REQ_B1CONFIGURATION(&CMSG) = NULL;
-	SELECT_B_PROTOCOL_REQ_B2CONFIGURATION(&CMSG) = NULL;
+	SELECT_B_PROTOCOL_REQ_B1PROTOCOL(&CMSG) = b_protocol_table[i->bproto].b1protocol;
+	SELECT_B_PROTOCOL_REQ_B2PROTOCOL(&CMSG) = b_protocol_table[i->bproto].b2protocol;
+	SELECT_B_PROTOCOL_REQ_B3PROTOCOL(&CMSG) = b_protocol_table[i->bproto].b3protocol;
+	SELECT_B_PROTOCOL_REQ_B1CONFIGURATION(&CMSG) = b_protocol_table[i->bproto].b1configuration;
+	SELECT_B_PROTOCOL_REQ_B2CONFIGURATION(&CMSG) = b_protocol_table[i->bproto].b2configuration;
 	SELECT_B_PROTOCOL_REQ_B3CONFIGURATION(&CMSG) = (_cstruct)b3conf;
 	_capi_put_cmsg(&CMSG);
 
@@ -1810,7 +1935,6 @@ static int capi_receive_fax(struct ast_channel *c, char *data)
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	int res = 0;
 	char *filename, *stationid, *headline;
-	int bprot[3] = { 4, 4, 4 };
 	B3_PROTO_FAXG3 b3conf;
 
 	if (!data) { /* no data implies no filename or anything is present */
@@ -1838,11 +1962,13 @@ static int capi_receive_fax(struct ast_channel *c, char *data)
 	i->FaxState = 1;
 	setup_b3_fax_config(&b3conf, FAX_SFF_FORMAT, stationid, headline);
 
+	i->bproto = CC_BPROTO_FAXG3;
+
 	switch (i->state) {
 	case CAPI_STATE_ALERTING:
 	case CAPI_STATE_DID:
 	case CAPI_STATE_INCALL:
-		capi_send_answer(c, bprot, (_cstruct)&b3conf);
+		capi_send_answer(c, (_cstruct)&b3conf);
 		cc_mutex_unlock(&i->lock);
 		break;
 	case CAPI_STATE_CONNECTED:
@@ -2079,6 +2205,7 @@ static void start_b3(struct capi_pvt *i)
 		i->isdnstate |= CAPI_ISDN_STATE_B3_PEND;
 		CONNECT_B3_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
 		CONNECT_B3_REQ_PLCI(&CMSG) = i->PLCI;
+		CONNECT_B3_REQ_NCPI(&CMSG) = capi_rtp_ncpi(i);
 		_capi_put_cmsg(&CMSG);
 		cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s: sent CONNECT_B3_REQ PLCI=%#x\n",
 			i->name, i->PLCI);
@@ -2086,7 +2213,7 @@ static void start_b3(struct capi_pvt *i)
 }
 
 /*
- * send CONNECT_B3_REQ for early B3
+ * start early B3
  */
 static void start_early_b3(struct capi_pvt *i)
 {
@@ -2448,12 +2575,6 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 	case 0x0028:	/* DSP */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element DSP\n",
 			i->name);
-		#if 0
-		struct ast_frame ft = { AST_FRAME_TEXT, capi_number(INFO_IND_INFOELEMENT(CMSG),0), };
-		ast_sendtext(i->owner,capi_number(INFO_IND_INFOELEMENT(CMSG), 0));
-		ast_queue_frame(i->owner, &ft);
-		cc_log(LOG_NOTICE,"%s\n",capi_number(INFO_IND_INFOELEMENT(CMSG),0));
-		#endif
 		break;
 	case 0x0029:	/* Date/Time */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element Date/Time %02d/%02d/%02d %02d:%02d\n",
@@ -2661,15 +2782,6 @@ static void capi_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, unsi
 	
 	if (FACILITY_IND_FACILITYSELECTOR(CMSG) == FACILITYSELECTOR_SUPPLEMENTARY) {
 		/* supplementary sservices */
-#if 0
-		cc_log(LOG_NOTICE,"FACILITY_IND PLCI = %#x\n",PLCI);
-		cc_log(LOG_NOTICE,"%#x\n",FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[0]);
-		cc_log(LOG_NOTICE,"%#x\n",FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[1]);
-		cc_log(LOG_NOTICE,"%#x\n",FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[2]);
-		cc_log(LOG_NOTICE,"%#x\n",FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[3]);
-		cc_log(LOG_NOTICE,"%#x\n",FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]);
-		cc_log(LOG_NOTICE,"%#x\n",FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[5]);
-#endif
 		/* ECT */
 		if ( (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[1] == 0x6) &&
 		     (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[3] == 0x2) ) {
@@ -2736,10 +2848,12 @@ static void capi_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 	int j;
 	int rxavg = 0;
 	int txavg = 0;
+	int rtpoffset = 0;
 
 	if (i != NULL) {
+		if (i->isdnstate & CAPI_ISDN_STATE_RTP) rtpoffset = 12;
 		b3len = DATA_B3_IND_DATALENGTH(CMSG);
-		b3buf = &(i->rec_buffer[AST_FRIENDLY_OFFSET]);
+		b3buf = &(i->rec_buffer[AST_FRIENDLY_OFFSET - rtpoffset]);
 		memcpy(b3buf, (char *)DATA_B3_IND_DATA(CMSG), b3len);
 	}
 	
@@ -2760,7 +2874,14 @@ static void capi_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 				i->name, strerror(errno));
 		return;
 	}
-	    
+
+	if (i->isdnstate & CAPI_ISDN_STATE_RTP) {
+		struct ast_frame *f = capi_read_rtp(i, b3buf, b3len);
+		if (f)
+			pipe_frame(i, f);
+		return;
+	}
+
 	if (i->B3q < 800) {
 		i->B3q += b3len;
 	}
@@ -2992,6 +3113,7 @@ static void capi_handle_connect_b3_indication(_cmsg *CMSG, unsigned int PLCI, un
 	CONNECT_B3_RESP_HEADER(&CMSG2, capi_ApplID, HEADER_MSGNUM(CMSG), 0);
 	CONNECT_B3_RESP_NCCI(&CMSG2) = NCCI;
 	CONNECT_B3_RESP_REJECT(&CMSG2) = 0;
+	CONNECT_B3_RESP_NCPI(&CMSG2) = capi_rtp_ncpi(i);
 	_capi_put_cmsg(&CMSG2);
 
 	return_on_no_interface("CONNECT_B3_IND");
@@ -3760,7 +3882,7 @@ static int capi_ect(struct ast_channel *c, char *param)
 
 	FACILITY_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
 	FACILITY_REQ_CONTROLLER(&CMSG) = i->controller;
-	FACILITY_REQ_PLCI(&CMSG) = plci;
+	FACILITY_REQ_PLCI(&CMSG) = plci; /* implicit ECT */
 	FACILITY_REQ_FACILITYSELECTOR(&CMSG) = FACILITYSELECTOR_SUPPLEMENTARY;
 	FACILITY_REQ_FACILITYREQUESTPARAMETER(&CMSG) = (_cstruct)&fac;
 
@@ -3942,12 +4064,12 @@ static int capi_signal_progress(struct ast_channel *c, char *param)
 
 	SELECT_B_PROTOCOL_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
 	SELECT_B_PROTOCOL_REQ_PLCI(&CMSG) = i->PLCI;
-	SELECT_B_PROTOCOL_REQ_B1PROTOCOL(&CMSG) = 1;
-	SELECT_B_PROTOCOL_REQ_B2PROTOCOL(&CMSG) = 1;
-	SELECT_B_PROTOCOL_REQ_B3PROTOCOL(&CMSG) = 0;
-	SELECT_B_PROTOCOL_REQ_B1CONFIGURATION(&CMSG) = NULL;
-	SELECT_B_PROTOCOL_REQ_B2CONFIGURATION(&CMSG) = NULL;
-	SELECT_B_PROTOCOL_REQ_B3CONFIGURATION(&CMSG) = NULL;
+	SELECT_B_PROTOCOL_REQ_B1PROTOCOL(&CMSG) = b_protocol_table[i->bproto].b1protocol;
+	SELECT_B_PROTOCOL_REQ_B2PROTOCOL(&CMSG) = b_protocol_table[i->bproto].b2protocol;
+	SELECT_B_PROTOCOL_REQ_B3PROTOCOL(&CMSG) = b_protocol_table[i->bproto].b3protocol;
+	SELECT_B_PROTOCOL_REQ_B1CONFIGURATION(&CMSG) = b_protocol_table[i->bproto].b1configuration;
+	SELECT_B_PROTOCOL_REQ_B2CONFIGURATION(&CMSG) = b_protocol_table[i->bproto].b2configuration;
+	SELECT_B_PROTOCOL_REQ_B3CONFIGURATION(&CMSG) = b_protocol_table[i->bproto].b3configuration;
 
 	_capi_put_cmsg(&CMSG);
 
@@ -4257,7 +4379,7 @@ int mkif(struct cc_capi_conf *conf)
 		}
 		memset(tmp, 0, sizeof(struct capi_pvt));
 		
-		ast_mutex_init(&tmp->lock);
+		cc_mutex_init(&tmp->lock);
 	
 		if (i == 0) {
 			snprintf(tmp->name, sizeof(tmp->name) - 1, "%s-pseudo-D", conf->name);
@@ -4323,6 +4445,7 @@ int mkif(struct cc_capi_conf *conf)
 		capi_gains(&tmp->g, conf->rxgain, conf->txgain);
 
 		tmp->doDTMF = conf->softdtmf;
+		tmp->capability = conf->capability;
 
 		tmp->next = iflist; /* prepend */
 		iflist = tmp;
@@ -4347,7 +4470,7 @@ static void supported_sservices(struct cc_capi_controller *cp)
 	MESSAGE_EXCHANGE_ERROR error;
 	_cmsg CMSG, CMSG2;
 	struct timeval tv;
-	char fac[20];
+	unsigned char fac[20];
 	unsigned int services;
 
 	memset(fac, 0, sizeof(fac));
@@ -4390,50 +4513,52 @@ static void supported_sservices(struct cc_capi_controller *cp)
 		services);
 	
 	/* success, so set the features we have */
+	cc_verbose(3, 0, VERBOSE_PREFIX_4 " ");
 	if (services & 0x0001) {
 		cp->holdretrieve = 1;
-		cc_verbose(3, 0, VERBOSE_PREFIX_4 "HOLD/RETRIEVE\n");
+		cc_verbose(3, 0, "HOLD/RETRIEVE ");
 	}
 	if (services & 0x0002) {
 		cp->terminalportability = 1;
-		cc_verbose(3, 0, VERBOSE_PREFIX_4 "TERMINAL PORTABILITY\n");
+		cc_verbose(3, 0, "TERMINAL-PORTABILITY ");
 	}
 	if (services & 0x0004) {
 		cp->ECT = 1;
-		cc_verbose(3, 0, VERBOSE_PREFIX_4 "ECT\n");
+		cc_verbose(3, 0, "ECT ");
 	}
 	if (services & 0x0008) {
 		cp->threePTY = 1;
-		cc_verbose(3, 0, VERBOSE_PREFIX_4 "3PTY\n");
+		cc_verbose(3, 0, "3PTY ");
 	}
 	if (services & 0x0010) {
 		cp->CF = 1;
-		cc_verbose(3, 0, VERBOSE_PREFIX_4 "CF\n");
+		cc_verbose(3, 0, "CF ");
 	}
 	if (services & 0x0020) {
 		cp->CD = 1;
-		cc_verbose(3, 0, VERBOSE_PREFIX_4 "CD\n");
+		cc_verbose(3, 0, "CD ");
 	}
 	if (services & 0x0040) {
 		cp->MCID = 1;
-		cc_verbose(3, 0, VERBOSE_PREFIX_4 "MCID\n");
+		cc_verbose(3, 0, "MCID ");
 	}
 	if (services & 0x0080) {
 		cp->CCBS = 1;
-		cc_verbose(3, 0, VERBOSE_PREFIX_4 "CCBS\n");
+		cc_verbose(3, 0, "CCBS ");
 	}
 	if (services & 0x0100) {
 		cp->MWI = 1;
-		cc_verbose(3, 0, VERBOSE_PREFIX_4 "MWI\n");
+		cc_verbose(3, 0, "MWI ");
 	}
 	if (services & 0x0200) {
 		cp->CCNR = 1;
-		cc_verbose(3, 0, VERBOSE_PREFIX_4 "CCNR\n");
+		cc_verbose(3, 0, "CCNR ");
 	}
 	if (services & 0x0400) {
 		cp->CONF = 1;
-		cc_verbose(3, 0, VERBOSE_PREFIX_4 "CONF\n");
+		cc_verbose(3, 0, "CONF");
 	}
+	cc_verbose(3, 0, "\n");
 	return;
 }
 
@@ -4547,6 +4672,7 @@ static int cc_init_capi(void)
 #endif
 	struct cc_capi_controller *cp;
 	int controller;
+	unsigned int privateoptions;
 
 	if (capi20_isinstalled() != 0) {
 		cc_log(LOG_WARNING, "CAPI not installed, CAPI disabled!\n");
@@ -4645,6 +4771,18 @@ static int cc_init_capi(void)
 			supported_sservices(cp);
 		}
 
+		/* New profile options for e.g. RTP with Eicon DIVA */
+		privateoptions = read_capi_dword(&profile.manufacturer[0]);
+		cc_verbose(3, 0, VERBOSE_PREFIX_3 "CAPI/contr%d private options=0x%08x\n",
+			controller, privateoptions);
+		if (privateoptions & 0x02) {
+			cc_verbose(3, 0, VERBOSE_PREFIX_4 "VoIP/RTP is supported\n");
+			voice_over_ip_profile(cp);
+		}
+		if (privateoptions & 0x04) {
+			cc_verbose(3, 0, VERBOSE_PREFIX_4 "T.38 is supported\n");
+		}
+
 		capi_controllers[controller] = cp;
 	}
 	return 0;
@@ -4684,38 +4822,36 @@ static int conf_interface(struct cc_capi_conf *conf, struct ast_variable *v)
 	if (!strcasecmp(v->name, token)) { \
 		cc_copy_string(var, v->value, sizeof(var)); \
 		continue;                  \
-	}
+	} else
 #define CONF_INTEGER(var, token)           \
 	if (!strcasecmp(v->name, token)) { \
 		var = atoi(v->value);      \
 		continue;                  \
-	}
+	} else
 #define CONF_TRUE(var, token, val)         \
 	if (!strcasecmp(v->name, token)) { \
 		if (ast_true(v->value))    \
 			var = val;         \
 		continue;                  \
-	}
-	
+	} else
 
 	for (; v; v = v->next) {
-		CONF_INTEGER(conf->devices, "devices");
-		CONF_STRING(conf->context, "context");
-		CONF_STRING(conf->incomingmsn, "incomingmsn");
-		CONF_STRING(conf->defaultcid, "defaultcid");
-		CONF_STRING(conf->controllerstr, "controller");
-		CONF_STRING(conf->prefix, "prefix");
-		CONF_STRING(conf->accountcode, "accountcode");
-		CONF_STRING(conf->language, "language");
+		CONF_INTEGER(conf->devices, "devices")
+		CONF_STRING(conf->context, "context")
+		CONF_STRING(conf->incomingmsn, "incomingmsn")
+		CONF_STRING(conf->defaultcid, "defaultcid")
+		CONF_STRING(conf->controllerstr, "controller")
+		CONF_STRING(conf->prefix, "prefix")
+		CONF_STRING(conf->accountcode, "accountcode")
+		CONF_STRING(conf->language, "language")
 
 		if (!strcasecmp(v->name, "softdtmf")) {
 			if ((!conf->softdtmf) && (ast_true(v->value))) {
 				conf->softdtmf = 1;
 			}
 			continue;
-		}
-		CONF_TRUE(conf->softdtmf, "relaxdtmf", 2);
-
+		} else
+		CONF_TRUE(conf->softdtmf, "relaxdtmf", 2)
 		if (!strcasecmp(v->name, "holdtype")) {
 			if (!strcasecmp(v->value, "hold")) {
 				conf->holdtype = CC_HOLDTYPE_HOLD;
@@ -4725,39 +4861,37 @@ static int conf_interface(struct cc_capi_conf *conf, struct ast_variable *v)
 				conf->holdtype = CC_HOLDTYPE_LOCAL;
 			}
 			continue;
-		}
-
-		CONF_TRUE(conf->immediate, "immediate", 1);
-		CONF_TRUE(conf->es, "echosquelch", 1);
-		CONF_TRUE(conf->bridge, "bridge", 1);
-		CONF_TRUE(conf->ntmode, "ntmode", 1);
-
+		} else
+		CONF_TRUE(conf->immediate, "immediate", 1)
+		CONF_TRUE(conf->es, "echosquelch", 1)
+		CONF_TRUE(conf->bridge, "bridge", 1)
+		CONF_TRUE(conf->ntmode, "ntmode", 1)
 		if (!strcasecmp(v->name, "callgroup")) {
 			conf->callgroup = ast_get_group(v->value);
 			continue;
-		}
+		} else
 		if (!strcasecmp(v->name, "group")) {
 			conf->group = ast_get_group(v->value);
 			continue;
-		}
+		} else
 		if (!strcasecmp(v->name, "rxgain")) {
 			if (sscanf(v->value, "%f", &conf->rxgain) != 1) {
 				cc_log(LOG_ERROR,"invalid rxgain\n");
 			}
 			continue;
-		}
+		} else
 		if (!strcasecmp(v->name, "txgain")) {
 			if (sscanf(v->value, "%f", &conf->txgain) != 1) {
 				cc_log(LOG_ERROR, "invalid txgain\n");
 			}
 			continue;
-		}
+		} else
 		if (!strcasecmp(v->name, "echocancelold")) {
 			if (ast_true(v->value)) {
 				conf->ecSelector = 6;
 			}
 			continue;
-		}
+		} else
 		if (!strcasecmp(v->name, "echocancel")) {
 			if (ast_true(v->value)) {
 				conf->echocancel = 1;
@@ -4783,14 +4917,14 @@ static int conf_interface(struct cc_capi_conf *conf, struct ast_variable *v)
 				cc_log(LOG_ERROR,"Unknown echocancel parameter \"%s\" -- ignoring\n",v->value);
 			}
 			continue;
-		}
+		} else
 		if (!strcasecmp(v->name, "echotail")) {
 			conf->ectail = atoi(v->value);
 			if (conf->ectail > 255) {
 				conf->ectail = 255;
 			} 
 			continue;
-		}
+		} else
 		if (!strcasecmp(v->name, "isdnmode")) {
 			if (!strcasecmp(v->value, "did"))
 			    conf->isdnmode = CAPI_ISDNMODE_DID;
@@ -4799,6 +4933,12 @@ static int conf_interface(struct cc_capi_conf *conf, struct ast_variable *v)
 			else
 			    cc_log(LOG_ERROR,"Unknown isdnmode parameter \"%s\" -- ignoring\n",
 			    	v->value);
+		} else
+		if (!strcasecmp(v->name, "allow")) {
+			ast_parse_allow_disallow(&conf->prefs, &conf->capability, v->value, 1);
+		} else
+		if (!strcasecmp(v->name, "disallow")) {
+			ast_parse_allow_disallow(&conf->prefs, &conf->capability, v->value, 0);
 		}
 	}
 #undef CONF_STRING
@@ -5082,12 +5222,12 @@ int usecount()
 
 char *description()
 {
-	return desc;
+	return ccdesc;
 }
 
-
+#ifndef PBX_IS_OPBX
 char *key()
 {
 	return ASTERISK_GPL_KEY;
 }
-
+#endif
