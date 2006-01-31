@@ -1389,7 +1389,11 @@ static int capi_write(struct ast_channel *c, struct ast_frame *f)
 		DATA_B3_REQ_DATA(&CMSG) = buf;
 		i->send_buffer_handle++;
 
+#ifdef CC_AST_CHANNEL_HAS_TRANSFERCAP	
+		if ((i->doES == 1) && (c->transfercapability != PRI_TRANS_CAP_DIGITAL)) {
+#else
 		if ((i->doES == 1)) {
+#endif
 			for (j = 0; j < fsmooth->datalen; j++) {
 				buf[j] = reversebits[ ((unsigned char *)fsmooth->data)[j] ]; 
 				if (capi_capability == AST_FORMAT_ULAW) {
@@ -1404,7 +1408,11 @@ static int capi_write(struct ast_channel *c, struct ast_frame *f)
 			}
 			i->txavg[ECHO_TX_COUNT - 1] = txavg;
 		} else {
+#ifdef CC_AST_CHANNEL_HAS_TRANSFERCAP	
+			if ((i->txgain == 1.0) || (c->transfercapability == PRI_TRANS_CAP_DIGITAL)) {
+#else
 			if (i->txgain == 1.0) {
+#endif
 				for (j = 0; j < fsmooth->datalen; j++) {
 					buf[j] = reversebits[((unsigned char *)fsmooth->data)[j]];
 				}
