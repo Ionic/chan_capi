@@ -1652,9 +1652,16 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 	}
 #endif
 
+#ifdef CC_AST_HAS_STRINGFIELD_IN_CHANNEL
+	ast_string_field_build(tmp, name, "CAPI/%s/%s-%x",
+		i->name, i->dnid, capi_counter++);
+#else
 	snprintf(tmp->name, sizeof(tmp->name) - 1, "CAPI/%s/%s-%x",
 		i->name, i->dnid, capi_counter++);
+#endif
+#ifdef CC_AST_HAS_TYPE_IN_CHANNEL
 	tmp->type = channeltype;
+#endif
 
 	if (pipe(fds) != 0) {
 	    	cc_log(LOG_ERROR, "%s: unable to create pipe.\n", i->name);
@@ -1752,8 +1759,13 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 #endif
 	
 	cc_copy_string(tmp->exten, i->dnid, sizeof(tmp->exten));
+#ifdef CC_AST_HAS_STRINGFIELD_IN_CHANNEL
+	ast_string_field_set(tmp, accountcode, i->accountcode);
+	ast_string_field_set(tmp, language, i->language);
+#else
 	cc_copy_string(tmp->accountcode, i->accountcode, sizeof(tmp->accountcode));
 	cc_copy_string(tmp->language, i->language, sizeof(tmp->language));
+#endif
 	i->owner = tmp;
 	cc_mutex_lock(&usecnt_lock);
 	usecnt++;
@@ -3740,14 +3752,19 @@ static void capi_handle_msg(_cmsg *CMSG)
  */
 static int capi_retrieve(struct ast_channel *c, char *param)
 {
-	struct capi_pvt *i = NULL;
+	struct capi_pvt *i = CC_CHANNEL_PVT(c); 
 	_cmsg	CMSG;
 	char	fac[4];
 	unsigned int plci = 0;
 
+#ifdef CC_AST_HAVE_TECH_PVT
+	if (c->tech->type == channeltype) {
+#else
 	if (!(strcmp(c->type, "CAPI"))) {
-		i = CC_CHANNEL_PVT(c);
+#endif
 		plci = i->onholdPLCI;
+	} else {
+		i = NULL;
 	}
 
 	if (param) {
@@ -4142,7 +4159,11 @@ static int capicommand_exec(struct ast_channel *chan, void *data)
 		return -1;
 	}
 
+#ifdef CC_AST_HAVE_TECH_PVT
+	if ((capicmd->capionly) && (chan->tech->type != channeltype)) {
+#else
 	if ((capicmd->capionly) && (strcmp(chan->type, "CAPI"))) {
+#endif
 		LOCAL_USER_REMOVE(u);
 		cc_log(LOG_WARNING, "capiCommand works on CAPI channels only, check your extensions.conf!\n");
 		return -1;

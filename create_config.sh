@@ -138,6 +138,22 @@ else
 	echo " * no 'ast_group_t'"
 fi
 
+if grep -q " Type of channel " $INCLUDEDIR/channel.h; then
+	echo "#define CC_AST_HAS_TYPE_IN_CHANNEL" >>$CONFIGFILE
+	echo " * found 'type' in ast_channel"
+else
+	echo "#undef CC_AST_HAS_TYPE_IN_CHANNEL" >>$CONFIGFILE
+	echo " * no 'type' in ast_channel"
+fi
+
+if grep -q "AST_STRING_FIELD(name)" $INCLUDEDIR/channel.h; then
+	echo "#define CC_AST_HAS_STRINGFIELD_IN_CHANNEL" >>$CONFIGFILE
+	echo " * found stringfield in ast_channel"
+else
+	echo "#undef CC_AST_HAS_STRINGFIELD_IN_CHANNEL" >>$CONFIGFILE
+	echo " * no stringfield in ast_channel"
+fi
+
 echo "" >>$CONFIGFILE
 echo "#endif /* CHAN_CAPI_CONFIG_H */" >>$CONFIGFILE
 echo "" >>$CONFIGFILE
