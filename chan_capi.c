@@ -100,7 +100,9 @@ OPENPBX_FILE_VERSION("$HeadURL$", "$Revision$")
 /*
  * personal stuff
  */
-unsigned capi_ApplID = 0;
+#undef   CAPI_APPLID_UNUSED
+#define  CAPI_APPLID_UNUSED 0xffffffff
+unsigned capi_ApplID = CAPI_APPLID_UNUSED;
 
 static _cword capi_MessageNumber;
 #ifdef PBX_IS_OPBX
@@ -4772,14 +4774,24 @@ static const struct ast_channel_tech capi_tech = {
  */
 static int cc_register_capi(unsigned blocksize)
 {
-	if (capi_ApplID > 0) {
+	u_int16_t error = 0;
+
+	if (capi_ApplID != CAPI_APPLID_UNUSED) {
 		if (capi20_release(capi_ApplID) != 0)
 			cc_log(LOG_WARNING,"Unable to unregister from CAPI!\n");
 	}
-	cc_verbose(3, 0, VERBOSE_PREFIX_3 "Registering at CAPI (blocksize=%d)\n",
-		blocksize);
-	if (capi20_register(CAPI_BCHANS, CAPI_MAX_B3_BLOCKS, blocksize, &capi_ApplID) != 0) {
-		capi_ApplID = 0;
+	cc_verbose(3, 0, VERBOSE_PREFIX_3 "Registering at CAPI "
+		   "(blocksize=%d)\n", blocksize);
+
+#if (CAPI_OS_HINT == 2)
+	error = capi20_register(CAPI_BCHANS, CAPI_MAX_B3_BLOCKS, 
+				blocksize, &capi_ApplID, CAPI_STACK_VERSION);
+#else
+	error = capi20_register(CAPI_BCHANS, CAPI_MAX_B3_BLOCKS, 
+				blocksize, &capi_ApplID);
+#endif
+	if (error != 0) {
+		capi_ApplID = CAPI_APPLID_UNUSED;
 		cc_log(LOG_NOTICE,"unable to register application at CAPI!\n");
 		return -1;
 	}
@@ -5318,7 +5330,7 @@ int unload_module()
 
 	cc_mutex_lock(&iflock);
 
-	if (capi_ApplID > 0) {
+	if (capi_ApplID != CAPI_APPLID_UNUSED) {
 		if (capi20_release(capi_ApplID) != 0)
 			cc_log(LOG_WARNING,"Unable to unregister from CAPI!\n");
 	}
