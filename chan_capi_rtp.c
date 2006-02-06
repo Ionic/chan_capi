@@ -82,7 +82,7 @@ static unsigned char NCPI_voice_over_ip_alaw[] =
 /* Len Alaw     */
   "\x02\x08\x08"
 /* Len UlawLen Opts    IntervalAlawLen Opts    Interval */
-  "\x0c\x00\x04\x03\x00\x80\x00\x08\x04\x03\x00\x80\x00";
+  "\x0c\x00\x04\x03\x00\xa0\x00\x08\x04\x03\x00\xa0\x00";
 
 static unsigned char NCPI_voice_over_ip_ulaw[] =
 /* Len Options          */
@@ -96,7 +96,7 @@ static unsigned char NCPI_voice_over_ip_ulaw[] =
 /* Len Ulaw     */
   "\x02\x00\x00"
 /* Len UlawLen Opts    IntervalAlawLen Opts    Interval */
-  "\x0c\x00\x04\x03\x00\x80\x00\x08\x04\x03\x00\x80\x00";
+  "\x0c\x00\x04\x03\x00\xa0\x00\x08\x04\x03\x00\xa0\x00";
 
 static unsigned char NCPI_voice_over_ip_gsm[] =
 /* Len Options          */
@@ -110,7 +110,7 @@ static unsigned char NCPI_voice_over_ip_gsm[] =
 /* Len GSM      */
   "\x02\x03\x03"
 /* Len GSM Len Opts    IntervalAlawLen Opts    Interval */
-  "\x0c\x03\x04\x0f\x00\xa0\x00\x08\x04\x00\x00\x80\x00";
+  "\x0c\x03\x04\x0f\x00\xa0\x00\x08\x04\x00\x00\xa0\x00";
 
 static unsigned char NCPI_voice_over_ip_g723[] =
 /* Len Options          */
@@ -124,7 +124,7 @@ static unsigned char NCPI_voice_over_ip_g723[] =
 /* Len G723     */
   "\x02\x04\x04"
 /* Len G723Len Opts    IntervalAlawLen Opts    Interval */
-  "\x0c\x04\x04\x01\x00\xf0\x00\x08\x04\x00\x00\x80\x00";
+  "\x0c\x04\x04\x01\x00\xa0\x00\x08\x04\x00\x00\xa0\x00";
 
 static unsigned char NCPI_voice_over_ip_g726[] =
 /* Len Options          */
@@ -138,7 +138,7 @@ static unsigned char NCPI_voice_over_ip_g726[] =
 /* Len G726     */
   "\x02\x02\x02"
 /* Len G726Len Opts    IntervalAlawLen Opts    Interval */
-  "\x0c\x02\x04\x0f\x00\xf0\x00\x08\x04\x00\x00\x80\x00";
+  "\x0c\x02\x04\x0f\x00\xa0\x00\x08\x04\x00\x00\xa0\x00";
 
 static unsigned char NCPI_voice_over_ip_g729[] =
 /* Len Options          */
@@ -152,7 +152,7 @@ static unsigned char NCPI_voice_over_ip_g729[] =
 /* Len G729     */
   "\x02\x12\x12"
 /* Len G729Len Opts    IntervalAlawLen Opts    Interval */
-  "\x0c\x12\x04\x0f\x00\xa0\x00\x08\x04\x00\x00\x80\x00";
+  "\x0c\x12\x04\x0f\x00\xa0\x00\x08\x04\x00\x00\xa0\x00";
 
 
 /*
@@ -163,7 +163,7 @@ _cstruct capi_rtp_ncpi(struct capi_pvt *i)
 	_cstruct ncpi = NULL;
 
 	if ((i) && (i->owner) &&
-	    (i->isdnstate & CAPI_ISDN_STATE_RTP)) {
+	    (i->bproto == CC_BPROTO_RTP)) {
 		switch(i->codec) {
 		case AST_FORMAT_ALAW:
 			ncpi = NCPI_voice_over_ip_alaw;
@@ -291,8 +291,8 @@ struct ast_frame *capi_read_rtp(struct capi_pvt *i, unsigned char *buf, int len)
 			cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: DATA_B3_IND RTP readformat=%d, but subclass=%d\n",
 				i->name, i->owner->readformat, f->subclass);
 /* 			i->owner->nativeformats = i->rtpcodec; */
-/* 			cc_set_read_format(i->owner, i->codec); */
-/* 			cc_set_write_format(i->owner, i->codec); */
+/* 			ast_set_read_format(i->owner, i->codec); */
+/* 			ast_set_write_format(i->owner, i->codec); */
 /* TODO: we need to change the format here */
 		}
 	}

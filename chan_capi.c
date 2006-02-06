@@ -198,9 +198,6 @@ extern char *capi_info_string(unsigned int info);
 /*
  * B protocol settings
  */
-#define CC_BPROTO_TRANSPARENT   0
-#define CC_BPROTO_FAXG3         1
-#define CC_BPROTO_RTP           2
 static struct {
 	_cword b1protocol;
 	_cword b2protocol;
@@ -533,7 +530,7 @@ static void capi_echo_canceller(struct ast_channel *c, int function)
 	_cmsg CMSG;
 	char buf[10];
 
-	if (i->isdnstate & CAPI_ISDN_STATE_DISCONNECT)
+	if ((i->isdnstate & CAPI_ISDN_STATE_DISCONNECT))
 		return;
 
 	/* If echo cancellation is not requested or supported, don't attempt to enable it */
@@ -580,7 +577,7 @@ static int capi_detect_dtmf(struct ast_channel *c, int flag)
 	_cmsg CMSG;
 	char buf[9];
 
-	if (i->isdnstate & CAPI_ISDN_STATE_DISCONNECT)
+	if ((i->isdnstate & CAPI_ISDN_STATE_DISCONNECT))
 		return 0;
 
 	memset(buf, 0, sizeof(buf));
@@ -617,6 +614,66 @@ static int capi_detect_dtmf(struct ast_channel *c, int flag)
 		}
 	}
 	return 0;
+}
+
+/*
+ * send a frame to PBX via pipe
+ */
+static int pipe_frame(struct capi_pvt *i, struct ast_frame *f)
+{
+	fd_set wfds;
+	int written = 0;
+	struct timeval tv;
+
+	if (i->owner == NULL) {
+		cc_verbose(1, 1, VERBOSE_PREFIX_1 "%s: No owner in pipe_frame\n",
+			i->name);
+		return -1;
+	}
+
+	if (i->fd2 == -1) {
+		cc_log(LOG_ERROR, "No fd in pipe_frame for %s\n",
+			i->owner->name);
+		return -1;
+	}
+	
+	FD_ZERO(&wfds);
+	FD_SET(i->fd2, &wfds);
+	tv.tv_sec = 0;
+	tv.tv_usec = 10;
+	
+	if ((f->frametype == AST_FRAME_VOICE) &&
+	    (i->doDTMF > 0) &&
+	    (i->vad != NULL) ) {
+#ifdef CC_AST_DSP_PROCESS_NEEDLOCK 
+		f = ast_dsp_process(i->owner, i->vad, f, 0);
+#else
+		f = ast_dsp_process(i->owner, i->vad, f);
+#endif
+		if (f->frametype == AST_FRAME_NULL) {
+			return 0;
+		}
+	}
+	
+	/* we dont want the monitor thread to block */
+	if (select(i->fd2 + 1, NULL, &wfds, NULL, &tv) == 1) {
+		written = write(i->fd2, f, sizeof(struct ast_frame));
+		if (written < (signed int) sizeof(struct ast_frame)) {
+			cc_log(LOG_ERROR, "wrote %d bytes instead of %d\n",
+				written, sizeof(struct ast_frame));
+			return -1;
+		}
+		if (f->frametype == AST_FRAME_VOICE) {
+			written = write(i->fd2, f->data, f->datalen);
+			if (written < f->datalen) {
+				cc_log(LOG_ERROR, "wrote %d bytes instead of %d\n",
+					written, f->datalen);
+				return -1;
+			}
+		}
+		return 0;
+	}
+	return -1;
 }
 
 /*
@@ -809,6 +866,84 @@ static void interface_cleanup(struct capi_pvt *i)
 }
 
 /*
+ * disconnect b3 and wait for confirmation 
+ */
+static void cc_disconnect_b3(struct capi_pvt *i, int wait) 
+{
+	_cmsg CMSG;
+	int waitcount = 200;
+
+	if (!(i->isdnstate & (CAPI_ISDN_STATE_B3_UP | CAPI_ISDN_STATE_B3_PEND)))
+		return;
+
+	DISCONNECT_B3_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
+	DISCONNECT_B3_REQ_NCCI(&CMSG) = i->NCCI;
+	_capi_put_cmsg(&CMSG);
+
+	if (!wait)
+		return;
+	
+	/* wait for the B3 layer to go down */
+	while ((waitcount > 0) &&
+	       ((i->isdnstate & (CAPI_ISDN_STATE_B3_UP | CAPI_ISDN_STATE_B3_PEND)))) {
+		usleep(10000);
+		waitcount--;
+	}
+	if ((i->isdnstate & CAPI_ISDN_STATE_B3_UP)) {
+		cc_log(LOG_ERROR, "capi disconnect b3: didn't disconnect NCCI=0x%08x\n",
+			i->NCCI);
+	}
+	return;
+}
+
+/*
+ * send CONNECT_B3_REQ
+ */
+static void cc_start_b3(struct capi_pvt *i)
+{
+	_cmsg CMSG;
+
+	if (!(i->isdnstate & (CAPI_ISDN_STATE_B3_UP | CAPI_ISDN_STATE_B3_PEND))) {
+		i->isdnstate |= CAPI_ISDN_STATE_B3_PEND;
+		CONNECT_B3_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
+		CONNECT_B3_REQ_PLCI(&CMSG) = i->PLCI;
+		CONNECT_B3_REQ_NCPI(&CMSG) = capi_rtp_ncpi(i);
+		_capi_put_cmsg(&CMSG);
+		cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s: sent CONNECT_B3_REQ PLCI=%#x\n",
+			i->name, i->PLCI);
+	}
+}
+
+/*
+ * start early B3
+ */
+static void start_early_b3(struct capi_pvt *i)
+{
+	if (i->doB3 != CAPI_B3_DONT) { 
+		/* we do early B3 Connect */
+		cc_start_b3(i);
+	}
+}
+
+/*
+ * signal 'progress' to PBX 
+ */
+static void send_progress(struct capi_pvt *i)
+{
+	struct ast_frame fr;
+
+	start_early_b3(i);
+
+	if (!(i->isdnstate & CAPI_ISDN_STATE_PROGRESS)) {
+		i->isdnstate |= CAPI_ISDN_STATE_PROGRESS;
+		fr.frametype = AST_FRAME_CONTROL;
+		fr.subclass = AST_CONTROL_PROGRESS;
+		pipe_frame(i, &fr);
+	}
+	return;
+}
+
+/*
  * hangup a line (CAPI messages)
  */
 static void capi_activehangup(struct ast_channel *c)
@@ -831,7 +966,7 @@ static void capi_activehangup(struct ast_channel *c)
 		i->cause = atoi(cause);
 	}
 	
-	if (i->isdnstate & CAPI_ISDN_STATE_ECT) {
+	if ((i->isdnstate & CAPI_ISDN_STATE_ECT)) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: activehangup ECT call\n",
 			i->name);
 		/* we do nothing, just wait for DISCONNECT_IND */
@@ -852,10 +987,8 @@ static void capi_activehangup(struct ast_channel *c)
 	}
 
 	/* active disconnect */
-	if (i->isdnstate & CAPI_ISDN_STATE_B3_UP) {
-		DISCONNECT_B3_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
-		DISCONNECT_B3_REQ_NCCI(&CMSG) = i->NCCI;
-		_capi_put_cmsg(&CMSG);
+	if ((i->isdnstate & CAPI_ISDN_STATE_B3_UP)) {
+		cc_disconnect_b3(i, 0);
 		return;
 	}
 	
@@ -1323,7 +1456,8 @@ static int capi_write(struct ast_channel *c, struct ast_frame *f)
 
 	cc_mutex_lock(&i->lock);
 
-	if ((!(i->isdnstate & CAPI_ISDN_STATE_B3_UP)) || (!i->NCCI)) {
+	if ((!(i->isdnstate & CAPI_ISDN_STATE_B3_UP)) || (!i->NCCI) ||
+	    ((i->isdnstate & CAPI_ISDN_STATE_B3_CHANGE))) {
 		cc_mutex_unlock(&i->lock);
 		return 0;
 	}
@@ -1358,12 +1492,8 @@ static int capi_write(struct ast_channel *c, struct ast_frame *f)
 		cc_mutex_unlock(&i->lock);
 		return 0;
 	}
-	if ((i->isdnstate & CAPI_ISDN_STATE_RTP) && (f->subclass & i->codec)) {
-		ret = capi_write_rtp(c, f);
-		cc_mutex_unlock(&i->lock);
-		return ret;
-	}
-	if (f->subclass != capi_capability) {
+	if (((i->isdnstate & CAPI_ISDN_STATE_RTP) && (!(f->subclass & i->codec))) &&
+	     (f->subclass != capi_capability)) {
 		cc_log(LOG_ERROR, "dont know how to write subclass %s(%d)\n",
 			ast_getformatname(f->subclass), f->subclass);
 		cc_mutex_unlock(&i->lock);
@@ -1376,8 +1506,13 @@ static int capi_write(struct ast_channel *c, struct ast_frame *f)
 		return -1;
 	}
 
-	fsmooth = ast_smoother_read(i->smoother);
-	while(fsmooth != NULL) {
+	for (fsmooth = ast_smoother_read(i->smoother);
+	     fsmooth != NULL;
+	     fsmooth = ast_smoother_read(i->smoother)) {
+		if ((i->isdnstate & CAPI_ISDN_STATE_RTP)) {
+			ret = capi_write_rtp(c, fsmooth);
+			continue;
+		}
 		DATA_B3_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
 		DATA_B3_REQ_NCCI(&CMSG) = i->NCCI;
 		DATA_B3_REQ_DATALENGTH(&CMSG) = fsmooth->datalen;
@@ -1436,8 +1571,6 @@ static int capi_write(struct ast_channel *c, struct ast_frame *f)
 			if (i->B3q < 0)
 				i->B3q = 0;
 		}
-
-	        fsmooth = ast_smoother_read(i->smoother);
 	}
 	cc_mutex_unlock(&i->lock);
 	return 0;
@@ -1460,6 +1593,27 @@ static int capi_fixup(struct ast_channel *oldchan, struct ast_channel *newchan)
 }
 
 /*
+ * activate (another B protocol)
+ */
+static void cc_select_b(struct capi_pvt *i, _cstruct b3conf)
+{
+	_cmsg CMSG;
+
+	SELECT_B_PROTOCOL_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
+	SELECT_B_PROTOCOL_REQ_PLCI(&CMSG) = i->PLCI;
+	SELECT_B_PROTOCOL_REQ_B1PROTOCOL(&CMSG) = b_protocol_table[i->bproto].b1protocol;
+	SELECT_B_PROTOCOL_REQ_B2PROTOCOL(&CMSG) = b_protocol_table[i->bproto].b2protocol;
+	SELECT_B_PROTOCOL_REQ_B3PROTOCOL(&CMSG) = b_protocol_table[i->bproto].b3protocol;
+	SELECT_B_PROTOCOL_REQ_B1CONFIGURATION(&CMSG) = b_protocol_table[i->bproto].b1configuration;
+	SELECT_B_PROTOCOL_REQ_B2CONFIGURATION(&CMSG) = b_protocol_table[i->bproto].b2configuration;
+	if (!b3conf)
+		b3conf = b_protocol_table[i->bproto].b3configuration;
+	SELECT_B_PROTOCOL_REQ_B3CONFIGURATION(&CMSG) = b3conf;
+
+	_capi_put_cmsg(&CMSG);
+}
+
+/*
  * do line initerconnect
  */
 static int line_interconnect(struct capi_pvt *i0, struct capi_pvt *i1, int start)
@@ -1479,7 +1633,7 @@ static int line_interconnect(struct capi_pvt *i0, struct capi_pvt *i1, int start
 			i0->name, i1->name);
 		return -1;
 	}
-	
+
 	FACILITY_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
 	FACILITY_REQ_PLCI(&CMSG) = i0->PLCI;
 	FACILITY_REQ_FACILITYSELECTOR(&CMSG) = FACILITYSELECTOR_LINE_INTERCONNECT;
@@ -1519,6 +1673,65 @@ static int line_interconnect(struct capi_pvt *i0, struct capi_pvt *i1, int start
 }
 
 /*
+ * disconnect b3 and bring it up with another protocol
+ */
+static void cc_switch_b_protocol(struct capi_pvt *i)
+{
+	int waitcount = 200;
+
+	cc_disconnect_b3(i, 1);
+
+	i->isdnstate |= CAPI_ISDN_STATE_B3_CHANGE;
+	cc_select_b(i, NULL);
+
+	if (i->outgoing) {
+		/* on outgoing call we must do the connect-b3 request */
+		cc_start_b3(i);
+	}
+
+	/* wait for the B3 layer to come up */
+	while ((waitcount > 0) &&
+	       (!(i->isdnstate & CAPI_ISDN_STATE_B3_UP))) {
+		usleep(10000);
+		waitcount--;
+	}
+	if (!(i->isdnstate & CAPI_ISDN_STATE_B3_UP)) {
+		cc_log(LOG_ERROR, "capi switch b3: no b3 up\n");
+	}
+}
+
+/*
+ * set the b3 protocol to transparent
+ */
+static int cc_set_transparent(struct capi_pvt *i)
+{
+	if (i->bproto != CC_BPROTO_RTP) {
+		/* nothing to do */
+		return 0;
+	}
+
+	i->bproto = CC_BPROTO_TRANSPARENT;
+	cc_switch_b_protocol(i);
+
+	return 1;
+}
+
+/*
+ * set the b3 protocol to RTP (if wanted)
+ */
+static void cc_unset_transparent(struct capi_pvt *i, int rtpwanted)
+{
+	if ((!rtpwanted) ||
+	    (i->isdnstate & CAPI_ISDN_STATE_DISCONNECT))
+		return;
+
+	i->bproto = CC_BPROTO_RTP;
+	cc_switch_b_protocol(i);
+
+	return;
+}
+
+/*
  * native bridging / line interconnect
  */
 static CC_BRIDGE_RETURN capi_bridge(struct ast_channel *c0,
@@ -1534,6 +1747,7 @@ static CC_BRIDGE_RETURN capi_bridge(struct ast_channel *c0,
 	struct capi_pvt *i1 = CC_CHANNEL_PVT(c1);
 	CC_BRIDGE_RETURN ret = AST_BRIDGE_COMPLETE;
 	int waitcount = 20;
+	int bstate0, bstate1;
 
 	cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s:%s Requested native bridge for %s and %s\n",
 		i0->name, i1->name, c0->name, c1->name);
@@ -1565,7 +1779,10 @@ static CC_BRIDGE_RETURN capi_bridge(struct ast_channel *c0,
 
 	capi_echo_canceller(i0->owner, EC_FUNCTION_DISABLE);
 	capi_echo_canceller(i1->owner, EC_FUNCTION_DISABLE);
-	
+
+	bstate0 = cc_set_transparent(i0);
+	bstate1 = cc_set_transparent(i1);
+
 	if (line_interconnect(i0, i1, 1)) {
 		ret = AST_BRIDGE_FAILED;
 		goto return_from_bridge;
@@ -1616,6 +1833,9 @@ static CC_BRIDGE_RETURN capi_bridge(struct ast_channel *c0,
 	line_interconnect(i0, i1, 0);
 
 return_from_bridge:
+
+	cc_unset_transparent(i0, bstate0);
+	cc_unset_transparent(i1, bstate1);
 
 	if (!(flags & AST_BRIDGE_DTMF_CHANNEL_0))
 		capi_detect_dtmf(i0->owner, 1);
@@ -1714,7 +1934,6 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 			/* start with rtp */
 			tmp->nativeformats = i->rtpcodec;
 			i->bproto = CC_BPROTO_RTP;
-			i->isdnstate |= CAPI_ISDN_STATE_RTP;
 		}
 	}
 	fmt = ast_best_codec(tmp->nativeformats);
@@ -1915,35 +2134,9 @@ static void setup_b3_fax_config(B3_PROTO_FAXG3 *b3conf, int fax_format, char *st
 static void capi_change_bchan_fax(struct ast_channel *c, B3_PROTO_FAXG3 *b3conf) 
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
-	_cmsg CMSG;
 
-	if ((i->isdnstate & (CAPI_ISDN_STATE_B3_UP | CAPI_ISDN_STATE_B3_PEND))) {
-		int waitcount = 200;
-		DISCONNECT_B3_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
-		DISCONNECT_B3_REQ_NCCI(&CMSG) = i->NCCI;
-		_capi_put_cmsg(&CMSG);
-	
-		/* wait for the B3 layer to go down */
-		while ((waitcount > 0) &&
-		       (i->isdnstate & (CAPI_ISDN_STATE_B3_UP | CAPI_ISDN_STATE_B3_PEND))) {
-			usleep(10000);
-			waitcount--;
-		}
-		if (i->isdnstate & CAPI_ISDN_STATE_B3_UP) {
-			cc_log(LOG_WARNING, "capi receivefax disconnect b3 wait error\n");
-		}
-	}
-
-	SELECT_B_PROTOCOL_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
-	SELECT_B_PROTOCOL_REQ_PLCI(&CMSG) = i->PLCI;
-	SELECT_B_PROTOCOL_REQ_B1PROTOCOL(&CMSG) = b_protocol_table[i->bproto].b1protocol;
-	SELECT_B_PROTOCOL_REQ_B2PROTOCOL(&CMSG) = b_protocol_table[i->bproto].b2protocol;
-	SELECT_B_PROTOCOL_REQ_B3PROTOCOL(&CMSG) = b_protocol_table[i->bproto].b3protocol;
-	SELECT_B_PROTOCOL_REQ_B1CONFIGURATION(&CMSG) = b_protocol_table[i->bproto].b1configuration;
-	SELECT_B_PROTOCOL_REQ_B2CONFIGURATION(&CMSG) = b_protocol_table[i->bproto].b2configuration;
-	SELECT_B_PROTOCOL_REQ_B3CONFIGURATION(&CMSG) = (_cstruct)b3conf;
-	_capi_put_cmsg(&CMSG);
-
+	cc_disconnect_b3(i, 1);
+	cc_select_b(i, (_cstruct)b3conf);
 	return;
 }
 
@@ -2114,66 +2307,6 @@ static struct capi_pvt *find_interface_by_msgnum(unsigned short msgnum)
 }
 
 /*
- * send a frame to PBX via pipe
- */
-static int pipe_frame(struct capi_pvt *i, struct ast_frame *f)
-{
-	fd_set wfds;
-	int written = 0;
-	struct timeval tv;
-
-	if (i->owner == NULL) {
-		cc_verbose(1, 1, VERBOSE_PREFIX_1 "%s: No owner in pipe_frame\n",
-			i->name);
-		return -1;
-	}
-
-	if (i->fd2 == -1) {
-		cc_log(LOG_ERROR, "No fd in pipe_frame for %s\n",
-			i->owner->name);
-		return -1;
-	}
-	
-	FD_ZERO(&wfds);
-	FD_SET(i->fd2, &wfds);
-	tv.tv_sec = 0;
-	tv.tv_usec = 10;
-	
-	if ((f->frametype == AST_FRAME_VOICE) &&
-	    (i->doDTMF > 0) &&
-	    (i->vad != NULL) ) {
-#ifdef CC_AST_DSP_PROCESS_NEEDLOCK 
-		f = ast_dsp_process(i->owner, i->vad, f, 0);
-#else
-		f = ast_dsp_process(i->owner, i->vad, f);
-#endif
-		if (f->frametype == AST_FRAME_NULL) {
-			return 0;
-		}
-	}
-	
-	/* we dont want the monitor thread to block */
-	if (select(i->fd2 + 1, NULL, &wfds, NULL, &tv) == 1) {
-		written = write(i->fd2, f, sizeof(struct ast_frame));
-		if (written < (signed int) sizeof(struct ast_frame)) {
-			cc_log(LOG_ERROR, "wrote %d bytes instead of %d\n",
-				written, sizeof(struct ast_frame));
-			return -1;
-		}
-		if (f->frametype == AST_FRAME_VOICE) {
-			written = write(i->fd2, f->data, f->datalen);
-			if (written < f->datalen) {
-				cc_log(LOG_ERROR, "wrote %d bytes instead of %d\n",
-					written, f->datalen);
-				return -1;
-			}
-		}
-		return 0;
-	}
-	return -1;
-}
-
-/*
  * see if did matches
  */
 static int search_did(struct ast_channel *c)
@@ -2212,53 +2345,6 @@ static int search_did(struct ast_channel *c)
 	}
 
 	return -1;
-}
-
-/*
- * send CONNECT_B3_REQ
- */
-static void start_b3(struct capi_pvt *i)
-{
-	_cmsg CMSG;
-
-	if (!(i->isdnstate & (CAPI_ISDN_STATE_B3_UP | CAPI_ISDN_STATE_B3_PEND))) {
-		i->isdnstate |= CAPI_ISDN_STATE_B3_PEND;
-		CONNECT_B3_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
-		CONNECT_B3_REQ_PLCI(&CMSG) = i->PLCI;
-		CONNECT_B3_REQ_NCPI(&CMSG) = capi_rtp_ncpi(i);
-		_capi_put_cmsg(&CMSG);
-		cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s: sent CONNECT_B3_REQ PLCI=%#x\n",
-			i->name, i->PLCI);
-	}
-}
-
-/*
- * start early B3
- */
-static void start_early_b3(struct capi_pvt *i)
-{
-	if (i->doB3 != CAPI_B3_DONT) { 
-		/* we do early B3 Connect */
-		start_b3(i);
-	}
-}
-
-/*
- * signal 'progress' to PBX 
- */
-static void send_progress(struct capi_pvt *i)
-{
-	struct ast_frame fr;
-
-	start_early_b3(i);
-
-	if (!(i->isdnstate & CAPI_ISDN_STATE_PROGRESS)) {
-		i->isdnstate |= CAPI_ISDN_STATE_PROGRESS;
-		fr.frametype = AST_FRAME_CONTROL;
-		fr.subclass = AST_CONTROL_PROGRESS;
-		pipe_frame(i, &fr);
-	}
-	return;
 }
 
 /*
@@ -2313,7 +2399,7 @@ static void start_pbx_on_match(struct capi_pvt *i, unsigned int PLCI, _cword Mes
 {
 	_cmsg CMSG2;
 
-	if (i->isdnstate & CAPI_ISDN_STATE_PBX) {
+	if ((i->isdnstate & CAPI_ISDN_STATE_PBX)) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: pbx already started on channel %s\n",
 			i->name, i->owner->name);
 		return;
@@ -2434,7 +2520,7 @@ static void handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsigned int 
 
 	i->isdnstate |= CAPI_ISDN_STATE_DISCONNECT;
 
-	if (i->isdnstate & CAPI_ISDN_STATE_ECT) {
+	if ((i->isdnstate & CAPI_ISDN_STATE_ECT)) {
 		cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s: Disconnect ECT call\n",
 			i->name);
 		/* we do nothing, just wait for DISCONNECT_IND */
@@ -2510,7 +2596,7 @@ static void handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsigned int 
  */
 static void handle_setup_element(_cmsg *CMSG, unsigned int PLCI, struct capi_pvt *i)
 {
-	if (i->isdnstate & CAPI_ISDN_STATE_SETUP) {
+	if ((i->isdnstate & CAPI_ISDN_STATE_SETUP)) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: IE SETUP / SENDING-COMPLETE already received.\n",
 			i->name);
 		return;
@@ -2829,7 +2915,7 @@ static void capi_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, unsi
 				i->onholdPLCI = 0;
 				cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: PLCI=%#x retrieved\n",
 					i->name, PLCI);
-				start_b3(i);
+				cc_start_b3(i);
 			}
 		}
 		
@@ -2871,7 +2957,7 @@ static void capi_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 	int rtpoffset = 0;
 
 	if (i != NULL) {
-		if (i->isdnstate & CAPI_ISDN_STATE_RTP) rtpoffset = 12;
+		if ((i->isdnstate & CAPI_ISDN_STATE_RTP)) rtpoffset = 12;
 		b3len = DATA_B3_IND_DATALENGTH(CMSG);
 		b3buf = &(i->rec_buffer[AST_FRIENDLY_OFFSET - rtpoffset]);
 		memcpy(b3buf, (char *)DATA_B3_IND_DATA(CMSG), b3len);
@@ -2885,6 +2971,9 @@ static void capi_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 
 	return_on_no_interface("DATA_B3_IND");
 
+	if ((i->isdnstate & CAPI_ISDN_STATE_B3_CHANGE))
+		return;
+
 	if (i->fFax) {
 		/* we are in fax-receive and have a file open */
 		cc_verbose(6, 1, VERBOSE_PREFIX_3 "%s: DATA_B3_IND (len=%d) Fax\n",
@@ -2895,7 +2984,7 @@ static void capi_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 		return;
 	}
 
-	if (i->isdnstate & CAPI_ISDN_STATE_RTP) {
+	if ((i->isdnstate & CAPI_ISDN_STATE_RTP)) {
 		struct ast_frame *f = capi_read_rtp(i, b3buf, b3len);
 		if (f)
 			pipe_frame(i, f);
@@ -3006,7 +3095,7 @@ static void capi_handle_connect_active_indication(_cmsg *CMSG, unsigned int PLCI
 		/* send a CONNECT_B3_REQ */
 		if (i->outgoing == 1) {
 			/* outgoing call */
-			start_b3(i);
+			cc_start_b3(i);
 		} else {
 			/* incoming call */
 			/* RESP already sent ... wait for CONNECT_B3_IND */
@@ -3049,6 +3138,19 @@ static void capi_handle_connect_b3_active_indication(_cmsg *CMSG, unsigned int P
 
 	i->isdnstate |= CAPI_ISDN_STATE_B3_UP;
 	i->isdnstate &= ~CAPI_ISDN_STATE_B3_PEND;
+
+	if (i->bproto == CC_BPROTO_RTP) {
+		i->isdnstate |= CAPI_ISDN_STATE_RTP;
+	} else {
+		i->isdnstate &= ~CAPI_ISDN_STATE_RTP;
+	}
+
+	if ((i->isdnstate & CAPI_ISDN_STATE_B3_CHANGE)) {
+		i->isdnstate &= ~CAPI_ISDN_STATE_B3_CHANGE;
+		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: B3 protocol changed.\n",
+			i->name);
+		return;
+	}
 
 	if (!i->owner) {
 		cc_log(LOG_ERROR, "%s: No channel for interface!\n",
@@ -3883,16 +3985,8 @@ static int capi_ect(struct ast_channel *c, char *param)
 		return -1;
 	}
 
-	if (i->isdnstate & CAPI_ISDN_STATE_B3_UP) {
-		DISCONNECT_B3_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
-		DISCONNECT_B3_REQ_NCCI(&CMSG) = i->NCCI;
-		_capi_put_cmsg(&CMSG);
-	}
+	cc_disconnect_b3(i, 1);
 
-	while ((i->isdnstate & CAPI_ISDN_STATE_B3_UP) && (waitcount > 0)) {
-		waitcount--;
-		usleep(10000);
-	}
 	if (i->state != CAPI_STATE_CONNECTED) {
 		cc_log(LOG_WARNING, "%s: destination not connected for ECT\n",
 			i->name);
@@ -3935,7 +4029,7 @@ static int capi_hold(struct ast_channel *c, char *param)
 
 	/*  TODO: support holdtype notify */
 
-	if (i->isdnstate & CAPI_ISDN_STATE_HOLD) {
+	if ((i->isdnstate & CAPI_ISDN_STATE_HOLD)) {
 		cc_log(LOG_NOTICE,"%s: %s already on hold.\n",
 			i->name, c->name);
 		return 0;
@@ -4071,7 +4165,6 @@ static int capi_holdtype(struct ast_channel *c, char *param)
 static int capi_signal_progress(struct ast_channel *c, char *param)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
-	_cmsg CMSG;
 
 	if ((i->state != CAPI_STATE_DID) && (i->state != CAPI_STATE_INCALL)) {
 		cc_log(LOG_WARNING, "wrong channel state to signal PROGRESS\n");
@@ -4081,22 +4174,13 @@ static int capi_signal_progress(struct ast_channel *c, char *param)
 		cc_log(LOG_WARNING, "PROGRESS sending for non NT-mode not possible\n");
 		return 0;
 	}
-	if (i->isdnstate & CAPI_ISDN_STATE_B3_UP) {
+	if ((i->isdnstate & CAPI_ISDN_STATE_B3_UP)) {
 		cc_verbose(4, 1, VERBOSE_PREFIX_4 "%s: signal_progress in NT: B-channel already up\n",
 			i->name);
 		return 0;
 	}
 
-	SELECT_B_PROTOCOL_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
-	SELECT_B_PROTOCOL_REQ_PLCI(&CMSG) = i->PLCI;
-	SELECT_B_PROTOCOL_REQ_B1PROTOCOL(&CMSG) = b_protocol_table[i->bproto].b1protocol;
-	SELECT_B_PROTOCOL_REQ_B2PROTOCOL(&CMSG) = b_protocol_table[i->bproto].b2protocol;
-	SELECT_B_PROTOCOL_REQ_B3PROTOCOL(&CMSG) = b_protocol_table[i->bproto].b3protocol;
-	SELECT_B_PROTOCOL_REQ_B1CONFIGURATION(&CMSG) = b_protocol_table[i->bproto].b1configuration;
-	SELECT_B_PROTOCOL_REQ_B2CONFIGURATION(&CMSG) = b_protocol_table[i->bproto].b2configuration;
-	SELECT_B_PROTOCOL_REQ_B3CONFIGURATION(&CMSG) = b_protocol_table[i->bproto].b3configuration;
-
-	_capi_put_cmsg(&CMSG);
+	cc_select_b(i, NULL);
 
 	return 0;
 }
@@ -4200,7 +4284,7 @@ static int capi_indicate(struct ast_channel *c, int condition)
 			capi_retrieve(c, NULL);
 		*/
 		if (i->ntmode) {
-			if (i->isdnstate & CAPI_ISDN_STATE_B3_UP) {
+			if ((i->isdnstate & CAPI_ISDN_STATE_B3_UP)) {
 				ret = 0;
 			}
 			capi_signal_progress(c, NULL);
@@ -4220,7 +4304,7 @@ static int capi_indicate(struct ast_channel *c, int condition)
 			_capi_put_cmsg(&CMSG);
 			ret = 0;
 		}
-		if (i->isdnstate & CAPI_ISDN_STATE_HOLD)
+		if ((i->isdnstate & CAPI_ISDN_STATE_HOLD))
 			capi_retrieve(c, NULL);
 		break;
 	case AST_CONTROL_CONGESTION:
@@ -4234,7 +4318,7 @@ static int capi_indicate(struct ast_channel *c, int condition)
 			_capi_put_cmsg(&CMSG);
 			ret = 0;
 		}
-		if (i->isdnstate & CAPI_ISDN_STATE_HOLD)
+		if ((i->isdnstate & CAPI_ISDN_STATE_HOLD))
 			capi_retrieve(c, NULL);
 		break;
 	case AST_CONTROL_PROGRESS:
@@ -4266,7 +4350,7 @@ static int capi_indicate(struct ast_channel *c, int condition)
 	case -1: /* stop indications */
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested Indication-STOP for %s\n",
 			i->name, c->name);
-		if (i->isdnstate & CAPI_ISDN_STATE_HOLD)
+		if ((i->isdnstate & CAPI_ISDN_STATE_HOLD))
 			capi_retrieve(c, NULL);
 		break;
 	default:
@@ -4478,14 +4562,8 @@ int mkif(struct cc_capi_conf *conf)
 
 		tmp->next = iflist; /* prepend */
 		iflist = tmp;
-		/*
-		  cc_log(LOG_NOTICE, "capi_pvt(%s,%s,%#x,%d) (%d,%d,%d) (%d)(%f/%f) %d\n",
-		  	tmp->incomingmsn, tmp->context, (int)tmp->controllers, conf->devices,
-			tmp->doEC, tmp->ecOption, tmp->ecTail, tmp->doES, tmp->rxgain,
-			tmp->txgain, callgroup);
-		 */
 		cc_verbose(2, 0, VERBOSE_PREFIX_3 "capi_pvt %s (%s,%s,%d,%d) (%d,%d,%d)\n",
-			tmp->name, tmp->incomingmsn, tmp->context, tmp->controller,
+			tmp->name, tmp->incomingmsn, tmp->context, tmp->controllers,
 			conf->devices, tmp->doEC, tmp->ecOption, tmp->ecTail);
 	}
 	return 0;
@@ -4690,6 +4768,25 @@ static const struct ast_channel_tech capi_tech = {
 #endif
 
 /*
+ * register at CAPI interface
+ */
+static int cc_register_capi(unsigned blocksize)
+{
+	if (capi_ApplID > 0) {
+		if (capi20_release(capi_ApplID) != 0)
+			cc_log(LOG_WARNING,"Unable to unregister from CAPI!\n");
+	}
+	cc_verbose(3, 0, VERBOSE_PREFIX_3 "Registering at CAPI (blocksize=%d)\n",
+		blocksize);
+	if (capi20_register(CAPI_BCHANS, CAPI_MAX_B3_BLOCKS, blocksize, &capi_ApplID) != 0) {
+		capi_ApplID = 0;
+		cc_log(LOG_NOTICE,"unable to register application at CAPI!\n");
+		return -1;
+	}
+	return 0;
+}
+
+/*
  * init capi stuff
  */
 static int cc_init_capi(void)
@@ -4708,12 +4805,8 @@ static int cc_init_capi(void)
 		return -1;
 	}
 
-	if (capi20_register(CAPI_BCHANS, CAPI_MAX_B3_BLOCKS,
-			CAPI_MAX_B3_BLOCK_SIZE, &capi_ApplID) != 0) {
-		capi_ApplID = 0;
-		cc_log(LOG_NOTICE,"unable to register application at CAPI!\n");
+	if (cc_register_capi(CAPI_MAX_B3_BLOCK_SIZE))
 		return -1;
-	}
 
 #if (CAPI_OS_HINT == 1)
 	if (capi20_get_profile(0, &profile) != 0) {
@@ -4822,8 +4915,26 @@ static int cc_init_capi(void)
  */
 static int cc_post_init_capi(void)
 {
+	struct capi_pvt *i;
 	int controller;
 	unsigned error;
+	int use_rtp = 0;
+
+	for (i = iflist; i && !use_rtp; i = i->next) {
+		/* if at least one line wants RTP, we need to re-register with
+		   bigger block size for RTP-header */
+		for (controller = 1; controller <= capi_num_controllers && !use_rtp; controller++) {
+			if (((i->controllers & (1 << controller))) &&
+			     (capi_controllers[controller]->rtpcodec & i->capability)) {
+				cc_verbose(3, 0, VERBOSE_PREFIX_4 "at least one CAPI controller wants RTP.\n");
+				use_rtp = 1;
+			}
+		}
+	}
+	if (use_rtp) {
+		if (cc_register_capi(CAPI_MAX_B3_BLOCK_SIZE + 12))
+			return -1;
+	}
 
 	for (controller = 1; controller <= capi_num_controllers; controller++) {
 		if (capi_used_controllers & (1 << controller)) {
@@ -5146,6 +5257,7 @@ int load_module(void)
 
 	if ((res = cc_post_init_capi()) != 0) {
 		cc_mutex_unlock(&iflock);
+		unload_module();
 		return(res);
 	}
 	
@@ -5222,6 +5334,8 @@ int unload_module()
 	while (i) {
 		if (i->owner)
 			cc_log(LOG_WARNING, "On unload, interface still has owner.\n");
+		if (i->smoother)
+			ast_smoother_free(i->smoother);
 		itmp = i;
 		i = i->next;
 		free(itmp);

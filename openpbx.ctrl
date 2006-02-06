@@ -70,6 +70,7 @@
 #define ast_smoother_read          opbx_smoother_read
 #define ast_smoother_reset         opbx_smoother_reset
 #define ast_smoother_new           opbx_smoother_new
+#define ast_smoother_free          opbx_smoother_free
 #define ast_smoother               opbx_smoother
 #define ast_category_browse        opbx_category_browse
 #define ast_variable_browse        opbx_variable_browse
