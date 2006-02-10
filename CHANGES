@@ -1,6 +1,20 @@
 CHANGES
 =======
 
+chan_capi-cm-0.6.4
+------------------
+- don't do echo-squelch or gain if transfercapability is non-voice
+- fix deadlock when changing to fax mode
+- better capi message handling
+- removed double memset to zero
+- use safer copy_string function
+- removed unneeded lockB3q
+- avoid capi message number zero
+- added locking rules
+- fix ECT (use implicit ECT)
+- fixed setting language for each interface
+- fix wait for b-channel to go down on ECT.
+
 chan_capi-cm-0.6.3
 ------------------
 - fixed buffer overflow in overlap dial
