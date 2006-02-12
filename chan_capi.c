@@ -1967,16 +1967,32 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 		(i->rtp) ? " (RTP)" : "");
 	cc_copy_string(tmp->context, i->context, sizeof(tmp->context));
 #ifdef CC_AST_CHANNEL_HAS_CID
-	if (!ast_strlen_zero(i->cid))
+	if (!ast_strlen_zero(i->cid)) {
+		if (tmp->cid.cid_num) {
+		    free(tmp->cid.cid_num);
+		}
 		tmp->cid.cid_num = strdup(i->cid);
-	if (!ast_strlen_zero(i->dnid))
+	}
+	if (!ast_strlen_zero(i->dnid)) {
+		if (tmp->cid.cid_dnid) {
+		    free(tmp->cid.cid_dnid);
+		}
 		tmp->cid.cid_dnid = strdup(i->dnid);
+	}
 	tmp->cid.cid_ton = i->cid_ton;
 #else
-	if (!ast_strlen_zero(i->cid))
+	if (!ast_strlen_zero(i->cid)) {
+		if (tmp->callerid) {
+		    free(tmp->callerid);
+		}
 		tmp->callerid = strdup(i->cid);
-	if (!ast_strlen_zero(i->dnid))
+	}
+	if (!ast_strlen_zero(i->dnid)) {
+		if (tmp->dnid) {
+		    free(tmp->dnid);
+		}
 		tmp->dnid = strdup(i->dnid);
+	}
 #endif
 	
 	cc_copy_string(tmp->exten, i->dnid, sizeof(tmp->exten));
@@ -2709,8 +2725,14 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 			pbx_builtin_setvar_helper(i->owner, "REDIRECTINGNUMBER", p);
 			pbx_builtin_setvar_helper(i->owner, "REDIRECTREASON", reasonbuf);
 #ifdef CC_AST_CHANNEL_HAS_CID
+			if (i->owner->cid.cid_rdnis) {
+			    free(i->owner->cid.cid_rdnis);
+			}
 			i->owner->cid.cid_rdnis = strdup(p);
 #else
+			if (i->owner->rdnis) {
+			    free(i->owner->rdnis);
+			}
 			i->owner->rdnis = strdup(p);
 #endif
 		}
