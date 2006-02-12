@@ -4000,7 +4000,6 @@ static int capi_ect(struct ast_channel *c, char *param)
 	char fac[8];
 	const char *id;
 	unsigned int plci = 0;
-	int waitcount = 200;
 
 	if ((id = pbx_builtin_getvar_helper(c, "CALLERHOLDID"))) {
 		plci = (unsigned int)strtoul(id, NULL, 0);
