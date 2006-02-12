@@ -3290,7 +3290,17 @@ static void capi_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI, un
 	i->state = CAPI_STATE_DISCONNECTED;
 
 	i->reason = DISCONNECT_IND_REASON(CMSG);
-	
+
+	if (i->owner && (i->owner->hangupcause == 0)) {
+
+		/* set hangupcause, in case there is no 
+		 * "cause" information element:
+		 */
+		i->owner->hangupcause =
+		  ((i->reason & 0xFF00) == 0x3400) ?
+		  i->reason & 0x7F : AST_CAUSE_NORMAL_CLEARING;
+	}
+
 	if (i->FaxState == 1) {
 		/* in capiFax */
 		switch (i->reason) {
