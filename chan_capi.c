@@ -1986,13 +1986,13 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 #ifdef CC_AST_CHANNEL_HAS_CID
 	if (!ast_strlen_zero(i->cid)) {
 		if (tmp->cid.cid_num) {
-		    free(tmp->cid.cid_num);
+			free(tmp->cid.cid_num);
 		}
 		tmp->cid.cid_num = strdup(i->cid);
 	}
 	if (!ast_strlen_zero(i->dnid)) {
 		if (tmp->cid.cid_dnid) {
-		    free(tmp->cid.cid_dnid);
+			free(tmp->cid.cid_dnid);
 		}
 		tmp->cid.cid_dnid = strdup(i->dnid);
 	}
@@ -2000,13 +2000,13 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 #else
 	if (!ast_strlen_zero(i->cid)) {
 		if (tmp->callerid) {
-		    free(tmp->callerid);
+			free(tmp->callerid);
 		}
 		tmp->callerid = strdup(i->cid);
 	}
 	if (!ast_strlen_zero(i->dnid)) {
 		if (tmp->dnid) {
-		    free(tmp->dnid);
+			free(tmp->dnid);
 		}
 		tmp->dnid = strdup(i->dnid);
 	}
@@ -2750,12 +2750,12 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 			pbx_builtin_setvar_helper(i->owner, "REDIRECTREASON", reasonbuf);
 #ifdef CC_AST_CHANNEL_HAS_CID
 			if (i->owner->cid.cid_rdnis) {
-			    free(i->owner->cid.cid_rdnis);
+				free(i->owner->cid.cid_rdnis);
 			}
 			i->owner->cid.cid_rdnis = strdup(p);
 #else
 			if (i->owner->rdnis) {
-			    free(i->owner->rdnis);
+				free(i->owner->rdnis);
 			}
 			i->owner->rdnis = strdup(p);
 #endif
@@ -3315,14 +3315,13 @@ static void capi_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI, un
 
 	i->reason = DISCONNECT_IND_REASON(CMSG);
 
-	if (i->owner && (i->owner->hangupcause == 0)) {
-
+	if ((i->owner) && (i->owner->hangupcause == 0)) {
 		/* set hangupcause, in case there is no 
 		 * "cause" information element:
 		 */
 		i->owner->hangupcause =
-		  ((i->reason & 0xFF00) == 0x3400) ?
-		  i->reason & 0x7F : AST_CAUSE_NORMAL_CLEARING;
+			((i->reason & 0xFF00) == 0x3400) ?
+			i->reason & 0x7F : AST_CAUSE_NORMAL_CLEARING;
 	}
 
 	if (i->FaxState == 1) {
