@@ -3039,7 +3039,7 @@ static void capi_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 		return;
 	}
 
-	if (i->B3q < 800) {
+	if (i->B3q < (((CAPI_MAX_B3_BLOCKS - 1) * CAPI_MAX_B3_BLOCK_SIZE) + 1)) {
 		i->B3q += b3len;
 	}
 
