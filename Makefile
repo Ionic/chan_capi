@@ -49,6 +49,16 @@ ifeq (${OSNAME},NetBSD)
 MODULES_DIR=$(INSTALL_PREFIX)/usr/pkg/lib/asterisk/modules
 endif
 
+CONFIG_DIR=$(INSTALL_PREFIX)/etc/asterisk
+
+ifeq (${OSNAME},FreeBSD)
+CONFIG_DIR=$(INSTALL_PREFIX)/usr/local/etc/asterisk
+endif
+
+ifeq (${OSNAME},NetBSD)
+CONFIG_DIR=$(INSTALL_PREFIX)/usr/pkg/etc/asterisk
+endif
+
 PROC=$(shell uname -m)
 
 LIBLINUX=
@@ -106,8 +116,8 @@ install: all
 	for x in $(SHAREDOS); do $(INSTALL) -m 755 $$x $(MODULES_DIR) ; done
 
 install_config: capi.conf
-	$(INSTALL) -d -m 755  $(INSTALL_PREFIX)/etc/asterisk/
-	$(INSTALL) -m 644 capi.conf $(INSTALL_PREFIX)/etc/asterisk/
+	$(INSTALL) -d -m 755 ${CONFIG_DIR}
+	$(INSTALL) -m 644 capi.conf ${CONFIG_DIR}
 
 samples: install_config
 
