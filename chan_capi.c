@@ -4618,7 +4618,7 @@ int mkif(struct cc_capi_conf *conf)
 
 		tmp->next = iflist; /* prepend */
 		iflist = tmp;
-		cc_verbose(2, 0, VERBOSE_PREFIX_3 "capi_pvt %s (%s,%s,%d,%d) (%d,%d,%d)\n",
+		cc_verbose(2, 0, VERBOSE_PREFIX_3 "capi_pvt %s (%s,%s,%lu,%d) (%d,%d,%d)\n",
 			tmp->name, tmp->incomingmsn, tmp->context, tmp->controllers,
 			conf->devices, tmp->doEC, tmp->ecOption, tmp->ecTail);
 	}
