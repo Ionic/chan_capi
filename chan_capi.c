@@ -3174,6 +3174,8 @@ static void capi_handle_connect_b3_active_indication(_cmsg *CMSG, unsigned int P
 
 	return_on_no_interface("CONNECT_ACTIVE_B3_IND");
 
+	i->NCCI = NCCI;
+
 	cc_mutex_lock(&contrlock);
 	if (i->controller > 0) {
 		capi_controllers[i->controller]->nfreebchannels--;
