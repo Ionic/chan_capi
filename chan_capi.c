@@ -1996,7 +1996,9 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 		}
 		tmp->cid.cid_dnid = strdup(i->dnid);
 	}
-	tmp->cid.cid_ton = i->cid_ton;
+	tmp->cid.cid_ton = 0; /* NOTE: number is already prefixed! 
+			       * (was: i->cid_ton) 
+			       */
 #else
 	if (!ast_strlen_zero(i->cid)) {
 		if (tmp->callerid) {
