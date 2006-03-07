@@ -1925,12 +1925,7 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 	CC_CHANNEL_PVT(tmp) = i;
 
 	tmp->callgroup = i->callgroup;
-#ifndef CC_NEW_CODEC_FORMATS
 	tmp->nativeformats = capi_capability;
-#else
-	ast_codec_pref_init(&tmp->nativeformats);
-	ast_codec_pref_append(&tmp->nativeformats, capi_capability);
-#endif
 	i->bproto = CC_BPROTO_TRANSPARENT;
 	if ((i->rtpcodec = (capi_controllers[i->controller]->rtpcodec & i->capability))) {
 		if (capi_alloc_rtp(i)) {
@@ -1938,20 +1933,11 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 			i->rtpcodec = 0;
 		} else {
 			/* start with rtp */
-#ifndef CC_NEW_CODEC_FORMATS
 			tmp->nativeformats = i->rtpcodec;
-#else
-			ast_codec_pref_init(&tmp->nativeformats);
-			ast_codec_pref_append(&tmp->nativeformats, i->rtpcodec);
-#endif
 			i->bproto = CC_BPROTO_RTP;
 		}
 	}
-#ifndef CC_NEW_CODEC_FORMATS
 	fmt = ast_best_codec(tmp->nativeformats);
-#else
-	fmt = ast_best_codec(tmp->nativeformats.bits);
-#endif
 	i->codec = fmt;
 	tmp->readformat = fmt;
 	tmp->writeformat = fmt;
@@ -1976,11 +1962,7 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 	cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: setting format %s - %s%s\n",
 		i->name, ast_getformatname(fmt),
 		ast_getformatname_multiple(alloca(80), 80,
-#ifndef CC_NEW_CODEC_FORMATS
 		tmp->nativeformats),
-#else
-		tmp->nativeformats.bits),
-#endif
 		(i->rtp) ? " (RTP)" : "");
 	cc_copy_string(tmp->context, i->context, sizeof(tmp->context));
 #ifdef CC_AST_CHANNEL_HAS_CID
@@ -2038,15 +2020,10 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
  */
 static struct ast_channel *
 
-#ifndef CC_NEW_CODEC_FORMATS
 #ifdef CC_AST_HAVE_TECH_PVT
 capi_request(const char *type, int format, void *data, int *cause)
 #else
 capi_request(char *type, int format, void *data)
-#endif
-#else
-capi_request(const char *type, const struct ast_codec_pref *formats, 
-	     void *data, int *cause)
 #endif
 {
 	struct capi_pvt *i;

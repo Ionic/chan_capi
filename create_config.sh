@@ -34,14 +34,6 @@ echo "#ifndef CHAN_CAPI_CONFIG_H" >>$CONFIGFILE
 echo "#define CHAN_CAPI_CONFIG_H" >>$CONFIGFILE
 echo >>$CONFIGFILE
 
-if grep -q "struct ast_codec_pref" $INCLUDEDIR/channel.h; then
-	echo "#define CC_NEW_CODEC_FORMATS" >>$CONFIGFILE
-	echo " * found 'struct ast_codec_pref'"
-else
-	echo "#undef CC_NEW_CODEC_FORMATS" >>$CONFIGFILE
-	echo " * no 'struct ast_codec_pref'"
-fi
-
 if grep -q "struct ast_channel_tech" $INCLUDEDIR/channel.h; then
 	echo "#define CC_AST_HAVE_TECH_PVT" >>$CONFIGFILE
 	echo " * found 'struct ast_channel_tech'"
