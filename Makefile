@@ -37,8 +37,6 @@ ifeq (${OSNAME},NetBSD)
 ASTERISK_HEADER_DIR=$(INSTALL_PREFIX)/usr/pkg/include
 endif
 
-ASTERISKVERSION=$(shell if [ -f .version ]; then cat .version; else if [ -d CVS ]; then if [ -f CVS/Tag ] ; then echo "CVS-`sed 's/^T//g' CVS/Tag`-`date +"%D-%T"`"; else echo "CVS-HEAD-`date +"%D-%T"`"; fi; fi; fi)
-
 MODULES_DIR=$(INSTALL_PREFIX)/usr/lib/asterisk/modules
 
 ifeq (${OSNAME},FreeBSD)
@@ -84,8 +82,6 @@ CFLAGS+=$(OPTIMIZE)
 CFLAGS+=-O6
 CFLAGS+=$(shell if $(CC) -march=$(PROC) -S -o /dev/null -xc /dev/null >/dev/null 2>&1; then echo "-march=$(PROC)"; fi)
 CFLAGS+=$(shell if uname -m | grep -q ppc; then echo "-fsigned-char"; fi)
-
-CFLAGS+=-DASTERISKVERSION=\"$(ASTERISKVERSION)\"
 
 LIBS=-ldl -lpthread -lm
 CC=gcc

@@ -111,11 +111,11 @@ static char *ccdesc = "Common ISDN API for OpenPBX";
 static char *ccdesc = "Common ISDN API for Asterisk";
 #endif
 #ifdef CC_AST_HAVE_TECH_PVT
-static const char tdesc[] = "Common ISDN API Driver (" CC_VERSION ") " ASTERISKVERSION;
+static const char tdesc[] = "Common ISDN API Driver (" CC_VERSION ")";
 static const char channeltype[] = "CAPI";
 static const struct ast_channel_tech capi_tech;
 #else
-static char *tdesc = "Common ISDN API Driver (" CC_VERSION ") " ASTERISKVERSION;
+static char *tdesc = "Common ISDN API Driver (" CC_VERSION ")";
 static char *channeltype = "CAPI";
 #endif
 
@@ -1978,9 +1978,7 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 		}
 		tmp->cid.cid_dnid = strdup(i->dnid);
 	}
-	tmp->cid.cid_ton = 0; /* NOTE: number is already prefixed! 
-			       * (was: i->cid_ton) 
-			       */
+	tmp->cid.cid_ton = i->cid_ton;
 #else
 	if (!ast_strlen_zero(i->cid)) {
 		if (tmp->callerid) {
@@ -3150,8 +3148,6 @@ static void capi_handle_connect_b3_active_indication(_cmsg *CMSG, unsigned int P
 	_capi_put_cmsg(&CMSG2);
 
 	return_on_no_interface("CONNECT_ACTIVE_B3_IND");
-
-	i->NCCI = NCCI;
 
 	cc_mutex_lock(&contrlock);
 	if (i->controller > 0) {
