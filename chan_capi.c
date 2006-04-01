@@ -3362,10 +3362,14 @@ static int capi_call_deflect(struct ast_channel *c, char *param)
 	_cmsg	CMSG;
 	char	bchaninfo[1];
 	char	fac[60];
-	int	res = 0;
+	int	res = 0, j;
 
 	if ((!param) || (!strlen(param))) {
 		cc_log(LOG_WARNING, "capi deflection requires an argument (destination phone number)\n");
+		return -1;
+	}
+	if (strlen(param) > 35) {
+		cc_log(LOG_WARNING, "capi deflection does only support phone number up to 35 digits\n");
 		return -1;
 	}
 	if (!(capi_controllers[i->controller]->CD)) {
@@ -3410,35 +3414,26 @@ static int capi_call_deflect(struct ast_channel *c, char *param)
 	fac[20] = 0x80;	/* CLIP */
 	fac[21] = 0x0b;	/* strlen destination */
 	fac[22] = 0x01;	/* destination start */
-	fac[23] = 0x01;	/* */  
-	fac[24] = 0x01;	/* */  
-	fac[25] = 0x01;	/* */  
-	fac[26] = 0x01;	/* */
-	fac[27] = 0x01;	/* */
-	fac[28] = 0x01;	/* */
-	fac[29] = 0x01;	/* */
-	fac[30] = 0x01;	/* */
-	fac[31] = 0x01;	/* */
-	fac[32] = 0x01;	/* */
-	fac[33] = 0x01;	/* 0x01 = sending complete */
-	fac[34] = 0x01;
-	fac[35] = 0x01;
+	/* fac[..] = 0x01;	0x01 = sending complete */
 				   
 	memcpy((unsigned char *)fac + 22, param, strlen(param));
+
+	/* fill unused bytes with 0x01 */
+	for(j = (22 + strlen(param)); j < 60; j++) {
+		fac[j] = 0x01;
+	}
+
+	/* correct data block length */
+	/* start of destination + strlen + 3 * 01 - 4byte offset */
+	fac[4] = 22 + strlen(param) + 2 - 4;
 	
-	fac[22 + strlen(param)] = 0x01;	/* fill with 0x01 if number is only 6 numbers (local call) */
-	fac[23 + strlen(param)] = 0x01;
-	fac[24 + strlen(param)] = 0x01;
-	fac[25 + strlen(param)] = 0x01;
-	fac[26 + strlen(param)] = 0x01;
-     
 	fac[6] = 18 + strlen(param);
 	fac[9] = 15 + strlen(param);
 	fac[17] = 7 + strlen(param);
 	fac[19] = 2 + strlen(param);
 	fac[21] = strlen(param);
 
-	bchaninfo[0] = 0x1;
+	bchaninfo[0] = 0x01;
 	
 	INFO_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
 	INFO_REQ_CONTROLLER(&CMSG) = i->controller;
