@@ -66,26 +66,20 @@ static inline unsigned int read_capi_dword(void *m)
 /*
  * define some private functions
  */
-#ifdef PBX_IS_OPBX
-#define cc_mutex_t                opbx_mutex_t
-#define cc_mutex_init             opbx_mutex_init
-#define cc_mutex_lock(x)          opbx_mutex_lock(x)
-#define cc_mutex_unlock(x)        opbx_mutex_unlock(x)
-#define cc_copy_string(dst, src, size)  opbx_copy_string(dst, src, size)
-#define cc_log(x...)              opbx_log(x)
-#define cc_pbx_verbose(x...)      opbx_verbose(x)
-#else
 #define cc_mutex_t                ast_mutex_t
 #define cc_mutex_init             ast_mutex_init
 #define cc_mutex_lock(x)          ast_mutex_lock(x)
 #define cc_mutex_unlock(x)        ast_mutex_unlock(x)
+#define cc_log(x...)              ast_log(x)
+#define cc_pbx_verbose(x...)      ast_verbose(x)
+#ifdef PBX_IS_OPBX
+#define cc_copy_string(dst, src, size)  opbx_copy_string(dst, src, size)
+#else
 #ifdef CC_AST_NO_STRINGS
 #define cc_copy_string(dst, src, size)  strncpy(dst, src, size -1)
 #else
 #define cc_copy_string(dst, src, size)  ast_copy_string(dst, src, size)
 #endif
-#define cc_log(x...)              ast_log(x)
-#define cc_pbx_verbose(x...)      ast_verbose(x)
 #endif
 
 /*

@@ -92,6 +92,19 @@
 #define ast_best_codec             opbx_best_codec
 #define ast_update_use_count       opbx_update_use_count
 #define ast_codec_pref             opbx_codec_pref
+#define ast_mutex_t                opbx_mutex_t
+#define ast_mutex_init             opbx_mutex_init
+#define ast_mutex_lock             opbx_mutex_lock
+#define ast_mutex_unlock           opbx_mutex_unlock
+#define ast_cond_t                 opbx_cond_t
+#define ast_cond_init              opbx_cond_init
+#define ast_cond_destroy           opbx_cond_destroy
+#define ast_cond_signal            opbx_cond_signal
+#define ast_cond_broadcast         opbx_cond_broadcast
+#define ast_cond_wait              opbx_cond_wait
+#define ast_cond_timedwait         opbx_cond_timedwait
+#define ast_log                    opbx_log
+#define ast_verbose                opbx_verbose
 
 #define AST_FORMAT_ALAW            OPBX_FORMAT_ALAW
 #define AST_FORMAT_ULAW            OPBX_FORMAT_ULAW
