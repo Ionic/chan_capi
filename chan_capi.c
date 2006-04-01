@@ -623,6 +623,16 @@ static int capi_detect_dtmf(struct ast_channel *c, int flag)
  */
 static int pipe_frame(struct capi_pvt *i, struct ast_frame *f)
 {
+#ifdef CAPINOPIPE
+	struct ast_channel *chan = i->owner;
+
+	if (chan == NULL) {
+		cc_log(LOG_ERROR, "No owner in pipe_frame for %s\n",
+			i->name);
+		return -1;
+	}
+	return (ast_queue_frame(chan, f));
+#else
 	fd_set wfds;
 	int written = 0;
 	struct timeval tv;
@@ -676,6 +686,7 @@ static int pipe_frame(struct capi_pvt *i, struct ast_frame *f)
 		return 0;
 	}
 	return -1;
+#endif
 }
 
 /*
@@ -833,7 +844,8 @@ static void interface_cleanup(struct capi_pvt *i)
 
 	cc_verbose(2, 1, VERBOSE_PREFIX_2 "%s: Interface cleanup PLCI=%#x\n",
 		i->name, i->PLCI);
-	
+
+#ifndef CAPINOPIPE
 	if (i->fd != -1) {
 		close(i->fd);
 		i->fd = -1;
@@ -843,6 +855,7 @@ static void interface_cleanup(struct capi_pvt *i)
 		close(i->fd2);
 		i->fd2 = -1;
 	}
+#endif
 
 	i->isdnstate = 0;
 	i->cause = 0;
@@ -1213,9 +1226,11 @@ static int capi_call(struct ast_channel *c, char *idest, int timeout)
 	cc_verbose(1, 1, VERBOSE_PREFIX_2 "%s: Call %s %s%s (pres=0x%02x, ton=0x%02x)\n",
 		i->name, c->name, i->doB3 ? "with B3 ":" ",
 		i->doOverlap ? "overlap":"", CLIR, callernplan);
-    
+
+#ifndef CAPINOPIPE
 	/* set FD for PBX */
 	c->fds[0] = i->fd;
+#endif
 
 	i->outgoing = 1;
 	
@@ -1379,10 +1394,15 @@ static int capi_answer(struct ast_channel *c)
 }
 
 /*
- * PBX tells us to read for a channel
+ * read for a channel
  */
 static struct ast_frame *capi_read(struct ast_channel *c) 
 {
+#ifdef CAPINOPIPE
+	static struct ast_frame null = { AST_FRAME_NULL, };
+
+	return &null;
+#else
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	int readsize = 0;
 	
@@ -1436,6 +1456,7 @@ static struct ast_frame *capi_read(struct ast_channel *c)
 		}
 	}
 	return &i->fr;
+#endif
 }
 
 /*
@@ -1854,7 +1875,9 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 {
 	struct ast_channel *tmp;
 	int fmt;
+#ifndef CAPINOPIPE
 	int fds[2];
+#endif
 
 	tmp = ast_channel_alloc(0);
 	
@@ -1881,6 +1904,7 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 	tmp->type = channeltype;
 #endif
 
+#ifndef CAPINOPIPE
 	if (pipe(fds) != 0) {
 	    	cc_log(LOG_ERROR, "%s: unable to create pipe.\n", i->name);
 		ast_channel_free(tmp);
@@ -1891,6 +1915,7 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 	i->fd2 = fds[1];
 	
 	tmp->fds[0] = i->fd;
+#endif
 	if (i->smoother != NULL) {
 		ast_smoother_reset(i->smoother, CAPI_MAX_B3_BLOCK_SIZE);
 	}
