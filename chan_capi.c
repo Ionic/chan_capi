@@ -1459,7 +1459,7 @@ static int capi_write(struct ast_channel *c, struct ast_frame *f)
 	cc_mutex_lock(&i->lock);
 
 	if ((!(i->isdnstate & CAPI_ISDN_STATE_B3_UP)) || (!i->NCCI) ||
-	    ((i->isdnstate & CAPI_ISDN_STATE_B3_CHANGE))) {
+	    ((i->isdnstate & (CAPI_ISDN_STATE_B3_CHANGE | CAPI_ISDN_STATE_LI)))) {
 		cc_mutex_unlock(&i->lock);
 		return 0;
 	}
@@ -1674,6 +1674,7 @@ static int line_interconnect(struct capi_pvt *i0, struct capi_pvt *i1, int start
 	return 0;
 }
 
+#if 0
 /*
  * disconnect b3 and bring it up with another protocol
  */
@@ -1732,6 +1733,7 @@ static void cc_unset_transparent(struct capi_pvt *i, int rtpwanted)
 
 	return;
 }
+#endif
 
 /*
  * native bridging / line interconnect
@@ -1749,7 +1751,6 @@ static CC_BRIDGE_RETURN capi_bridge(struct ast_channel *c0,
 	struct capi_pvt *i1 = CC_CHANNEL_PVT(c1);
 	CC_BRIDGE_RETURN ret = AST_BRIDGE_COMPLETE;
 	int waitcount = 20;
-	int bstate0, bstate1;
 
 	cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s:%s Requested native bridge for %s and %s\n",
 		i0->name, i1->name, c0->name, c1->name);
@@ -1781,9 +1782,6 @@ static CC_BRIDGE_RETURN capi_bridge(struct ast_channel *c0,
 
 	capi_echo_canceller(i0->owner, EC_FUNCTION_DISABLE);
 	capi_echo_canceller(i1->owner, EC_FUNCTION_DISABLE);
-
-	bstate0 = cc_set_transparent(i0);
-	bstate1 = cc_set_transparent(i1);
 
 	if (line_interconnect(i0, i1, 1)) {
 		ret = AST_BRIDGE_FAILED;
@@ -1835,9 +1833,6 @@ static CC_BRIDGE_RETURN capi_bridge(struct ast_channel *c0,
 	line_interconnect(i0, i1, 0);
 
 return_from_bridge:
-
-	cc_unset_transparent(i0, bstate0);
-	cc_unset_transparent(i1, bstate1);
 
 	if (!(flags & AST_BRIDGE_DTMF_CHANNEL_0))
 		capi_detect_dtmf(i0->owner, 1);
@@ -2996,8 +2991,10 @@ static void capi_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 
 	return_on_no_interface("DATA_B3_IND");
 
-	if ((i->isdnstate & CAPI_ISDN_STATE_B3_CHANGE))
+	if ((i->isdnstate &
+	    (CAPI_ISDN_STATE_B3_CHANGE | CAPI_ISDN_STATE_LI))) {
 		return;
+	}
 
 	if (i->fFax) {
 		/* we are in fax-receive and have a file open */
@@ -4195,7 +4192,7 @@ static int capi_signal_progress(struct ast_channel *c, char *param)
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 
 	if ((i->state != CAPI_STATE_DID) && (i->state != CAPI_STATE_INCALL)) {
-		cc_log(LOG_WARNING, "wrong channel state to signal PROGRESS\n");
+		cc_log(LOG_DEBUG, "wrong channel state to signal PROGRESS\n");
 		return 0;
 	}
 	if (!(i->ntmode)) {
