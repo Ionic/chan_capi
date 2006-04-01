@@ -323,10 +323,3 @@ REDIRECTREASON
     with the reason value.
  
 
-Functions (available with newer Asterisk only)
-==============================================
-
-VANITYNUMBER(<vanitynumber>)
-    Converts the 'vanitynumber' into a digit-only string. International keypad is
-    used, e.g. ABC=1, DEF=2, ...
-

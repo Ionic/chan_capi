@@ -1,6 +1,10 @@
 CHANGES
 =======
 
+- fixed compilation with Asterisk 1.0.7
+- fixed call deflect if number is longer
+- removed function VANITYNUMBER, this does not belong into channel drivers
+
 chan_capi-cm-0.6.4
 ------------------
 - don't do echo-squelch or gain if transfercapability is non-voice

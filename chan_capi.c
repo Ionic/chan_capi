@@ -5198,66 +5198,6 @@ static int capi_eval_config(struct ast_config *cfg)
 	return 0;
 }
 
-#ifdef CC_AST_CUSTOM_FUNCTION
-/*
- * convert letters into digits according to international keypad
- */
-static char *vanitynumber(struct ast_channel *chan, char *cmd, char *data, char *buf, size_t len)
-{
-	int pos;
-	unsigned char c;
-	
-	*buf = 0;
-
-	if (!data) {
-		cc_log(LOG_WARNING, "This function requires a parameter name.\n");
-		return NULL;
-	}
-
-	for (pos = 0; (pos < strlen(data)) && (pos < len); pos++) {
-		c = toupper(data[pos]);
-		switch(c) {
-		case 'A': case 'B': case 'C':
-			buf[pos] = '2';
-			break;
-		case 'D': case 'E': case 'F':
-			buf[pos] = '3';
-			break;
-		case 'G': case 'H': case 'I':
-			buf[pos] = '4';
-			break;
-		case 'J': case 'K': case 'L':
-			buf[pos] = '5';
-			break;
-		case 'M': case 'N': case 'O':
-			buf[pos] = '6';
-			break;
-		case 'P': case 'Q': case 'R': case 'S':
-			buf[pos] = '7';
-			break;
-		case 'T': case 'U': case 'V':
-			buf[pos] = '8';
-			break;
-		case 'W': case 'X': case 'Y': case 'Z':
-			buf[pos] = '9';
-			break;
-		default:
-			buf[pos] = data[pos];
-		}
-	}
-	buf[pos] = 0;
-	
-	return buf;
-}
-
-static struct ast_custom_function vanitynumber_function = {
-	.name = "VANITYNUMBER",
-	.synopsis = "Vanity number: convert letter into digits according to international dialpad.",
-	.syntax = "VANITYNUMBER(<vanitynumber to convert>)",
-	.read = vanitynumber,
-};
-#endif
-
 /*
  * main: load the module
  */
@@ -5317,10 +5257,6 @@ int load_module(void)
 	
 	ast_register_application(commandapp, capicommand_exec, commandsynopsis, commandtdesc);
 
-#ifdef CC_AST_CUSTOM_FUNCTION
-	ast_custom_function_register(&vanitynumber_function);
-#endif
-
 	if (ast_pthread_create(&monitor_thread, NULL, do_monitor, NULL) < 0) {
 		monitor_thread = (pthread_t)(0-1);
 		cc_log(LOG_ERROR, "Unable to start monitor thread!\n");
@@ -5337,10 +5273,6 @@ int unload_module()
 {
 	struct capi_pvt *i, *itmp;
 	int controller;
-
-#ifdef CC_AST_CUSTOM_FUNCTION
-	ast_custom_function_unregister(&vanitynumber_function);
-#endif
 
 	ast_unregister_application(commandapp);
 
