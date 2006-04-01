@@ -1,6 +1,8 @@
 CHANGES
 =======
 
+- added new cli 'capi show channels'
+
 - fixed compilation with Asterisk 1.0.7
 - fixed call deflect if number is longer
 - removed function VANITYNUMBER, this does not belong into channel drivers
