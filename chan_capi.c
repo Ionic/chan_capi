@@ -1267,6 +1267,7 @@ static int capi_call(struct ast_channel *c, char *idest, int timeout)
 	} else if (ocid) {
 		cc_copy_string(callerid, ocid, sizeof(callerid));
 	}
+	cc_copy_string(i->cid, callerid, sizeof(i->cid));
 
 	calling[0] = strlen(callerid) + 2;
 	calling[1] = callernplan;
@@ -4695,11 +4696,89 @@ static void supported_sservices(struct cc_capi_controller *cp)
 }
 
 /*
+ * helper functions to convert conf value to string
+ */
+static char *show_bproto(int bproto)
+{
+	switch(bproto) {
+	case CC_BPROTO_TRANSPARENT:
+		return "voice";
+	case CC_BPROTO_FAXG3:
+		return " fax ";
+	case CC_BPROTO_RTP:
+		return " rtp ";
+	}
+	return " ??? ";
+}
+static char *show_state(int state)
+{
+	switch(state) {
+	case CAPI_STATE_ALERTING:
+		return "Ring ";
+	case CAPI_STATE_CONNECTED:
+		return "Conn ";
+	case CAPI_STATE_DISCONNECTING:
+		return "discP";
+	case CAPI_STATE_DISCONNECTED:
+		return "Disc ";
+	case CAPI_STATE_CONNECTPENDING:
+		return "Dial ";
+	case CAPI_STATE_ANSWERING:
+		return "Answ ";
+	case CAPI_STATE_DID:
+		return "DIDin";
+	case CAPI_STATE_INCALL:
+		return "icall";
+	case CAPI_STATE_ONHOLD:
+		return "Hold ";
+	}
+	return "-----";
+}
+
+/*
+ * do command capi show channels
+ */
+static int capi_show_channels(int fd, int argc, char *argv[])
+{
+	struct capi_pvt *i;
+	
+	if (argc != 3)
+		return RESULT_SHOWUSAGE;
+	
+	ast_cli(fd, "CAPI B-channel information:\n");
+	ast_cli(fd, "Line-Name       NTmode state bproto isdnstate    ton   number\n");
+	ast_cli(fd, "----------------------------------------------------------------\n");
+
+	cc_mutex_lock(&iflock);
+
+	for (i = iflist; i; i = i->next) {
+		if (i->channeltype != CAPI_CHANNELTYPE_B)
+			continue;
+
+		ast_cli(fd,
+			"%-16s %s   %s %s  0x%08x  (0x%02x) '%s'->'%s'\n",
+			i->name,
+			i->ntmode ? "yes":"no ",
+			show_state(i->state),
+			show_bproto(i->bproto),
+			i->isdnstate,
+			i->cid_ton,
+			i->cid,
+			i->dnid
+		);
+	}
+
+	cc_mutex_unlock(&iflock);
+		
+	return RESULT_SUCCESS;
+}
+
+/*
  * do command capi info
  */
 static int capi_info(int fd, int argc, char *argv[])
 {
-	int i=0;
+	int i = 0;
 	
 	if (argc != 2)
 		return RESULT_SHOWUSAGE;
@@ -4708,7 +4787,8 @@ static int capi_info(int fd, int argc, char *argv[])
 		cc_mutex_lock(&contrlock);
 		if (capi_controllers[i] != NULL) {
 			ast_cli(fd, "Contr%d: %d B channels total, %d B channels free.\n",
-				i, capi_controllers[i]->nbchannels, capi_controllers[i]->nfreebchannels);
+				i, capi_controllers[i]->nbchannels,
+				capi_controllers[i]->nfreebchannels);
 		}
 		cc_mutex_unlock(&contrlock);
 	}
@@ -4748,6 +4828,10 @@ static int capi_no_debug(int fd, int argc, char *argv[])
  */
 static char info_usage[] = 
 "Usage: capi info\n"
+"       Show info about B channels on controllers.\n";
+
+static char show_channels_usage[] = 
+"Usage: capi show channels\n"
 "       Show info about B channels.\n";
 
 static char debug_usage[] = 
@@ -4763,6 +4847,8 @@ static char no_debug_usage[] =
  */
 static struct ast_cli_entry  cli_info =
 	{ { "capi", "info", NULL }, capi_info, "Show CAPI info", info_usage };
+static struct ast_cli_entry  cli_show_channels =
+	{ { "capi", "show", "channels", NULL }, capi_show_channels, "Show B-channel info", show_channels_usage };
 static struct ast_cli_entry  cli_debug =
 	{ { "capi", "debug", NULL }, capi_do_debug, "Enable CAPI debugging", debug_usage };
 static struct ast_cli_entry  cli_no_debug =
@@ -5249,6 +5335,7 @@ int load_module(void)
 	}
 
 	ast_cli_register(&cli_info);
+	ast_cli_register(&cli_show_channels);
 	ast_cli_register(&cli_debug);
 	ast_cli_register(&cli_no_debug);
 	
@@ -5274,6 +5361,7 @@ int unload_module()
 	ast_unregister_application(commandapp);
 
 	ast_cli_unregister(&cli_info);
+	ast_cli_unregister(&cli_show_channels);
 	ast_cli_unregister(&cli_debug);
 	ast_cli_unregister(&cli_no_debug);
 
