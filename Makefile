@@ -100,6 +100,7 @@ all: config.h $(SHAREDOS)
 clean:
 	rm -f config.h
 	rm -f *.so *.o
+	rm -rf openpbx
 
 config.h:
 	./create_config.sh "$(ASTERISK_HEADER_DIR)"
