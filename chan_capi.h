@@ -416,6 +416,7 @@ struct cc_capi_conf {
 	int echocancel;
 	int ecoption;
 	int ectail;
+	int ecnlp;
 	int ecSelector;
 	int isdnmode;
 	int ntmode;

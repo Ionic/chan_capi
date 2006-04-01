@@ -524,7 +524,7 @@ static char *transfercapability2str(int transfercapability)
 #define EC_OPTION_DISABLE_NEVER         0
 #define EC_OPTION_DISABLE_G165          (1<<2)
 #define EC_OPTION_DISABLE_G164_OR_G165  (1<<1 | 1<<2)
-#define EC_DEFAULT_TAIL                 64
+#define EC_DEFAULT_TAIL                 0 /* maximum */
 
 static void capi_echo_canceller(struct ast_channel *c, int function)
 {
@@ -4566,6 +4566,7 @@ int mkif(struct cc_capi_conf *conf)
 		capi_used_controllers |= contrmap;
 		tmp->doEC = conf->echocancel;
 		tmp->ecOption = conf->ecoption;
+		if (conf->ecnlp) tmp->ecOption |= 0x01; /* bit 0 of ec-option is NLP */
 		tmp->ecTail = conf->ectail;
 		tmp->isdnmode = conf->isdnmode;
 		tmp->ntmode = conf->ntmode;
@@ -5179,6 +5180,7 @@ static int conf_interface(struct cc_capi_conf *conf, struct ast_variable *v)
 			}
 			continue;
 		} else
+		CONF_TRUE(conf->ecnlp, "echocancelnlp", 1)
 		if (!strcasecmp(v->name, "echotail")) {
 			conf->ectail = atoi(v->value);
 			if (conf->ectail > 255) {
