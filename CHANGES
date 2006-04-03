@@ -1,6 +1,7 @@
 CHANGES
 =======
 
+- removed pipes, using pbx queues now
 - added new cli 'capi show channels'
 
 chan_capi-cm-0.6.5
