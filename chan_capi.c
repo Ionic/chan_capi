@@ -4609,6 +4609,29 @@ static char *show_state(int state)
 	}
 	return "-----";
 }
+static char *show_isdnstate(unsigned int isdnstate, char *str)
+{
+	str[0] = '\0';
+
+	if (isdnstate & CAPI_ISDN_STATE_PBX)
+		strcat(str, "*");
+	if (isdnstate & CAPI_ISDN_STATE_LI)
+		strcat(str, "G");
+	if (isdnstate & CAPI_ISDN_STATE_B3_UP)
+		strcat(str, "B");
+	if (isdnstate & CAPI_ISDN_STATE_B3_PEND)
+		strcat(str, "b");
+	if (isdnstate & CAPI_ISDN_STATE_PROGRESS)
+		strcat(str, "P");
+	if (isdnstate & CAPI_ISDN_STATE_HOLD)
+		strcat(str, "H");
+	if (isdnstate & CAPI_ISDN_STATE_ECT)
+		strcat(str, "T");
+	if (isdnstate & (CAPI_ISDN_STATE_SETUP | CAPI_ISDN_STATE_SETUP_ACK))
+		strcat(str, "S");
+
+	return str;
+}
 
 /*
  * do command capi show channels
@@ -4616,12 +4639,14 @@ static char *show_state(int state)
 static int capi_show_channels(int fd, int argc, char *argv[])
 {
 	struct capi_pvt *i;
+	char iochar;
+	char i_state[80];
 	
 	if (argc != 3)
 		return RESULT_SHOWUSAGE;
 	
 	ast_cli(fd, "CAPI B-channel information:\n");
-	ast_cli(fd, "Line-Name       NTmode state bproto isdnstate    ton   number\n");
+	ast_cli(fd, "Line-Name       NTmode state i/o bproto isdnstate   ton  number\n");
 	ast_cli(fd, "----------------------------------------------------------------\n");
 
 	cc_mutex_lock(&iflock);
@@ -4630,13 +4655,21 @@ static int capi_show_channels(int fd, int argc, char *argv[])
 		if (i->channeltype != CAPI_CHANNELTYPE_B)
 			continue;
 
+		if ((i->state == 0) || (i->state == CAPI_STATE_DISCONNECTED))
+			iochar = '-';
+		else if (i->outgoing)
+			iochar = 'O';
+		else
+			iochar = 'I';
+
 		ast_cli(fd,
-			"%-16s %s   %s %s  0x%08x  (0x%02x) '%s'->'%s'\n",
+			"%-16s %s   %s  %c  %s  %-10s  0x%02x '%s'->'%s'\n",
 			i->name,
 			i->ntmode ? "yes":"no ",
 			show_state(i->state),
+			iochar,
 			show_bproto(i->bproto),
-			i->isdnstate,
+			show_isdnstate(i->isdnstate, i_state),
 			i->cid_ton,
 			i->cid,
 			i->dnid

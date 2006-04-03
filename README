@@ -66,6 +66,7 @@ This chan_capi version includes:
 - ISDN hold.
 - CAPI Line Interconnect.
 - Eicon DIVA Server VoIP/RTP
+- CLI command "capi show channels" shows details on channel status.
 
 Permissions
 ===========
@@ -274,6 +275,28 @@ FAXRESOLUTION : 0 = standard, 1 = high
 FAXFORMAT     : 0 = SFF
 FAXPAGES      : Number of pages received
 FAXID         : The ID of the remote fax maschine
+
+
+CLI command "capi show channels"
+================================
+This CLI command shows detailed info on all CAPI channels.
+Column description:
+  Line-Name : the name of the interface as defined in capi.conf
+  NTmode    : is the line in NT mode instead fo TE mode
+  state     : the state of the channel, like 'Conn', 'Disc', 'Dial', ...
+  i/o       : incoming or outgoing line
+  bproto    : protocol on CAPI ('fax', 'voice' or 'rtp')
+  isdnstate : a string which may consists of the following characters
+              * = PBX is active
+              G = Line-Interconnect (CAPI bridge) active
+              B = b-channel is up
+              b = b-channel is requested
+              P = Progress was signaled
+              H = this line is on hold
+              T = this line is in transfer (ECT) mode
+              S = SETUP[_ACK] was signaled
+  ton       : type of number value
+  number    : the caller-number and destination-number
 
 Asterisk variables used/set by chan_capi
 ========================================
