@@ -247,15 +247,11 @@ struct cc_capi_gains {
 /* ! Private data for a capi device */
 struct capi_pvt {
 	cc_mutex_t lock;
-	int fd;
-	int fd2;
 
 	char name[CAPI_MAX_STRING];
 
 	/*! Channel we belong to, possibly NULL */
 	struct ast_channel *owner;		
-	/*! Frame */
-	struct ast_frame fr;			
 	
 	/* capi message number */
 	_cword MessageNumber;	
