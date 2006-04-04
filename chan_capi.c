@@ -1414,7 +1414,7 @@ static int capi_write(struct ast_channel *c, struct ast_frame *f)
 		return 0;
 	}
 	if ((!f->data) || (!f->datalen) || (!i->smoother)) {
-		cc_log(LOG_ERROR, "No data for FRAME_VOICE %s\n", c->name);
+		cc_log(LOG_DEBUG, "No data for FRAME_VOICE %s\n", c->name);
 		cc_mutex_unlock(&i->lock);
 		return 0;
 	}
