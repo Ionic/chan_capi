@@ -1405,7 +1405,7 @@ static int capi_write(struct ast_channel *c, struct ast_frame *f)
 	if (f->frametype != AST_FRAME_VOICE) {
 		cc_log(LOG_ERROR,"not a voice frame\n");
 		cc_mutex_unlock(&i->lock);
-		return -1;
+		return 0;
 	}
 	if (i->FaxState) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: write on fax_receive?\n",
@@ -1423,13 +1423,13 @@ static int capi_write(struct ast_channel *c, struct ast_frame *f)
 		cc_log(LOG_ERROR, "dont know how to write subclass %s(%d)\n",
 			ast_getformatname(f->subclass), f->subclass);
 		cc_mutex_unlock(&i->lock);
-		return -1;
+		return 0;
 	}
 
 	if (ast_smoother_feed(i->smoother, f) != 0) {
 		cc_log(LOG_ERROR, "%s: failed to fill smoother\n", i->name);
 		cc_mutex_unlock(&i->lock);
-		return -1;
+		return 0;
 	}
 
 	for (fsmooth = ast_smoother_read(i->smoother);
