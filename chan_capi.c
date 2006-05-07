@@ -3235,15 +3235,23 @@ static int capi_call_deflect(struct ast_channel *c, char *param)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	_cmsg	CMSG;
-	char	bchaninfo[1];
-	char	fac[60];
-	int	res = 0, j;
+	char	fac[64];
+	int	res = 0;
+	char *number;
+	int numberlen;
 
-	if ((!param) || (!strlen(param))) {
+	if (!param) {
 		cc_log(LOG_WARNING, "capi deflection requires an argument (destination phone number)\n");
 		return -1;
 	}
-	if (strlen(param) > 35) {
+	number = strsep(&param, "|");
+	numberlen = strlen(number);
+
+	if (!numberlen) {
+		cc_log(LOG_WARNING, "capi deflection requires an argument (destination phone number)\n");
+		return -1;
+	}
+	if (numberlen > 35) {
 		cc_log(LOG_WARNING, "capi deflection does only support phone number up to 35 digits\n");
 		return -1;
 	}
@@ -3266,64 +3274,32 @@ static int capi_call_deflect(struct ast_channel *c, char *param)
 		capi_alert(c);
 	}
 	
-	fac[0] = 0;	/* len */
-	fac[1] = 0;	/* len */
-	fac[2] = 0x01;	/* Use D-Chan */
-	fac[3] = 0;	/* Keypad len */
-	fac[4] = 31;	/* user user data? len = 31 = 29 + 2 */
-	fac[5] = 0x1c;	/* magic? */
-	fac[6] = 0x1d;	/* strlen destination + 18 = 29 */
-	fac[7] = 0x91;	/* .. */
-	fac[8] = 0xA1;
-	fac[9] = 0x1A;	/* strlen destination + 15 = 26 */
-	fac[10] = 0x02;
-	fac[11] = 0x01;
-	fac[12] = 0x70;
-	fac[13] = 0x02;
-	fac[14] = 0x01;
-	fac[15] = 0x0d;
-	fac[16] = 0x30;
-	fac[17] = 0x12;	/* strlen destination + 7 = 18 */
-	fac[18] = 0x30;	/* ...hm 0x30 */
-	fac[19] = 0x0d;	/* strlen destination + 2 */
-	fac[20] = 0x80;	/* CLIP */
-	fac[21] = 0x0b;	/* strlen destination */
-	fac[22] = 0x01;	/* destination start */
-	/* fac[..] = 0x01;	0x01 = sending complete */
-				   
-	memcpy((unsigned char *)fac + 22, param, strlen(param));
+	fac[0] = 0x0a + numberlen; /* length */
+	fac[1] = 0x0d; /* call deflection */
+	fac[2] = 0x00;
+	fac[3] = 0x07 + numberlen; /* struct len */
+	fac[4] = 0x01; /* display of own address allowed */
+	fac[5] = 0x00;
+	fac[6] = 0x03 + numberlen;
+	fac[7] = 0x00; /* type of facility number */
+	fac[8] = 0x00; /* number plan */
+	fac[9] = 0x00; /* presentation allowed */
+	fac[10 + numberlen] = 0x00; /* subaddress len */
 
-	/* fill unused bytes with 0x01 */
-	for(j = (22 + strlen(param)); j < 60; j++) {
-		fac[j] = 0x01;
-	}
+	memcpy((unsigned char *)fac + 10, number, numberlen);
 
-	/* correct data block length */
-	/* start of destination + strlen + 3 * 01 - 4byte offset */
-	fac[4] = 22 + strlen(param) + 2 - 4;
+	FACILITY_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(),0);
+	FACILITY_REQ_PLCI(&CMSG) = i->PLCI;
+	FACILITY_REQ_FACILITYSELECTOR(&CMSG) = FACILITYSELECTOR_SUPPLEMENTARY;
+	FACILITY_REQ_FACILITYREQUESTPARAMETER(&CMSG) = (_cstruct)&fac;
 	
-	fac[6] = 18 + strlen(param);
-	fac[9] = 15 + strlen(param);
-	fac[17] = 7 + strlen(param);
-	fac[19] = 2 + strlen(param);
-	fac[21] = strlen(param);
-
-	bchaninfo[0] = 0x01;
-	
-	INFO_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
-	INFO_REQ_CONTROLLER(&CMSG) = i->controller;
-	INFO_REQ_PLCI(&CMSG) = i->PLCI;
-	INFO_REQ_BCHANNELINFORMATION(&CMSG) = (_cstruct)bchaninfo; /* use D-Channel */
-	INFO_REQ_KEYPADFACILITY(&CMSG) = 0;
-	INFO_REQ_USERUSERDATA(&CMSG) = 0;
-	INFO_REQ_FACILITYDATAARRAY(&CMSG) = (_cstruct)fac + 4;
+	cc_mutex_unlock(&i->lock);
 
 	_capi_put_cmsg(&CMSG);
 
-	cc_verbose(2, 1, VERBOSE_PREFIX_3 "%s: sent INFO_REQ for CD PLCI = %#x\n",
+	cc_verbose(2, 1, VERBOSE_PREFIX_3 "%s: sent FACILITY_REQ for CD PLCI = %#x\n",
 		i->name, i->PLCI);
 
-	cc_mutex_unlock(&i->lock);
 	return(res);
 }
 
