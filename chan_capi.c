@@ -1436,12 +1436,20 @@ static int capi_write(struct ast_channel *c, struct ast_frame *f)
 		cc_mutex_unlock(&i->lock);
 		return 0;
 	}
-	if (((i->isdnstate & CAPI_ISDN_STATE_RTP) && (!(f->subclass & i->codec))) &&
-	     (f->subclass != capi_capability)) {
-		cc_log(LOG_ERROR, "dont know how to write subclass %s(%d)\n",
-			ast_getformatname(f->subclass), f->subclass);
+	if (i->isdnstate & CAPI_ISDN_STATE_RTP) {
+		if ((!(f->subclass & i->codec)) &&
+		    (f->subclass != capi_capability)) {
+			cc_log(LOG_ERROR, "dont know how to write subclass %s(%d)\n",
+				ast_getformatname(f->subclass), f->subclass);
+			cc_mutex_unlock(&i->lock);
+			return 0;
+		}
+		if (i->B3q < CAPI_MAX_B3_BLOCKS) {
+			ret = capi_write_rtp(c, f);
+			i->B3q++;
+		}
 		cc_mutex_unlock(&i->lock);
-		return 0;
+		return ret;
 	}
 
 	if (ast_smoother_feed(i->smoother, f) != 0) {
@@ -1453,10 +1461,6 @@ static int capi_write(struct ast_channel *c, struct ast_frame *f)
 	for (fsmooth = ast_smoother_read(i->smoother);
 	     fsmooth != NULL;
 	     fsmooth = ast_smoother_read(i->smoother)) {
-		if ((i->isdnstate & CAPI_ISDN_STATE_RTP)) {
-			ret = capi_write_rtp(c, fsmooth);
-			continue;
-		}
 		DATA_B3_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
 		DATA_B3_REQ_NCCI(&CMSG) = i->NCCI;
 		DATA_B3_REQ_DATALENGTH(&CMSG) = fsmooth->datalen;
@@ -3701,6 +3705,9 @@ static void capi_handle_msg(_cmsg *CMSG)
 		break;
 	case CAPI_P_CONF(DATA_B3):
 		wInfo = DATA_B3_CONF_INFO(CMSG);
+		if ((i) && (i->B3q > 0) && (i->isdnstate & CAPI_ISDN_STATE_RTP)) {
+			i->B3q--;
+		}
 		break;
  
 	case CAPI_P_CONF(DISCONNECT):
