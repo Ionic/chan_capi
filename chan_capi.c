@@ -2894,8 +2894,9 @@ static void capi_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 
 	return_on_no_interface("DATA_B3_IND");
 
-	if ((i->isdnstate &
-	    (CAPI_ISDN_STATE_B3_CHANGE | CAPI_ISDN_STATE_LI))) {
+	if (((i->isdnstate &
+	    (CAPI_ISDN_STATE_B3_CHANGE | CAPI_ISDN_STATE_LI))) ||
+	    (i->state == CAPI_STATE_DISCONNECTING)) {
 		return;
 	}
 
