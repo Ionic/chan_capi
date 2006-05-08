@@ -426,13 +426,14 @@ static unsigned ListenOnController(unsigned long CIPmask, unsigned controller)
 static struct {
 	unsigned short tcap;
 	unsigned short cip;
+	unsigned char digital;
 } translate_tcap2cip[] = {
-	{ PRI_TRANS_CAP_SPEECH,                 CAPI_CIPI_SPEECH },
-	{ PRI_TRANS_CAP_DIGITAL,                CAPI_CIPI_DIGITAL },
-	{ PRI_TRANS_CAP_RESTRICTED_DIGITAL,     CAPI_CIPI_RESTRICTED_DIGITAL },
-	{ PRI_TRANS_CAP_3K1AUDIO,               CAPI_CIPI_3K1AUDIO },
-	{ PRI_TRANS_CAP_DIGITAL_W_TONES,        CAPI_CIPI_DIGITAL_W_TONES },
-	{ PRI_TRANS_CAP_VIDEO,                  CAPI_CIPI_VIDEO }
+	{ PRI_TRANS_CAP_SPEECH,                 CAPI_CIPI_SPEECH,		0 },
+	{ PRI_TRANS_CAP_DIGITAL,                CAPI_CIPI_DIGITAL,		1 },
+	{ PRI_TRANS_CAP_RESTRICTED_DIGITAL,     CAPI_CIPI_RESTRICTED_DIGITAL,	1 },
+	{ PRI_TRANS_CAP_3K1AUDIO,               CAPI_CIPI_3K1AUDIO,		0 },
+	{ PRI_TRANS_CAP_DIGITAL_W_TONES,        CAPI_CIPI_DIGITAL_W_TONES,	1 },
+	{ PRI_TRANS_CAP_VIDEO,                  CAPI_CIPI_VIDEO,		1 }
 };
 
 static int tcap2cip(unsigned short tcap)
@@ -442,6 +443,17 @@ static int tcap2cip(unsigned short tcap)
 	for (x = 0; x < sizeof(translate_tcap2cip) / sizeof(translate_tcap2cip[0]); x++) {
 		if (translate_tcap2cip[x].tcap == tcap)
 			return (int)translate_tcap2cip[x].cip;
+	}
+	return 0;
+}
+
+static unsigned char tcap_is_digital(unsigned short tcap)
+{
+	int x;
+	
+	for (x = 0; x < sizeof(translate_tcap2cip) / sizeof(translate_tcap2cip[0]); x++) {
+		if (translate_tcap2cip[x].tcap == tcap)
+			return translate_tcap2cip[x].digital;
 	}
 	return 0;
 }
@@ -542,6 +554,12 @@ static void capi_echo_canceller(struct ast_channel *c, int function)
 		return;
 	}
 	cc_mutex_unlock(&contrlock);
+
+	if (tcap_is_digital(c->transfercapability)) {
+		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: No echo canceller in digital mode (PLCI=%#x)\n",
+			i->name, i->PLCI);
+		return;
+	}
 
 	cc_verbose(2, 0, VERBOSE_PREFIX_2 "%s: Setting up echo canceller (PLCI=%#x, function=%d, options=%d, tail=%d)\n",
 			i->name, i->PLCI, function, i->ecOption, i->ecTail);
@@ -1451,7 +1469,7 @@ static int capi_write(struct ast_channel *c, struct ast_frame *f)
 		i->send_buffer_handle++;
 
 #ifdef CC_AST_CHANNEL_HAS_TRANSFERCAP	
-		if ((i->doES == 1) && (c->transfercapability != PRI_TRANS_CAP_DIGITAL)) {
+		if ((i->doES == 1) && (!tcap_is_digital(c->transfercapability))) {
 #else
 		if ((i->doES == 1)) {
 #endif
@@ -1470,7 +1488,7 @@ static int capi_write(struct ast_channel *c, struct ast_frame *f)
 			i->txavg[ECHO_TX_COUNT - 1] = txavg;
 		} else {
 #ifdef CC_AST_CHANNEL_HAS_TRANSFERCAP	
-			if ((i->txgain == 1.0) || (c->transfercapability == PRI_TRANS_CAP_DIGITAL)) {
+			if ((i->txgain == 1.0) || (!tcap_is_digital(c->transfercapability))) {
 #else
 			if (i->txgain == 1.0) {
 #endif
