@@ -146,6 +146,14 @@ else
 	echo " * no stringfield in ast_channel"
 fi
 
+if grep -q "const indicate.*datalen" $INCLUDEDIR/channel.h; then
+	echo "#define CC_AST_HAS_INDICATE_DATA" >>$CONFIGFILE
+	echo " * found 'indicate' with data"
+else
+	echo "#undef CC_AST_HAS_INDICATE_DATA" >>$CONFIGFILE
+	echo " * no data on 'indicate'"
+fi
+
 echo "" >>$CONFIGFILE
 echo "#endif /* CHAN_CAPI_CONFIG_H */" >>$CONFIGFILE
 echo "" >>$CONFIGFILE

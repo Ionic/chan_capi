@@ -15,6 +15,7 @@
 #undef  CC_AST_NO_DEVICESTATE
 #undef  CC_AST_NO_STRINGS
 #define CC_AST_GROUP_T
+#undef  CC_AST_HAS_INDICATE_DATA
 
 #define ast_channel                opbx_channel
 #define ast_frame                  opbx_frame

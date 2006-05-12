@@ -162,7 +162,7 @@ AST_MUTEX_DEFINE_STATIC(usecnt_lock);
 AST_MUTEX_DEFINE_STATIC(iflock);
 AST_MUTEX_DEFINE_STATIC(contrlock);
 AST_MUTEX_DEFINE_STATIC(capi_put_lock);
-AST_MUTEX_DEFINE_EXPORTED(verbose_lock);
+AST_MUTEX_DEFINE_STATIC(verbose_lock);
 
 static int capi_capability = AST_FORMAT_ALAW;
 
@@ -182,10 +182,14 @@ static char capi_international_prefix[AST_MAX_EXTENSION];
 
 static char default_language[MAX_LANGUAGE] = "";
 
-int capidebug = 0;
+static int capidebug = 0;
 
 /* local prototypes */
+#ifdef CC_AST_HAS_INDICATE_DATA
+static int capi_indicate(struct ast_channel *c, int condition, const void *data, size_t datalen);
+#else
 static int capi_indicate(struct ast_channel *c, int condition);
+#endif
 
 /* external prototypes */
 extern char *capi_info_string(unsigned int info);
@@ -196,6 +200,27 @@ extern char *capi_info_string(unsigned int info);
 		cc_verbose(4, 1, "CAPI: %s no interface for PLCI=%#x\n", x, PLCI);   \
 		return;                                                 \
 	}
+
+/*
+ * helper for <pbx>_verbose with different verbose settings
+ */
+void cc_verbose(int o_v, int c_d, char *text, ...)
+{
+	unsigned char line[4096];
+	va_list ap;
+
+	va_start(ap, text);
+	vsnprintf(line, sizeof(line), text, ap);
+	va_end(ap);
+
+	if ((o_v == 0) || (option_verbose > o_v)) {
+		if ((!c_d) || ((c_d) && (capidebug))) {	
+			cc_mutex_lock(&verbose_lock);
+			cc_pbx_verbose(line);
+			cc_mutex_unlock(&verbose_lock);	
+		}
+	}
+}
 
 /*
  * B protocol settings
@@ -4164,7 +4189,11 @@ static int capicommand_exec(struct ast_channel *chan, void *data)
 /*
  * we don't support own indications
  */
+#ifdef CC_AST_HAS_INDICATE_DATA
+static int capi_indicate(struct ast_channel *c, int condition, const void *data, size_t datalen)
+#else
 static int capi_indicate(struct ast_channel *c, int condition)
+#endif
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	_cmsg CMSG;
@@ -5193,6 +5222,63 @@ static int capi_eval_config(struct ast_config *cfg)
 }
 
 /*
+ * unload the module
+ */
+int unload_module()
+{
+	struct capi_pvt *i, *itmp;
+	int controller;
+
+	ast_unregister_application(commandapp);
+
+	ast_cli_unregister(&cli_info);
+	ast_cli_unregister(&cli_show_channels);
+	ast_cli_unregister(&cli_debug);
+	ast_cli_unregister(&cli_no_debug);
+
+	if (monitor_thread != (pthread_t)(0-1)) {
+		pthread_cancel(monitor_thread);
+		pthread_kill(monitor_thread, SIGURG);
+		pthread_join(monitor_thread, NULL);
+	}
+
+	cc_mutex_lock(&iflock);
+
+	if (capi_ApplID != CAPI_APPLID_UNUSED) {
+		if (capi20_release(capi_ApplID) != 0)
+			cc_log(LOG_WARNING,"Unable to unregister from CAPI!\n");
+	}
+
+	for (controller = 1; controller <= capi_num_controllers; controller++) {
+		if (capi_used_controllers & (1 << controller)) {
+			if (capi_controllers[controller])
+				free(capi_controllers[controller]);
+		}
+	}
+	
+	i = iflist;
+	while (i) {
+		if (i->owner)
+			cc_log(LOG_WARNING, "On unload, interface still has owner.\n");
+		if (i->smoother)
+			ast_smoother_free(i->smoother);
+		itmp = i;
+		i = i->next;
+		free(itmp);
+	}
+
+	cc_mutex_unlock(&iflock);
+	
+#ifdef CC_AST_HAVE_TECH_PVT
+	ast_channel_unregister(&capi_tech);
+#else
+	ast_channel_unregister(channeltype);
+#endif
+	
+	return 0;
+}
+
+/*
  * main: load the module
  */
 int load_module(void)
@@ -5258,63 +5344,6 @@ int load_module(void)
 		return -1;
 	}
 
-	return 0;
-}
-
-/*
- * unload the module
- */
-int unload_module()
-{
-	struct capi_pvt *i, *itmp;
-	int controller;
-
-	ast_unregister_application(commandapp);
-
-	ast_cli_unregister(&cli_info);
-	ast_cli_unregister(&cli_show_channels);
-	ast_cli_unregister(&cli_debug);
-	ast_cli_unregister(&cli_no_debug);
-
-	if (monitor_thread != (pthread_t)(0-1)) {
-		pthread_cancel(monitor_thread);
-		pthread_kill(monitor_thread, SIGURG);
-		pthread_join(monitor_thread, NULL);
-	}
-
-	cc_mutex_lock(&iflock);
-
-	if (capi_ApplID != CAPI_APPLID_UNUSED) {
-		if (capi20_release(capi_ApplID) != 0)
-			cc_log(LOG_WARNING,"Unable to unregister from CAPI!\n");
-	}
-
-	for (controller = 1; controller <= capi_num_controllers; controller++) {
-		if (capi_used_controllers & (1 << controller)) {
-			if (capi_controllers[controller])
-				free(capi_controllers[controller]);
-		}
-	}
-	
-	i = iflist;
-	while (i) {
-		if (i->owner)
-			cc_log(LOG_WARNING, "On unload, interface still has owner.\n");
-		if (i->smoother)
-			ast_smoother_free(i->smoother);
-		itmp = i;
-		i = i->next;
-		free(itmp);
-	}
-
-	cc_mutex_unlock(&iflock);
-	
-#ifdef CC_AST_HAVE_TECH_PVT
-	ast_channel_unregister(&capi_tech);
-#else
-	ast_channel_unregister(channeltype);
-#endif
-	
 	return 0;
 }
 

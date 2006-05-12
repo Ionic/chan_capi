@@ -82,32 +82,12 @@ static inline unsigned int read_capi_dword(void *m)
 #endif
 #endif
 
-/*
- * helper for <pbx>_verbose with different verbose settings
- */
-#define cc_verbose(o_v, c_d, text...)					\
-	do { 								\
-		if ((o_v == 0) || (option_verbose > o_v)) {		\
-			if ((!c_d) || ((c_d) && (capidebug))) {		\
-				cc_mutex_lock(&verbose_lock);		\
-				cc_pbx_verbose(text);			\
-				cc_mutex_unlock(&verbose_lock);	\
-			}						\
-		}							\
-	} while(0)
-
-
 #ifdef PBX_IS_OPBX
 #define CC_CHANNEL_PVT(c) (c)->tech_pvt
 #else
 #ifndef AST_MUTEX_DEFINE_STATIC
 #define AST_MUTEX_DEFINE_STATIC(mutex)		\
 	static cc_mutex_t mutex = AST_MUTEX_INITIALIZER
-#endif
-
-#ifndef AST_MUTEX_DEFINE_EXPORTED
-#define AST_MUTEX_DEFINE_EXPORTED(mutex)		\
-	cc_mutex_t mutex = AST_MUTEX_INITIALIZER
 #endif
 
 /*
@@ -138,10 +118,9 @@ static inline unsigned int read_capi_dword(void *m)
  * prototypes
  */
 extern unsigned capi_ApplID;
-extern cc_mutex_t verbose_lock;
-extern int capidebug;
 extern MESSAGE_EXCHANGE_ERROR _capi_put_cmsg(_cmsg *CMSG);
 extern _cword get_capi_MessageNumber(void);
+extern void cc_verbose(int o_v, int c_d, char *text, ...);
 
 /*
  * B protocol settings
