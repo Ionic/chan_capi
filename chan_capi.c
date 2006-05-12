@@ -206,7 +206,7 @@ extern char *capi_info_string(unsigned int info);
  */
 void cc_verbose(int o_v, int c_d, char *text, ...)
 {
-	unsigned char line[4096];
+	char line[4096];
 	va_list ap;
 
 	va_start(ap, text);
