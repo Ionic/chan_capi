@@ -307,7 +307,7 @@ void voice_over_ip_profile(struct cc_capi_controller *cp)
 	MESSAGE_EXCHANGE_ERROR error;
 	_cmsg CMSG;
 	struct timeval tv;
-	unsigned char fac[3] = "\x03\x02\x00";
+	unsigned char fac[4] = "\x03\x02\x00\x00";
 	int waitcount = 200;
 	unsigned short info = 0;
 	unsigned int payload1, payload2;
