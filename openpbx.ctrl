@@ -54,6 +54,8 @@
 #define ast_softhangup             opbx_softhangup
 #define ast_pbx_start              opbx_pbx_start
 #define ast_queue_frame            opbx_queue_frame
+#define ast_frame_dump             opbx_frame_dump 
+#define ast_queue_hangup           opbx_queue_hangup
 #define ast_async_goto             opbx_async_goto
 #define ast_waitfor_n              opbx_waitfor_n
 #define ast_pthread_create         opbx_pthread_create
@@ -126,6 +128,7 @@
 #define AST_CONTROL_HOLD           OPBX_CONTROL_HOLD
 #define AST_CONTROL_UNHOLD         OPBX_CONTROL_UNHOLD
 #define AST_CONTROL_ANSWER         OPBX_CONTROL_ANSWER
+#define AST_CONTROL_HANGUP         OPBX_CONTROL_HANGUP
 #define AST_STATE_RING             OPBX_STATE_RING
 #define AST_STATE_UP               OPBX_STATE_UP
 #define AST_STATE_DOWN             OPBX_STATE_DOWN
