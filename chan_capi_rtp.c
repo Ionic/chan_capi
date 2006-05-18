@@ -231,6 +231,12 @@ int capi_write_rtp(struct ast_channel *c, struct ast_frame *f)
 	struct sockaddr_in us;
 	int len;
 
+	if (f->datalen > (CAPI_MAX_B3_BLOCK_SIZE + rtpheaderlen)) {
+		cc_verbose(4, 0, VERBOSE_PREFIX_4 "%s: rtp write data: frame too big (len = %d).\n",
+			i->name, f->datalen);
+		return -1;
+	}
+
 	i->send_buffer_handle++;
 
 	ast_rtp_get_us(i->rtp, &us);
