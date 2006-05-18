@@ -285,7 +285,7 @@ Column description:
   NTmode    : is the line in NT mode instead fo TE mode
   state     : the state of the channel, like 'Conn', 'Disc', 'Dial', ...
   i/o       : incoming or outgoing line
-  bproto    : protocol on CAPI ('fax', 'voice' or 'rtp')
+  bproto    : protocol on CAPI ('fax', 'trans' or 'rtp')
   isdnstate : a string which may consists of the following characters
               * = PBX is active
               G = Line-Interconnect (CAPI bridge) active

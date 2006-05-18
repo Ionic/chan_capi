@@ -681,6 +681,11 @@ static int local_queue_frame(struct capi_pvt *i, struct ast_frame *f)
 		   we don't need any frames sent */
 		return -1;
 	}
+	if (i->state == CAPI_STATE_DISCONNECTING) {
+		cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: no queue_frame in state disconnecting for %d/%d\n",
+			i->name, f->frametype, f->subclass);
+		return 0;
+	}
 
 	if ((capidebug) && (f->frametype != AST_FRAME_VOICE)) {
 		ast_frame_dump("CAPI", f, VERBOSE_PREFIX_3 "queue frame:");
@@ -1253,6 +1258,9 @@ static int capi_call(struct ast_channel *c, char *idest, int timeout)
 	CONNECT_REQ_CONTROLLER(&CMSG) = i->controller;
 #ifdef CC_AST_CHANNEL_HAS_TRANSFERCAP
 	CONNECT_REQ_CIPVALUE(&CMSG) = tcap2cip(c->transfercapability);
+	if (tcap_is_digital(c->transfercapability)) {
+		i->bproto = CC_BPROTO_TRANSPARENT;
+	}
 #else
 	CONNECT_REQ_CIPVALUE(&CMSG) = 0x10; /* Telephony */
 #endif
@@ -1382,10 +1390,13 @@ static int capi_answer(struct ast_channel *c)
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	int ret;
 
+	i->bproto = CC_BPROTO_TRANSPARENT;
+
 	if (i->rtp) {
-		i->bproto = CC_BPROTO_RTP;
-	} else {
-		i->bproto = CC_BPROTO_TRANSPARENT;
+#ifdef CC_AST_CHANNEL_HAS_TRANSFERCAP	
+		if (!tcap_is_digital(c->transfercapability))
+#endif
+			i->bproto = CC_BPROTO_RTP;
 	}
 
 	cc_mutex_lock(&i->lock);
@@ -4608,7 +4619,7 @@ static char *show_bproto(int bproto)
 {
 	switch(bproto) {
 	case CC_BPROTO_TRANSPARENT:
-		return "voice";
+		return "trans";
 	case CC_BPROTO_FAXG3:
 		return " fax ";
 	case CC_BPROTO_RTP:
