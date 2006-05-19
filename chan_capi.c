@@ -4933,7 +4933,7 @@ static int cc_init_capi(void)
 #if (CAPI_OS_HINT == 1)
 		if (profile.dwGlobalOptions & CAPI_PROFILE_ECHO_CANCELLATION) {
 #else
-		if (profile.globaloptions2 & 0x01) {
+		if (profile.globaloptions2 & 0x02) {
 #endif
 			cc_verbose(3, 0, VERBOSE_PREFIX_3 "CAPI/contr%d supports echo cancellation\n",
 				controller);
