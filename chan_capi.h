@@ -154,7 +154,7 @@ struct fax3proto3 {
 typedef struct fax3proto3 B3_PROTO_FAXG3;
 
 /* duration in ms for sending and detecting dtmfs */
-#define CAPI_DTMF_DURATION              0x40
+#define CAPI_DTMF_DURATION              0x50
 
 #define CAPI_NATIONAL_PREF               "0"
 #define CAPI_INTERNAT_PREF              "00"
