@@ -297,9 +297,8 @@ struct ast_frame *capi_read_rtp(struct capi_pvt *i, unsigned char *buf, int len)
 			cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: DATA_B3_IND RTP readformat=%d, but subclass=%d\n",
 				i->name, i->owner->readformat, f->subclass);
 /* 			i->owner->nativeformats = i->rtpcodec; */
-/* 			ast_set_read_format(i->owner, i->codec); */
+			ast_set_read_format(i->owner, i->codec);
 /* 			ast_set_write_format(i->owner, i->codec); */
-/* TODO: we need to change the format here */
 		}
 	}
 	return f;
