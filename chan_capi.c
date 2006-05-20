@@ -246,7 +246,7 @@ static struct {
 	},
 	{ 0x1f, 0x1f, 0x1f,	/* 2 */
 		(_cstruct) "\x00",
-		(_cstruct) "\x02\x01\x00",
+		(_cstruct) "\x04\x01\x00\x00\x02",
 		(_cstruct) "\x00"
 	}
 };
@@ -693,6 +693,7 @@ static int local_queue_frame(struct capi_pvt *i, struct ast_frame *f)
 
 	if ((f->frametype == AST_FRAME_CONTROL) &&
 	    (f->subclass == AST_CONTROL_HANGUP)) {
+		i->isdnstate |= CAPI_ISDN_STATE_HANGUP;
 		return (ast_queue_hangup(chan));
 	}
 
@@ -1337,6 +1338,7 @@ static int capi_send_answer(struct ast_channel *c, _cstruct b3conf)
 	char buf[CAPI_MAX_STRING];
 	const char *dnid;
 	const char *connectednumber;
+	int waitcount = 10;
     
 	if ((i->isdnmode == CAPI_ISDNMODE_DID) &&
 	    ((strlen(i->incomingmsn) < strlen(i->dnid)) && 
@@ -1378,6 +1380,18 @@ static int capi_send_answer(struct ast_channel *c, _cstruct b3conf)
 	i->state = CAPI_STATE_ANSWERING;
 	i->doB3 = CAPI_B3_DONT;
 	i->outgoing = 0;
+
+	/* wait here a little bit for CONNECT_ACTIVE_IND */
+	while(waitcount > 0) {
+		if (i->state != CAPI_STATE_ANSWERING)
+			break;
+		usleep(10000);
+		waitcount--;
+	}
+	if (waitcount) {
+		cc_verbose(4, 0, VERBOSE_PREFIX_4 "%s: no connect in time\n",
+			i->name);
+	}
 
 	return 0;
 }
@@ -2952,12 +2966,6 @@ static void capi_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 
 	return_on_no_interface("DATA_B3_IND");
 
-	if (((i->isdnstate &
-	    (CAPI_ISDN_STATE_B3_CHANGE | CAPI_ISDN_STATE_LI))) ||
-	    (i->state == CAPI_STATE_DISCONNECTING)) {
-		return;
-	}
-
 	if (i->fFax) {
 		/* we are in fax-receive and have a file open */
 		cc_verbose(6, 1, VERBOSE_PREFIX_3 "%s: DATA_B3_IND (len=%d) Fax\n",
@@ -2965,6 +2973,13 @@ static void capi_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 		if (fwrite(b3buf, 1, b3len, i->fFax) != b3len)
 			cc_log(LOG_WARNING, "%s : error writing output file (%s)\n",
 				i->name, strerror(errno));
+		return;
+	}
+
+	if (((i->isdnstate &
+	    (CAPI_ISDN_STATE_B3_CHANGE | CAPI_ISDN_STATE_LI | CAPI_ISDN_STATE_HANGUP))) ||
+	    (i->state == CAPI_STATE_DISCONNECTING)) {
+		/* drop voice frames when we don't want them */
 		return;
 	}
 
@@ -3163,10 +3178,10 @@ static void capi_handle_disconnect_b3_indication(_cmsg *CMSG, unsigned int PLCI,
 
 	return_on_no_interface("DISCONNECT_B3_IND");
 
+	i->isdnstate &= ~(CAPI_ISDN_STATE_B3_UP | CAPI_ISDN_STATE_B3_PEND);
+
 	i->reasonb3 = DISCONNECT_B3_IND_REASON_B3(CMSG);
 	i->NCCI = 0;
-
-	i->isdnstate &= ~(CAPI_ISDN_STATE_B3_UP | CAPI_ISDN_STATE_B3_PEND);
 
 	if ((i->FaxState == 1) && (i->owner)) {
 		char buffer[CAPI_MAX_STRING];

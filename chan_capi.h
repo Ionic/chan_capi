@@ -218,6 +218,7 @@ struct cc_capi_gains {
 #define CAPI_ISDN_STATE_B3_UP         0x00000200
 #define CAPI_ISDN_STATE_B3_CHANGE     0x00000400
 #define CAPI_ISDN_STATE_RTP           0x00000800
+#define CAPI_ISDN_STATE_HANGUP        0x00001000
 #define CAPI_ISDN_STATE_PBX           0x80000000
 
 #define CAPI_CHANNELTYPE_B            0
