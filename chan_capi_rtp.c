@@ -376,23 +376,23 @@ void voice_over_ip_profile(struct cc_capi_controller *cp)
 	cc_verbose(3, 0, VERBOSE_PREFIX_4 "RTP codec: ");
 	if (payload1 & 0x00000100) {
 		cp->rtpcodec |= AST_FORMAT_ALAW;
-		cc_verbose(3, 0, "G.711 alaw, ");
+		cc_verbose(3, 0, "G.711-alaw ");
 	}
 	if (payload1 & 0x00000001) {
 		cp->rtpcodec |= AST_FORMAT_ULAW;
-		cc_verbose(3, 0, "G.711 ulaw, ");
+		cc_verbose(3, 0, "G.711-ulaw ");
 	}
 	if (payload1 & 0x00000008) {
 		cp->rtpcodec |= AST_FORMAT_GSM;
-		cc_verbose(3, 0, "GSM, ");
+		cc_verbose(3, 0, "GSM ");
 	}
 	if (payload1 & 0x00000010) {
 		cp->rtpcodec |= AST_FORMAT_G723_1;
-		cc_verbose(3, 0, "G.723.1, ");
+		cc_verbose(3, 0, "G.723.1 ");
 	}
 	if (payload1 & 0x00000004) {
 		cp->rtpcodec |= AST_FORMAT_G726;
-		cc_verbose(3, 0, "G.726, ");
+		cc_verbose(3, 0, "G.726 ");
 	}
 	if (payload1 & 0x00040000) {
 		cp->rtpcodec |= AST_FORMAT_G729A;
