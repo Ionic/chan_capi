@@ -572,6 +572,12 @@ static void capi_echo_canceller(struct ast_channel *c, int function)
 	if ((i->isdnstate & CAPI_ISDN_STATE_DISCONNECT))
 		return;
 
+	if (((function == EC_FUNCTION_ENABLE) && (i->isdnstate & CAPI_ISDN_STATE_EC)) ||
+	    ((function != EC_FUNCTION_ENABLE) && (!(i->isdnstate & CAPI_ISDN_STATE_EC)))) {
+		/* nothing to do */
+		return;
+	}
+
 	/* If echo cancellation is not requested or supported, don't attempt to enable it */
 	cc_mutex_lock(&contrlock);
 	if (!capi_controllers[i->controller]->echocancel || !i->doEC) {
@@ -601,6 +607,9 @@ static void capi_echo_canceller(struct ast_channel *c, int function)
 	        write_capi_word(&buf[4], i->ecOption); /* bit field - ignore echo canceller disable tone */
 		write_capi_word(&buf[6], i->ecTail);   /* Tail length, ms */
 		/* buf 8 and 9 are "pre-delay lenght ms" */
+		i->isdnstate |= CAPI_ISDN_STATE_EC;
+	} else {
+		i->isdnstate &= ~CAPI_ISDN_STATE_EC;
 	}
 
 	FACILITY_REQ_FACILITYREQUESTPARAMETER(&CMSG) = (_cstruct)buf;
@@ -4062,6 +4071,32 @@ static int capi_malicious(struct ast_channel *c, char *param)
 }
 
 /*
+ * set echo cancel
+ */
+static int capi_echocancel(struct ast_channel *c, char *param)
+{
+	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+
+	if (!param) {
+		cc_log(LOG_WARNING, "Parameter for echocancel missing.\n");
+		return -1;
+	}
+	if (ast_true(param)) {
+		i->doEC = 1;
+		capi_echo_canceller(c, EC_FUNCTION_ENABLE);
+	} else if (ast_false(param)) {
+		capi_echo_canceller(c, EC_FUNCTION_DISABLE);
+		i->doEC = 0;
+	} else {
+		cc_log(LOG_WARNING, "Parameter for echocancel invalid.\n");
+		return -1;
+	}
+	cc_verbose(2, 0, VERBOSE_PREFIX_4 "%s: echocancel switched %s\n",
+		i->name, i->doEC ? "ON":"OFF");
+	return 0;
+}
+
+/*
  * set echo squelch
  */
 static int capi_echosquelch(struct ast_channel *c, char *param)
@@ -4080,7 +4115,7 @@ static int capi_echosquelch(struct ast_channel *c, char *param)
 		cc_log(LOG_WARNING, "Parameter for echosquelch invalid.\n");
 		return -1;
 	}
-	cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: echosquelch switched %s\n",
+	cc_verbose(2, 0, VERBOSE_PREFIX_4 "%s: echosquelch switched %s\n",
 		i->name, i->doES ? "ON":"OFF");
 	return 0;
 }
@@ -4106,8 +4141,8 @@ static int capi_holdtype(struct ast_channel *c, char *param)
 		cc_log(LOG_WARNING, "Parameter for holdtype invalid.\n");
 		return -1;
 	}
-	cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: holdtype switched %s\n",
-		i->name, i->doES ? "ON":"OFF");
+	cc_verbose(2, 0, VERBOSE_PREFIX_4 "%s: holdtype switched to %s\n",
+		i->name, param);
 	return 0;
 }
 
@@ -4150,6 +4185,7 @@ static struct capicommands_s {
 	{ "deflect",      capi_call_deflect,    1 },
 	{ "receivefax",   capi_receive_fax,     1 },
 	{ "echosquelch",  capi_echosquelch,     1 },
+	{ "echocancel",   capi_echocancel,      1 },
 	{ "malicious",    capi_malicious,       1 },
 	{ "hold",         capi_hold,            1 },
 	{ "holdtype",     capi_holdtype,        1 },

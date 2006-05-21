@@ -32,16 +32,13 @@ This chan_capi version includes:
 - Multiple controller support
 - CID,DNID (callling party, called party)
 - CLIR/CLIP
-- Supplementary services, CD,HOLD,RETRIEVE,ECT
+- Supplementary services: CD (deflect/reroute),HOLD,RETRIEVE,ECT
 - DTMF (dependend on card) + software DTMF support
 - Early B3 connects (always,success,never)
 - Digital audio (what did you think?)
 - Incoming/outgoing calls
 - Overlap sending (dialtone and additional digits)
 - E(xplicit) C(all) T(ransfer) (...although it's done implicit-but don't tell!)
-- Tuneable latency:  you can configure the size of B3 blocks at compile time
-  (in chan_capi.h, AST_CAPI_MAX_B3_BLOCK_SIZE)
-  The default is 160 samples, for non-VoIP use you can tune it down to 130
 - Use asterisks internal DSP functions for DTMF
 - Alaw support 
 - Ulaw support! 
@@ -51,7 +48,6 @@ This chan_capi version includes:
 - Rx/Tx gains (rxgain=1.0)
 - (Inter)national dialing prefix (for callerid) configurable in capi.conf
 - CLI command "capi info" shows B channel status of chan_capi
-  The called party can press # to drop the call
 - Catch all MSN (incomingmsn=*)
 - Some configuration enhancements (msn=123,124,125 and controller=1,2,3,4)
 - Added accountcode= 
@@ -133,6 +129,15 @@ Enable/Disable echosquelch:
         exten => s,1,capicommand(echosquelch|yes)
           or
         exten => s,1,capicommand(echosquelch|no)
+
+Enable/Disable echocancel:
+    Enable or disable echo-cancel provided by CAPI driver/hardware.
+    You may need to disable echo-cancel when e.g. data/fax transmission handled
+    by non-CAPI application.
+        Example:
+        exten => s,1,capicommand(echocancel|yes)
+          or
+        exten => s,1,capicommand(echocancel|no)
 
 Malicious Call Identification:
     Report a call of malicious nature.
