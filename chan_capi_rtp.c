@@ -231,6 +231,11 @@ int capi_write_rtp(struct ast_channel *c, struct ast_frame *f)
 	struct sockaddr_in us;
 	int len;
 
+	if (!(i->rtp)) {
+		cc_log(LOG_ERROR, "rtp struct is NULL\n");
+		return -1;
+	}
+
 	if (f->datalen > (CAPI_MAX_B3_BLOCK_SIZE + rtpheaderlen)) {
 		cc_verbose(4, 0, VERBOSE_PREFIX_4 "%s: rtp write data: frame too big (len = %d).\n",
 			i->name, f->datalen);
@@ -274,6 +279,11 @@ struct ast_frame *capi_read_rtp(struct capi_pvt *i, unsigned char *buf, int len)
 
 	if (!(i->owner))
 		return NULL;
+
+	if (!(i->rtp)) {
+		cc_log(LOG_ERROR, "rtp struct is NULL\n");
+		return NULL;
+	}
 
 	ast_rtp_get_us(i->rtp, &us);
 	ast_rtp_set_peer(i->rtp, &us);
