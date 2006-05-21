@@ -574,6 +574,8 @@ static void capi_echo_canceller(struct ast_channel *c, int function)
 
 	if (((function == EC_FUNCTION_ENABLE) && (i->isdnstate & CAPI_ISDN_STATE_EC)) ||
 	    ((function != EC_FUNCTION_ENABLE) && (!(i->isdnstate & CAPI_ISDN_STATE_EC)))) {
+		cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: echo canceller (PLCI=%#x, function=%d) unchanged\n",
+			i->name, i->PLCI, function);
 		/* nothing to do */
 		return;
 	}
