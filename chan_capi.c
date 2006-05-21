@@ -5326,6 +5326,7 @@ int unload_module()
 			cc_log(LOG_WARNING, "On unload, interface still has owner.\n");
 		if (i->smoother)
 			ast_smoother_free(i->smoother);
+		cc_mutex_destroy(&i->lock);
 		itmp = i;
 		i = i->next;
 		free(itmp);
