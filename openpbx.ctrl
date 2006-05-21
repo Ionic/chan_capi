@@ -99,6 +99,7 @@
 #define ast_mutex_init             opbx_mutex_init
 #define ast_mutex_lock             opbx_mutex_lock
 #define ast_mutex_unlock           opbx_mutex_unlock
+#define ast_mutex_destroy          opbx_mutex_destroy
 #define ast_cond_t                 opbx_cond_t
 #define ast_cond_init              opbx_cond_init
 #define ast_cond_destroy           opbx_cond_destroy

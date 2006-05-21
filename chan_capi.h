@@ -70,6 +70,7 @@ static inline unsigned int read_capi_dword(void *m)
 #define cc_mutex_init             ast_mutex_init
 #define cc_mutex_lock(x)          ast_mutex_lock(x)
 #define cc_mutex_unlock(x)        ast_mutex_unlock(x)
+#define cc_mutex_destroy(x)       ast_mutex_destroy(x)
 #define cc_log(x...)              ast_log(x)
 #define cc_pbx_verbose(x...)      ast_verbose(x)
 #ifdef PBX_IS_OPBX
