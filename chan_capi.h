@@ -232,6 +232,9 @@ struct cc_capi_gains {
 struct capi_pvt {
 	cc_mutex_t lock;
 
+	ast_cond_t event_trigger;
+	unsigned int waitevent;
+
 	char name[CAPI_MAX_STRING];
 
 	/*! Channel we belong to, possibly NULL */

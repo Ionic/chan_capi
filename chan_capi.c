@@ -367,6 +367,34 @@ MESSAGE_EXCHANGE_ERROR _capi_put_cmsg(_cmsg *CMSG)
 }
 
 /*
+ * write a capi message and wait for CONF
+ * i->lock must be held
+ */
+MESSAGE_EXCHANGE_ERROR _capi_put_cmsg_wait_conf(struct capi_pvt *i, _cmsg *CMSG)
+{
+	MESSAGE_EXCHANGE_ERROR error;
+	struct timespec abstime;
+
+	error = _capi_put_cmsg(CMSG);
+
+	if (!(error)) {
+		unsigned short wCmd = (CAPI_CONF << 8)|(CMSG->Command);
+		i->waitevent = (unsigned int)wCmd;
+		abstime.tv_sec = time(NULL) + 2;
+		abstime.tv_nsec = 0;
+		cc_verbose(4, 1, "%s: wait for %s\n",
+			i->name, capi_cmd2str(CMSG->Command, CAPI_CONF));
+		if (ast_cond_timedwait(&i->event_trigger, &i->lock, &abstime) != 0) {
+			error = -1;
+			cc_log(LOG_WARNING, "%s: timed out waiting for %s\n",
+				i->name, capi_cmd2str(CMSG->Command, CAPI_CONF));
+		}
+	}
+
+	return error;
+}
+
+/*
  * wait some time for a new capi message
  */
 static MESSAGE_EXCHANGE_ERROR check_wait_get_cmsg(_cmsg *CMSG)
@@ -925,7 +953,7 @@ static void cc_disconnect_b3(struct capi_pvt *i, int wait)
 
 	DISCONNECT_B3_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
 	DISCONNECT_B3_REQ_NCCI(&CMSG) = i->NCCI;
-	_capi_put_cmsg(&CMSG);
+	_capi_put_cmsg_wait_conf(i, &CMSG);
 
 	if (!wait)
 		return;
@@ -1042,7 +1070,7 @@ static void capi_activehangup(struct ast_channel *c)
 	    (state == CAPI_STATE_ANSWERING) || (state == CAPI_STATE_ONHOLD)) {
 		DISCONNECT_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
 		DISCONNECT_REQ_PLCI(&CMSG) = i->PLCI;
-		_capi_put_cmsg(&CMSG);
+		_capi_put_cmsg_wait_conf(i, &CMSG);
 	}
 	return;
 }
@@ -1336,7 +1364,7 @@ static int capi_call(struct ast_channel *c, char *idest, int timeout)
 	bchaninfo[2] = 0x0;
 	CONNECT_REQ_BCHANNELINFORMATION(&CMSG) = (_cstruct)bchaninfo; /* 0 */
 
-        if ((error = _capi_put_cmsg(&CMSG))) {
+        if ((error = _capi_put_cmsg_wait_conf(i, &CMSG))) {
 		interface_cleanup(i);
 		cc_mutex_unlock(&i->lock);
 		return error;
@@ -2201,8 +2229,8 @@ static int capi_receive_fax(struct ast_channel *c, char *data)
 		cc_mutex_unlock(&i->lock);
 		break;
 	case CAPI_STATE_CONNECTED:
-		cc_mutex_unlock(&i->lock);
 		capi_change_bchan_fax(c, &b3conf);
+		cc_mutex_unlock(&i->lock);
 		break;
 	default:
 		i->FaxState = 0;
@@ -3389,9 +3417,9 @@ static int capi_call_deflect(struct ast_channel *c, char *param)
 	FACILITY_REQ_FACILITYSELECTOR(&CMSG) = FACILITYSELECTOR_SUPPLEMENTARY;
 	FACILITY_REQ_FACILITYREQUESTPARAMETER(&CMSG) = (_cstruct)&fac;
 	
-	cc_mutex_unlock(&i->lock);
+	_capi_put_cmsg_wait_conf(i, &CMSG);
 
-	_capi_put_cmsg(&CMSG);
+	cc_mutex_unlock(&i->lock);
 
 	cc_verbose(2, 1, VERBOSE_PREFIX_3 "%s: sent FACILITY_REQ for CD PLCI = %#x\n",
 		i->name, i->PLCI);
@@ -3823,8 +3851,16 @@ static void capi_handle_msg(_cmsg *CMSG)
 		show_capi_info(wInfo);
 	}
 
-	if (i != NULL)
+	if (i != NULL) {
+		unsigned short capicommand = ((CMSG->Subcommand << 8)|(CMSG->Command));
+		if (i->waitevent == capicommand) {
+			i->waitevent = 0;
+			ast_cond_signal(&i->event_trigger);
+			cc_verbose(4, 1, "%s: found and signal for %s\n",
+				i->name, capi_cmd2str(CMSG->Command, CMSG->Subcommand));
+		}
 		cc_mutex_unlock(&i->lock);
+	}
 
 	return;
 }
@@ -3964,11 +4000,14 @@ static int capi_ect(struct ast_channel *c, char *param)
 		return -1;
 	}
 
+	cc_mutex_lock(&i->lock);
+
 	cc_disconnect_b3(i, 1);
 
 	if (i->state != CAPI_STATE_CONNECTED) {
 		cc_log(LOG_WARNING, "%s: destination not connected for ECT\n",
 			i->name);
+		cc_mutex_unlock(&i->lock);
 		return -1;
 	}
 
@@ -3984,12 +4023,14 @@ static int capi_ect(struct ast_channel *c, char *param)
 	FACILITY_REQ_FACILITYSELECTOR(&CMSG) = FACILITYSELECTOR_SUPPLEMENTARY;
 	FACILITY_REQ_FACILITYREQUESTPARAMETER(&CMSG) = (_cstruct)&fac;
 
-	_capi_put_cmsg(&CMSG);
+	_capi_put_cmsg_wait_conf(i, &CMSG);
 	
 	ii->isdnstate &= ~CAPI_ISDN_STATE_HOLD;
 	ii->isdnstate |= CAPI_ISDN_STATE_ECT;
 	i->isdnstate |= CAPI_ISDN_STATE_ECT;
 	
+	cc_mutex_unlock(&i->lock);
+
 	cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: sent ECT for PLCI=%#x to PLCI=%#x\n",
 		i->name, plci, i->PLCI);
 
@@ -4066,8 +4107,6 @@ static int capi_malicious(struct ast_channel *c, char *param)
 		return -1;
 	}
 
-	cc_mutex_lock(&i->lock);
-
 	fac[0] = 3;      /* len */
 	fac[1] = 0x0e;   /* MCID */
 	fac[2] = 0x00;
@@ -4078,12 +4117,13 @@ static int capi_malicious(struct ast_channel *c, char *param)
 	FACILITY_REQ_FACILITYSELECTOR(&CMSG) = FACILITYSELECTOR_SUPPLEMENTARY;
 	FACILITY_REQ_FACILITYREQUESTPARAMETER(&CMSG) = (_cstruct)&fac;
 
-	_capi_put_cmsg(&CMSG);
+	cc_mutex_lock(&i->lock);
+	_capi_put_cmsg_wait_conf(i, &CMSG);
+	cc_mutex_unlock(&i->lock);
 
 	cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: sent MCID for PLCI=%#x\n",
 		i->name, i->PLCI);
 
-	cc_mutex_unlock(&i->lock);
 	return 0;
 }
 
@@ -4503,6 +4543,7 @@ int mkif(struct cc_capi_conf *conf)
 		memset(tmp, 0, sizeof(struct capi_pvt));
 		
 		cc_mutex_init(&tmp->lock);
+		ast_cond_init(&tmp->event_trigger, NULL);
 	
 		if (i == 0) {
 			snprintf(tmp->name, sizeof(tmp->name) - 1, "%s-pseudo-D", conf->name);
@@ -5342,6 +5383,7 @@ int unload_module()
 		if (i->smoother)
 			ast_smoother_free(i->smoother);
 		cc_mutex_destroy(&i->lock);
+		ast_cond_destroy(&i->event_trigger);
 		itmp = i;
 		i = i->next;
 		free(itmp);
