@@ -227,7 +227,7 @@ int capi_write_rtp(struct ast_channel *c, struct ast_frame *f)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	_cmsg CMSG;
-	int rtpheaderlen = 12;
+	int rtpheaderlen = RTP_HEADER_SIZE;
 	struct sockaddr_in us;
 	int len;
 

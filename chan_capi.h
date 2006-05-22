@@ -34,6 +34,8 @@
 #define CAPI_ISDNMODE_MSN                 0
 #define CAPI_ISDNMODE_DID                 1
 
+#define RTP_HEADER_SIZE                  12
+
 /* some helper functions */
 static inline void write_capi_word(void *m, unsigned short val)
 {
@@ -251,7 +253,7 @@ struct capi_pvt {
 	unsigned short send_buffer_handle;
 
 	/* receive buffer */
-	unsigned char rec_buffer[CAPI_MAX_B3_BLOCK_SIZE + AST_FRIENDLY_OFFSET];
+	unsigned char rec_buffer[CAPI_MAX_B3_BLOCK_SIZE + AST_FRIENDLY_OFFSET + RTP_HEADER_SIZE];
 
 	/* current state */
 	int state;

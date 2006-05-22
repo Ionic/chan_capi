@@ -588,11 +588,13 @@ static void capi_echo_canceller(struct ast_channel *c, int function)
 	}
 	cc_mutex_unlock(&contrlock);
 
+#ifdef CC_AST_CHANNEL_HAS_TRANSFERCAP
 	if (tcap_is_digital(c->transfercapability)) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: No echo canceller in digital mode (PLCI=%#x)\n",
 			i->name, i->PLCI);
 		return;
 	}
+#endif
 
 	cc_verbose(2, 0, VERBOSE_PREFIX_2 "%s: Setting up echo canceller (PLCI=%#x, function=%d, options=%d, tail=%d)\n",
 			i->name, i->PLCI, function, i->ecOption, i->ecTail);
@@ -636,6 +638,13 @@ static int capi_detect_dtmf(struct ast_channel *c, int flag)
 	if ((i->isdnstate & CAPI_ISDN_STATE_DISCONNECT))
 		return 0;
 
+#ifdef CC_AST_CHANNEL_HAS_TRANSFERCAP
+	if (tcap_is_digital(c->transfercapability)) {
+		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: No dtmf-detect in digital mode (PLCI=%#x)\n",
+			i->name, i->PLCI);
+		return 0;
+	}
+#endif
 	memset(buf, 0, sizeof(buf));
 	
 	/* does the controller support dtmf? and do we want to use it? */
@@ -1272,6 +1281,8 @@ static int capi_call(struct ast_channel *c, char *idest, int timeout)
 	CONNECT_REQ_CIPVALUE(&CMSG) = tcap2cip(c->transfercapability);
 	if (tcap_is_digital(c->transfercapability)) {
 		i->bproto = CC_BPROTO_TRANSPARENT;
+		cc_verbose(4, 0, VERBOSE_PREFIX_2 "%s: is digital call, set proto to TRANSPARENT\n",
+			i->name);
 	}
 #else
 	CONNECT_REQ_CIPVALUE(&CMSG) = 0x10; /* Telephony */
@@ -2963,7 +2974,7 @@ static void capi_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 	int rtpoffset = 0;
 
 	if (i != NULL) {
-		if ((i->isdnstate & CAPI_ISDN_STATE_RTP)) rtpoffset = 12;
+		if ((i->isdnstate & CAPI_ISDN_STATE_RTP)) rtpoffset = RTP_HEADER_SIZE;
 		b3len = DATA_B3_IND_DATALENGTH(CMSG);
 		b3buf = &(i->rec_buffer[AST_FRIENDLY_OFFSET - rtpoffset]);
 		memcpy(b3buf, (char *)DATA_B3_IND_DATA(CMSG), b3len);
@@ -3511,6 +3522,10 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 			}
 #ifdef CC_AST_CHANNEL_HAS_TRANSFERCAP	
  			i->owner->transfercapability = cip2tcap(i->cip);
+			if (tcap_is_digital(i->owner->transfercapability)) {
+				i->bproto = CC_BPROTO_TRANSPARENT;
+			}
+#else
 #endif
 #ifdef CC_AST_CHANNEL_HAS_CID
 			i->owner->cid.cid_pres = callpres;
@@ -5056,7 +5071,7 @@ static int cc_post_init_capi(void)
 		}
 	}
 	if (use_rtp) {
-		if (cc_register_capi(CAPI_MAX_B3_BLOCK_SIZE + 12))
+		if (cc_register_capi(CAPI_MAX_B3_BLOCK_SIZE + RTP_HEADER_SIZE))
 			return -1;
 	}
 
