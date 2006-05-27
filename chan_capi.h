@@ -204,6 +204,13 @@ typedef struct fax3proto3 B3_PROTO_FAXG3;
 
 #define CAPI_MAX_STRING              2048
 
+#define CAPI_FAX_DETECT_INCOMING      0x00000001
+#define CAPI_FAX_DETECT_OUTGOING      0x00000002
+#define CAPI_FAX_STATE_HANDLED        0x00010000
+#define CAPI_FAX_STATE_ACTIVE         0x00020000
+#define CAPI_FAX_STATE_ERROR          0x00040000
+#define CAPI_FAX_STATE_MASK           0xffff0000
+
 struct cc_capi_gains {
 	unsigned char txgains[256];
 	unsigned char rxgains[256];
@@ -328,10 +335,8 @@ struct capi_pvt {
 	
 	/* if not null, receiving a fax */
 	FILE *fFax;
-	/* Has a fax tone already been handled? */
-	int faxhandled;
-	/* Fax ready ? */
-	int FaxState;
+	/* Fax status */
+	unsigned int FaxState;
 
 	/* not all codecs supply frames in nice 160 byte chunks */
 	struct ast_smoother *smoother;
@@ -401,6 +406,7 @@ struct cc_capi_conf {
 	int holdtype;
 	int es;
 	int bridge;
+	unsigned int faxsetting;
 	ast_group_t callgroup;
 	ast_group_t group;
 	float rxgain;

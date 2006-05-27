@@ -920,7 +920,7 @@ static void interface_cleanup(struct capi_pvt *i)
 	i->isdnstate = 0;
 	i->cause = 0;
 
-	i->faxhandled = 0;
+	i->FaxState &= ~CAPI_FAX_STATE_MASK;
 
 	i->PLCI = 0;
 	i->MessageNumber = 0;
@@ -1525,7 +1525,7 @@ static int capi_write(struct ast_channel *c, struct ast_frame *f)
 		cc_mutex_unlock(&i->lock);
 		return 0;
 	}
-	if (i->FaxState) {
+	if (i->FaxState & CAPI_FAX_STATE_ACTIVE) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: write on fax_receive?\n",
 			i->name);
 		cc_mutex_unlock(&i->lock);
@@ -2216,7 +2216,7 @@ static int capi_receive_fax(struct ast_channel *c, char *data)
 		return -1;
 	}
 
-	i->FaxState = 1;
+	i->FaxState |= CAPI_FAX_STATE_ACTIVE;
 	setup_b3_fax_config(&b3conf, FAX_SFF_FORMAT, stationid, headline);
 
 	i->bproto = CC_BPROTO_FAXG3;
@@ -2233,19 +2233,19 @@ static int capi_receive_fax(struct ast_channel *c, char *data)
 		cc_mutex_unlock(&i->lock);
 		break;
 	default:
-		i->FaxState = 0;
+		i->FaxState &= ~CAPI_FAX_STATE_ACTIVE;
 		cc_mutex_unlock(&i->lock);
 		cc_log(LOG_WARNING, "capi receive fax in wrong state (%d)\n",
 			i->state);
 		return -1;
 	}
 
-	while (i->FaxState == 1) {
+	while (i->FaxState & CAPI_FAX_STATE_ACTIVE) {
 		usleep(10000);
 	}
 
-	res = i->FaxState;
-	i->FaxState = 0;
+	res = (i->FaxState & CAPI_FAX_STATE_ERROR) ? -1 : 0;
+	i->FaxState &= ~(CAPI_FAX_STATE_ACTIVE | CAPI_FAX_STATE_ERROR);
 
 	/* if the file has zero length */
 	if (ftell(i->fFax) == 0L) {
@@ -2282,12 +2282,18 @@ static void capi_handle_dtmf_fax(struct ast_channel *c)
 	}
 	p = CC_CHANNEL_PVT(c);
 	
-	if (p->faxhandled) {
+	if (p->FaxState & CAPI_FAX_STATE_HANDLED) {
 		cc_log(LOG_DEBUG, "Fax already handled\n");
 		return;
 	}
-	
-	p->faxhandled++;
+	p->FaxState |= CAPI_FAX_STATE_HANDLED;
+
+	if (((p->outgoing == 1) && (!(p->FaxState & CAPI_FAX_DETECT_OUTGOING))) ||
+	    ((p->outgoing == 0) && (!(p->FaxState & CAPI_FAX_DETECT_INCOMING)))) {
+		cc_verbose(3, 0, VERBOSE_PREFIX_3 "%s: Fax detected, but not configured for redirection\n",
+			p->name);
+		return;
+	}
 	
 	if (!strcmp(c->exten, "fax")) {
 		cc_log(LOG_DEBUG, "Already in a fax extension, not redirecting\n");
@@ -2602,7 +2608,7 @@ static void handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsigned int 
 	if (i->outgoing == 0) {
 		cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s: Disconnect case 3\n",
 			i->name);
-		if (i->FaxState) {
+		if (i->FaxState & CAPI_FAX_STATE_ACTIVE) {
 			/* in fax mode, we just hangup */
 			DISCONNECT_REQ_HEADER(&CMSG2, capi_ApplID, get_capi_MessageNumber(), 0);
 			DISCONNECT_REQ_PLCI(&CMSG2) = i->PLCI;
@@ -3131,7 +3137,7 @@ static void capi_handle_connect_active_indication(_cmsg *CMSG, unsigned int PLCI
 
 	i->state = CAPI_STATE_CONNECTED;
 
-	if ((i->owner) && (i->FaxState)) {
+	if ((i->owner) && (i->FaxState & CAPI_FAX_STATE_ACTIVE)) {
 		capi_signal_answer(i);
 		return;
 	}
@@ -3201,7 +3207,7 @@ static void capi_handle_connect_b3_active_indication(_cmsg *CMSG, unsigned int P
 		return;
 	}
 
-	if (i->FaxState) {
+	if (i->FaxState & CAPI_FAX_STATE_ACTIVE) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: Fax connection, no EC/DTMF\n",
 			i->name);
 	} else {
@@ -3233,7 +3239,7 @@ static void capi_handle_disconnect_b3_indication(_cmsg *CMSG, unsigned int PLCI,
 	i->reasonb3 = DISCONNECT_B3_IND_REASON_B3(CMSG);
 	i->NCCI = 0;
 
-	if ((i->FaxState == 1) && (i->owner)) {
+	if ((i->FaxState & CAPI_FAX_STATE_ACTIVE) && (i->owner)) {
 		char buffer[CAPI_MAX_STRING];
 		unsigned char *ncpi = (unsigned char *)DISCONNECT_B3_IND_NCPI(CMSG);
 		/* if we have fax infos, set them as variables */
@@ -3318,16 +3324,18 @@ static void capi_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI, un
 			i->reason & 0x7F : AST_CAUSE_NORMAL_CLEARING;
 	}
 
-	if (i->FaxState == 1) {
+	if (i->FaxState & CAPI_FAX_STATE_ACTIVE) {
 		/* in capiFax */
 		switch (i->reason) {
 		case 0x3490:
 		case 0x349f:
-			i->FaxState = (i->reasonb3 == 0) ? 0 : -1;
+			if (i->reasonb3 != 0)
+				i->FaxState |= CAPI_FAX_STATE_ERROR;
 			break;
 		default:
-			i->FaxState = -1;
+			i->FaxState |= CAPI_FAX_STATE_ERROR;
 		}
+		i->FaxState &= ~CAPI_FAX_STATE_ACTIVE;
 	}
 
 	if ((i->owner) &&
@@ -3802,7 +3810,7 @@ static void capi_handle_msg(_cmsg *CMSG)
 		wInfo = SELECT_B_PROTOCOL_CONF_INFO(CMSG);
 		if(i == NULL) break;
 		if (!wInfo) {
-			if ((i->owner) && (i->FaxState)) {
+			if ((i->owner) && (i->FaxState & CAPI_FAX_STATE_ACTIVE)) {
 				capi_echo_canceller(i->owner, EC_FUNCTION_DISABLE);
 				capi_detect_dtmf(i->owner, 0);
 			}
@@ -4602,6 +4610,7 @@ int mkif(struct cc_capi_conf *conf)
 		tmp->holdtype = conf->holdtype;
 		tmp->ecSelector = conf->ecSelector;
 		tmp->bridge = conf->bridge;
+		tmp->FaxState = conf->faxsetting;
 		
 		tmp->smoother = ast_smoother_new(CAPI_MAX_B3_BLOCK_SIZE);
 
@@ -5211,6 +5220,18 @@ static int conf_interface(struct cc_capi_conf *conf, struct ast_variable *v)
 				conf->ecSelector = 6;
 			}
 			continue;
+		} else
+		if (!strcasecmp(v->name, "faxdetect")) {
+			if (!strcasecmp(v->value, "incoming")) {
+				conf->faxsetting |= CAPI_FAX_DETECT_INCOMING;
+				conf->faxsetting &= ~CAPI_FAX_DETECT_OUTGOING;
+			} else if (!strcasecmp(v->value, "outgoing")) {
+				conf->faxsetting |= CAPI_FAX_DETECT_OUTGOING;
+				conf->faxsetting &= ~CAPI_FAX_DETECT_INCOMING;
+			} else if (!strcasecmp(v->value, "both") || ast_true(v->value))
+				conf->faxsetting |= (CAPI_FAX_DETECT_OUTGOING | CAPI_FAX_DETECT_INCOMING);
+			else
+				conf->faxsetting &= ~(CAPI_FAX_DETECT_OUTGOING | CAPI_FAX_DETECT_INCOMING);
 		} else
 		if (!strcasecmp(v->name, "echocancel")) {
 			if (ast_true(v->value)) {
