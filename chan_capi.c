@@ -1531,7 +1531,7 @@ static int capi_write(struct ast_channel *c, struct ast_frame *f)
 		cc_mutex_unlock(&i->lock);
 		return 0;
 	}
-	if ((!f->data) || (!f->datalen) || (!i->smoother)) {
+	if ((!f->data) || (!f->datalen)) {
 		cc_log(LOG_DEBUG, "No data for FRAME_VOICE %s\n", c->name);
 		cc_mutex_unlock(&i->lock);
 		return 0;
@@ -1552,7 +1552,7 @@ static int capi_write(struct ast_channel *c, struct ast_frame *f)
 		return ret;
 	}
 
-	if (ast_smoother_feed(i->smoother, f) != 0) {
+	if ((!i->smoother) || (ast_smoother_feed(i->smoother, f) != 0)) {
 		cc_log(LOG_ERROR, "%s: failed to fill smoother\n", i->name);
 		cc_mutex_unlock(&i->lock);
 		return 0;
