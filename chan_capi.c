@@ -3699,6 +3699,22 @@ static void show_capi_conf_error(struct capi_pvt *i,
 }
 
 /*
+ * check special conditions, wake waiting threads and send outstanding commands
+ * for the given interface
+ */
+static void interface_post_handling(struct capi_pvt *i, _cmsg *CMSG)
+{
+	unsigned short capicommand = ((CMSG->Subcommand << 8)|(CMSG->Command));
+
+	if (i->waitevent == capicommand) {
+		i->waitevent = 0;
+		ast_cond_signal(&i->event_trigger);
+		cc_verbose(4, 1, "%s: found and signal for %s\n",
+			i->name, capi_cmd2str(CMSG->Command, CMSG->Subcommand));
+	}
+}
+
+/*
  * handle CAPI msg
  */
 static void capi_handle_msg(_cmsg *CMSG)
@@ -3845,13 +3861,6 @@ static void capi_handle_msg(_cmsg *CMSG)
 		break;
 	}
 
-	if (i == NULL) {
-		cc_verbose(2, 1, VERBOSE_PREFIX_4
-			"CAPI: Command=%s,0x%04x: no interface for PLCI="
-			"%#x, MSGNUM=%#x!\n", capi_command_to_string(wCmd),
-			wCmd, PLCI, wMsgNum);
-	}
-
 	if (wInfo != 0xffff) {
 		if (wInfo) {
 			show_capi_conf_error(i, PLCI, wInfo, wCmd);
@@ -3859,14 +3868,13 @@ static void capi_handle_msg(_cmsg *CMSG)
 		show_capi_info(wInfo);
 	}
 
-	if (i != NULL) {
-		unsigned short capicommand = ((CMSG->Subcommand << 8)|(CMSG->Command));
-		if (i->waitevent == capicommand) {
-			i->waitevent = 0;
-			ast_cond_signal(&i->event_trigger);
-			cc_verbose(4, 1, "%s: found and signal for %s\n",
-				i->name, capi_cmd2str(CMSG->Command, CMSG->Subcommand));
-		}
+	if (i == NULL) {
+		cc_verbose(2, 1, VERBOSE_PREFIX_4
+			"CAPI: Command=%s,0x%04x: no interface for PLCI="
+			"%#x, MSGNUM=%#x!\n", capi_command_to_string(wCmd),
+			wCmd, PLCI, wMsgNum);
+	} else {
+		interface_post_handling(i, CMSG);
 		cc_mutex_unlock(&i->lock);
 	}
 
