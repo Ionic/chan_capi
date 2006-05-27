@@ -250,6 +250,8 @@ If you use Answer(), you will be in voice mode. If the hardware DSP detects
 fax tone, you can switch from voice to fax mode by calling capicommand(receivefax|...).
 The parameter <filename> is mandatory and the parameters <stationid> and
 <headline> are optional.
+To enable fax tone detection and redirect to extension 'fax', use config variable
+'faxdetect' in capi.conf.
 
 Example of use :
 line number 123, play something, if a fax tone is detected, handle it
