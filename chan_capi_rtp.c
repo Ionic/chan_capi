@@ -236,7 +236,7 @@ int capi_write_rtp(struct ast_channel *c, struct ast_frame *f)
 		return -1;
 	}
 
-	if (f->datalen > (CAPI_MAX_B3_BLOCK_SIZE + rtpheaderlen)) {
+	if (f->datalen > (2000)) {
 		cc_verbose(4, 0, VERBOSE_PREFIX_4 "%s: rtp write data: frame too big (len = %d).\n",
 			i->name, f->datalen);
 		return -1;
