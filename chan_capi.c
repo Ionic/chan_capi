@@ -1539,7 +1539,7 @@ static int capi_write(struct ast_channel *c, struct ast_frame *f)
 	if (i->isdnstate & CAPI_ISDN_STATE_RTP) {
 		if ((!(f->subclass & i->codec)) &&
 		    (f->subclass != capi_capability)) {
-			cc_log(LOG_ERROR, "dont know how to write subclass %s(%d)\n",
+			cc_log(LOG_ERROR, "don't know how to write subclass %s(%d)\n",
 				ast_getformatname(f->subclass), f->subclass);
 			cc_mutex_unlock(&i->lock);
 			return 0;
@@ -2058,7 +2058,7 @@ capi_request(char *type, int format, void *data)
 	unsigned int foundcontroller;
 	int notfound = 1;
 
-	cc_verbose(1, 1, VERBOSE_PREFIX_4 "data = %s\n", (char *)data);
+	cc_verbose(1, 1, VERBOSE_PREFIX_4 "data = %s format=%d\n", (char *)data, format);
 
 	cc_copy_string(buffer, (char *)data, sizeof(buffer));
 	parse_dialstring(buffer, &interface, &dest, &param, &ocid);
