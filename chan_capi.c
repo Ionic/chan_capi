@@ -3684,6 +3684,11 @@ static void show_capi_conf_error(struct capi_pvt *i,
 
 	if (i)
 		name = i->name;
+	
+	if ((wCmd == CAPI_P_CONF(ALERT)) && (wInfo == 0x0003)) {
+		/* Alert already sent by another application */
+		return;
+	}
 		
 	if (wInfo == 0x2002) {
 		cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: "
