@@ -351,8 +351,9 @@ MESSAGE_EXCHANGE_ERROR _capi_put_cmsg(_cmsg *CMSG)
 	}
 
 	if (error) {
-		cc_log(LOG_ERROR, "CAPI error sending %s (NCCI=%#x) (error=%#x)\n",
-			capi_cmsg2str(CMSG), (unsigned int)HEADER_CID(CMSG), error);
+		cc_log(LOG_ERROR, "CAPI error sending %s (NCCI=%#x) (error=%#x %s)\n",
+			capi_cmsg2str(CMSG), (unsigned int)HEADER_CID(CMSG),
+			error, capi_info_string((unsigned int)error));
 	} else {
 		unsigned short wCmd = HEADER_CMD(CMSG);
 		if ((wCmd == CAPI_P_REQ(DATA_B3)) ||
