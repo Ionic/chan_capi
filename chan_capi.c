@@ -186,9 +186,9 @@ static int capidebug = 0;
 
 /* local prototypes */
 #ifdef CC_AST_HAS_INDICATE_DATA
-static int capi_indicate(struct ast_channel *c, int condition, const void *data, size_t datalen);
+static int pbx_capi_indicate(struct ast_channel *c, int condition, const void *data, size_t datalen);
 #else
-static int capi_indicate(struct ast_channel *c, int condition);
+static int pbx_capi_indicate(struct ast_channel *c, int condition);
 #endif
 
 /* external prototypes */
@@ -815,7 +815,7 @@ static int capi_send_info_digits(struct capi_pvt *i, char *digits, int len)
 /*
  * send a DTMF digit
  */
-static int capi_send_digit(struct ast_channel *c, char digit)
+static int pbx_capi_send_digit(struct ast_channel *c, char digit)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	_cmsg CMSG;
@@ -885,7 +885,7 @@ static int capi_send_digit(struct ast_channel *c, char digit)
 /*
  * send ALERT to ISDN line
  */
-static int capi_alert(struct ast_channel *c)
+static int pbx_capi_alert(struct ast_channel *c)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	_cmsg CMSG;
@@ -1082,7 +1082,7 @@ static void capi_activehangup(struct ast_channel *c)
 /*
  * PBX tells us to hangup a line
  */
-static int capi_hangup(struct ast_channel *c)
+static int pbx_capi_hangup(struct ast_channel *c)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	int cleanup = 0;
@@ -1212,7 +1212,7 @@ static void parse_dialstring(char *buffer, char **interface, char **dest, char *
 /*
  * PBX tells us to make a call
  */
-static int capi_call(struct ast_channel *c, char *idest, int timeout)
+static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	char *dest, *interface, *param, *ocid;
@@ -1453,7 +1453,7 @@ static int capi_send_answer(struct ast_channel *c, _cstruct b3conf)
 /*
  * PBX tells us to answer a call
  */
-static int capi_answer(struct ast_channel *c)
+static int pbx_capi_answer(struct ast_channel *c)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	int ret;
@@ -1476,7 +1476,7 @@ static int capi_answer(struct ast_channel *c)
 /*
  * read for a channel
  */
-static struct ast_frame *capi_read(struct ast_channel *c) 
+static struct ast_frame *pbx_capi_read(struct ast_channel *c) 
 {
 	static struct ast_frame null = { AST_FRAME_NULL, };
 
@@ -1486,7 +1486,7 @@ static struct ast_frame *capi_read(struct ast_channel *c)
 /*
  * PBX tells us to write for a channel
  */
-static int capi_write(struct ast_channel *c, struct ast_frame *f)
+static int pbx_capi_write(struct ast_channel *c, struct ast_frame *f)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	MESSAGE_EXCHANGE_ERROR error;
@@ -1631,7 +1631,7 @@ static int capi_write(struct ast_channel *c, struct ast_frame *f)
 /*
  * new channel
  */
-static int capi_fixup(struct ast_channel *oldchan, struct ast_channel *newchan)
+static int pbx_capi_fixup(struct ast_channel *oldchan, struct ast_channel *newchan)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(newchan);
 
@@ -1788,7 +1788,7 @@ static void cc_unset_transparent(struct capi_pvt *i, int rtpwanted)
 /*
  * native bridging / line interconnect
  */
-static CC_BRIDGE_RETURN capi_bridge(struct ast_channel *c0,
+static CC_BRIDGE_RETURN pbx_capi_bridge(struct ast_channel *c0,
                                     struct ast_channel *c1,
                                     int flags, struct ast_frame **fo,
 				    struct ast_channel **rc
@@ -1976,15 +1976,15 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 	tmp->rawreadformat = fmt;
 	tmp->rawwriteformat = fmt;
 #else
-	tmp->pvt->call = capi_call;
-	tmp->pvt->fixup = capi_fixup;
-	tmp->pvt->indicate = capi_indicate;
-	tmp->pvt->bridge = capi_bridge;
-	tmp->pvt->answer = capi_answer;
-	tmp->pvt->hangup = capi_hangup;
-	tmp->pvt->read = capi_read;
-	tmp->pvt->write = capi_write;
-	tmp->pvt->send_digit = capi_send_digit;
+	tmp->pvt->call = pbx_capi_call;
+	tmp->pvt->fixup = pbx_capi_fixup;
+	tmp->pvt->indicate = pbx_capi_indicate;
+	tmp->pvt->bridge = pbx_capi_bridge;
+	tmp->pvt->answer = pbx_capi_answer;
+	tmp->pvt->hangup = pbx_capi_hangup;
+	tmp->pvt->read = pbx_capi_read;
+	tmp->pvt->write = pbx_capi_write;
+	tmp->pvt->send_digit = pbx_capi_send_digit;
 	tmp->pvt->rawreadformat = fmt;
 	tmp->pvt->rawwriteformat = fmt;
 #endif
@@ -2048,9 +2048,9 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 static struct ast_channel *
 
 #ifdef CC_AST_HAVE_TECH_PVT
-capi_request(const char *type, int format, void *data, int *cause)
+pbx_capi_request(const char *type, int format, void *data, int *cause)
 #else
-capi_request(char *type, int format, void *data)
+pbx_capi_request(char *type, int format, void *data)
 #endif
 {
 	struct capi_pvt *i;
@@ -2191,7 +2191,7 @@ static void capi_change_bchan_fax(struct ast_channel *c, B3_PROTO_FAXG3 *b3conf)
 /*
  * capicommand 'receivefax'
  */
-static int capi_receive_fax(struct ast_channel *c, char *data)
+static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	int res = 0;
@@ -2494,7 +2494,7 @@ static void start_pbx_on_match(struct capi_pvt *i, unsigned int PLCI, _cword Mes
 /*
  * Called Party Number via INFO_IND
  */
-static void handle_did_digits(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
+static void capidev_handle_did_digits(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
 {
 	char *did;
 	struct ast_frame fr = { AST_FRAME_NULL, };
@@ -2563,7 +2563,7 @@ static void queue_cause_control(struct capi_pvt *i, int control)
 /*
  * Disconnect via INFO_IND
  */
-static void handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
+static void capidev_handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
 {
 	_cmsg CMSG2;
 
@@ -2643,7 +2643,7 @@ static void handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsigned int 
 /*
  * incoming call SETUP
  */
-static void handle_setup_element(_cmsg *CMSG, unsigned int PLCI, struct capi_pvt *i)
+static void capidev_handle_setup_element(_cmsg *CMSG, unsigned int PLCI, struct capi_pvt *i)
 {
 	if ((i->isdnstate & CAPI_ISDN_STATE_SETUP)) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: IE SETUP / SENDING-COMPLETE already received.\n",
@@ -2741,7 +2741,7 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 	case 0x0070:	/* Called Party Number */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element CALLED PARTY NUMBER\n",
 			i->name);
-		handle_did_digits(CMSG, PLCI, NCCI, i);
+		capidev_handle_did_digits(CMSG, PLCI, NCCI, i);
 		break;
 	case 0x0074:	/* Redirecting Number */
 		p = capi_number(INFO_IND_INFOELEMENT(CMSG), 3);
@@ -2771,7 +2771,7 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 	case 0x00a1:	/* Sending Complete */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element Sending Complete\n",
 			i->name);
-		handle_setup_element(CMSG, PLCI, i);
+		capidev_handle_setup_element(CMSG, PLCI, i);
 		break;
 	case 0x4000:	/* CHARGE in UNITS */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element CHARGE in UNITS\n",
@@ -2823,7 +2823,7 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 	case 0x8005:	/* SETUP */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element SETUP\n",
 			i->name);
-		handle_setup_element(CMSG, PLCI, i);
+		capidev_handle_setup_element(CMSG, PLCI, i);
 		break;
 	case 0x8007:	/* CONNECT */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element CONNECT\n",
@@ -2848,7 +2848,7 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 	case 0x8045:	/* DISCONNECT */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element DISCONNECT\n",
 			i->name);
-		handle_info_disconnect(CMSG, PLCI, NCCI, i);
+		capidev_handle_info_disconnect(CMSG, PLCI, NCCI, i);
 		break;
 	case 0x804d:	/* RELEASE */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element RELEASE\n",
@@ -3365,81 +3365,6 @@ static void capidev_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI,
 }
 
 /*
- * deflect a call
- */
-static int capi_call_deflect(struct ast_channel *c, char *param)
-{
-	struct capi_pvt *i = CC_CHANNEL_PVT(c);
-	_cmsg	CMSG;
-	char	fac[64];
-	int	res = 0;
-	char *number;
-	int numberlen;
-
-	if (!param) {
-		cc_log(LOG_WARNING, "capi deflection requires an argument (destination phone number)\n");
-		return -1;
-	}
-	number = strsep(&param, "|");
-	numberlen = strlen(number);
-
-	if (!numberlen) {
-		cc_log(LOG_WARNING, "capi deflection requires an argument (destination phone number)\n");
-		return -1;
-	}
-	if (numberlen > 35) {
-		cc_log(LOG_WARNING, "capi deflection does only support phone number up to 35 digits\n");
-		return -1;
-	}
-	if (!(capi_controllers[i->controller]->CD)) {
-		cc_log(LOG_NOTICE,"%s: CALL DEFLECT for %s not supported by controller.\n",
-			i->name, c->name);
-		return -1;
-	}
-
-	cc_mutex_lock(&i->lock);
-
-	if ((i->state != CAPI_STATE_INCALL) &&
-	    (i->state != CAPI_STATE_DID) &&
-	    (i->state != CAPI_STATE_ALERTING)) {
-		cc_mutex_unlock(&i->lock);
-		cc_log(LOG_WARNING, "wrong state of call for call deflection\n");
-		return -1;
-	}
-	if (i->state != CAPI_STATE_ALERTING) {
-		capi_alert(c);
-	}
-	
-	fac[0] = 0x0a + numberlen; /* length */
-	fac[1] = 0x0d; /* call deflection */
-	fac[2] = 0x00;
-	fac[3] = 0x07 + numberlen; /* struct len */
-	fac[4] = 0x01; /* display of own address allowed */
-	fac[5] = 0x00;
-	fac[6] = 0x03 + numberlen;
-	fac[7] = 0x00; /* type of facility number */
-	fac[8] = 0x00; /* number plan */
-	fac[9] = 0x00; /* presentation allowed */
-	fac[10 + numberlen] = 0x00; /* subaddress len */
-
-	memcpy((unsigned char *)fac + 10, number, numberlen);
-
-	FACILITY_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(),0);
-	FACILITY_REQ_PLCI(&CMSG) = i->PLCI;
-	FACILITY_REQ_FACILITYSELECTOR(&CMSG) = FACILITYSELECTOR_SUPPLEMENTARY;
-	FACILITY_REQ_FACILITYREQUESTPARAMETER(&CMSG) = (_cstruct)&fac;
-	
-	_capi_put_cmsg_wait_conf(i, &CMSG);
-
-	cc_mutex_unlock(&i->lock);
-
-	cc_verbose(2, 1, VERBOSE_PREFIX_3 "%s: sent FACILITY_REQ for CD PLCI = %#x\n",
-		i->name, i->PLCI);
-
-	return(res);
-}
-
-/*
  * CAPI CONNECT_IND
  */
 static void capidev_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt **interface)
@@ -3895,9 +3820,84 @@ static void capidev_handle_msg(_cmsg *CMSG)
 }
 
 /*
+ * deflect a call
+ */
+static int pbx_capi_call_deflect(struct ast_channel *c, char *param)
+{
+	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+	_cmsg	CMSG;
+	char	fac[64];
+	int	res = 0;
+	char *number;
+	int numberlen;
+
+	if (!param) {
+		cc_log(LOG_WARNING, "capi deflection requires an argument (destination phone number)\n");
+		return -1;
+	}
+	number = strsep(&param, "|");
+	numberlen = strlen(number);
+
+	if (!numberlen) {
+		cc_log(LOG_WARNING, "capi deflection requires an argument (destination phone number)\n");
+		return -1;
+	}
+	if (numberlen > 35) {
+		cc_log(LOG_WARNING, "capi deflection does only support phone number up to 35 digits\n");
+		return -1;
+	}
+	if (!(capi_controllers[i->controller]->CD)) {
+		cc_log(LOG_NOTICE,"%s: CALL DEFLECT for %s not supported by controller.\n",
+			i->name, c->name);
+		return -1;
+	}
+
+	cc_mutex_lock(&i->lock);
+
+	if ((i->state != CAPI_STATE_INCALL) &&
+	    (i->state != CAPI_STATE_DID) &&
+	    (i->state != CAPI_STATE_ALERTING)) {
+		cc_mutex_unlock(&i->lock);
+		cc_log(LOG_WARNING, "wrong state of call for call deflection\n");
+		return -1;
+	}
+	if (i->state != CAPI_STATE_ALERTING) {
+		pbx_capi_alert(c);
+	}
+	
+	fac[0] = 0x0a + numberlen; /* length */
+	fac[1] = 0x0d; /* call deflection */
+	fac[2] = 0x00;
+	fac[3] = 0x07 + numberlen; /* struct len */
+	fac[4] = 0x01; /* display of own address allowed */
+	fac[5] = 0x00;
+	fac[6] = 0x03 + numberlen;
+	fac[7] = 0x00; /* type of facility number */
+	fac[8] = 0x00; /* number plan */
+	fac[9] = 0x00; /* presentation allowed */
+	fac[10 + numberlen] = 0x00; /* subaddress len */
+
+	memcpy((unsigned char *)fac + 10, number, numberlen);
+
+	FACILITY_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(),0);
+	FACILITY_REQ_PLCI(&CMSG) = i->PLCI;
+	FACILITY_REQ_FACILITYSELECTOR(&CMSG) = FACILITYSELECTOR_SUPPLEMENTARY;
+	FACILITY_REQ_FACILITYREQUESTPARAMETER(&CMSG) = (_cstruct)&fac;
+	
+	_capi_put_cmsg_wait_conf(i, &CMSG);
+
+	cc_mutex_unlock(&i->lock);
+
+	cc_verbose(2, 1, VERBOSE_PREFIX_3 "%s: sent FACILITY_REQ for CD PLCI = %#x\n",
+		i->name, i->PLCI);
+
+	return(res);
+}
+
+/*
  * retrieve a hold on call
  */
-static int capi_retrieve(struct ast_channel *c, char *param)
+static int pbx_capi_retrieve(struct ast_channel *c, char *param)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c); 
 	_cmsg	CMSG;
@@ -3979,7 +3979,7 @@ static int capi_retrieve(struct ast_channel *c, char *param)
 /*
  * explicit transfer a held call
  */
-static int capi_ect(struct ast_channel *c, char *param)
+static int pbx_capi_ect(struct ast_channel *c, char *param)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	struct capi_pvt *ii = NULL;
@@ -4069,7 +4069,7 @@ static int capi_ect(struct ast_channel *c, char *param)
 /*
  * hold a call
  */
-static int capi_hold(struct ast_channel *c, char *param)
+static int pbx_capi_hold(struct ast_channel *c, char *param)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	_cmsg	CMSG;
@@ -4124,7 +4124,7 @@ static int capi_hold(struct ast_channel *c, char *param)
 /*
  * report malicious call
  */
-static int capi_malicious(struct ast_channel *c, char *param)
+static int pbx_capi_malicious(struct ast_channel *c, char *param)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	_cmsg	CMSG;
@@ -4159,7 +4159,7 @@ static int capi_malicious(struct ast_channel *c, char *param)
 /*
  * set echo cancel
  */
-static int capi_echocancel(struct ast_channel *c, char *param)
+static int pbx_capi_echocancel(struct ast_channel *c, char *param)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 
@@ -4185,7 +4185,7 @@ static int capi_echocancel(struct ast_channel *c, char *param)
 /*
  * set echo squelch
  */
-static int capi_echosquelch(struct ast_channel *c, char *param)
+static int pbx_capi_echosquelch(struct ast_channel *c, char *param)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 
@@ -4209,7 +4209,7 @@ static int capi_echosquelch(struct ast_channel *c, char *param)
 /*
  * set holdtype
  */
-static int capi_holdtype(struct ast_channel *c, char *param)
+static int pbx_capi_holdtype(struct ast_channel *c, char *param)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 
@@ -4236,7 +4236,7 @@ static int capi_holdtype(struct ast_channel *c, char *param)
  * set early-B3 (progress) for incoming connections
  * (only for NT mode)
  */
-static int capi_signal_progress(struct ast_channel *c, char *param)
+static int pbx_capi_signal_progress(struct ast_channel *c, char *param)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 
@@ -4267,23 +4267,23 @@ static struct capicommands_s {
 	int (*cmd)(struct ast_channel *, char *);
 	int capionly;
 } capicommands[] = {
-	{ "progress",     capi_signal_progress, 1 },
-	{ "deflect",      capi_call_deflect,    1 },
-	{ "receivefax",   capi_receive_fax,     1 },
-	{ "echosquelch",  capi_echosquelch,     1 },
-	{ "echocancel",   capi_echocancel,      1 },
-	{ "malicious",    capi_malicious,       1 },
-	{ "hold",         capi_hold,            1 },
-	{ "holdtype",     capi_holdtype,        1 },
-	{ "retrieve",     capi_retrieve,        0 },
-	{ "ect",          capi_ect,             1 },
+	{ "progress",     pbx_capi_signal_progress, 1 },
+	{ "deflect",      pbx_capi_call_deflect,    1 },
+	{ "receivefax",   pbx_capi_receive_fax,     1 },
+	{ "echosquelch",  pbx_capi_echosquelch,     1 },
+	{ "echocancel",   pbx_capi_echocancel,      1 },
+	{ "malicious",    pbx_capi_malicious,       1 },
+	{ "hold",         pbx_capi_hold,            1 },
+	{ "holdtype",     pbx_capi_holdtype,        1 },
+	{ "retrieve",     pbx_capi_retrieve,        0 },
+	{ "ect",          pbx_capi_ect,             1 },
 	{ NULL, NULL, 0 }
 };
 
 /*
  * capi command interface
  */
-static int capicommand_exec(struct ast_channel *chan, void *data)
+static int pbx_capicommand_exec(struct ast_channel *chan, void *data)
 {
 	int res = 0;
 	struct localuser *u;
@@ -4338,9 +4338,9 @@ static int capicommand_exec(struct ast_channel *chan, void *data)
  * we don't support own indications
  */
 #ifdef CC_AST_HAS_INDICATE_DATA
-static int capi_indicate(struct ast_channel *c, int condition, const void *data, size_t datalen)
+static int pbx_capi_indicate(struct ast_channel *c, int condition, const void *data, size_t datalen)
 #else
-static int capi_indicate(struct ast_channel *c, int condition)
+static int pbx_capi_indicate(struct ast_channel *c, int condition)
 #endif
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
@@ -4360,16 +4360,16 @@ static int capi_indicate(struct ast_channel *c, int condition)
 		/* TODO somehow enable unhold on ringing, but when wanted only */
 		/* 
 		if (i->isdnstate & CAPI_ISDN_STATE_HOLD)
-			capi_retrieve(c, NULL);
+			pbx_capi_retrieve(c, NULL);
 		*/
 		if (i->ntmode) {
 			if ((i->isdnstate & CAPI_ISDN_STATE_B3_UP)) {
 				ret = 0;
 			}
-			capi_signal_progress(c, NULL);
-			capi_alert(c);
+			pbx_capi_signal_progress(c, NULL);
+			pbx_capi_alert(c);
 		} else {
-			ret = capi_alert(c);
+			ret = pbx_capi_alert(c);
 		}
 		break;
 	case AST_CONTROL_BUSY:
@@ -4384,7 +4384,7 @@ static int capi_indicate(struct ast_channel *c, int condition)
 			ret = 0;
 		}
 		if ((i->isdnstate & CAPI_ISDN_STATE_HOLD))
-			capi_retrieve(c, NULL);
+			pbx_capi_retrieve(c, NULL);
 		break;
 	case AST_CONTROL_CONGESTION:
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested CONGESTION-Indication for %s\n",
@@ -4398,31 +4398,31 @@ static int capi_indicate(struct ast_channel *c, int condition)
 			ret = 0;
 		}
 		if ((i->isdnstate & CAPI_ISDN_STATE_HOLD))
-			capi_retrieve(c, NULL);
+			pbx_capi_retrieve(c, NULL);
 		break;
 	case AST_CONTROL_PROGRESS:
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested PROGRESS-Indication for %s\n",
 			i->name, c->name);
-		if (i->ntmode) capi_signal_progress(c, NULL);
+		if (i->ntmode) pbx_capi_signal_progress(c, NULL);
 		break;
 	case AST_CONTROL_PROCEEDING:
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested PROCEEDING-Indication for %s\n",
 			i->name, c->name);
-		if (i->ntmode) capi_signal_progress(c, NULL);
+		if (i->ntmode) pbx_capi_signal_progress(c, NULL);
 		break;
 #ifdef CC_AST_CONTROL_HOLD
 	case AST_CONTROL_HOLD:
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested HOLD-Indication for %s\n",
 			i->name, c->name);
 		if (i->doholdtype != CC_HOLDTYPE_LOCAL) {
-			ret = capi_hold(c, NULL);
+			ret = pbx_capi_hold(c, NULL);
 		}
 		break;
 	case AST_CONTROL_UNHOLD:
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested UNHOLD-Indication for %s\n",
 			i->name, c->name);
 		if (i->doholdtype != CC_HOLDTYPE_LOCAL) {
-			ret = capi_retrieve(c, NULL);
+			ret = pbx_capi_retrieve(c, NULL);
 		}
 		break;
 #endif
@@ -4430,7 +4430,7 @@ static int capi_indicate(struct ast_channel *c, int condition)
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested Indication-STOP for %s\n",
 			i->name, c->name);
 		if ((i->isdnstate & CAPI_ISDN_STATE_HOLD))
-			capi_retrieve(c, NULL);
+			pbx_capi_retrieve(c, NULL);
 		break;
 	default:
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested unknown Indication %d for %s\n",
@@ -4445,7 +4445,7 @@ static int capi_indicate(struct ast_channel *c, int condition)
 /*
  * PBX wants to know the state for a specific device
  */
-static int capi_devicestate(void *data)
+static int pbx_capi_devicestate(void *data)
 {
 	int res = AST_DEVICE_UNKNOWN;
 
@@ -4817,7 +4817,7 @@ static char *show_isdnstate(unsigned int isdnstate, char *str)
 /*
  * do command capi show channels
  */
-static int capi_show_channels(int fd, int argc, char *argv[])
+static int pbxcli_capi_show_channels(int fd, int argc, char *argv[])
 {
 	struct capi_pvt *i;
 	char iochar;
@@ -4865,7 +4865,7 @@ static int capi_show_channels(int fd, int argc, char *argv[])
 /*
  * do command capi info
  */
-static int capi_info(int fd, int argc, char *argv[])
+static int pbxcli_capi_info(int fd, int argc, char *argv[])
 {
 	int i = 0;
 	
@@ -4887,7 +4887,7 @@ static int capi_info(int fd, int argc, char *argv[])
 /*
  * enable debugging
  */
-static int capi_do_debug(int fd, int argc, char *argv[])
+static int pbxcli_capi_do_debug(int fd, int argc, char *argv[])
 {
 	if (argc != 2)
 		return RESULT_SHOWUSAGE;
@@ -4901,7 +4901,7 @@ static int capi_do_debug(int fd, int argc, char *argv[])
 /*
  * disable debugging
  */
-static int capi_no_debug(int fd, int argc, char *argv[])
+static int pbxcli_capi_no_debug(int fd, int argc, char *argv[])
 {
 	if (argc != 3)
 		return RESULT_SHOWUSAGE;
@@ -4935,34 +4935,34 @@ static char no_debug_usage[] =
  * define commands
  */
 static struct ast_cli_entry  cli_info =
-	{ { "capi", "info", NULL }, capi_info, "Show CAPI info", info_usage };
+	{ { "capi", "info", NULL }, pbxcli_capi_info, "Show CAPI info", info_usage };
 static struct ast_cli_entry  cli_show_channels =
-	{ { "capi", "show", "channels", NULL }, capi_show_channels, "Show B-channel info", show_channels_usage };
+	{ { "capi", "show", "channels", NULL }, pbxcli_capi_show_channels, "Show B-channel info", show_channels_usage };
 static struct ast_cli_entry  cli_debug =
-	{ { "capi", "debug", NULL }, capi_do_debug, "Enable CAPI debugging", debug_usage };
+	{ { "capi", "debug", NULL }, pbxcli_capi_do_debug, "Enable CAPI debugging", debug_usage };
 static struct ast_cli_entry  cli_no_debug =
-	{ { "capi", "no", "debug", NULL }, capi_no_debug, "Disable CAPI debugging", no_debug_usage };
+	{ { "capi", "no", "debug", NULL }, pbxcli_capi_no_debug, "Disable CAPI debugging", no_debug_usage };
 
 #ifdef CC_AST_HAVE_TECH_PVT
 static const struct ast_channel_tech capi_tech = {
 	.type = channeltype,
 	.description = tdesc,
 	.capabilities = AST_FORMAT_ALAW,
-	.requester = capi_request,
-	.send_digit = capi_send_digit,
+	.requester = pbx_capi_request,
+	.send_digit = pbx_capi_send_digit,
 	.send_text = NULL,
-	.call = capi_call,
-	.hangup = capi_hangup,
-	.answer = capi_answer,
-	.read = capi_read,
-	.write = capi_write,
-	.bridge = capi_bridge,
+	.call = pbx_capi_call,
+	.hangup = pbx_capi_hangup,
+	.answer = pbx_capi_answer,
+	.read = pbx_capi_read,
+	.write = pbx_capi_write,
+	.bridge = pbx_capi_bridge,
 	.exception = NULL,
-	.indicate = capi_indicate,
-	.fixup = capi_fixup,
+	.indicate = pbx_capi_indicate,
+	.fixup = pbx_capi_fixup,
 	.setoption = NULL,
 #ifndef CC_AST_NO_DEVICESTATE
-	.devicestate = capi_devicestate,
+	.devicestate = pbx_capi_devicestate,
 #endif
 };
 #endif
@@ -5488,7 +5488,7 @@ int load_module(void)
 #ifdef CC_AST_HAVE_TECH_PVT
 	if (ast_channel_register(&capi_tech)) {
 #else	
-	if (ast_channel_register(channeltype, tdesc, capi_capability, capi_request)) {
+	if (ast_channel_register(channeltype, tdesc, capi_capability, pbx_capi_request)) {
 #endif
 		cc_log(LOG_ERROR, "Unable to register channel class %s\n", channeltype);
 		unload_module();
@@ -5500,7 +5500,7 @@ int load_module(void)
 	ast_cli_register(&cli_debug);
 	ast_cli_register(&cli_no_debug);
 	
-	ast_register_application(commandapp, capicommand_exec, commandsynopsis, commandtdesc);
+	ast_register_application(commandapp, pbx_capicommand_exec, commandsynopsis, commandtdesc);
 
 	if (ast_pthread_create(&monitor_thread, NULL, capidev_loop, NULL) < 0) {
 		monitor_thread = (pthread_t)(0-1);
