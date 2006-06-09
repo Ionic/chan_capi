@@ -36,7 +36,7 @@
 #ifdef PBX_IS_OPBX
 #include "openpbx.h"
 
-OPENPBX_FILE_VERSION("$HeadURL$", "$Revision: 1.21 $")
+OPENPBX_FILE_VERSION("$HeadURL$", "$Revision$")
 
 #include "openpbx/lock.h"
 #include "openpbx/frame.h" 
@@ -94,7 +94,7 @@ OPENPBX_FILE_VERSION("$HeadURL$", "$Revision: 1.21 $")
 #define CC_VERSION "cm-opbx-0.7"
 #else
 /* #define CC_VERSION "cm-x.y.z" */
-#define CC_VERSION "$Revision: 1.21 $"
+#define CC_VERSION "$Revision$"
 #endif
 
 /*
@@ -398,7 +398,7 @@ MESSAGE_EXCHANGE_ERROR _capi_put_cmsg_wait_conf(struct capi_pvt *i, _cmsg *CMSG)
 /*
  * wait some time for a new capi message
  */
-static MESSAGE_EXCHANGE_ERROR check_wait_get_cmsg(_cmsg *CMSG)
+static MESSAGE_EXCHANGE_ERROR capidev_check_wait_get_cmsg(_cmsg *CMSG)
 {
 	MESSAGE_EXCHANGE_ERROR Info;
 	struct timeval tv;
@@ -457,7 +457,7 @@ static unsigned ListenOnController(unsigned long CIPmask, unsigned controller)
 		goto done;
 
 	while (waitcount) {
-		error = check_wait_get_cmsg(&CMSG);
+		error = capidev_check_wait_get_cmsg(&CMSG);
 
 		if (IS_LISTEN_CONF(&CMSG)) {
 			error = LISTEN_CONF_INFO(&CMSG);
@@ -2671,7 +2671,7 @@ static void handle_setup_element(_cmsg *CMSG, unsigned int PLCI, struct capi_pvt
 /*
  * CAPI INFO_IND
  */
-static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
+static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
 {
 	_cmsg CMSG2;
 	struct ast_frame fr = { AST_FRAME_NULL, };
@@ -2885,7 +2885,7 @@ static void capi_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned
 /*
  * CAPI FACILITY_IND
  */
-static void capi_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
+static void capidev_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
 {
 	_cmsg CMSG2;
 	struct ast_frame fr = { AST_FRAME_NULL, };
@@ -3000,7 +3000,7 @@ static void capi_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, unsi
 /*
  * CAPI DATA_B3_IND
  */
-static void capi_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
+static void capidev_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
 {
 	_cmsg CMSG2;
 	struct ast_frame fr = { AST_FRAME_NULL, };
@@ -3123,7 +3123,7 @@ static void capi_signal_answer(struct capi_pvt *i)
 /*
  * CAPI CONNECT_ACTIVE_IND
  */
-static void capi_handle_connect_active_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
+static void capidev_handle_connect_active_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
 {
 	_cmsg CMSG2;
 	
@@ -3166,7 +3166,7 @@ static void capi_handle_connect_active_indication(_cmsg *CMSG, unsigned int PLCI
 /*
  * CAPI CONNECT_B3_ACTIVE_IND
  */
-static void capi_handle_connect_b3_active_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
+static void capidev_handle_connect_b3_active_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
 {
 	_cmsg CMSG2;
 
@@ -3228,7 +3228,7 @@ static void capi_handle_connect_b3_active_indication(_cmsg *CMSG, unsigned int P
 /*
  * CAPI DISCONNECT_B3_IND
  */
-static void capi_handle_disconnect_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
+static void capidev_handle_disconnect_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
 {
 	_cmsg CMSG2;
 
@@ -3279,7 +3279,7 @@ static void capi_handle_disconnect_b3_indication(_cmsg *CMSG, unsigned int PLCI,
 /*
  * CAPI CONNECT_B3_IND
  */
-static void capi_handle_connect_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
+static void capidev_handle_connect_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
 {
 	_cmsg CMSG2;
 
@@ -3300,7 +3300,7 @@ static void capi_handle_connect_b3_indication(_cmsg *CMSG, unsigned int PLCI, un
 /*
  * CAPI DISCONNECT_IND
  */
-static void capi_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
+static void capidev_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
 {
 	_cmsg CMSG2;
 	struct ast_frame fr = { AST_FRAME_CONTROL, AST_CONTROL_HANGUP, };
@@ -3442,7 +3442,7 @@ static int capi_call_deflect(struct ast_channel *c, char *param)
 /*
  * CAPI CONNECT_IND
  */
-static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt **interface)
+static void capidev_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt **interface)
 {
 	struct capi_pvt *i;
 	_cmsg CMSG2;
@@ -3623,9 +3623,14 @@ static void capi_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 /*
  * CAPI FACILITY_CONF
  */
-static void capi_handle_facility_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
+static void capidev_handle_facility_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
 {
-	int selector = FACILITY_CONF_FACILITYSELECTOR(CMSG);
+	int selector;
+
+	if (i == NULL)
+		return;
+
+	selector = FACILITY_CONF_FACILITYSELECTOR(CMSG);
 
 	if (selector == FACILITYSELECTOR_DTMF) {
 		cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: DTMF conf(PLCI=%#x)\n",
@@ -3711,7 +3716,7 @@ static void show_capi_conf_error(struct capi_pvt *i,
  * check special conditions, wake waiting threads and send outstanding commands
  * for the given interface
  */
-static void interface_post_handling(struct capi_pvt *i, _cmsg *CMSG)
+static void capidev_post_handling(struct capi_pvt *i, _cmsg *CMSG)
 {
 	unsigned short capicommand = ((CMSG->Subcommand << 8)|(CMSG->Command));
 
@@ -3726,7 +3731,7 @@ static void interface_post_handling(struct capi_pvt *i, _cmsg *CMSG)
 /*
  * handle CAPI msg
  */
-static void capi_handle_msg(_cmsg *CMSG)
+static void capidev_handle_msg(_cmsg *CMSG)
 {
 	unsigned int NCCI = HEADER_CID(CMSG);
 	unsigned int PLCI = (NCCI & 0xffff);
@@ -3753,31 +3758,31 @@ static void capi_handle_msg(_cmsg *CMSG)
 	   * CAPI indications
 	   */
 	case CAPI_P_IND(CONNECT):
-		capi_handle_connect_indication(CMSG, PLCI, NCCI, &i);
+		capidev_handle_connect_indication(CMSG, PLCI, NCCI, &i);
 		break;
 	case CAPI_P_IND(DATA_B3):
-		capi_handle_data_b3_indication(CMSG, PLCI, NCCI, i);
+		capidev_handle_data_b3_indication(CMSG, PLCI, NCCI, i);
 		break;
 	case CAPI_P_IND(CONNECT_B3):
-		capi_handle_connect_b3_indication(CMSG, PLCI, NCCI, i);
+		capidev_handle_connect_b3_indication(CMSG, PLCI, NCCI, i);
 		break;
 	case CAPI_P_IND(CONNECT_B3_ACTIVE):
-		capi_handle_connect_b3_active_indication(CMSG, PLCI, NCCI, i);
+		capidev_handle_connect_b3_active_indication(CMSG, PLCI, NCCI, i);
 		break;
 	case CAPI_P_IND(DISCONNECT_B3):
-		capi_handle_disconnect_b3_indication(CMSG, PLCI, NCCI, i);
+		capidev_handle_disconnect_b3_indication(CMSG, PLCI, NCCI, i);
 		break;
 	case CAPI_P_IND(DISCONNECT):
-		capi_handle_disconnect_indication(CMSG, PLCI, NCCI, i);
+		capidev_handle_disconnect_indication(CMSG, PLCI, NCCI, i);
 		break;
 	case CAPI_P_IND(FACILITY):
-		capi_handle_facility_indication(CMSG, PLCI, NCCI, i);
+		capidev_handle_facility_indication(CMSG, PLCI, NCCI, i);
 		break;
 	case CAPI_P_IND(INFO):
-		capi_handle_info_indication(CMSG, PLCI, NCCI, i);
+		capidev_handle_info_indication(CMSG, PLCI, NCCI, i);
 		break;
 	case CAPI_P_IND(CONNECT_ACTIVE):
-		capi_handle_connect_active_indication(CMSG, PLCI, NCCI, i);
+		capidev_handle_connect_active_indication(CMSG, PLCI, NCCI, i);
 		break;
 
 	  /*
@@ -3786,8 +3791,7 @@ static void capi_handle_msg(_cmsg *CMSG)
 
 	case CAPI_P_CONF(FACILITY):
 		wInfo = FACILITY_CONF_INFO(CMSG);
-		if(i == NULL) break;
-		capi_handle_facility_confirmation(CMSG, PLCI, NCCI, i);
+		capidev_handle_facility_confirmation(CMSG, PLCI, NCCI, i);
 		break;
 	case CAPI_P_CONF(CONNECT):
 		wInfo = CONNECT_CONF_INFO(CMSG);
@@ -3883,7 +3887,7 @@ static void capi_handle_msg(_cmsg *CMSG)
 			"%#x, MSGNUM=%#x!\n", capi_command_to_string(wCmd),
 			wCmd, PLCI, wMsgNum);
 	} else {
-		interface_post_handling(i, CMSG);
+		capidev_post_handling(i, CMSG);
 		cc_mutex_unlock(&i->lock);
 	}
 
@@ -4460,15 +4464,15 @@ static int capi_devicestate(void *data)
 /*
  * module stuff, monitor...
  */
-static void *do_monitor(void *data)
+static void *capidev_loop(void *data)
 {
 	unsigned int Info;
 	_cmsg monCMSG;
 	
 	for (/* for ever */;;) {
-		switch(Info = check_wait_get_cmsg(&monCMSG)) {
+		switch(Info = capidev_check_wait_get_cmsg(&monCMSG)) {
 		case 0x0000:
-			capi_handle_msg(&monCMSG);
+			capidev_handle_msg(&monCMSG);
 			if (chan_to_hangup != NULL) {
 				/* deferred (out of lock) hangup */
 				ast_hangup(chan_to_hangup);
@@ -5498,7 +5502,7 @@ int load_module(void)
 	
 	ast_register_application(commandapp, capicommand_exec, commandsynopsis, commandtdesc);
 
-	if (ast_pthread_create(&monitor_thread, NULL, do_monitor, NULL) < 0) {
+	if (ast_pthread_create(&monitor_thread, NULL, capidev_loop, NULL) < 0) {
 		monitor_thread = (pthread_t)(0-1);
 		cc_log(LOG_ERROR, "Unable to start monitor thread!\n");
 		return -1;
