@@ -36,7 +36,7 @@
 #ifdef PBX_IS_OPBX
 #include "openpbx.h"
 
-OPENPBX_FILE_VERSION("$HeadURL$", "$Revision$")
+OPENPBX_FILE_VERSION("$HeadURL$", "$Revision: 1.21 $")
 
 #include "openpbx/lock.h"
 #include "openpbx/frame.h" 
@@ -94,7 +94,7 @@ OPENPBX_FILE_VERSION("$HeadURL$", "$Revision$")
 #define CC_VERSION "cm-opbx-0.7"
 #else
 /* #define CC_VERSION "cm-x.y.z" */
-#define CC_VERSION "$Revision$"
+#define CC_VERSION "$Revision: 1.21 $"
 #endif
 
 /*
@@ -743,7 +743,10 @@ static int local_queue_frame(struct capi_pvt *i, struct ast_frame *f)
 	if ((f->frametype == AST_FRAME_CONTROL) &&
 	    (f->subclass == AST_CONTROL_HANGUP)) {
 		i->isdnstate |= CAPI_ISDN_STATE_HANGUP;
-		return (ast_queue_hangup(chan));
+		cc_mutex_unlock(&i->lock); /* give up lock to avoid deadlock */
+		res = ast_queue_hangup(chan);
+		cc_mutex_lock(&i->lock);
+		return res;
 	}
 
 	if ((f->frametype == AST_FRAME_VOICE) &&
