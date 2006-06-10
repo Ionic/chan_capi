@@ -755,11 +755,11 @@ static int local_queue_frame(struct capi_pvt *i, struct ast_frame *f)
 	if (f->frametype != AST_FRAME_VOICE)
 		f->datalen = 0;
 
-	wbuflen = sizeof(struct ast_frame) + AST_FRIENDLY_OFFSET + f->datalen;
+	wbuflen = sizeof(struct ast_frame) + f->datalen;
 	wbuf = alloca(wbuflen);
 	memcpy(wbuf, f, sizeof(struct ast_frame));
 	if (f->datalen)
-		memcpy(wbuf + sizeof(struct ast_frame) + AST_FRIENDLY_OFFSET, f->data, f->datalen);
+		memcpy(wbuf + sizeof(struct ast_frame), f->data, f->datalen);
 
 	if (write(i->writerfd, wbuf, wbuflen) != wbuflen) {
 		cc_log(LOG_ERROR, "Could not write to pipe for %s\n",
@@ -1519,11 +1519,12 @@ static struct ast_frame *pbx_capi_read(struct ast_channel *c)
 		return NULL;
 	}
 
-	if (f->datalen > sizeof(i->frame_data)) {
-		cc_log(LOG_ERROR, "f.datalen greater than space of frame_data\n");
-		f->datalen = sizeof(i->frame_data);
-	}
 	if ((f->frametype == AST_FRAME_VOICE) && (f->datalen > 0)) {
+		if (f->datalen > sizeof(i->frame_data)) {
+			cc_log(LOG_ERROR, "f.datalen(%d) greater than space of frame_data(%d)\n",
+				f->datalen, sizeof(i->frame_data));
+			f->datalen = sizeof(i->frame_data);
+		}
 		readsize = read(i->readerfd, i->frame_data + AST_FRIENDLY_OFFSET, f->datalen);
 		if (readsize != f->datalen) {
 			cc_log(LOG_ERROR, "did not read whole frame data\n");
