@@ -36,7 +36,7 @@
 #ifdef PBX_IS_OPBX
 #include "openpbx.h"
 
-OPENPBX_FILE_VERSION("$HeadURL$", "$Revision$")
+OPENPBX_FILE_VERSION("$HeadURL$", "$Revision: 1.22 $")
 
 #include "openpbx/lock.h"
 #include "openpbx/frame.h" 
@@ -94,7 +94,7 @@ OPENPBX_FILE_VERSION("$HeadURL$", "$Revision$")
 #define CC_VERSION "cm-opbx-0.7"
 #else
 /* #define CC_VERSION "cm-x.y.z" */
-#define CC_VERSION "$Revision$"
+#define CC_VERSION "$Revision: 1.22 $"
 #endif
 
 /*
@@ -1404,7 +1404,6 @@ static int capi_send_answer(struct ast_channel *c, _cstruct b3conf)
 	char buf[CAPI_MAX_STRING];
 	const char *dnid;
 	const char *connectednumber;
-	int waitcount = 10;
     
 	if ((i->isdnmode == CAPI_ISDNMODE_DID) &&
 	    ((strlen(i->incomingmsn) < strlen(i->dnid)) && 
@@ -1447,18 +1446,6 @@ static int capi_send_answer(struct ast_channel *c, _cstruct b3conf)
 	i->doB3 = CAPI_B3_DONT;
 	i->outgoing = 0;
 
-	/* wait here a little bit for CONNECT_ACTIVE_IND */
-	while(waitcount > 0) {
-		if (i->state != CAPI_STATE_ANSWERING)
-			break;
-		usleep(10000);
-		waitcount--;
-	}
-	if (waitcount) {
-		cc_verbose(4, 0, VERBOSE_PREFIX_4 "%s: no connect in time\n",
-			i->name);
-	}
-
 	return 0;
 }
 
@@ -1479,9 +1466,7 @@ static int pbx_capi_answer(struct ast_channel *c)
 			i->bproto = CC_BPROTO_RTP;
 	}
 
-	cc_mutex_lock(&i->lock);
 	ret = capi_send_answer(c, NULL);
-	cc_mutex_unlock(&i->lock);
 	return ret;
 }
 
@@ -2304,8 +2289,8 @@ static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 	case CAPI_STATE_ALERTING:
 	case CAPI_STATE_DID:
 	case CAPI_STATE_INCALL:
-		capi_send_answer(c, (_cstruct)&b3conf);
 		cc_mutex_unlock(&i->lock);
+		capi_send_answer(c, (_cstruct)&b3conf);
 		break;
 	case CAPI_STATE_CONNECTED:
 		capi_change_bchan_fax(c, &b3conf);
