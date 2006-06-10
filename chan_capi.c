@@ -712,12 +712,12 @@ static int capi_detect_dtmf(struct ast_channel *c, int flag)
 
 /*
  * queue a frame to PBX
- * we assume i->lock held
  */
 static int local_queue_frame(struct capi_pvt *i, struct ast_frame *f)
 {
-	int res;
 	struct ast_channel *chan = i->owner;
+	unsigned char *wbuf;
+	int wbuflen;
 
 	if (chan == NULL) {
 		cc_log(LOG_ERROR, "No owner in local_queue_frame for %s\n",
@@ -730,7 +730,8 @@ static int local_queue_frame(struct capi_pvt *i, struct ast_frame *f)
 		   we don't need any frames sent */
 		return -1;
 	}
-	if (i->state == CAPI_STATE_DISCONNECTING) {
+	if ((i->state == CAPI_STATE_DISCONNECTING) ||
+	    (i->isdnstate & CAPI_ISDN_STATE_HANGUP)) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: no queue_frame in state disconnecting for %d/%d\n",
 			i->name, f->frametype, f->subclass);
 		return 0;
@@ -743,26 +744,28 @@ static int local_queue_frame(struct capi_pvt *i, struct ast_frame *f)
 	if ((f->frametype == AST_FRAME_CONTROL) &&
 	    (f->subclass == AST_CONTROL_HANGUP)) {
 		i->isdnstate |= CAPI_ISDN_STATE_HANGUP;
-		cc_mutex_unlock(&i->lock); /* give up lock to avoid deadlock */
-		res = ast_queue_hangup(chan);
-		cc_mutex_lock(&i->lock);
-		return res;
 	}
 
-	if ((f->frametype == AST_FRAME_VOICE) &&
-	    (i->doDTMF > 0) &&
-	    (i->vad != NULL) ) {
-#ifdef CC_AST_DSP_PROCESS_NEEDLOCK 
-		f = ast_dsp_process(i->owner, i->vad, f, 0);
-#else
-		f = ast_dsp_process(i->owner, i->vad, f);
-#endif
+	if (i->writerfd == -1) {
+		cc_log(LOG_ERROR, "No writerfd in local_queue_frame for %s\n",
+			i->name);
+		return -1;
 	}
 
-	cc_mutex_unlock(&i->lock); /* give up lock to avoid deadlock */
-	res = ast_queue_frame(chan, f);
-	cc_mutex_lock(&i->lock);
-	return res;
+	if (f->frametype != AST_FRAME_VOICE)
+		f->datalen = 0;
+
+	wbuflen = sizeof(struct ast_frame) + AST_FRIENDLY_OFFSET + f->datalen;
+	wbuf = alloca(wbuflen);
+	memcpy(wbuf, f, sizeof(struct ast_frame));
+	if (f->datalen)
+		memcpy(wbuf + sizeof(struct ast_frame) + AST_FRIENDLY_OFFSET, f->data, f->datalen);
+
+	if (write(i->writerfd, wbuf, wbuflen) != wbuflen) {
+		cc_log(LOG_ERROR, "Could not write to pipe for %s\n",
+			i->name);
+	}
+	return 0;
 }
 
 /*
@@ -920,6 +923,15 @@ static void interface_cleanup(struct capi_pvt *i)
 
 	cc_verbose(2, 1, VERBOSE_PREFIX_2 "%s: Interface cleanup PLCI=%#x\n",
 		i->name, i->PLCI);
+
+	if (i->readerfd != -1) {
+		close(i->readerfd);
+		i->readerfd = -1;
+	}
+	if (i->writerfd != -1) {
+		close(i->writerfd);
+		i->writerfd = -1;
+	}
 
 	i->isdnstate = 0;
 	i->cause = 0;
@@ -1478,9 +1490,54 @@ static int pbx_capi_answer(struct ast_channel *c)
  */
 static struct ast_frame *pbx_capi_read(struct ast_channel *c) 
 {
-	static struct ast_frame null = { AST_FRAME_NULL, };
+        struct capi_pvt *i = CC_CHANNEL_PVT(c);
+	struct ast_frame *f;
+	int readsize;
 
-	return &null;
+	if (i == NULL) {
+		cc_log(LOG_ERROR, "channel has no interface\n");
+		return NULL;
+	}
+	if (i->readerfd == -1) {
+		cc_log(LOG_ERROR, "no readerfd\n");
+		return NULL;
+	}
+
+	f = &i->f;
+	f->frametype = AST_FRAME_NULL;
+	f->subclass = 0;
+
+	readsize = read(i->readerfd, f, sizeof(struct ast_frame));
+	if (readsize != sizeof(struct ast_frame)) {
+		cc_log(LOG_ERROR, "did not read a whole frame\n");
+	}
+	
+	f->mallocd = 0;
+	f->data = NULL;
+
+	if ((f->frametype == AST_FRAME_CONTROL) && (f->subclass == AST_CONTROL_HANGUP)) {
+		return NULL;
+	}
+
+	if (f->datalen > sizeof(i->frame_data)) {
+		cc_log(LOG_ERROR, "f.datalen greater than space of frame_data\n");
+		f->datalen = sizeof(i->frame_data);
+	}
+	if ((f->frametype == AST_FRAME_VOICE) && (f->datalen > 0)) {
+		readsize = read(i->readerfd, i->frame_data + AST_FRIENDLY_OFFSET, f->datalen);
+		if (readsize != f->datalen) {
+			cc_log(LOG_ERROR, "did not read whole frame data\n");
+		}
+		f->data = i->frame_data + AST_FRIENDLY_OFFSET;
+		if ((i->doDTMF > 0) && (i->vad != NULL) ) {
+#ifdef CC_AST_DSP_PROCESS_NEEDLOCK 
+			f = ast_dsp_process(c, i->vad, f, 0);
+#else
+			f = ast_dsp_process(c, i->vad, f);
+#endif
+		}
+	}
+	return f;
 }
 
 /*
@@ -1903,8 +1960,10 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 {
 	struct ast_channel *tmp;
 	int fmt;
+	int fds[2];
+	int flags;
 
-	tmp = ast_channel_alloc(1);
+	tmp = ast_channel_alloc(0);
 	
 	if (tmp == NULL) {
 		cc_log(LOG_ERROR,"Unable to allocate channel!\n");
@@ -1928,6 +1987,21 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 #ifdef CC_AST_HAS_TYPE_IN_CHANNEL
 	tmp->type = channeltype;
 #endif
+
+	if (pipe(fds) != 0) {
+		cc_log(LOG_ERROR, "%s: unable to create pipe.\n",
+			i->name);
+		ast_channel_free(tmp);
+		return NULL;
+	}
+	i->readerfd = fds[0];
+	i->writerfd = fds[1];
+	flags = fcntl(i->readerfd, F_GETFL);
+	fcntl(i->readerfd, F_SETFL, flags | O_NONBLOCK);
+	flags = fcntl(i->writerfd, F_GETFL);
+	fcntl(i->writerfd, F_SETFL, flags | O_NONBLOCK);
+
+	tmp->fds[0] = i->readerfd;
 
 	if (i->smoother != NULL) {
 		ast_smoother_reset(i->smoother, CAPI_MAX_B3_BLOCK_SIZE);
@@ -4570,6 +4644,9 @@ int mkif(struct cc_capi_conf *conf)
 			return -1;
 		}
 		memset(tmp, 0, sizeof(struct capi_pvt));
+	
+		tmp->readerfd = -1;
+		tmp->writerfd = -1;
 		
 		cc_mutex_init(&tmp->lock);
 		ast_cond_init(&tmp->event_trigger, NULL);

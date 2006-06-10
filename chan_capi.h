@@ -239,6 +239,11 @@ struct cc_capi_gains {
 struct capi_pvt {
 	cc_mutex_t lock;
 
+	int readerfd;
+	int writerfd;
+	struct ast_frame f;
+	unsigned char frame_data[CAPI_MAX_B3_BLOCK_SIZE + AST_FRIENDLY_OFFSET + RTP_HEADER_SIZE];
+
 	ast_cond_t event_trigger;
 	unsigned int waitevent;
 
