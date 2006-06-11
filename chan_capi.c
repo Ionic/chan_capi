@@ -36,7 +36,7 @@
 #ifdef PBX_IS_OPBX
 #include "openpbx.h"
 
-OPENPBX_FILE_VERSION("$HeadURL$", "$Revision: 1.22 $")
+OPENPBX_FILE_VERSION("$HeadURL$", "$Revision$")
 
 #include "openpbx/lock.h"
 #include "openpbx/frame.h" 
@@ -94,7 +94,7 @@ OPENPBX_FILE_VERSION("$HeadURL$", "$Revision: 1.22 $")
 #define CC_VERSION "cm-opbx-0.7"
 #else
 /* #define CC_VERSION "cm-x.y.z" */
-#define CC_VERSION "$Revision: 1.22 $"
+#define CC_VERSION "$Revision$"
 #endif
 
 /*
@@ -2336,26 +2336,25 @@ static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 /*
  * Fax guard tone -- Handle and return NULL
  */
-static void capi_handle_dtmf_fax(struct ast_channel *c)
+static void capi_handle_dtmf_fax(struct capi_pvt *i)
 {
-	struct capi_pvt *p;
+	struct ast_channel *c = i->owner;
 
 	if (!c) {
 		cc_log(LOG_ERROR, "No channel!\n");
 		return;
 	}
-	p = CC_CHANNEL_PVT(c);
 	
-	if (p->FaxState & CAPI_FAX_STATE_HANDLED) {
+	if (i->FaxState & CAPI_FAX_STATE_HANDLED) {
 		cc_log(LOG_DEBUG, "Fax already handled\n");
 		return;
 	}
-	p->FaxState |= CAPI_FAX_STATE_HANDLED;
+	i->FaxState |= CAPI_FAX_STATE_HANDLED;
 
-	if (((p->outgoing == 1) && (!(p->FaxState & CAPI_FAX_DETECT_OUTGOING))) ||
-	    ((p->outgoing == 0) && (!(p->FaxState & CAPI_FAX_DETECT_INCOMING)))) {
+	if (((i->outgoing == 1) && (!(i->FaxState & CAPI_FAX_DETECT_OUTGOING))) ||
+	    ((i->outgoing == 0) && (!(i->FaxState & CAPI_FAX_DETECT_INCOMING)))) {
 		cc_verbose(3, 0, VERBOSE_PREFIX_3 "%s: Fax detected, but not configured for redirection\n",
-			p->name);
+			i->name);
 		return;
 	}
 	
@@ -2364,13 +2363,13 @@ static void capi_handle_dtmf_fax(struct ast_channel *c)
 		return;
 	}
 
-	if (!ast_exists_extension(c, c->context, "fax", 1, p->cid)) {
+	if (!ast_exists_extension(c, c->context, "fax", 1, i->cid)) {
 		cc_verbose(3, 0, VERBOSE_PREFIX_3 "Fax tone detected, but no fax extension for %s\n", c->name);
 		return;
 	}
 
 	cc_verbose(2, 0, VERBOSE_PREFIX_3 "%s: Redirecting %s to fax extension\n",
-		p->name, c->name);
+		i->name, c->name);
 			
 	/* Save the DID/DNIS when we transfer the fax call to a "fax" extension */
 	pbx_builtin_setvar_helper(c, "FAXEXTEN", c->exten);
@@ -2989,7 +2988,7 @@ static void capidev_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, u
 				i->name, dtmf);
 			if ((!(i->ntmode)) || (i->state == CAPI_STATE_CONNECTED)) {
 				if ((dtmf == 'X') || (dtmf == 'Y')) {
-					capi_handle_dtmf_fax(i->owner);
+					capi_handle_dtmf_fax(i);
 				} else {
 					fr.frametype = AST_FRAME_DTMF;
 					fr.subclass = dtmf;
