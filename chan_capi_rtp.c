@@ -239,10 +239,8 @@ int capi_write_rtp(struct ast_channel *c, struct ast_frame *f)
 	if (f->datalen > CAPI_MAX_B3_BLOCK_SIZE) {
 		cc_verbose(4, 0, VERBOSE_PREFIX_4 "%s: rtp write data: frame too big (len = %d).\n",
 			i->name, f->datalen);
-		return -1;
+		return 0;
 	}
-
-	i->send_buffer_handle++;
 
 	ast_rtp_get_us(i->rtp, &us);
 	us.sin_port = 0; /* don't really send */
@@ -250,8 +248,15 @@ int capi_write_rtp(struct ast_channel *c, struct ast_frame *f)
 	if (ast_rtp_write(i->rtp, f) != 0) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: rtp_write error, dropping packet.\n",
 			i->name);
-		return -1;
+		return 0;
 	}
+
+	if (i->B3q >= CAPI_MAX_B3_BLOCKS)
+		return 0;
+
+	i->B3q++;
+	i->send_buffer_handle++;
+	
 	len = f->datalen + rtpheaderlen;
 
 	cc_verbose(6, 1, VERBOSE_PREFIX_4 "%s: RTP write for NCCI=%#x len=%d(%d) %s\n",

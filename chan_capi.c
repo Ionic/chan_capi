@@ -1591,12 +1591,6 @@ static int pbx_capi_write(struct ast_channel *c, struct ast_frame *f)
 			cc_mutex_unlock(&i->lock);
 			return 0;
 		}
-		if (i->B3q < CAPI_MAX_B3_BLOCKS) {
-			ret = capi_write_rtp(c, f);
-			i->B3q++;
-		}
-		cc_mutex_unlock(&i->lock);
-		return ret;
 	}
 
 	if ((!i->smoother) || (ast_smoother_feed(i->smoother, f) != 0)) {
@@ -1608,6 +1602,10 @@ static int pbx_capi_write(struct ast_channel *c, struct ast_frame *f)
 	for (fsmooth = ast_smoother_read(i->smoother);
 	     fsmooth != NULL;
 	     fsmooth = ast_smoother_read(i->smoother)) {
+		if (i->isdnstate & CAPI_ISDN_STATE_RTP) {
+			ret = capi_write_rtp(c, fsmooth);
+			continue;
+		}
 		DATA_B3_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
 		DATA_B3_REQ_NCCI(&CMSG) = i->NCCI;
 		DATA_B3_REQ_DATALENGTH(&CMSG) = fsmooth->datalen;
@@ -1668,7 +1666,7 @@ static int pbx_capi_write(struct ast_channel *c, struct ast_frame *f)
 		}
 	}
 	cc_mutex_unlock(&i->lock);
-	return 0;
+	return ret;
 }
 
 /*
