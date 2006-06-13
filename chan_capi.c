@@ -967,9 +967,11 @@ static void cc_disconnect_b3(struct capi_pvt *i, int wait)
 	if (!(i->isdnstate & (CAPI_ISDN_STATE_B3_UP | CAPI_ISDN_STATE_B3_PEND)))
 		return;
 
+	cc_mutex_lock(&i->lock);
 	DISCONNECT_B3_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
 	DISCONNECT_B3_REQ_NCCI(&CMSG) = i->NCCI;
 	_capi_put_cmsg_wait_conf(i, &CMSG);
+	cc_mutex_unlock(&i->lock);
 
 	if (!wait)
 		return;
@@ -2291,8 +2293,8 @@ static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 		capi_send_answer(c, (_cstruct)&b3conf);
 		break;
 	case CAPI_STATE_CONNECTED:
-		capi_change_bchan_fax(c, &b3conf);
 		cc_mutex_unlock(&i->lock);
+		capi_change_bchan_fax(c, &b3conf);
 		break;
 	default:
 		i->FaxState &= ~CAPI_FAX_STATE_ACTIVE;
