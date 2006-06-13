@@ -1086,9 +1086,11 @@ static void capi_activehangup(struct ast_channel *c)
 	
 	if ((state == CAPI_STATE_CONNECTED) || (state == CAPI_STATE_CONNECTPENDING) ||
 	    (state == CAPI_STATE_ANSWERING) || (state == CAPI_STATE_ONHOLD)) {
+		cc_mutex_lock(&i->lock);
 		DISCONNECT_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
 		DISCONNECT_REQ_PLCI(&CMSG) = i->PLCI;
 		_capi_put_cmsg_wait_conf(i, &CMSG);
+		cc_mutex_unlock(&i->lock);
 	}
 	return;
 }
@@ -1111,8 +1113,6 @@ static int pbx_capi_hangup(struct ast_channel *c)
 		return -1;
 	}
 
-	cc_mutex_lock(&i->lock);
-
 	cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: CAPI Hangingup\n",
 		i->name);
   
@@ -1134,6 +1134,8 @@ static int pbx_capi_hangup(struct ast_channel *c)
 	
 	ast_update_use_count();
 	
+	cc_mutex_lock(&i->lock);
+
 	CC_CHANNEL_PVT(c) = NULL;
 	ast_setstate(c, AST_STATE_DOWN);
 
