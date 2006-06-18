@@ -393,6 +393,9 @@ MESSAGE_EXCHANGE_ERROR _capi_put_cmsg_wait_conf(struct capi_pvt *i, _cmsg *CMSG)
 			error = -1;
 			cc_log(LOG_WARNING, "%s: timed out waiting for %s\n",
 				i->vname, capi_cmd2str(CMSG->Command, CAPI_CONF));
+		} else {
+			cc_verbose(4, 1, "%s: cond signal received for %s\n",
+				i->vname, capi_cmd2str(CMSG->Command, CAPI_CONF));
 		}
 	}
 
