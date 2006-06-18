@@ -2652,7 +2652,10 @@ static void capidev_handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsig
 	if ((i->doB3 != CAPI_B3_ALWAYS) && (i->outgoing == 1)) {
 		cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s: Disconnect case 1\n",
 			i->name);
-		queue_cause_control(i, 1);
+		if (i->state == CAPI_STATE_CONNECTED) 
+			queue_cause_control(i, 0);
+		else
+			queue_cause_control(i, 1);
 		return;
 	}
 	
