@@ -742,7 +742,7 @@ static int local_queue_frame(struct capi_pvt *i, struct ast_frame *f)
 	}
 
 	if ((capidebug) && (f->frametype != AST_FRAME_VOICE)) {
-		ast_frame_dump("CAPI", f, VERBOSE_PREFIX_3 "queue frame:");
+		ast_frame_dump(i->vname, f, VERBOSE_PREFIX_3 "CAPI queue frame:");
 	}
 
 	if ((f->frametype == AST_FRAME_CONTROL) &&
