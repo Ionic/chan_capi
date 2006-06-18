@@ -49,7 +49,7 @@ This chan_capi version includes:
 - (Inter)national dialing prefix (for callerid) configurable in capi.conf
 - CLI command "capi info" shows B channel status of chan_capi
 - Catch all MSN (incomingmsn=*)
-- Some configuration enhancements (msn=123,124,125 and controller=1,2,3,4)
+- Some configuration enhancements (msn=123,124,125)
 - Added accountcode= 
 - Echo squelching (echosquelch=1)
 - Callgroup support

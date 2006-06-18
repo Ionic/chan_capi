@@ -4629,11 +4629,8 @@ int mkif(struct cc_capi_conf *conf)
 {
 	struct capi_pvt *tmp;
 	int i = 0;
-	char buffer[CAPI_MAX_STRING];
-	char buffer_r[CAPI_MAX_STRING];
-	char *buffer_rp = buffer_r;
-	char *contr;
 	unsigned long contrmap = 0;
+	u_int16_t unit;
 
 	for (i = 0; i <= conf->devices; i++) {
 		tmp = malloc(sizeof(struct capi_pvt));
@@ -4663,11 +4660,7 @@ int mkif(struct cc_capi_conf *conf)
 		cc_copy_string(tmp->accountcode, conf->accountcode, sizeof(tmp->accountcode));
 		cc_copy_string(tmp->language, conf->language, sizeof(tmp->language));
 
-		cc_copy_string(buffer, conf->controllerstr, sizeof(buffer));
-		contr = strtok_r(buffer, ",", &buffer_rp);
-		while (contr != NULL) {
-			u_int16_t unit = atoi(contr);
- 
+		unit = atoi(conf->controllerstr);
 			/* There is no reason not to
 			 * allow controller 0 !
 			 *
@@ -4682,14 +4675,11 @@ int mkif(struct cc_capi_conf *conf)
 				unit = capi_num_controllers;
 			}
 
-			/* always range check user input */
- 
-			if (unit >= CAPI_MAX_CONTROLLERS)
-				unit = CAPI_MAX_CONTROLLERS - 1;
+		/* always range check user input */
+		if (unit > CAPI_MAX_CONTROLLERS)
+			unit = CAPI_MAX_CONTROLLERS;
 
-			contrmap |= (1 << unit);
-			contr = strtok_r(NULL, ",", &buffer_rp);
-		}
+		contrmap |= (1 << unit);
 		
 		tmp->controllers = contrmap;
 		capi_used_controllers |= contrmap;
