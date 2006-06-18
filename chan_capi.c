@@ -1393,12 +1393,12 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 		cc_mutex_unlock(&i->lock);
 		return error;
 	}
-
 	i->state = CAPI_STATE_CONNECTPENDING;
+	cc_mutex_unlock(&i->lock);
+
 	ast_setstate(c, AST_STATE_DIALING);
 
 	/* now we shall return .... the rest has to be done by handle_msg */
-	cc_mutex_unlock(&i->lock);
 	return 0;
 }
 
