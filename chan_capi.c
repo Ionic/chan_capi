@@ -1130,6 +1130,7 @@ static int pbx_capi_hangup(struct ast_channel *c)
 	
 	if ((i->doDTMF > 0) && (i->vad != NULL)) {
 		ast_dsp_free(i->vad);
+		i->vad = NULL;
 	}
 	
 	cc_mutex_lock(&usecnt_lock);
