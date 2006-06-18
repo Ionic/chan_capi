@@ -248,6 +248,7 @@ struct capi_pvt {
 	unsigned int waitevent;
 
 	char name[CAPI_MAX_STRING];
+	char vname[CAPI_MAX_STRING];
 
 	/*! Channel we belong to, possibly NULL */
 	struct ast_channel *owner;		

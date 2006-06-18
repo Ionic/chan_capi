@@ -290,9 +290,10 @@ static const char * capi_command_to_string(unsigned short wCmd)
 /*
  * show the text for a CAPI message info value
  */
-static void show_capi_info(_cword info)
+static void show_capi_info(struct capi_pvt *i, _cword info)
 {
 	char *p;
+	char *name = "?";
 	
 	if (info == 0x0000) {
 		/* no error, do nothing */
@@ -303,9 +304,12 @@ static void show_capi_info(_cword info)
 		/* message not available */
 		return;
 	}
+
+	if (i)
+		name = i->vname;
 	
-	cc_verbose(3, 0, VERBOSE_PREFIX_4 "CAPI INFO 0x%04x: %s\n",
-		info, p);
+	cc_verbose(3, 0, VERBOSE_PREFIX_4 "%s: CAPI INFO 0x%04x: %s\n",
+		name, info, p);
 	return;
 }
 
@@ -384,11 +388,11 @@ MESSAGE_EXCHANGE_ERROR _capi_put_cmsg_wait_conf(struct capi_pvt *i, _cmsg *CMSG)
 		abstime.tv_sec = time(NULL) + 2;
 		abstime.tv_nsec = 0;
 		cc_verbose(4, 1, "%s: wait for %s\n",
-			i->name, capi_cmd2str(CMSG->Command, CAPI_CONF));
+			i->vname, capi_cmd2str(CMSG->Command, CAPI_CONF));
 		if (ast_cond_timedwait(&i->event_trigger, &i->lock, &abstime) != 0) {
 			error = -1;
 			cc_log(LOG_WARNING, "%s: timed out waiting for %s\n",
-				i->name, capi_cmd2str(CMSG->Command, CAPI_CONF));
+				i->vname, capi_cmd2str(CMSG->Command, CAPI_CONF));
 		}
 	}
 
@@ -604,7 +608,7 @@ static void capi_echo_canceller(struct ast_channel *c, int function)
 	if (((function == EC_FUNCTION_ENABLE) && (i->isdnstate & CAPI_ISDN_STATE_EC)) ||
 	    ((function != EC_FUNCTION_ENABLE) && (!(i->isdnstate & CAPI_ISDN_STATE_EC)))) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: echo canceller (PLCI=%#x, function=%d) unchanged\n",
-			i->name, i->PLCI, function);
+			i->vname, i->PLCI, function);
 		/* nothing to do */
 		return;
 	}
@@ -620,13 +624,13 @@ static void capi_echo_canceller(struct ast_channel *c, int function)
 #ifdef CC_AST_CHANNEL_HAS_TRANSFERCAP
 	if (tcap_is_digital(c->transfercapability)) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: No echo canceller in digital mode (PLCI=%#x)\n",
-			i->name, i->PLCI);
+			i->vname, i->PLCI);
 		return;
 	}
 #endif
 
 	cc_verbose(2, 0, VERBOSE_PREFIX_2 "%s: Setting up echo canceller (PLCI=%#x, function=%d, options=%d, tail=%d)\n",
-			i->name, i->PLCI, function, i->ecOption, i->ecTail);
+			i->vname, i->PLCI, function, i->ecOption, i->ecTail);
 
 	FACILITY_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
 	FACILITY_REQ_PLCI(&CMSG) = i->PLCI;
@@ -670,7 +674,7 @@ static int capi_detect_dtmf(struct ast_channel *c, int flag)
 #ifdef CC_AST_CHANNEL_HAS_TRANSFERCAP
 	if (tcap_is_digital(c->transfercapability)) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: No dtmf-detect in digital mode (PLCI=%#x)\n",
-			i->name, i->PLCI);
+			i->vname, i->PLCI);
 		return 0;
 	}
 #endif
@@ -683,7 +687,7 @@ static int capi_detect_dtmf(struct ast_channel *c, int flag)
 	if ((capi_controllers[i->controller]->dtmf == 1) && (i->doDTMF == 0)) {
 		cc_mutex_unlock(&contrlock);
 		cc_verbose(2, 0, VERBOSE_PREFIX_2 "%s: Setting up DTMF detector (PLCI=%#x, flag=%d)\n",
-			i->name, i->PLCI, flag);
+			i->vname, i->PLCI, flag);
 		FACILITY_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
 		FACILITY_REQ_PLCI(&CMSG) = i->PLCI;
 		FACILITY_REQ_FACILITYSELECTOR(&CMSG) = FACILITYSELECTOR_DTMF;
@@ -721,7 +725,7 @@ static int local_queue_frame(struct capi_pvt *i, struct ast_frame *f)
 
 	if (chan == NULL) {
 		cc_log(LOG_ERROR, "No owner in local_queue_frame for %s\n",
-			i->name);
+			i->vname);
 		return -1;
 	}
 
@@ -733,7 +737,7 @@ static int local_queue_frame(struct capi_pvt *i, struct ast_frame *f)
 	if ((i->state == CAPI_STATE_DISCONNECTING) ||
 	    (i->isdnstate & CAPI_ISDN_STATE_HANGUP)) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: no queue_frame in state disconnecting for %d/%d\n",
-			i->name, f->frametype, f->subclass);
+			i->vname, f->frametype, f->subclass);
 		return 0;
 	}
 
@@ -748,7 +752,7 @@ static int local_queue_frame(struct capi_pvt *i, struct ast_frame *f)
 
 	if (i->writerfd == -1) {
 		cc_log(LOG_ERROR, "No writerfd in local_queue_frame for %s\n",
-			i->name);
+			i->vname);
 		return -1;
 	}
 
@@ -763,7 +767,7 @@ static int local_queue_frame(struct capi_pvt *i, struct ast_frame *f)
 
 	if (write(i->writerfd, wbuf, wbuflen) != wbuflen) {
 		cc_log(LOG_ERROR, "Could not write to pipe for %s\n",
-			i->name);
+			i->vname);
 	}
 	return 0;
 }
@@ -776,10 +780,10 @@ static void update_channel_name(struct capi_pvt *i)
 	char name[AST_CHANNEL_NAME];
 
 	snprintf(name, sizeof(name) - 1, "CAPI/%s/%s-%x",
-		i->name, i->dnid, capi_counter++);
+		i->vname, i->dnid, capi_counter++);
 	ast_change_name(i->owner, name);
 	cc_verbose(3, 0, VERBOSE_PREFIX_3 "%s: Updated channel name: %s\n",
-			i->name, name);
+			i->vname, name);
 }
 
 /*
@@ -811,7 +815,7 @@ static int capi_send_info_digits(struct capi_pvt *i, char *digits, int len)
 		return error;
 	}
 	cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: sent CALLEDPARTYNUMBER INFO digits = '%s' (PLCI=%#x)\n",
-		i->name, buf + 2, i->PLCI);
+		i->vname, buf + 2, i->PLCI);
 	return 0;
 }
 
@@ -878,7 +882,7 @@ static int pbx_capi_send_digit(struct ast_channel *c, char digit)
         
 		if ((ret = _capi_put_cmsg(&CMSG)) == 0) {
 			cc_verbose(3, 0, VERBOSE_PREFIX_4 "%s: sent dtmf '%c'\n",
-				i->name, digit);
+				i->vname, digit);
 		}
 	}
 	cc_mutex_unlock(&i->lock);
@@ -896,7 +900,7 @@ static int pbx_capi_alert(struct ast_channel *c)
 	if ((i->state != CAPI_STATE_INCALL) &&
 	    (i->state != CAPI_STATE_DID)) {
 		cc_verbose(2, 1, VERBOSE_PREFIX_3 "%s: attempting ALERT in state %d\n",
-			i->name, i->state);
+			i->vname, i->state);
 		return -1;
 	}
 	
@@ -922,7 +926,7 @@ static void interface_cleanup(struct capi_pvt *i)
 		return;
 
 	cc_verbose(2, 1, VERBOSE_PREFIX_2 "%s: Interface cleanup PLCI=%#x\n",
-		i->name, i->PLCI);
+		i->vname, i->PLCI);
 
 	if (i->readerfd != -1) {
 		close(i->readerfd);
@@ -1003,7 +1007,7 @@ static void cc_start_b3(struct capi_pvt *i)
 		CONNECT_B3_REQ_NCPI(&CMSG) = capi_rtp_ncpi(i);
 		_capi_put_cmsg(&CMSG);
 		cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s: sent CONNECT_B3_REQ PLCI=%#x\n",
-			i->name, i->PLCI);
+			i->vname, i->PLCI);
 	}
 }
 
@@ -1060,13 +1064,13 @@ static void capi_activehangup(struct ast_channel *c)
 	
 	if ((i->isdnstate & CAPI_ISDN_STATE_ECT)) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: activehangup ECT call\n",
-			i->name);
+			i->vname);
 		/* we do nothing, just wait for DISCONNECT_IND */
 		return;
 	}
 
-	cc_verbose(2, 1, VERBOSE_PREFIX_3 "%s: activehangingup (cause=%d)\n",
-		i->name, i->cause);
+	cc_verbose(2, 1, VERBOSE_PREFIX_3 "%s: activehangingup (cause=%d) for PLCI=%#x\n",
+		i->vname, i->cause, i->PLCI);
 
 
 	if ((state == CAPI_STATE_ALERTING) ||
@@ -1113,8 +1117,8 @@ static int pbx_capi_hangup(struct ast_channel *c)
 		return -1;
 	}
 
-	cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: CAPI Hangingup\n",
-		i->name);
+	cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: CAPI Hangingup for PLCI=%#x\n",
+		i->vname, i->PLCI);
   
 	/* are we down, yet? */
 	if (i->state != CAPI_STATE_DISCONNECTED) {
@@ -1303,7 +1307,7 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 		callernplan = atoi(ton) & 0x7f;
 	}
 	cc_verbose(1, 1, VERBOSE_PREFIX_2 "%s: Call %s %s%s (pres=0x%02x, ton=0x%02x)\n",
-		i->name, c->name, i->doB3 ? "with B3 ":" ",
+		i->vname, c->name, i->doB3 ? "with B3 ":" ",
 		i->doOverlap ? "overlap":"", CLIR, callernplan);
 
 	i->outgoing = 1;
@@ -1330,7 +1334,7 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 	if (tcap_is_digital(c->transfercapability)) {
 		i->bproto = CC_BPROTO_TRANSPARENT;
 		cc_verbose(4, 0, VERBOSE_PREFIX_2 "%s: is digital call, set proto to TRANSPARENT\n",
-			i->name);
+			i->vname);
 	}
 #else
 	CONNECT_REQ_CIPVALUE(&CMSG) = 0x10; /* Telephony */
@@ -1440,7 +1444,7 @@ static int capi_send_answer(struct ast_channel *c, _cstruct b3conf)
 	CONNECT_RESP_B3CONFIGURATION(&CMSG) = b3conf;
 
 	cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: Answering for %s\n",
-		i->name, dnid);
+		i->vname, dnid);
 		
 	if (_capi_put_cmsg(&CMSG) != 0) {
 		return -1;	
@@ -1578,7 +1582,7 @@ static int pbx_capi_write(struct ast_channel *c, struct ast_frame *f)
 	}
 	if (i->FaxState & CAPI_FAX_STATE_ACTIVE) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: write on fax_receive?\n",
-			i->name);
+			i->vname);
 		cc_mutex_unlock(&i->lock);
 		return 0;
 	}
@@ -1598,7 +1602,7 @@ static int pbx_capi_write(struct ast_channel *c, struct ast_frame *f)
 	}
 
 	if ((!i->smoother) || (ast_smoother_feed(i->smoother, f) != 0)) {
-		cc_log(LOG_ERROR, "%s: failed to fill smoother\n", i->name);
+		cc_log(LOG_ERROR, "%s: failed to fill smoother\n", i->vname);
 		cc_mutex_unlock(&i->lock);
 		return 0;
 	}
@@ -1660,7 +1664,7 @@ static int pbx_capi_write(struct ast_channel *c, struct ast_frame *f)
 			error = _capi_put_cmsg(&CMSG);
 		} else {
 			cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: too much voice to send for NCCI=%#x\n",
-				i->name, i->NCCI);
+				i->vname, i->NCCI);
 		}
 
 		if (!error) {
@@ -1681,7 +1685,7 @@ static int pbx_capi_fixup(struct ast_channel *oldchan, struct ast_channel *newch
 	struct capi_pvt *i = CC_CHANNEL_PVT(newchan);
 
 	cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: %s fixup now %s\n",
-		i->name, oldchan->name, newchan->name);
+		i->vname, oldchan->name, newchan->name);
 
 	cc_mutex_lock(&i->lock);
 	i->owner = newchan;
@@ -1727,7 +1731,7 @@ static int line_interconnect(struct capi_pvt *i0, struct capi_pvt *i1, int start
 		cc_verbose(3, 1, VERBOSE_PREFIX_2
 			"%s:%s line interconnect aborted, at least "
 			"one channel is not connected.\n",
-			i0->name, i1->name);
+			i0->vname, i1->vname);
 		return -1;
 	}
 
@@ -1848,7 +1852,7 @@ static CC_BRIDGE_RETURN pbx_capi_bridge(struct ast_channel *c0,
 	int waitcount = 20;
 
 	cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s:%s Requested native bridge for %s and %s\n",
-		i0->name, i1->name, c0->name, c1->name);
+		i0->vname, i1->vname, c0->name, c1->name);
 
 	if ((!i0->bridge) || (!i1->bridge))
 		return AST_BRIDGE_FAILED_NOWARN;
@@ -1967,10 +1971,10 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 
 #ifdef CC_AST_HAS_STRINGFIELD_IN_CHANNEL
 	ast_string_field_build(tmp, name, "CAPI/%s/%s-%x",
-		i->name, i->dnid, capi_counter++);
+		i->vname, i->dnid, capi_counter++);
 #else
 	snprintf(tmp->name, sizeof(tmp->name) - 1, "CAPI/%s/%s-%x",
-		i->name, i->dnid, capi_counter++);
+		i->vname, i->dnid, capi_counter++);
 #endif
 #ifdef CC_AST_HAS_TYPE_IN_CHANNEL
 	tmp->type = channeltype;
@@ -1978,7 +1982,7 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 
 	if (pipe(fds) != 0) {
 		cc_log(LOG_ERROR, "%s: unable to create pipe.\n",
-			i->name);
+			i->vname);
 		ast_channel_free(tmp);
 		return NULL;
 	}
@@ -2051,7 +2055,7 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 	tmp->pvt->rawwriteformat = fmt;
 #endif
 	cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: setting format %s - %s%s\n",
-		i->name, ast_getformatname(fmt),
+		i->vname, ast_getformatname(fmt),
 		ast_getformatname_multiple(alloca(80), 80,
 		tmp->nativeformats),
 		(i->rtp) ? " (RTP)" : "");
@@ -2356,7 +2360,7 @@ static void capi_handle_dtmf_fax(struct capi_pvt *i)
 	if (((i->outgoing == 1) && (!(i->FaxState & CAPI_FAX_DETECT_OUTGOING))) ||
 	    ((i->outgoing == 0) && (!(i->FaxState & CAPI_FAX_DETECT_INCOMING)))) {
 		cc_verbose(3, 0, VERBOSE_PREFIX_3 "%s: Fax detected, but not configured for redirection\n",
-			i->name);
+			i->vname);
 		return;
 	}
 	
@@ -2371,7 +2375,7 @@ static void capi_handle_dtmf_fax(struct capi_pvt *i)
 	}
 
 	cc_verbose(2, 0, VERBOSE_PREFIX_3 "%s: Redirecting %s to fax extension\n",
-		i->name, c->name);
+		i->vname, c->name);
 			
 	/* Save the DID/DNIS when we transfer the fax call to a "fax" extension */
 	pbx_builtin_setvar_helper(c, "FAXEXTEN", c->exten);
@@ -2438,7 +2442,7 @@ static int search_did(struct ast_channel *c)
 	if (!strlen(i->dnid) && (i->immediate)) {
 		exten = "s";
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: %s: %s matches in context %s for immediate\n",
-			i->name, c->name, exten, c->context);
+			i->vname, c->name, exten, c->context);
 	} else {
 		if (strlen(i->dnid) < strlen(i->incomingmsn))
 			return 0;
@@ -2449,13 +2453,13 @@ static int search_did(struct ast_channel *c)
 		c->priority = 1;
 		cc_copy_string(c->exten, exten, sizeof(c->exten));
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: %s: %s matches in context %s\n",
-			i->name, c->name, exten, c->context);
+			i->vname, c->name, exten, c->context);
 		return 0;
 	}
 
 	if (ast_canmatch_extension(NULL, c->context, exten, 1, i->cid)) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: %s: %s would possibly match in context %s\n",
-			i->name, c->name, exten, c->context);
+			i->vname, c->name, exten, c->context);
 		return 1;
 	}
 
@@ -2469,39 +2473,39 @@ static void handle_progress_indicator(_cmsg *CMSG, unsigned int PLCI, struct cap
 {
 	if (INFO_IND_INFOELEMENT(CMSG)[0] < 2) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: Progress description missing\n",
-			i->name);
+			i->vname);
 		return;
 	}
 
 	switch(INFO_IND_INFOELEMENT(CMSG)[2] & 0x7f) {
 	case 0x01:
 		cc_verbose(4, 1, VERBOSE_PREFIX_4 "%s: Not end-to-end ISDN\n",
-			i->name);
+			i->vname);
 		break;
 	case 0x02:
 		cc_verbose(4, 1, VERBOSE_PREFIX_4 "%s: Destination is non ISDN\n",
-			i->name);
+			i->vname);
 		i->calledPartyIsISDN = 0;
 		break;
 	case 0x03:
 		cc_verbose(4, 1, VERBOSE_PREFIX_4 "%s: Origination is non ISDN\n",
-			i->name);
+			i->vname);
 		break;
 	case 0x04:
 		cc_verbose(4, 1, VERBOSE_PREFIX_4 "%s: Call returned to ISDN\n",
-			i->name);
+			i->vname);
 		break;
 	case 0x05:
 		cc_verbose(4, 1, VERBOSE_PREFIX_4 "%s: Interworking occured\n",
-			i->name);
+			i->vname);
 		break;
 	case 0x08:
 		cc_verbose(4, 1, VERBOSE_PREFIX_4 "%s: In-band information available\n",
-			i->name);
+			i->vname);
 		break;
 	default:
 		cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: Unknown progress description %02x\n",
-			i->name, INFO_IND_INFOELEMENT(CMSG)[2]);
+			i->vname, INFO_IND_INFOELEMENT(CMSG)[2]);
 	}
 	send_progress(i);
 	return;
@@ -2516,7 +2520,7 @@ static void start_pbx_on_match(struct capi_pvt *i, unsigned int PLCI, _cword Mes
 
 	if ((i->isdnstate & CAPI_ISDN_STATE_PBX)) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: pbx already started on channel %s\n",
-			i->name, i->owner->name);
+			i->vname, i->owner->name);
 		return;
 	}
 
@@ -2526,7 +2530,7 @@ static void start_pbx_on_match(struct capi_pvt *i, unsigned int PLCI, _cword Mes
 		ast_setstate(i->owner, AST_STATE_RING);
 		if (ast_pbx_start(i->owner)) {
 			cc_log(LOG_ERROR, "%s: Unable to start pbx on channel!\n",
-				i->name);
+				i->vname);
 			chan_to_hangup = i->owner;
 		} else {
 			cc_verbose(2, 1, VERBOSE_PREFIX_2 "Started pbx on channel %s\n",
@@ -2543,7 +2547,7 @@ static void start_pbx_on_match(struct capi_pvt *i, unsigned int PLCI, _cword Mes
 		/* doesn't match */
 		i->isdnstate |= CAPI_ISDN_STATE_PBX; /* don't try again */
 		cc_log(LOG_NOTICE, "%s: did not find exten for '%s', ignoring call.\n",
-			i->name, i->dnid);
+			i->vname, i->dnid);
 		CONNECT_RESP_HEADER(&CMSG2, capi_ApplID, MessageNumber, 0);
 		CONNECT_RESP_PLCI(&CMSG2) = PLCI;
 		CONNECT_RESP_REJECT(&CMSG2) = 1; /* ignore */
@@ -2568,7 +2572,7 @@ static void capidev_handle_did_digits(_cmsg *CMSG, unsigned int PLCI, unsigned i
 
 	if (i->state != CAPI_STATE_DID) {
 		cc_verbose(4, 1, VERBOSE_PREFIX_4 "%s: INFO_IND DID digits not used in this state.\n",
-			i->name);
+			i->vname);
 		return;
 	}
 
@@ -2632,14 +2636,14 @@ static void capidev_handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsig
 
 	if ((i->isdnstate & CAPI_ISDN_STATE_ECT)) {
 		cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s: Disconnect ECT call\n",
-			i->name);
+			i->vname);
 		/* we do nothing, just wait for DISCONNECT_IND */
 		return;
 	}
 
 	if (PLCI == i->onholdPLCI) {
 		cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s: Disconnect onhold call\n",
-			i->name);
+			i->vname);
 		/* the caller onhold hung up (or ECTed away) */
 		/* send a disconnect_req , we cannot hangup the channel here!!! */
 		DISCONNECT_REQ_HEADER(&CMSG2, capi_ApplID, get_capi_MessageNumber(), 0);
@@ -2651,7 +2655,7 @@ static void capidev_handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsig
 	/* case 1: B3 on success or no B3 at all */
 	if ((i->doB3 != CAPI_B3_ALWAYS) && (i->outgoing == 1)) {
 		cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s: Disconnect case 1\n",
-			i->name);
+			i->vname);
 		if (i->state == CAPI_STATE_CONNECTED) 
 			queue_cause_control(i, 0);
 		else
@@ -2663,7 +2667,7 @@ static void capidev_handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsig
 	if ((i->doB3 != CAPI_B3_DONT) &&
 	    (i->state == CAPI_STATE_CONNECTED) && (i->outgoing == 1)) {
 		cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s: Disconnect case 2\n",
-			i->name);
+			i->vname);
 		queue_cause_control(i, 1);
 		return;
 	}
@@ -2675,7 +2679,7 @@ static void capidev_handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsig
 	 */
 	if (i->outgoing == 0) {
 		cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s: Disconnect case 3\n",
-			i->name);
+			i->vname);
 		if (i->FaxState & CAPI_FAX_STATE_ACTIVE) {
 			/* in fax mode, we just hangup */
 			DISCONNECT_REQ_HEADER(&CMSG2, capi_ApplID, get_capi_MessageNumber(), 0);
@@ -2690,7 +2694,7 @@ static void capidev_handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsig
 	/* case 4 (a.k.a. the italian case): B3 always. call is unsuccessful */
 	if ((i->doB3 == CAPI_B3_ALWAYS) && (i->outgoing == 1)) {
 		cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s: Disconnect case 4\n",
-			i->name);
+			i->vname);
 		if ((i->state == CAPI_STATE_CONNECTED) &&
 		    (i->isdnstate & CAPI_ISDN_STATE_B3_UP)) {
 			queue_cause_control(i, 1);
@@ -2700,7 +2704,7 @@ static void capidev_handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsig
 		return;
 	}
 	cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: Other case DISCONNECT INFO_IND\n",
-		i->name);
+		i->vname);
 	return;
 }
 
@@ -2711,7 +2715,7 @@ static void capidev_handle_setup_element(_cmsg *CMSG, unsigned int PLCI, struct 
 {
 	if ((i->isdnstate & CAPI_ISDN_STATE_SETUP)) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: IE SETUP / SENDING-COMPLETE already received.\n",
-			i->name);
+			i->vname);
 		return;
 	}
 
@@ -2750,26 +2754,26 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 	switch(INFO_IND_INFONUMBER(CMSG)) {
 	case 0x0008:	/* Cause */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element CAUSE %02x %02x\n",
-			i->name, INFO_IND_INFOELEMENT(CMSG)[1], INFO_IND_INFOELEMENT(CMSG)[2]);
+			i->vname, INFO_IND_INFOELEMENT(CMSG)[1], INFO_IND_INFOELEMENT(CMSG)[2]);
 		if (i->owner) {
 			i->owner->hangupcause = INFO_IND_INFOELEMENT(CMSG)[2] & 0x7f;
 		}
 		break;
 	case 0x0014:	/* Call State */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element CALL STATE %02x\n",
-			i->name, INFO_IND_INFOELEMENT(CMSG)[1]);
+			i->vname, INFO_IND_INFOELEMENT(CMSG)[1]);
 		break;
 	case 0x0018:	/* Channel Identification */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element CHANNEL IDENTIFICATION %02x\n",
-			i->name, INFO_IND_INFOELEMENT(CMSG)[1]);
+			i->vname, INFO_IND_INFOELEMENT(CMSG)[1]);
 		break;
 	case 0x001c:	/*  Facility Q.932 */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element FACILITY\n",
-			i->name);
+			i->vname);
 		break;
 	case 0x001e:	/* Progress Indicator */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element PI %02x %02x\n",
-			i->name, INFO_IND_INFOELEMENT(CMSG)[1], INFO_IND_INFOELEMENT(CMSG)[2]);
+			i->vname, INFO_IND_INFOELEMENT(CMSG)[1], INFO_IND_INFOELEMENT(CMSG)[2]);
 		handle_progress_indicator(CMSG, PLCI, i);
 		break;
 	case 0x0027: {	/*  Notification Indicator */
@@ -2788,23 +2792,23 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 			}
 		}
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element NOTIFICATION INDICATOR '%s' (0x%02x)\n",
-			i->name, desc, INFO_IND_INFOELEMENT(CMSG)[1]);
+			i->vname, desc, INFO_IND_INFOELEMENT(CMSG)[1]);
 		break;
 	}
 	case 0x0028:	/* DSP */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element DSP\n",
-			i->name);
+			i->vname);
 		break;
 	case 0x0029:	/* Date/Time */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element Date/Time %02d/%02d/%02d %02d:%02d\n",
-			i->name,
+			i->vname,
 			INFO_IND_INFOELEMENT(CMSG)[1], INFO_IND_INFOELEMENT(CMSG)[2],
 			INFO_IND_INFOELEMENT(CMSG)[3], INFO_IND_INFOELEMENT(CMSG)[4],
 			INFO_IND_INFOELEMENT(CMSG)[5]);
 		break;
 	case 0x0070:	/* Called Party Number */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element CALLED PARTY NUMBER\n",
-			i->name);
+			i->vname);
 		capidev_handle_did_digits(CMSG, PLCI, NCCI, i);
 		break;
 	case 0x0074:	/* Redirecting Number */
@@ -2813,7 +2817,7 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 			val = INFO_IND_INFOELEMENT(CMSG)[3] & 0x0f;
 		}
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element REDIRECTING NUMBER '%s' Reason=0x%02x\n",
-			i->name, p, val);
+			i->vname, p, val);
 		if (i->owner) {
 			char reasonbuf[16];
 			snprintf(reasonbuf, sizeof(reasonbuf) - 1, "%d", val); 
@@ -2834,20 +2838,20 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 		break;
 	case 0x00a1:	/* Sending Complete */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element Sending Complete\n",
-			i->name);
+			i->vname);
 		capidev_handle_setup_element(CMSG, PLCI, i);
 		break;
 	case 0x4000:	/* CHARGE in UNITS */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element CHARGE in UNITS\n",
-			i->name);
+			i->vname);
 		break;
 	case 0x4001:	/* CHARGE in CURRENCY */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element CHARGE in CURRENCY\n",
-			i->name);
+			i->vname);
 		break;
 	case 0x8001:	/* ALERTING */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element ALERTING\n",
-			i->name);
+			i->vname);
 		send_progress(i);
 		fr.frametype = AST_FRAME_CONTROL;
 		fr.subclass = AST_CONTROL_RINGING;
@@ -2855,14 +2859,14 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 		break;
 	case 0x8002:	/* CALL PROCEEDING */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element CALL PROCEEDING\n",
-			i->name);
+			i->vname);
 		fr.frametype = AST_FRAME_CONTROL;
 		fr.subclass = AST_CONTROL_PROCEEDING;
 		local_queue_frame(i, &fr);
 		break;
 	case 0x8003:	/* PROGRESS */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element PROGRESS\n",
-			i->name);
+			i->vname);
 		/*
 		 * rain - some networks will indicate a USER BUSY cause, send
 		 * PROGRESS message, and then send audio for a busy signal for
@@ -2886,16 +2890,16 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 		break;
 	case 0x8005:	/* SETUP */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element SETUP\n",
-			i->name);
+			i->vname);
 		capidev_handle_setup_element(CMSG, PLCI, i);
 		break;
 	case 0x8007:	/* CONNECT */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element CONNECT\n",
-			i->name);
+			i->vname);
 		break;
 	case 0x800d:	/* SETUP ACK */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element SETUP ACK\n",
-			i->name);
+			i->vname);
 		i->isdnstate |= CAPI_ISDN_STATE_SETUP_ACK;
 		/* if some digits of initial CONNECT_REQ are left to dial */
 		if (strlen(i->overlapdigits)) {
@@ -2907,40 +2911,40 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 		break;
 	case 0x800f:	/* CONNECT ACK */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element CONNECT ACK\n",
-			i->name);
+			i->vname);
 		break;
 	case 0x8045:	/* DISCONNECT */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element DISCONNECT\n",
-			i->name);
+			i->vname);
 		capidev_handle_info_disconnect(CMSG, PLCI, NCCI, i);
 		break;
 	case 0x804d:	/* RELEASE */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element RELEASE\n",
-			i->name);
+			i->vname);
 		break;
 	case 0x805a:	/* RELEASE COMPLETE */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element RELEASE COMPLETE\n",
-			i->name);
+			i->vname);
 		break;
 	case 0x8062:	/* FACILITY */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element FACILITY\n",
-			i->name);
+			i->vname);
 		break;
 	case 0x806e:	/* NOTIFY */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element NOTIFY\n",
-			i->name);
+			i->vname);
 		break;
 	case 0x807b:	/* INFORMATION */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element INFORMATION\n",
-			i->name);
+			i->vname);
 		break;
 	case 0x807d:	/* STATUS */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element STATUS\n",
-			i->name);
+			i->vname);
 		break;
 	default:
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: unhandled INFO_IND %#x (PLCI=%#x)\n",
-			i->name, INFO_IND_INFONUMBER(CMSG), PLCI);
+			i->vname, INFO_IND_INFONUMBER(CMSG), PLCI);
 		break;
 	}
 	return;
@@ -2969,12 +2973,12 @@ static void capidev_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, u
 		if ((FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[1] == 0x01) &&
 		    (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[2] == 0x00)) {
 			cc_verbose(3, 0, VERBOSE_PREFIX_3 "%s: Line Interconnect activated\n",
-				i->name);
+				i->vname);
 		}
 		if ((FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[1] == 0x02) &&
 		    (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[2] == 0x00) &&
 		    (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[0] > 8)) {
-			show_capi_info(read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[8]));
+			show_capi_info(i, read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[8]));
 		}
 	}
 	
@@ -2990,7 +2994,7 @@ static void capidev_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, u
 		while (dtmflen) {
 			dtmf = (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG))[dtmfpos];
 			cc_verbose(1, 1, VERBOSE_PREFIX_4 "%s: c_dtmf = %c\n",
-				i->name, dtmf);
+				i->vname, dtmf);
 			if ((!(i->ntmode)) || (i->state == CAPI_STATE_CONNECTED)) {
 				if ((dtmf == 'X') || (dtmf == 'Y')) {
 					capi_handle_dtmf_fax(i);
@@ -3011,10 +3015,10 @@ static void capidev_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, u
 		if ( (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[1] == 0x6) &&
 		     (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[3] == 0x2) ) {
 			cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: PLCI=%#x ECT  Reason=0x%02x%02x\n",
-				i->name, PLCI,
+				i->vname, PLCI,
 				FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[5],
 				FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]);
-			show_capi_info(read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]));
+			show_capi_info(i, read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]));
 		}
 
 		/* RETRIEVE */
@@ -3023,17 +3027,17 @@ static void capidev_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, u
 			if ((FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[5] != 0) || 
 			    (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4] != 0)) { 
 				cc_log(LOG_WARNING, "%s: unable to retrieve PLCI=%#x, REASON = 0x%02x%02x\n",
-					i->name, PLCI,
+					i->vname, PLCI,
 					FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[5],
 					FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]);
-				show_capi_info(read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]));
+				show_capi_info(i, read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]));
 			} else {
 				/* reason != 0x0000 == problem */
 				i->state = CAPI_STATE_CONNECTED;
 				i->PLCI = i->onholdPLCI;
 				i->onholdPLCI = 0;
 				cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: PLCI=%#x retrieved\n",
-					i->name, PLCI);
+					i->vname, PLCI);
 				cc_start_b3(i);
 			}
 		}
@@ -3046,15 +3050,15 @@ static void capidev_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, u
 				/* reason != 0x0000 == problem */
 				i->onholdPLCI = 0;
 				cc_log(LOG_WARNING, "%s: unable to put PLCI=%#x onhold, REASON = 0x%02x%02x, maybe you need to subscribe for this...\n",
-					i->name, PLCI,
+					i->vname, PLCI,
 					FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[5],
 					FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]);
-				show_capi_info(read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]));
+				show_capi_info(i, read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]));
 			} else {
 				/* reason = 0x0000 == call on hold */
 				i->state = CAPI_STATE_ONHOLD;
 				cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: PLCI=%#x put onhold\n",
-					i->name, PLCI);
+					i->vname, PLCI);
 			}
 		}
 	}
@@ -3093,10 +3097,10 @@ static void capidev_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, un
 	if (i->fFax) {
 		/* we are in fax-receive and have a file open */
 		cc_verbose(6, 1, VERBOSE_PREFIX_3 "%s: DATA_B3_IND (len=%d) Fax\n",
-			i->name, b3len);
+			i->vname, b3len);
 		if (fwrite(b3buf, 1, b3len, i->fFax) != b3len)
 			cc_log(LOG_WARNING, "%s : error writing output file (%s)\n",
-				i->name, strerror(errno));
+				i->vname, strerror(errno));
 		return;
 	}
 
@@ -3140,7 +3144,7 @@ static void capidev_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, un
 				memset(b3buf, 85, b3len);
 			}
 			cc_verbose(6, 1, VERBOSE_PREFIX_3 "%s: SUPPRESSING ECHO rx=%d, tx=%d\n",
-					i->name, rxavg, txavg);
+					i->vname, rxavg, txavg);
 		}
 	} else {
 		if (i->rxgain == 1.0) {
@@ -3167,7 +3171,7 @@ static void capidev_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, un
 #endif
 	fr.src = NULL;
 	cc_verbose(8, 1, VERBOSE_PREFIX_3 "%s: DATA_B3_IND (len=%d) fr.datalen=%d fr.subclass=%d\n",
-		i->name, b3len, fr.datalen, fr.subclass);
+		i->vname, b3len, fr.datalen, fr.subclass);
 	local_queue_frame(i, &fr);
 	return;
 }
@@ -3199,7 +3203,7 @@ static void capidev_handle_connect_active_indication(_cmsg *CMSG, unsigned int P
 
 	if (i->state == CAPI_STATE_DISCONNECTING) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: CONNECT_ACTIVE in DISCONNECTING.\n",
-			i->name);
+			i->vname);
 		return;
 	}
 
@@ -3249,7 +3253,7 @@ static void capidev_handle_connect_b3_active_indication(_cmsg *CMSG, unsigned in
 
 	if (i->state == CAPI_STATE_DISCONNECTING) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: CONNECT_B3_ACTIVE_IND during disconnect for NCCI %#x\n",
-			i->name, NCCI);
+			i->vname, NCCI);
 		return;
 	}
 
@@ -3265,19 +3269,19 @@ static void capidev_handle_connect_b3_active_indication(_cmsg *CMSG, unsigned in
 	if ((i->isdnstate & CAPI_ISDN_STATE_B3_CHANGE)) {
 		i->isdnstate &= ~CAPI_ISDN_STATE_B3_CHANGE;
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: B3 protocol changed.\n",
-			i->name);
+			i->vname);
 		return;
 	}
 
 	if (!i->owner) {
 		cc_log(LOG_ERROR, "%s: No channel for interface!\n",
-			i->name);
+			i->vname);
 		return;
 	}
 
 	if (i->FaxState & CAPI_FAX_STATE_ACTIVE) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: Fax connection, no EC/DTMF\n",
-			i->name);
+			i->vname);
 	} else {
 		capi_echo_canceller(i->owner, EC_FUNCTION_ENABLE);
 		capi_detect_dtmf(i->owner, 1);
@@ -3374,7 +3378,7 @@ static void capidev_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI,
 	DISCONNECT_RESP_PLCI(&CMSG2) = PLCI;
 	_capi_put_cmsg(&CMSG2);
 	
-	show_capi_info(DISCONNECT_IND_REASON(CMSG));
+	show_capi_info(i, DISCONNECT_IND_REASON(CMSG));
 
 	return_on_no_interface("DISCONNECT_IND");
 
@@ -3411,7 +3415,7 @@ static void capidev_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI,
 	    (i->owner->pbx == NULL)) {
 		/* the pbx was not started yet */
 		cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s: DISCONNECT_IND on incoming without pbx, doing hangup.\n",
-			i->name);
+			i->vname);
 		chan_to_hangup = i->owner;
 		return;
 	}
@@ -3508,7 +3512,7 @@ static void capidev_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, un
 			} else {
 				/* make sure the number match exactly or may match on ptp mode */
 				cc_verbose(4, 1, VERBOSE_PREFIX_4 "%s: msn='%s' DNID='%s' %s\n",
-					i->name, msn, DNID,
+					i->vname, msn, DNID,
 					(i->isdnmode == CAPI_ISDNMODE_MSN)?"MSN":"DID");
 				if ((strcasecmp(msn, DNID)) &&
 				   ((i->isdnmode == CAPI_ISDNMODE_MSN) ||
@@ -3562,7 +3566,7 @@ static void capidev_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, un
 			i->owner->callingpres = callpres;
 #endif
 			cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: Incoming call '%s' -> '%s'\n",
-				i->name, i->cid, i->dnid);
+				i->vname, i->cid, i->dnid);
 
 			*interface = i;
 			cc_mutex_unlock(&iflock);
@@ -3623,21 +3627,21 @@ static void capidev_handle_facility_confirmation(_cmsg *CMSG, unsigned int PLCI,
 
 	if (selector == FACILITYSELECTOR_DTMF) {
 		cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: DTMF conf(PLCI=%#x)\n",
-			i->name, PLCI);
+			i->vname, PLCI);
 		return;
 	}
 	if (selector == i->ecSelector) {
 		if (FACILITY_CONF_INFO(CMSG)) {
 			cc_verbose(2, 0, VERBOSE_PREFIX_3 "%s: Error setting up echo canceller (PLCI=%#x)\n",
-				i->name, PLCI);
+				i->vname, PLCI);
 			return;
 		}
 		if (FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[1] == EC_FUNCTION_DISABLE) {
 			cc_verbose(2, 0, VERBOSE_PREFIX_3 "%s: Echo canceller successfully disabled (PLCI=%#x)\n",
-				i->name, PLCI);
+				i->vname, PLCI);
 		} else {
 			cc_verbose(2, 0, VERBOSE_PREFIX_3 "%s: Echo canceller successfully set up (PLCI=%#x)\n",
-				i->name, PLCI);
+				i->vname, PLCI);
 		}
 		return;
 	}
@@ -3648,7 +3652,7 @@ static void capidev_handle_facility_confirmation(_cmsg *CMSG, unsigned int PLCI,
 		    ((FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[4] != 0x0) ||
 		     (FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[5] != 0x0))) {
 			cc_verbose(2, 0, VERBOSE_PREFIX_3 "%s: Call on hold (PLCI=%#x)\n",
-				i->name, PLCI);
+				i->vname, PLCI);
 		}
 		return;
 	}
@@ -3657,18 +3661,18 @@ static void capidev_handle_facility_confirmation(_cmsg *CMSG, unsigned int PLCI,
 		    (FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[2] == 0x0)) {
 			/* enable */
 			if (FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[0] > 12) {
-				show_capi_info(read_capi_word(&FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[12]));
+				show_capi_info(i, read_capi_word(&FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[12]));
 			}
 		} else {
 			/* disable */
 			if (FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[0] > 12) {
-				show_capi_info(read_capi_word(&FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[12]));
+				show_capi_info(i, read_capi_word(&FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[12]));
 			}
 		}
 		return;
 	}
 	cc_log(LOG_ERROR, "%s: unhandled FACILITY_CONF 0x%x\n",
-		i->name, FACILITY_CONF_FACILITYSELECTOR(CMSG));
+		i->vname, FACILITY_CONF_FACILITYSELECTOR(CMSG));
 }
 
 /*
@@ -3681,7 +3685,7 @@ static void show_capi_conf_error(struct capi_pvt *i,
 	const char *name = channeltype;
 
 	if (i)
-		name = i->name;
+		name = i->vname;
 	
 	if ((wCmd == CAPI_P_CONF(ALERT)) && (wInfo == 0x0003)) {
 		/* Alert already sent by another application */
@@ -3713,7 +3717,7 @@ static void capidev_post_handling(struct capi_pvt *i, _cmsg *CMSG)
 		i->waitevent = 0;
 		ast_cond_signal(&i->event_trigger);
 		cc_verbose(4, 1, "%s: found and signal for %s\n",
-			i->name, capi_cmd2str(CMSG->Command, CMSG->Subcommand));
+			i->vname, capi_cmd2str(CMSG->Command, CMSG->Subcommand));
 	}
 }
 
@@ -3793,7 +3797,7 @@ static void capidev_handle_msg(_cmsg *CMSG)
 		if ((i == NULL) || (!i->owner))
 			break;
 		cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: received CONNECT_CONF PLCI = %#x\n",
-			i->name, PLCI);
+			i->vname, PLCI);
 		if (wInfo == 0) {
 			i->PLCI = PLCI;
 		} else {
@@ -3867,7 +3871,7 @@ static void capidev_handle_msg(_cmsg *CMSG)
 		if (wInfo) {
 			show_capi_conf_error(i, PLCI, wInfo, wCmd);
 		}
-		show_capi_info(wInfo);
+		show_capi_info(i, wInfo);
 	}
 
 	if (i == NULL) {
@@ -3912,7 +3916,7 @@ static int pbx_capi_call_deflect(struct ast_channel *c, char *param)
 	}
 	if (!(capi_controllers[i->controller]->CD)) {
 		cc_log(LOG_NOTICE,"%s: CALL DEFLECT for %s not supported by controller.\n",
-			i->name, c->name);
+			i->vname, c->name);
 		return -1;
 	}
 
@@ -3953,7 +3957,7 @@ static int pbx_capi_call_deflect(struct ast_channel *c, char *param)
 	cc_mutex_unlock(&i->lock);
 
 	cc_verbose(2, 1, VERBOSE_PREFIX_3 "%s: sent FACILITY_REQ for CD PLCI = %#x\n",
-		i->name, i->PLCI);
+		i->vname, i->PLCI);
 
 	return(res);
 }
@@ -4008,15 +4012,15 @@ static int pbx_capi_retrieve(struct ast_channel *c, char *param)
 
 	if ((!plci) || (i->state != CAPI_STATE_ONHOLD)) {
 		cc_log(LOG_WARNING, "%s: 0x%x is not valid or not on hold to retrieve!\n",
-			i->name, plci);
+			i->vname, plci);
 		return 0;
 	}
 	cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: using PLCI=%#x for retrieve\n",
-		i->name, plci);
+		i->vname, plci);
 
 	if (!(capi_controllers[i->controller]->holdretrieve)) {
 		cc_log(LOG_NOTICE,"%s: RETRIEVE for %s not supported by controller.\n",
-			i->name, c->name);
+			i->vname, c->name);
 		return -1;
 	}
 
@@ -4032,7 +4036,7 @@ static int pbx_capi_retrieve(struct ast_channel *c, char *param)
 
 	_capi_put_cmsg(&CMSG);
 	cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: sent RETRIEVE for PLCI=%#x\n",
-		i->name, plci);
+		i->vname, plci);
 
 	i->isdnstate &= ~CAPI_ISDN_STATE_HOLD;
 	pbx_builtin_setvar_helper(i->owner, "_CALLERHOLDID", NULL);
@@ -4061,7 +4065,7 @@ static int pbx_capi_ect(struct ast_channel *c, char *param)
 	}
 
 	if (!plci) {
-		cc_log(LOG_WARNING, "%s: No id for ECT !\n", i->name);
+		cc_log(LOG_WARNING, "%s: No id for ECT !\n", i->vname);
 		return -1;
 	}
 
@@ -4074,22 +4078,22 @@ static int pbx_capi_ect(struct ast_channel *c, char *param)
 
 	if (!ii) {
 		cc_log(LOG_WARNING, "%s: 0x%x is not on hold !\n",
-			i->name, plci);
+			i->vname, plci);
 		return -1;
 	}
 
 	cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: using PLCI=%#x for ECT\n",
-		i->name, plci);
+		i->vname, plci);
 
 	if (!(capi_controllers[i->controller]->ECT)) {
 		cc_log(LOG_WARNING, "%s: ECT for %s not supported by controller.\n",
-			i->name, c->name);
+			i->vname, c->name);
 		return -1;
 	}
 
 	if (!(ii->isdnstate & CAPI_ISDN_STATE_HOLD)) {
 		cc_log(LOG_WARNING, "%s: PLCI %#x (%s) is not on hold for ECT\n",
-			i->name, plci, ii->name);
+			i->vname, plci, ii->vname);
 		return -1;
 	}
 
@@ -4099,7 +4103,7 @@ static int pbx_capi_ect(struct ast_channel *c, char *param)
 
 	if (i->state != CAPI_STATE_CONNECTED) {
 		cc_log(LOG_WARNING, "%s: destination not connected for ECT\n",
-			i->name);
+			i->vname);
 		cc_mutex_unlock(&i->lock);
 		return -1;
 	}
@@ -4125,7 +4129,7 @@ static int pbx_capi_ect(struct ast_channel *c, char *param)
 	cc_mutex_unlock(&i->lock);
 
 	cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: sent ECT for PLCI=%#x to PLCI=%#x\n",
-		i->name, plci, i->PLCI);
+		i->vname, plci, i->PLCI);
 
 	return 0;
 }
@@ -4144,18 +4148,18 @@ static int pbx_capi_hold(struct ast_channel *c, char *param)
 
 	if ((i->isdnstate & CAPI_ISDN_STATE_HOLD)) {
 		cc_log(LOG_NOTICE,"%s: %s already on hold.\n",
-			i->name, c->name);
+			i->vname, c->name);
 		return 0;
 	}
 
 	if (!(i->isdnstate & CAPI_ISDN_STATE_B3_UP)) {
 		cc_log(LOG_NOTICE,"%s: Cannot put on hold %s while not connected.\n",
-			i->name, c->name);
+			i->vname, c->name);
 		return 0;
 	}
 	if (!(capi_controllers[i->controller]->holdretrieve)) {
 		cc_log(LOG_NOTICE,"%s: HOLD for %s not supported by controller.\n",
-			i->name, c->name);
+			i->vname, c->name);
 		return 0;
 	}
 
@@ -4171,7 +4175,7 @@ static int pbx_capi_hold(struct ast_channel *c, char *param)
 
 	_capi_put_cmsg(&CMSG);
 	cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: sent HOLD for PLCI=%#x\n",
-		i->name, i->PLCI);
+		i->vname, i->PLCI);
 
 	i->onholdPLCI = i->PLCI;
 	i->isdnstate |= CAPI_ISDN_STATE_HOLD;
@@ -4196,7 +4200,7 @@ static int pbx_capi_malicious(struct ast_channel *c, char *param)
 
 	if (!(capi_controllers[i->controller]->MCID)) {
 		cc_log(LOG_NOTICE, "%s: MCID for %s not supported by controller.\n",
-			i->name, c->name);
+			i->vname, c->name);
 		return -1;
 	}
 
@@ -4215,7 +4219,7 @@ static int pbx_capi_malicious(struct ast_channel *c, char *param)
 	cc_mutex_unlock(&i->lock);
 
 	cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: sent MCID for PLCI=%#x\n",
-		i->name, i->PLCI);
+		i->vname, i->PLCI);
 
 	return 0;
 }
@@ -4242,7 +4246,7 @@ static int pbx_capi_echocancel(struct ast_channel *c, char *param)
 		return -1;
 	}
 	cc_verbose(2, 0, VERBOSE_PREFIX_4 "%s: echocancel switched %s\n",
-		i->name, i->doEC ? "ON":"OFF");
+		i->vname, i->doEC ? "ON":"OFF");
 	return 0;
 }
 
@@ -4266,7 +4270,7 @@ static int pbx_capi_echosquelch(struct ast_channel *c, char *param)
 		return -1;
 	}
 	cc_verbose(2, 0, VERBOSE_PREFIX_4 "%s: echosquelch switched %s\n",
-		i->name, i->doES ? "ON":"OFF");
+		i->vname, i->doES ? "ON":"OFF");
 	return 0;
 }
 
@@ -4292,7 +4296,7 @@ static int pbx_capi_holdtype(struct ast_channel *c, char *param)
 		return -1;
 	}
 	cc_verbose(2, 0, VERBOSE_PREFIX_4 "%s: holdtype switched to %s\n",
-		i->name, param);
+		i->vname, param);
 	return 0;
 }
 
@@ -4314,7 +4318,7 @@ static int pbx_capi_signal_progress(struct ast_channel *c, char *param)
 	}
 	if ((i->isdnstate & CAPI_ISDN_STATE_B3_UP)) {
 		cc_verbose(4, 1, VERBOSE_PREFIX_4 "%s: signal_progress in NT: B-channel already up\n",
-			i->name);
+			i->vname);
 		return 0;
 	}
 
@@ -4420,7 +4424,7 @@ static int pbx_capi_indicate(struct ast_channel *c, int condition)
 	switch (condition) {
 	case AST_CONTROL_RINGING:
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested RINGING-Indication for %s\n",
-			i->name, c->name);
+			i->vname, c->name);
 		/* TODO somehow enable unhold on ringing, but when wanted only */
 		/* 
 		if (i->isdnstate & CAPI_ISDN_STATE_HOLD)
@@ -4438,7 +4442,7 @@ static int pbx_capi_indicate(struct ast_channel *c, int condition)
 		break;
 	case AST_CONTROL_BUSY:
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested BUSY-Indication for %s\n",
-			i->name, c->name);
+			i->vname, c->name);
 		if ((i->state == CAPI_STATE_ALERTING) ||
 		    (i->state == CAPI_STATE_DID) || (i->state == CAPI_STATE_INCALL)) {
 			CONNECT_RESP_HEADER(&CMSG, capi_ApplID, i->MessageNumber, 0);
@@ -4452,7 +4456,7 @@ static int pbx_capi_indicate(struct ast_channel *c, int condition)
 		break;
 	case AST_CONTROL_CONGESTION:
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested CONGESTION-Indication for %s\n",
-			i->name, c->name);
+			i->vname, c->name);
 		if ((i->state == CAPI_STATE_ALERTING) ||
 		    (i->state == CAPI_STATE_DID) || (i->state == CAPI_STATE_INCALL)) {
 			CONNECT_RESP_HEADER(&CMSG, capi_ApplID, i->MessageNumber, 0);
@@ -4466,25 +4470,25 @@ static int pbx_capi_indicate(struct ast_channel *c, int condition)
 		break;
 	case AST_CONTROL_PROGRESS:
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested PROGRESS-Indication for %s\n",
-			i->name, c->name);
+			i->vname, c->name);
 		if (i->ntmode) pbx_capi_signal_progress(c, NULL);
 		break;
 	case AST_CONTROL_PROCEEDING:
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested PROCEEDING-Indication for %s\n",
-			i->name, c->name);
+			i->vname, c->name);
 		if (i->ntmode) pbx_capi_signal_progress(c, NULL);
 		break;
 #ifdef CC_AST_CONTROL_HOLD
 	case AST_CONTROL_HOLD:
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested HOLD-Indication for %s\n",
-			i->name, c->name);
+			i->vname, c->name);
 		if (i->doholdtype != CC_HOLDTYPE_LOCAL) {
 			ret = pbx_capi_hold(c, NULL);
 		}
 		break;
 	case AST_CONTROL_UNHOLD:
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested UNHOLD-Indication for %s\n",
-			i->name, c->name);
+			i->vname, c->name);
 		if (i->doholdtype != CC_HOLDTYPE_LOCAL) {
 			ret = pbx_capi_retrieve(c, NULL);
 		}
@@ -4492,13 +4496,13 @@ static int pbx_capi_indicate(struct ast_channel *c, int condition)
 #endif
 	case -1: /* stop indications */
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested Indication-STOP for %s\n",
-			i->name, c->name);
+			i->vname, c->name);
 		if ((i->isdnstate & CAPI_ISDN_STATE_HOLD))
 			pbx_capi_retrieve(c, NULL);
 		break;
 	default:
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested unknown Indication %d for %s\n",
-			i->name, condition, c->name);
+			i->vname, condition, c->name);
 		break;
 	}
 	cc_mutex_unlock(&i->lock);
@@ -4648,6 +4652,7 @@ int mkif(struct cc_capi_conf *conf)
 			cc_copy_string(tmp->name, conf->name, sizeof(tmp->name));
 			tmp->channeltype = CAPI_CHANNELTYPE_B;
 		}
+		snprintf(tmp->vname, sizeof(tmp->vname) - 1, "%s#%02d", conf->name, i);
 		cc_copy_string(tmp->context, conf->context, sizeof(tmp->context));
 		cc_copy_string(tmp->incomingmsn, conf->incomingmsn, sizeof(tmp->incomingmsn));
 		cc_copy_string(tmp->defaultcid, conf->defaultcid, sizeof(tmp->defaultcid));
@@ -4712,7 +4717,7 @@ int mkif(struct cc_capi_conf *conf)
 		tmp->next = iflist; /* prepend */
 		iflist = tmp;
 		cc_verbose(2, 0, VERBOSE_PREFIX_3 "capi_pvt %s (%s,%s,%lu,%d) (%d,%d,%d)\n",
-			tmp->name, tmp->incomingmsn, tmp->context, tmp->controllers,
+			tmp->vname, tmp->incomingmsn, tmp->context, tmp->controllers,
 			conf->devices, tmp->doEC, tmp->ecOption, tmp->ecTail);
 	}
 	return 0;
@@ -4912,7 +4917,7 @@ static int pbxcli_capi_show_channels(int fd, int argc, char *argv[])
 
 		ast_cli(fd,
 			"%-16s %s   %s  %c  %s  %-10s  0x%02x '%s'->'%s'\n",
-			i->name,
+			i->vname,
 			i->ntmode ? "yes":"no ",
 			show_state(i->state),
 			iochar,
