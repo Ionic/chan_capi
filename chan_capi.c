@@ -1390,7 +1390,6 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 	CONNECT_REQ_BCHANNELINFORMATION(&CMSG) = (_cstruct)bchaninfo; /* 0 */
 
         if ((error = _capi_put_cmsg_wait_conf(i, &CMSG))) {
-		interface_cleanup(i);
 		cc_mutex_unlock(&i->lock);
 		return error;
 	}
