@@ -1117,8 +1117,8 @@ static int pbx_capi_hangup(struct ast_channel *c)
 		return -1;
 	}
 
-	cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: CAPI Hangingup for PLCI=%#x\n",
-		i->vname, i->PLCI);
+	cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: CAPI Hangingup for PLCI=%#x in state %d\n",
+		i->vname, i->PLCI, i->state);
   
 	/* are we down, yet? */
 	if (i->state != CAPI_STATE_DISCONNECTED) {
