@@ -632,7 +632,7 @@ static void capi_echo_canceller(struct ast_channel *c, int function)
 	}
 #endif
 
-	cc_verbose(2, 0, VERBOSE_PREFIX_2 "%s: Setting up echo canceller (PLCI=%#x, function=%d, options=%d, tail=%d)\n",
+	cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: Setting up echo canceller (PLCI=%#x, function=%d, options=%d, tail=%d)\n",
 			i->vname, i->PLCI, function, i->ecOption, i->ecTail);
 
 	FACILITY_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
@@ -689,7 +689,7 @@ static int capi_detect_dtmf(struct ast_channel *c, int flag)
 	
 	if ((capi_controllers[i->controller]->dtmf == 1) && (i->doDTMF == 0)) {
 		cc_mutex_unlock(&contrlock);
-		cc_verbose(2, 0, VERBOSE_PREFIX_2 "%s: Setting up DTMF detector (PLCI=%#x, flag=%d)\n",
+		cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: Setting up DTMF detector (PLCI=%#x, flag=%d)\n",
 			i->vname, i->PLCI, flag);
 		FACILITY_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
 		FACILITY_REQ_PLCI(&CMSG) = i->PLCI;
@@ -3640,10 +3640,10 @@ static void capidev_handle_facility_confirmation(_cmsg *CMSG, unsigned int PLCI,
 			return;
 		}
 		if (FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[1] == EC_FUNCTION_DISABLE) {
-			cc_verbose(2, 0, VERBOSE_PREFIX_3 "%s: Echo canceller successfully disabled (PLCI=%#x)\n",
+			cc_verbose(3, 0, VERBOSE_PREFIX_3 "%s: Echo canceller successfully disabled (PLCI=%#x)\n",
 				i->vname, PLCI);
 		} else {
-			cc_verbose(2, 0, VERBOSE_PREFIX_3 "%s: Echo canceller successfully set up (PLCI=%#x)\n",
+			cc_verbose(3, 0, VERBOSE_PREFIX_3 "%s: Echo canceller successfully set up (PLCI=%#x)\n",
 				i->vname, PLCI);
 		}
 		return;
