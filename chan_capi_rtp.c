@@ -185,7 +185,7 @@ _cstruct capi_rtp_ncpi(struct capi_pvt *i)
 			break;
 		default:
 			cc_log(LOG_ERROR, "%s: format %s(%d) invalid.\n",
-				i->name, ast_getformatname(i->codec), i->codec);
+				i->vname, ast_getformatname(i->codec), i->codec);
 			break;
 		}
 	}
@@ -208,13 +208,13 @@ int capi_alloc_rtp(struct capi_pvt *i)
 	memcpy(&addr, hp->h_addr, sizeof(addr));
 
 	if (!(i->rtp = ast_rtp_new_with_bindaddr(NULL, NULL, 0, 0, addr))) {
-		cc_log(LOG_ERROR, "%s: unable to alloc rtp.\n", i->name);
+		cc_log(LOG_ERROR, "%s: unable to alloc rtp.\n", i->vname);
 		return 1;
 	}
 	ast_rtp_get_us(i->rtp, &us);
 	ast_rtp_set_peer(i->rtp, &us);
 	cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: alloc rtp socket on %s:%d\n",
-		i->name,
+		i->vname,
 		ast_inet_ntoa(temp, sizeof(temp), us.sin_addr),
 		ntohs(us.sin_port));
 	return 0;
@@ -238,7 +238,7 @@ int capi_write_rtp(struct ast_channel *c, struct ast_frame *f)
 
 	if (f->datalen > CAPI_MAX_B3_BLOCK_SIZE) {
 		cc_verbose(4, 0, VERBOSE_PREFIX_4 "%s: rtp write data: frame too big (len = %d).\n",
-			i->name, f->datalen);
+			i->vname, f->datalen);
 		return 0;
 	}
 
@@ -246,13 +246,16 @@ int capi_write_rtp(struct ast_channel *c, struct ast_frame *f)
 	us.sin_port = 0; /* don't really send */
 	ast_rtp_set_peer(i->rtp, &us);
 	if (ast_rtp_write(i->rtp, f) != 0) {
-		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: rtp_write error, dropping packet.\n",
-			i->name);
+		cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: rtp_write error, dropping packet.\n",
+			i->vname);
 		return 0;
 	}
 
-	if (i->B3q >= CAPI_MAX_B3_BLOCKS)
+	if (i->B3q >= CAPI_MAX_B3_BLOCKS) {
+		cc_log(LOG_WARNING, "%s: B3q is full, dropping packet.\n",
+			i->vname);
 		return 0;
+	}
 
 	i->B3q++;
 	i->send_buffer_handle++;
@@ -260,7 +263,7 @@ int capi_write_rtp(struct ast_channel *c, struct ast_frame *f)
 	len = f->datalen + rtpheaderlen;
 
 	cc_verbose(6, 1, VERBOSE_PREFIX_4 "%s: RTP write for NCCI=%#x len=%d(%d) %s\n",
-		i->name, i->NCCI, len, f->datalen, ast_getformatname(f->subclass));
+		i->vname, i->NCCI, len, f->datalen, ast_getformatname(f->subclass));
 
 	DATA_B3_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
 	DATA_B3_REQ_NCCI(&CMSG) = i->NCCI;
@@ -295,22 +298,22 @@ struct ast_frame *capi_read_rtp(struct capi_pvt *i, unsigned char *buf, int len)
 
 	if (len != sendto(ast_rtp_fd(i->rtp), buf, len, 0, (struct sockaddr *)&us, sizeof(us))) {
 		cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s: RTP sendto error\n",
-			i->name);
+			i->vname);
 		return NULL;
 	}
 
 	if ((f = ast_rtp_read(i->rtp))) {
 		if (f->frametype != AST_FRAME_VOICE) {
 			cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: DATA_B3_IND RTP (len=%d) non voice type=%d\n",
-				i->name, len, f->frametype);
+				i->vname, len, f->frametype);
 			return NULL;
 		}
 		cc_verbose(6, 1, VERBOSE_PREFIX_4 "%s: DATA_B3_IND RTP NCCI=%#x len=%d %s (read/write=%d/%d)\n",
-			i->name, i->NCCI, len, ast_getformatname(f->subclass),
+			i->vname, i->NCCI, len, ast_getformatname(f->subclass),
 			i->owner->readformat, i->owner->writeformat);
 		if (i->owner->nativeformats != f->subclass) {
 			cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: DATA_B3_IND RTP nativeformats=%d, but subclass=%d\n",
-				i->name, i->owner->nativeformats, f->subclass);
+				i->vname, i->owner->nativeformats, f->subclass);
 			i->owner->nativeformats = f->subclass;
 			ast_set_read_format(i->owner, i->owner->readformat);
 			ast_set_write_format(i->owner, i->owner->writeformat);
