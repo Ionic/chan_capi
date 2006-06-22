@@ -227,23 +227,18 @@ int capi_write_rtp(struct ast_channel *c, struct ast_frame *f)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	_cmsg CMSG;
-	int rtpheaderlen = RTP_HEADER_SIZE;
 	struct sockaddr_in us;
-	int len;
+	int len, uslen;
+	unsigned char buf[256];
+
+	uslen = sizeof(us);
 
 	if (!(i->rtp)) {
 		cc_log(LOG_ERROR, "rtp struct is NULL\n");
 		return -1;
 	}
 
-	if (f->datalen > CAPI_MAX_B3_BLOCK_SIZE) {
-		cc_verbose(4, 0, VERBOSE_PREFIX_4 "%s: rtp write data: frame too big (len = %d).\n",
-			i->vname, f->datalen);
-		return 0;
-	}
-
 	ast_rtp_get_us(i->rtp, &us);
-	us.sin_port = 0; /* don't really send */
 	ast_rtp_set_peer(i->rtp, &us);
 	if (ast_rtp_write(i->rtp, f) != 0) {
 		cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: rtp_write error, dropping packet.\n",
@@ -251,28 +246,40 @@ int capi_write_rtp(struct ast_channel *c, struct ast_frame *f)
 		return 0;
 	}
 
-	if (i->B3q >= CAPI_MAX_B3_BLOCKS) {
-		cc_log(LOG_WARNING, "%s: B3q is full, dropping packet.\n",
-			i->vname);
-		return 0;
+	while(1) {
+		len = recvfrom(ast_rtp_fd(i->rtp), buf, sizeof(buf),
+			0, (struct sockaddr *)&us, &uslen);
+		if (len <= 0)
+			break;
+
+		if (len > (CAPI_MAX_B3_BLOCK_SIZE + RTP_HEADER_SIZE)) {
+			cc_verbose(4, 0, VERBOSE_PREFIX_4 "%s: rtp write data: frame too big (len = %d).\n",
+				i->vname, len);
+			continue;
+		}
+		if (i->B3q >= CAPI_MAX_B3_BLOCKS) {
+			cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: B3q is full, dropping packet.\n",
+				i->vname);
+			continue;
+		}
+		cc_mutex_lock(&i->lock);
+		i->B3q++;
+		cc_mutex_unlock(&i->lock);
+
+		i->send_buffer_handle++;
+
+		cc_verbose(6, 1, VERBOSE_PREFIX_4 "%s: RTP write for NCCI=%#x len=%d(%d) %s\n",
+			i->vname, i->NCCI, len, f->datalen, ast_getformatname(f->subclass));
+
+		DATA_B3_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
+		DATA_B3_REQ_NCCI(&CMSG) = i->NCCI;
+		DATA_B3_REQ_FLAGS(&CMSG) = 0;
+		DATA_B3_REQ_DATAHANDLE(&CMSG) = i->send_buffer_handle;
+		DATA_B3_REQ_DATALENGTH(&CMSG) = len;
+		DATA_B3_REQ_DATA(&CMSG) = (buf);
+
+		_capi_put_cmsg(&CMSG);
 	}
-
-	i->B3q++;
-	i->send_buffer_handle++;
-	
-	len = f->datalen + rtpheaderlen;
-
-	cc_verbose(6, 1, VERBOSE_PREFIX_4 "%s: RTP write for NCCI=%#x len=%d(%d) %s\n",
-		i->vname, i->NCCI, len, f->datalen, ast_getformatname(f->subclass));
-
-	DATA_B3_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
-	DATA_B3_REQ_NCCI(&CMSG) = i->NCCI;
-	DATA_B3_REQ_FLAGS(&CMSG) = 0;
-	DATA_B3_REQ_DATAHANDLE(&CMSG) = i->send_buffer_handle;
-	DATA_B3_REQ_DATALENGTH(&CMSG) = len;
-	DATA_B3_REQ_DATA(&CMSG) = (unsigned char *)(f->data - rtpheaderlen);
-
-	_capi_put_cmsg(&CMSG);
 
 	return 0;
 }

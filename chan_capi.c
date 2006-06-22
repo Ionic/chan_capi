@@ -1556,42 +1556,33 @@ static int pbx_capi_write(struct ast_channel *c, struct ast_frame *f)
 		return -1;
 	}
 	 
-	cc_mutex_lock(&i->lock);
-
 	if ((!(i->isdnstate & CAPI_ISDN_STATE_B3_UP)) || (!i->NCCI) ||
 	    ((i->isdnstate & (CAPI_ISDN_STATE_B3_CHANGE | CAPI_ISDN_STATE_LI)))) {
-		cc_mutex_unlock(&i->lock);
 		return 0;
 	}
 
 	if ((!(i->ntmode)) && (i->state != CAPI_STATE_CONNECTED)) {
-		cc_mutex_unlock(&i->lock);
 		return 0;
 	}
 
 	if (f->frametype == AST_FRAME_NULL) {
-		cc_mutex_unlock(&i->lock);
 		return 0;
 	}
 	if (f->frametype == AST_FRAME_DTMF) {
 		cc_log(LOG_ERROR, "dtmf frame should be written\n");
-		cc_mutex_unlock(&i->lock);
 		return 0;
 	}
 	if (f->frametype != AST_FRAME_VOICE) {
 		cc_log(LOG_ERROR,"not a voice frame\n");
-		cc_mutex_unlock(&i->lock);
 		return 0;
 	}
 	if (i->FaxState & CAPI_FAX_STATE_ACTIVE) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: write on fax_receive?\n",
 			i->vname);
-		cc_mutex_unlock(&i->lock);
 		return 0;
 	}
 	if ((!f->data) || (!f->datalen)) {
 		cc_log(LOG_DEBUG, "No data for FRAME_VOICE %s\n", c->name);
-		cc_mutex_unlock(&i->lock);
 		return 0;
 	}
 	if (i->isdnstate & CAPI_ISDN_STATE_RTP) {
@@ -1599,24 +1590,19 @@ static int pbx_capi_write(struct ast_channel *c, struct ast_frame *f)
 		    (f->subclass != capi_capability)) {
 			cc_log(LOG_ERROR, "don't know how to write subclass %s(%d)\n",
 				ast_getformatname(f->subclass), f->subclass);
-			cc_mutex_unlock(&i->lock);
 			return 0;
 		}
+		return capi_write_rtp(c, f);
 	}
 
 	if ((!i->smoother) || (ast_smoother_feed(i->smoother, f) != 0)) {
 		cc_log(LOG_ERROR, "%s: failed to fill smoother\n", i->vname);
-		cc_mutex_unlock(&i->lock);
 		return 0;
 	}
 
 	for (fsmooth = ast_smoother_read(i->smoother);
 	     fsmooth != NULL;
 	     fsmooth = ast_smoother_read(i->smoother)) {
-		if (i->isdnstate & CAPI_ISDN_STATE_RTP) {
-			ret = capi_write_rtp(c, fsmooth);
-			continue;
-		}
 		DATA_B3_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
 		DATA_B3_REQ_NCCI(&CMSG) = i->NCCI;
 		DATA_B3_REQ_DATALENGTH(&CMSG) = fsmooth->datalen;
@@ -1671,12 +1657,13 @@ static int pbx_capi_write(struct ast_channel *c, struct ast_frame *f)
 		}
 
 		if (!error) {
+			cc_mutex_lock(&i->lock);
 			i->B3q -= fsmooth->datalen;
 			if (i->B3q < 0)
 				i->B3q = 0;
+			cc_mutex_unlock(&i->lock);
 		}
 	}
-	cc_mutex_unlock(&i->lock);
 	return ret;
 }
 
@@ -3267,6 +3254,7 @@ static void capidev_handle_connect_b3_active_indication(_cmsg *CMSG, unsigned in
 		i->isdnstate |= CAPI_ISDN_STATE_RTP;
 	} else {
 		i->isdnstate &= ~CAPI_ISDN_STATE_RTP;
+		i->B3q = (CAPI_MAX_B3_BLOCK_SIZE * 3);
 	}
 
 	if ((i->isdnstate & CAPI_ISDN_STATE_B3_CHANGE)) {
@@ -4887,6 +4875,7 @@ static int pbxcli_capi_show_channels(int fd, int argc, char *argv[])
 	struct capi_pvt *i;
 	char iochar;
 	char i_state[80];
+	char b3q[16];
 	
 	if (argc != 3)
 		return RESULT_SHOWUSAGE;
@@ -4908,8 +4897,13 @@ static int pbxcli_capi_show_channels(int fd, int argc, char *argv[])
 		else
 			iochar = 'I';
 
+		if (capidebug)
+			snprintf(b3q, sizeof(b3q), "  B3q=%d", i->B3q);
+		else
+			b3q[0] = '\0';
+
 		ast_cli(fd,
-			"%-16s %s   %s  %c  %s  %-10s  0x%02x '%s'->'%s'\n",
+			"%-16s %s   %s  %c  %s  %-10s  0x%02x '%s'->'%s'%s\n",
 			i->vname,
 			i->ntmode ? "yes":"no ",
 			show_state(i->state),
@@ -4918,7 +4912,8 @@ static int pbxcli_capi_show_channels(int fd, int argc, char *argv[])
 			show_isdnstate(i->isdnstate, i_state),
 			i->cid_ton,
 			i->cid,
-			i->dnid
+			i->dnid,
+			b3q
 		);
 	}
 
