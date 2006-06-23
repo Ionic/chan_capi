@@ -246,7 +246,8 @@ static struct {
 	},
 	{ 0x1f, 0x1f, 0x1f,	/* 2 */
 		(_cstruct) "\x00",
-		(_cstruct) "\x04\x01\x00\x00\x02",
+		/* (_cstruct) "\x04\x01\x00\x00\x02", */
+		(_cstruct) "\x06\x01\x00\x58\x02\x32\x00",
 		(_cstruct) "\x00"
 	}
 };

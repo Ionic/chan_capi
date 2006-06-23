@@ -371,6 +371,7 @@ struct capi_pvt {
 	int capability;
 	int rtpcodec;
 	int codec;
+	unsigned int timestamp;
 
 	/*! Next channel in list */
 	struct capi_pvt *next;

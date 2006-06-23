@@ -217,6 +217,7 @@ int capi_alloc_rtp(struct capi_pvt *i)
 		i->vname,
 		ast_inet_ntoa(temp, sizeof(temp), us.sin_addr),
 		ntohs(us.sin_port));
+	i->timestamp = 0;
 	return 0;
 }
 
@@ -229,6 +230,7 @@ int capi_write_rtp(struct ast_channel *c, struct ast_frame *f)
 	_cmsg CMSG;
 	struct sockaddr_in us;
 	int len, uslen;
+	unsigned int *rtpheader;
 	unsigned char buf[256];
 
 	uslen = sizeof(us);
@@ -252,6 +254,11 @@ int capi_write_rtp(struct ast_channel *c, struct ast_frame *f)
 		if (len <= 0)
 			break;
 
+		rtpheader = (unsigned int *)buf;
+		
+		rtpheader[1] = htonl(i->timestamp);
+		i->timestamp += (len - RTP_HEADER_SIZE);
+			
 		if (len > (CAPI_MAX_B3_BLOCK_SIZE + RTP_HEADER_SIZE)) {
 			cc_verbose(4, 0, VERBOSE_PREFIX_4 "%s: rtp write data: frame too big (len = %d).\n",
 				i->vname, len);
@@ -268,8 +275,9 @@ int capi_write_rtp(struct ast_channel *c, struct ast_frame *f)
 
 		i->send_buffer_handle++;
 
-		cc_verbose(6, 1, VERBOSE_PREFIX_4 "%s: RTP write for NCCI=%#x len=%d(%d) %s\n",
-			i->vname, i->NCCI, len, f->datalen, ast_getformatname(f->subclass));
+		cc_verbose(6, 1, VERBOSE_PREFIX_4 "%s: RTP write for NCCI=%#x len=%d(%d) %s ts=%x\n",
+			i->vname, i->NCCI, len, f->datalen, ast_getformatname(f->subclass),
+			i->timestamp);
 
 		DATA_B3_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
 		DATA_B3_REQ_NCCI(&CMSG) = i->NCCI;
