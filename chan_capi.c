@@ -681,11 +681,6 @@ static int capi_detect_dtmf(struct ast_channel *c, int flag)
 		if ((error = _capi_put_cmsg(&CMSG)) != 0) {
 			return error;
 		}
-	} else {
-		/* do software dtmf detection */
-		if (i->doDTMF == 0) {
-			i->doDTMF = 1;
-		}
 	}
 	return 0;
 }
