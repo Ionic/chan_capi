@@ -131,11 +131,9 @@ static int usecnt;
  * 2. cc_mutex_lock(&i->lock);
  *
  * 3. cc_mutex_lock(&iflock);
- * 4. cc_mutex_lock(&contrlock);
- *
- * 5. cc_mutex_lock(&messagenumber_lock);
- * 6. cc_mutex_lock(&usecnt_lock);
- * 7. cc_mutex_lock(&capi_put_lock);
+ * 4. cc_mutex_lock(&messagenumber_lock);
+ * 5. cc_mutex_lock(&usecnt_lock);
+ * 6. cc_mutex_lock(&capi_put_lock);
  *
  *
  *  ** the PBX will call the callback functions with 
@@ -148,7 +146,6 @@ static int usecnt;
 AST_MUTEX_DEFINE_STATIC(messagenumber_lock);
 AST_MUTEX_DEFINE_STATIC(usecnt_lock);
 AST_MUTEX_DEFINE_STATIC(iflock);
-AST_MUTEX_DEFINE_STATIC(contrlock);
 AST_MUTEX_DEFINE_STATIC(capi_put_lock);
 AST_MUTEX_DEFINE_STATIC(verbose_lock);
 
@@ -604,12 +601,9 @@ static void capi_echo_canceller(struct ast_channel *c, int function)
 	}
 
 	/* If echo cancellation is not requested or supported, don't attempt to enable it */
-	cc_mutex_lock(&contrlock);
 	if (!capi_controllers[i->controller]->echocancel || !i->doEC) {
-		cc_mutex_unlock(&contrlock);
 		return;
 	}
-	cc_mutex_unlock(&contrlock);
 
 	if (tcap_is_digital(c->transfercapability)) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: No echo canceller in digital mode (PLCI=%#x)\n",
@@ -668,10 +662,7 @@ static int capi_detect_dtmf(struct ast_channel *c, int flag)
 	
 	/* does the controller support dtmf? and do we want to use it? */
 	
-	cc_mutex_lock(&contrlock);
-	
 	if ((capi_controllers[i->controller]->dtmf == 1) && (i->doDTMF == 0)) {
-		cc_mutex_unlock(&contrlock);
 		cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: Setting up DTMF detector (PLCI=%#x, flag=%d)\n",
 			i->vname, i->PLCI, flag);
 		FACILITY_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
@@ -691,7 +682,6 @@ static int capi_detect_dtmf(struct ast_channel *c, int flag)
 			return error;
 		}
 	} else {
-		cc_mutex_unlock(&contrlock);
 		/* do software dtmf detection */
 		if (i->doDTMF == 0) {
 			i->doDTMF = 1;
@@ -845,16 +835,12 @@ static int pbx_capi_send_digit(struct ast_channel *c, char digit)
 
 	if ((i->state == CAPI_STATE_CONNECTED) && (i->isdnstate & CAPI_ISDN_STATE_B3_UP)) {
 		/* we have a real connection, so send real DTMF */
-		cc_mutex_lock(&contrlock);
 		if ((capi_controllers[i->controller]->dtmf == 0) || (i->doDTMF > 0)) {
 			/* let * fake it */
-			cc_mutex_unlock(&contrlock);
 			cc_mutex_unlock(&i->lock);
 			return -1;
 		}
 		
-		cc_mutex_unlock(&contrlock);
-	
 		FACILITY_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
 		FACILITY_REQ_PLCI(&CMSG) = i->NCCI;
 	        FACILITY_REQ_FACILITYSELECTOR(&CMSG) = FACILITYSELECTOR_DTMF;
@@ -1802,13 +1788,10 @@ static CC_BRIDGE_RETURN pbx_capi_bridge(struct ast_channel *c0,
 	if ((!i0->bridge) || (!i1->bridge))
 		return AST_BRIDGE_FAILED_NOWARN;
 
-	cc_mutex_lock(&contrlock);
 	if ((!capi_controllers[i0->controller]->lineinterconnect) ||
 	    (!capi_controllers[i1->controller]->lineinterconnect)) {
-		cc_mutex_unlock(&contrlock);
 		return AST_BRIDGE_FAILED_NOWARN;
 	}
-	cc_mutex_unlock(&contrlock);
 
 	while (((!(i0->isdnstate & CAPI_ISDN_STATE_B3_UP)) || 
 	       (!(i1->isdnstate & CAPI_ISDN_STATE_B3_UP))) &&
@@ -2021,7 +2004,6 @@ pbx_capi_request(const char *type, int format, void *data, int *cause)
 	char buffer[CAPI_MAX_STRING];
 	ast_group_t capigroup = 0;
 	unsigned int controller = 0;
-	unsigned int foundcontroller;
 	int notfound = 1;
 
 	cc_verbose(1, 1, VERBOSE_PREFIX_4 "data = %s format=%d\n", (char *)data, format);
@@ -2056,44 +2038,26 @@ pbx_capi_request(const char *type, int format, void *data, int *cause)
 			continue;
 		}
 		/* unused channel */
-		cc_mutex_lock(&contrlock);
 		if (controller) {
 			/* DIAL(CAPI/contrX/...) */
-			if ((!(i->controllers & (1 << controller))) ||
-			    (capi_controllers[controller]->nfreebchannels < 1)) {
+			if (i->controller != controller) {
 				/* keep on running! */
-				cc_mutex_unlock(&contrlock);
 				continue;
 			}
-			foundcontroller = controller;
 		} else {
 			/* DIAL(CAPI/gX/...) */
 			if ((interface[0] == 'g') && (!(i->group & capigroup))) {
 				/* keep on running! */
-				cc_mutex_unlock(&contrlock);
 				continue;
 			}
 			/* DIAL(CAPI/<interface-name>/...) */
 			if ((interface[0] != 'g') && (strcmp(interface, i->name))) {
 				/* keep on running! */
-				cc_mutex_unlock(&contrlock);
-				continue;
-			}
-			for (foundcontroller = 1; foundcontroller <= capi_num_controllers; foundcontroller++) {
-				if ((i->controllers & (1 << foundcontroller)) &&
-				    (capi_controllers[foundcontroller]->nfreebchannels > 0)) {
-						break;
-				}
-			}
-			if (foundcontroller > capi_num_controllers) {
-				/* keep on running! */
-				cc_mutex_unlock(&contrlock);
 				continue;
 			}
 		}
 		/* when we come here, we found a free controller match */
 		cc_copy_string(i->dnid, dest, sizeof(i->dnid));
-		i->controller = foundcontroller;
 		tmp = capi_new(i, AST_STATE_RESERVED);
 		if (!tmp) {
 			cc_log(LOG_ERROR, "cannot create new capi channel\n");
@@ -2101,7 +2065,6 @@ pbx_capi_request(const char *type, int format, void *data, int *cause)
 		}
 		i->PLCI = 0;
 		i->outgoing = 1;	/* this is an outgoing line */
-		cc_mutex_unlock(&contrlock);
 		cc_mutex_unlock(&iflock);
 		return tmp;
 	}
@@ -3127,11 +3090,7 @@ static void capidev_handle_connect_b3_active_indication(_cmsg *CMSG, unsigned in
 
 	return_on_no_interface("CONNECT_ACTIVE_B3_IND");
 
-	cc_mutex_lock(&contrlock);
-	if (i->controller > 0) {
-		capi_controllers[i->controller]->nfreebchannels--;
-	}
-	cc_mutex_unlock(&contrlock);
+	capi_controllers[i->controller]->nfreebchannels--;
 
 	if (i->state == CAPI_STATE_DISCONNECTING) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: CONNECT_B3_ACTIVE_IND during disconnect for NCCI %#x\n",
@@ -3220,11 +3179,7 @@ static void capidev_handle_disconnect_b3_indication(_cmsg *CMSG, unsigned int PL
 		_capi_put_cmsg(&CMSG2);
 	}
 
-	cc_mutex_lock(&contrlock);
-	if (i->controller > 0) {
-		capi_controllers[i->controller]->nfreebchannels++;
-	}
-	cc_mutex_unlock(&contrlock);
+	capi_controllers[i->controller]->nfreebchannels++;
 }
 
 /*
@@ -3374,7 +3329,7 @@ static void capidev_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, un
 			/* has already owner */
 			continue;
 		}
-		if (!(i->controllers & (1 << controller))) {
+		if (i->controller != controller) {
 			continue;
 		}
 		if (i->channeltype == CAPI_CHANNELTYPE_B) {
@@ -3420,7 +3375,6 @@ static void capidev_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, un
 				cc_copy_string(i->cid, emptyid, sizeof(i->cid));
 			}
 			i->cip = CONNECT_IND_CIPVALUE(CMSG);
-			i->controller = controller;
 			i->PLCI = PLCI;
 			i->MessageNumber = HEADER_MSGNUM(CMSG);
 			i->cid_ton = callernplan;
@@ -4488,7 +4442,6 @@ int mkif(struct cc_capi_conf *conf)
 {
 	struct capi_pvt *tmp;
 	int i = 0;
-	unsigned long contrmap = 0;
 	u_int16_t unit;
 
 	for (i = 0; i <= conf->devices; i++) {
@@ -4538,10 +4491,8 @@ int mkif(struct cc_capi_conf *conf)
 		if (unit > CAPI_MAX_CONTROLLERS)
 			unit = CAPI_MAX_CONTROLLERS;
 
-		contrmap |= (1 << unit);
-		
-		tmp->controllers = contrmap;
-		capi_used_controllers |= contrmap;
+		tmp->controller = unit;
+		capi_used_controllers |= (1 << unit);
 		tmp->doEC = conf->echocancel;
 		tmp->ecOption = conf->ecoption;
 		if (conf->ecnlp) tmp->ecOption |= 0x01; /* bit 0 of ec-option is NLP */
@@ -4568,8 +4519,9 @@ int mkif(struct cc_capi_conf *conf)
 
 		tmp->next = iflist; /* prepend */
 		iflist = tmp;
-		cc_verbose(2, 0, VERBOSE_PREFIX_3 "capi_pvt %s (%s,%s,%lu,%d) (%d,%d,%d)\n",
-			tmp->vname, tmp->incomingmsn, tmp->context, tmp->controllers,
+		cc_verbose(2, 0, VERBOSE_PREFIX_3 "capi %c %s (%s:%s) contr=%d devs=%d EC=%d,opt=%d,tail=%d\n",
+			(tmp->channeltype == CAPI_CHANNELTYPE_B)? 'B' : 'D',
+			tmp->vname, tmp->incomingmsn, tmp->context, tmp->controller,
 			conf->devices, tmp->doEC, tmp->ecOption, tmp->ecTail);
 	}
 	return 0;
@@ -4804,13 +4756,11 @@ static int pbxcli_capi_info(int fd, int argc, char *argv[])
 		return RESULT_SHOWUSAGE;
 		
 	for (i = 1; i <= capi_num_controllers; i++) {
-		cc_mutex_lock(&contrlock);
 		if (capi_controllers[i] != NULL) {
 			ast_cli(fd, "Contr%d: %d B channels total, %d B channels free.\n",
 				i, capi_controllers[i]->nbchannels,
 				capi_controllers[i]->nfreebchannels);
 		}
-		cc_mutex_unlock(&contrlock);
 	}
 	return RESULT_SUCCESS;
 }
@@ -5039,7 +4989,7 @@ static int cc_init_capi(void)
 			voice_over_ip_profile(cp);
 		}
 		if (privateoptions & 0x04) {
-			cc_verbose(3, 0, VERBOSE_PREFIX_4 "T.38 is supported\n");
+			cc_verbose(3, 0, VERBOSE_PREFIX_4 "T.38 is supported (not implemented yet)\n");
 		}
 
 		capi_controllers[controller] = cp;
@@ -5060,12 +5010,9 @@ static int cc_post_init_capi(void)
 	for (i = iflist; i && !use_rtp; i = i->next) {
 		/* if at least one line wants RTP, we need to re-register with
 		   bigger block size for RTP-header */
-		for (controller = 1; controller <= capi_num_controllers && !use_rtp; controller++) {
-			if (((i->controllers & (1 << controller))) &&
-			     (capi_controllers[controller]->rtpcodec & i->capability)) {
-				cc_verbose(3, 0, VERBOSE_PREFIX_4 "at least one CAPI controller wants RTP.\n");
-				use_rtp = 1;
-			}
+		if (capi_controllers[i->controller]->rtpcodec & i->capability) {
+			cc_verbose(3, 0, VERBOSE_PREFIX_4 "at least one CAPI controller wants RTP.\n");
+			use_rtp = 1;
 		}
 	}
 	if (use_rtp) {

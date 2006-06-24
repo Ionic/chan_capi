@@ -238,9 +238,6 @@ struct capi_pvt {
 	/* on which controller we do live */
 	int controller;
 	
-	/* we could live on those */
-	unsigned long controllers;
-
 	/* send buffer */
 	unsigned char send_buffer[CAPI_MAX_B3_BLOCKS *
 		(CAPI_MAX_B3_BLOCK_SIZE + AST_FRIENDLY_OFFSET)];
