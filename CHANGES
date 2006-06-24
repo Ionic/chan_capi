@@ -1,8 +1,11 @@
 CHANGES
 =======
 
-- removed pipes, using pbx queues now
+- dropped compatiblity to versions before Asterisk-1.2.0
+- added capicommand(echocancel)
+- added CAPI RTP (Eicon DIVA Server cards can do that)
 - added new cli 'capi show channels'
+- a lot of fixes
 
 chan_capi-cm-0.6.5
 ------------------

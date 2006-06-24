@@ -1,20 +1,8 @@
 
 #define PBX_IS_OPBX
 
-#define CC_AST_HAS_TYPE_IN_CHANNEL
 #undef  CC_AST_HAS_STRINGFIELD_IN_CHANNEL
-#define CC_AST_HAVE_TECH_PVT
-#define CC_AST_HAS_BRIDGE_RESULT
-#define CC_AST_BRIDGE_WITH_TIMEOUTMS
-#undef  CC_AST_DSP_PROCESS_NEEDLOCK
-#define CC_AST_CHANNEL_HAS_CID
-#define CC_AST_FRAME_HAS_TIMEVAL
-#define CC_AST_CHANNEL_HAS_TRANSFERCAP
-#define CC_AST_CONTROL_HOLD
 #define CC_AST_CUSTOM_FUNCTION
-#undef  CC_AST_NO_DEVICESTATE
-#undef  CC_AST_NO_STRINGS
-#define CC_AST_GROUP_T
 #undef  CC_AST_HAS_INDICATE_DATA
 
 #define ast_channel                opbx_channel
@@ -109,6 +97,7 @@
 #define ast_cond_timedwait         opbx_cond_timedwait
 #define ast_log                    opbx_log
 #define ast_verbose                opbx_verbose
+#define ast_copy_string            opbx_copy_string
 
 #define AST_FORMAT_ALAW            OPBX_FORMAT_ALAW
 #define AST_FORMAT_ULAW            OPBX_FORMAT_ULAW

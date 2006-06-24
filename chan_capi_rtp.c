@@ -49,9 +49,6 @@
 #include <asterisk/lock.h>
 #include <asterisk/frame.h>
 #include <asterisk/channel.h>
-#ifndef CC_AST_HAVE_TECH_PVT
-#include <asterisk/channel_pvt.h>
-#endif
 #include <asterisk/logger.h>
 #include <asterisk/module.h>
 #include <asterisk/pbx.h>
@@ -60,9 +57,7 @@
 #include <asterisk/features.h>
 #include <asterisk/utils.h>
 #include <asterisk/rtp.h>
-#ifndef CC_AST_NO_STRINGS
 #include <asterisk/strings.h>
-#endif
 #include "chan_capi20.h"
 #include "chan_capi.h"
 #include "chan_capi_rtp.h"

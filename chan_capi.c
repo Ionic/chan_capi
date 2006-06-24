@@ -64,9 +64,6 @@ OPENPBX_FILE_VERSION("$HeadURL$", "$Revision$")
 #include <asterisk/lock.h>
 #include <asterisk/frame.h> 
 #include <asterisk/channel.h>
-#ifndef CC_AST_HAVE_TECH_PVT
-#include <asterisk/channel_pvt.h>
-#endif
 #include <asterisk/logger.h>
 #include <asterisk/module.h>
 #include <asterisk/pbx.h>
@@ -77,13 +74,9 @@ OPENPBX_FILE_VERSION("$HeadURL$", "$Revision$")
 #include <asterisk/cli.h>
 #include <asterisk/rtp.h>
 #include <asterisk/causes.h>
-#ifndef CC_AST_NO_STRINGS
 #include <asterisk/strings.h>
-#endif
 #include <asterisk/dsp.h>
-#ifndef CC_AST_NO_DEVICESTATE
 #include <asterisk/devicestate.h>
-#endif
 #include "xlaw.h"
 #include "chan_capi20.h"
 #include "chan_capi.h"
@@ -110,14 +103,9 @@ static char *ccdesc = "Common ISDN API for OpenPBX";
 #else
 static char *ccdesc = "Common ISDN API for Asterisk";
 #endif
-#ifdef CC_AST_HAVE_TECH_PVT
 static const char tdesc[] = "Common ISDN API Driver (" CC_VERSION ")";
 static const char channeltype[] = "CAPI";
 static const struct ast_channel_tech capi_tech;
-#else
-static char *tdesc = "Common ISDN API Driver (" CC_VERSION ")";
-static char *channeltype = "CAPI";
-#endif
 
 static char *commandtdesc = "CAPI command interface.";
 static char *commandapp = "capiCommand";
@@ -481,7 +469,6 @@ static unsigned ListenOnController(unsigned long CIPmask, unsigned controller)
 	return error;
 }
 
-#ifdef CC_AST_CHANNEL_HAS_TRANSFERCAP
 /*
  *  TCAP -> CIP Translation Table (TransferCapability->CommonIsdnProfile)
  */
@@ -584,7 +571,6 @@ static char *transfercapability2str(int transfercapability)
 		return "UNKNOWN";
 	}
 }
-#endif /* CC_AST_CHANNEL_HAS_TRANSFERCAP */
 
 /*
  * Echo cancellation is for cards w/ integrated echo cancellation only
@@ -625,13 +611,11 @@ static void capi_echo_canceller(struct ast_channel *c, int function)
 	}
 	cc_mutex_unlock(&contrlock);
 
-#ifdef CC_AST_CHANNEL_HAS_TRANSFERCAP
 	if (tcap_is_digital(c->transfercapability)) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: No echo canceller in digital mode (PLCI=%#x)\n",
 			i->vname, i->PLCI);
 		return;
 	}
-#endif
 
 	cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: Setting up echo canceller (PLCI=%#x, function=%d, options=%d, tail=%d)\n",
 			i->vname, i->PLCI, function, i->ecOption, i->ecTail);
@@ -675,13 +659,11 @@ static int capi_detect_dtmf(struct ast_channel *c, int flag)
 	if ((i->isdnstate & CAPI_ISDN_STATE_DISCONNECT))
 		return 0;
 
-#ifdef CC_AST_CHANNEL_HAS_TRANSFERCAP
 	if (tcap_is_digital(c->transfercapability)) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: No dtmf-detect in digital mode (PLCI=%#x)\n",
 			i->vname, i->PLCI);
 		return 0;
 	}
-#endif
 	memset(buf, 0, sizeof(buf));
 	
 	/* does the controller support dtmf? and do we want to use it? */
@@ -1302,12 +1284,9 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 		return -1;
 	}
 
-#ifdef CC_AST_CHANNEL_HAS_CID
 	CLIR = c->cid.cid_pres;
 	callernplan = c->cid.cid_ton & 0x7f;
-#else    
-	CLIR = c->callingpres;
-#endif
+
 	if ((ton = pbx_builtin_getvar_helper(c, "CALLERTON"))) {
 		callernplan = atoi(ton) & 0x7f;
 	}
@@ -1334,16 +1313,12 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 	i->MessageNumber = get_capi_MessageNumber();
 	CONNECT_REQ_HEADER(&CMSG, capi_ApplID, i->MessageNumber, i->controller);
 	CONNECT_REQ_CONTROLLER(&CMSG) = i->controller;
-#ifdef CC_AST_CHANNEL_HAS_TRANSFERCAP
 	CONNECT_REQ_CIPVALUE(&CMSG) = tcap2cip(c->transfercapability);
 	if (tcap_is_digital(c->transfercapability)) {
 		i->bproto = CC_BPROTO_TRANSPARENT;
 		cc_verbose(4, 0, VERBOSE_PREFIX_2 "%s: is digital call, set proto to TRANSPARENT\n",
 			i->vname);
 	}
-#else
-	CONNECT_REQ_CIPVALUE(&CMSG) = 0x10; /* Telephony */
-#endif
 	if ((i->doOverlap) && (strlen(dest))) {
 		cc_copy_string(i->overlapdigits, dest, sizeof(i->overlapdigits));
 		called[0] = 1;
@@ -1356,15 +1331,11 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 	CONNECT_REQ_CALLEDPARTYNUMBER(&CMSG) = (_cstruct)called;
 	CONNECT_REQ_CALLEDPARTYSUBADDRESS(&CMSG) = (_cstruct)dsa;
 
-#ifdef CC_AST_CHANNEL_HAS_CID
-	if (c->cid.cid_num) 
+	if (c->cid.cid_num) {
 		cc_copy_string(callerid, c->cid.cid_num, sizeof(callerid));
-#else
-	if (c->callerid) 
-		cc_copy_string(callerid, c->callerid, sizeof(callerid));
-#endif
-	else
+	} else {
 		memset(callerid, 0, sizeof(callerid));
+	}
 
 	if (use_defaultcid) {
 		cc_copy_string(callerid, i->defaultcid, sizeof(callerid));
@@ -1472,9 +1443,7 @@ static int pbx_capi_answer(struct ast_channel *c)
 	i->bproto = CC_BPROTO_TRANSPARENT;
 
 	if (i->rtp) {
-#ifdef CC_AST_CHANNEL_HAS_TRANSFERCAP	
 		if (!tcap_is_digital(c->transfercapability))
-#endif
 			i->bproto = CC_BPROTO_RTP;
 	}
 
@@ -1528,11 +1497,7 @@ static struct ast_frame *pbx_capi_read(struct ast_channel *c)
 		}
 		f->data = i->frame_data + AST_FRIENDLY_OFFSET;
 		if ((i->doDTMF > 0) && (i->vad != NULL) ) {
-#ifdef CC_AST_DSP_PROCESS_NEEDLOCK 
-			f = ast_dsp_process(c, i->vad, f, 0);
-#else
 			f = ast_dsp_process(c, i->vad, f);
-#endif
 		}
 	}
 	return f;
@@ -1615,11 +1580,7 @@ static int pbx_capi_write(struct ast_channel *c, struct ast_frame *f)
 		DATA_B3_REQ_DATA(&CMSG) = buf;
 		i->send_buffer_handle++;
 
-#ifdef CC_AST_CHANNEL_HAS_TRANSFERCAP	
 		if ((i->doES == 1) && (!tcap_is_digital(c->transfercapability))) {
-#else
-		if ((i->doES == 1)) {
-#endif
 			for (j = 0; j < fsmooth->datalen; j++) {
 				buf[j] = reversebits[ ((unsigned char *)fsmooth->data)[j] ]; 
 				if (capi_capability == AST_FORMAT_ULAW) {
@@ -1634,11 +1595,7 @@ static int pbx_capi_write(struct ast_channel *c, struct ast_frame *f)
 			}
 			i->txavg[ECHO_TX_COUNT - 1] = txavg;
 		} else {
-#ifdef CC_AST_CHANNEL_HAS_TRANSFERCAP	
 			if ((i->txgain == 1.0) || (!tcap_is_digital(c->transfercapability))) {
-#else
-			if (i->txgain == 1.0) {
-#endif
 				for (j = 0; j < fsmooth->datalen; j++) {
 					buf[j] = reversebits[((unsigned char *)fsmooth->data)[j]];
 				}
@@ -1831,11 +1788,8 @@ static void cc_unset_transparent(struct capi_pvt *i, int rtpwanted)
 static CC_BRIDGE_RETURN pbx_capi_bridge(struct ast_channel *c0,
                                     struct ast_channel *c1,
                                     int flags, struct ast_frame **fo,
-				    struct ast_channel **rc
-#ifdef CC_AST_BRIDGE_WITH_TIMEOUTMS
-                                    , int timeoutms
-#endif
-				    )
+				    struct ast_channel **rc,
+                                    int timeoutms)
 {
 	struct capi_pvt *i0 = CC_CHANNEL_PVT(c0);
 	struct capi_pvt *i1 = CC_CHANNEL_PVT(c1);
@@ -1884,21 +1838,13 @@ static CC_BRIDGE_RETURN pbx_capi_bridge(struct ast_channel *c0,
 		int priority = 0;
 		struct ast_frame *f;
 		struct ast_channel *who;
-#ifndef CC_AST_BRIDGE_WITH_TIMEOUTMS
-		int timeoutms;
 
-		timeoutms = -1;
-#endif
 		who = ast_waitfor_n(priority ? c0_priority : c1_priority, 2, &timeoutms);
 		if (!who) {
-#ifdef CC_AST_BRIDGE_WITH_TIMEOUTMS
 			if (!timeoutms) {
 				ret = AST_BRIDGE_RETRY;
 				break;
 			}
-#else
-			cc_log(LOG_DEBUG, "Ooh, empty read...\n");
-#endif
 			continue;
 		}
 		f = ast_read(who);
@@ -1952,13 +1898,6 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 		cc_log(LOG_ERROR,"Unable to allocate channel!\n");
 		return(NULL);
 	}
-#ifndef CC_AST_HAVE_TECH_PVT
-	if (tmp->pvt == NULL) {
-	    	cc_log(LOG_ERROR, "CAPI: pvt structure not allocated.\n");
-		ast_channel_free(tmp);
-		return NULL;
-	}
-#endif
 
 #ifdef CC_AST_HAS_STRINGFIELD_IN_CHANNEL
 	ast_string_field_build(tmp, name, "CAPI/%s/%s-%x",
@@ -1967,9 +1906,7 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 	snprintf(tmp->name, sizeof(tmp->name) - 1, "CAPI/%s/%s-%x",
 		i->vname, i->dnid, capi_counter++);
 #endif
-#ifdef CC_AST_HAS_TYPE_IN_CHANNEL
 	tmp->type = channeltype;
-#endif
 
 	if (pipe(fds) != 0) {
 		cc_log(LOG_ERROR, "%s: unable to create pipe.\n",
@@ -2028,30 +1965,17 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 	tmp->readformat = fmt;
 	tmp->writeformat = fmt;
 
-#ifdef CC_AST_HAVE_TECH_PVT
 	tmp->tech = &capi_tech;
 	tmp->rawreadformat = fmt;
 	tmp->rawwriteformat = fmt;
-#else
-	tmp->pvt->call = pbx_capi_call;
-	tmp->pvt->fixup = pbx_capi_fixup;
-	tmp->pvt->indicate = pbx_capi_indicate;
-	tmp->pvt->bridge = pbx_capi_bridge;
-	tmp->pvt->answer = pbx_capi_answer;
-	tmp->pvt->hangup = pbx_capi_hangup;
-	tmp->pvt->read = pbx_capi_read;
-	tmp->pvt->write = pbx_capi_write;
-	tmp->pvt->send_digit = pbx_capi_send_digit;
-	tmp->pvt->rawreadformat = fmt;
-	tmp->pvt->rawwriteformat = fmt;
-#endif
+
 	cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: setting format %s - %s%s\n",
 		i->vname, ast_getformatname(fmt),
 		ast_getformatname_multiple(alloca(80), 80,
 		tmp->nativeformats),
 		(i->rtp) ? " (RTP)" : "");
 	cc_copy_string(tmp->context, i->context, sizeof(tmp->context));
-#ifdef CC_AST_CHANNEL_HAS_CID
+
 	if (!ast_strlen_zero(i->cid)) {
 		if (tmp->cid.cid_num) {
 			free(tmp->cid.cid_num);
@@ -2065,20 +1989,6 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 		tmp->cid.cid_dnid = strdup(i->dnid);
 	}
 	tmp->cid.cid_ton = i->cid_ton;
-#else
-	if (!ast_strlen_zero(i->cid)) {
-		if (tmp->callerid) {
-			free(tmp->callerid);
-		}
-		tmp->callerid = strdup(i->cid);
-	}
-	if (!ast_strlen_zero(i->dnid)) {
-		if (tmp->dnid) {
-			free(tmp->dnid);
-		}
-		tmp->dnid = strdup(i->dnid);
-	}
-#endif
 	
 	cc_copy_string(tmp->exten, i->dnid, sizeof(tmp->exten));
 #ifdef CC_AST_HAS_STRINGFIELD_IN_CHANNEL
@@ -2103,12 +2013,7 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
  * PBX wants us to dial ...
  */
 static struct ast_channel *
-
-#ifdef CC_AST_HAVE_TECH_PVT
 pbx_capi_request(const char *type, int format, void *data, int *cause)
-#else
-pbx_capi_request(char *type, int format, void *data)
-#endif
 {
 	struct capi_pvt *i;
 	struct ast_channel *tmp = NULL;
@@ -2126,9 +2031,7 @@ pbx_capi_request(char *type, int format, void *data)
 
 	if ((!interface) || (!dest)) {
 		cc_log(LOG_ERROR, "Syntax error in dialstring. Read the docs!\n");
-#ifdef CC_AST_HAVE_TECH_PVT
 		*cause = AST_CAUSE_INVALID_NUMBER_FORMAT;
-#endif
 		return NULL;
 	}
 
@@ -2205,9 +2108,7 @@ pbx_capi_request(char *type, int format, void *data)
 	cc_mutex_unlock(&iflock);
 	cc_verbose(2, 0, VERBOSE_PREFIX_3 "didn't find capi device for interface '%s'\n",
 		interface);
-#ifdef CC_AST_HAVE_TECH_PVT
 	*cause = AST_CAUSE_REQUESTED_CHAN_UNAVAIL;
-#endif
 	return NULL;
 }
 
@@ -2814,17 +2715,10 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 			snprintf(reasonbuf, sizeof(reasonbuf) - 1, "%d", val); 
 			pbx_builtin_setvar_helper(i->owner, "REDIRECTINGNUMBER", p);
 			pbx_builtin_setvar_helper(i->owner, "REDIRECTREASON", reasonbuf);
-#ifdef CC_AST_CHANNEL_HAS_CID
 			if (i->owner->cid.cid_rdnis) {
 				free(i->owner->cid.cid_rdnis);
 			}
 			i->owner->cid.cid_rdnis = strdup(p);
-#else
-			if (i->owner->rdnis) {
-				free(i->owner->rdnis);
-			}
-			i->owner->rdnis = strdup(p);
-#endif
 		}
 		break;
 	case 0x00a1:	/* Sending Complete */
@@ -3156,10 +3050,7 @@ static void capidev_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, un
 	fr.samples = b3len;
 	fr.offset = AST_FRIENDLY_OFFSET;
 	fr.mallocd = 0;
-#ifdef CC_AST_FRAME_HAS_TIMEVAL
-	fr.delivery.tv_sec = 0;
-	fr.delivery.tv_usec = 0;
-#endif
+	fr.delivery = ast_tv(0,0);
 	fr.src = NULL;
 	cc_verbose(8, 1, VERBOSE_PREFIX_3 "%s: DATA_B3_IND (len=%d) fr.datalen=%d fr.subclass=%d\n",
 		i->vname, b3len, fr.datalen, fr.subclass);
@@ -3545,18 +3436,11 @@ static void capidev_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, un
 				interface_cleanup(i);
 				break;
 			}
-#ifdef CC_AST_CHANNEL_HAS_TRANSFERCAP	
  			i->owner->transfercapability = cip2tcap(i->cip);
 			if (tcap_is_digital(i->owner->transfercapability)) {
 				i->bproto = CC_BPROTO_TRANSPARENT;
 			}
-#else
-#endif
-#ifdef CC_AST_CHANNEL_HAS_CID
 			i->owner->cid.cid_pres = callpres;
-#else    
-			i->owner->callingpres = callpres;
-#endif
 			cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: Incoming call '%s' -> '%s'\n",
 				i->vname, i->cid, i->dnid);
 
@@ -3564,9 +3448,7 @@ static void capidev_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, un
 			cc_mutex_unlock(&iflock);
 			cc_mutex_lock(&i->lock);
 		
-#ifdef CC_AST_CHANNEL_HAS_TRANSFERCAP	
 			pbx_builtin_setvar_helper(i->owner, "TRANSFERCAPABILITY", transfercapability2str(i->owner->transfercapability));
-#endif
 			pbx_builtin_setvar_helper(i->owner, "BCHANNELINFO", bchannelinfo);
 			sprintf(buffer, "%d", callednplan);
 			pbx_builtin_setvar_helper(i->owner, "CALLEDTON", buffer);
@@ -3964,11 +3846,7 @@ static int pbx_capi_retrieve(struct ast_channel *c, char *param)
 	char	fac[4];
 	unsigned int plci = 0;
 
-#ifdef CC_AST_HAVE_TECH_PVT
 	if (c->tech->type == channeltype) {
-#else
-	if (!(strcmp(c->type, "CAPI"))) {
-#endif
 		plci = i->onholdPLCI;
 	} else {
 		i = NULL;
@@ -4378,11 +4256,7 @@ static int pbx_capicommand_exec(struct ast_channel *chan, void *data)
 		return -1;
 	}
 
-#ifdef CC_AST_HAVE_TECH_PVT
 	if ((capicmd->capionly) && (chan->tech->type != channeltype)) {
-#else
-	if ((capicmd->capionly) && (strcmp(chan->type, "CAPI"))) {
-#endif
 		LOCAL_USER_REMOVE(u);
 		cc_log(LOG_WARNING, "capiCommand works on CAPI channels only, check your extensions.conf!\n");
 		return -1;
@@ -4470,7 +4344,6 @@ static int pbx_capi_indicate(struct ast_channel *c, int condition)
 			i->vname, c->name);
 		if (i->ntmode) pbx_capi_signal_progress(c, NULL);
 		break;
-#ifdef CC_AST_CONTROL_HOLD
 	case AST_CONTROL_HOLD:
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested HOLD-Indication for %s\n",
 			i->vname, c->name);
@@ -4485,7 +4358,6 @@ static int pbx_capi_indicate(struct ast_channel *c, int condition)
 			ret = pbx_capi_retrieve(c, NULL);
 		}
 		break;
-#endif
 	case -1: /* stop indications */
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested Indication-STOP for %s\n",
 			i->vname, c->name);
@@ -4501,7 +4373,6 @@ static int pbx_capi_indicate(struct ast_channel *c, int condition)
 	return(ret);
 }
 
-#ifndef CC_AST_NO_DEVICESTATE
 /*
  * PBX wants to know the state for a specific device
  */
@@ -4519,7 +4390,6 @@ static int pbx_capi_devicestate(void *data)
 
 	return res;
 }
-#endif
 
 /*
  * module stuff, monitor...
@@ -5004,7 +4874,6 @@ static struct ast_cli_entry  cli_debug =
 static struct ast_cli_entry  cli_no_debug =
 	{ { "capi", "no", "debug", NULL }, pbxcli_capi_no_debug, "Disable CAPI debugging", no_debug_usage };
 
-#ifdef CC_AST_HAVE_TECH_PVT
 static const struct ast_channel_tech capi_tech = {
 	.type = channeltype,
 	.description = tdesc,
@@ -5022,11 +4891,8 @@ static const struct ast_channel_tech capi_tech = {
 	.indicate = pbx_capi_indicate,
 	.fixup = pbx_capi_fixup,
 	.setoption = NULL,
-#ifndef CC_AST_NO_DEVICESTATE
 	.devicestate = pbx_capi_devicestate,
-#endif
 };
-#endif
 
 /*
  * register at CAPI interface
@@ -5494,11 +5360,7 @@ int unload_module()
 
 	cc_mutex_unlock(&iflock);
 	
-#ifdef CC_AST_HAVE_TECH_PVT
 	ast_channel_unregister(&capi_tech);
-#else
-	ast_channel_unregister(channeltype);
-#endif
 	
 	return 0;
 }
@@ -5546,11 +5408,7 @@ int load_module(void)
 	
 	cc_mutex_unlock(&iflock);
 	
-#ifdef CC_AST_HAVE_TECH_PVT
 	if (ast_channel_register(&capi_tech)) {
-#else	
-	if (ast_channel_register(channeltype, tdesc, capi_capability, pbx_capi_request)) {
-#endif
 		cc_log(LOG_ERROR, "Unable to register channel class %s\n", channeltype);
 		unload_module();
 		return -1;

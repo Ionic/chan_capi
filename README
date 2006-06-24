@@ -27,6 +27,9 @@ Hans Petter Selasky
 
 (...and all the others that have been forgotten...) :-)
 
+No support for Asterisk 1.0.x any more, you need at least
+Asterisk 1.2.x
+
 This chan_capi version includes:
 ================================
 - Multiple controller support

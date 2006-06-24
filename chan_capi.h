@@ -75,47 +75,25 @@ static inline unsigned int read_capi_dword(void *m)
 #define cc_mutex_destroy(x)       ast_mutex_destroy(x)
 #define cc_log(x...)              ast_log(x)
 #define cc_pbx_verbose(x...)      ast_verbose(x)
-#ifdef PBX_IS_OPBX
-#define cc_copy_string(dst, src, size)  opbx_copy_string(dst, src, size)
-#else
-#ifdef CC_AST_NO_STRINGS
-#define cc_copy_string(dst, src, size)  strncpy(dst, src, size -1)
-#else
 #define cc_copy_string(dst, src, size)  ast_copy_string(dst, src, size)
-#endif
-#endif
 
 #ifdef PBX_IS_OPBX
 #define CC_CHANNEL_PVT(c) (c)->tech_pvt
-#else
+
+#else /* PBX_IS_OPBX */
+
 #ifndef AST_MUTEX_DEFINE_STATIC
 #define AST_MUTEX_DEFINE_STATIC(mutex)		\
 	static cc_mutex_t mutex = AST_MUTEX_INITIALIZER
 #endif
 
 /*
- * definitions for compatibility with older versions of ast*
+ * definitions for nice compatibility
  */
-#ifdef CC_AST_HAVE_TECH_PVT
 #define CC_CHANNEL_PVT(c) (c)->tech_pvt
-#else
-#define CC_CHANNEL_PVT(c) (c)->pvt->pvt
-#endif
-
-#ifdef CC_AST_HAS_BRIDGE_RESULT
 #define CC_BRIDGE_RETURN enum ast_bridge_result
-#else
-#define CC_BRIDGE_RETURN int
-#define AST_BRIDGE_COMPLETE        0
-#define AST_BRIDGE_FAILED         -1
-#define AST_BRIDGE_FAILED_NOWARN  -2
-#define AST_BRIDGE_RETRY          -3
-#endif
 
-#ifndef CC_AST_GROUP_T
-#define ast_group_t unsigned int
-#endif
-#endif
+#endif /* PBX_IS_OPBX */
 
 /*
  * prototypes
