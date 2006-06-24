@@ -658,29 +658,42 @@ static int capi_detect_dtmf(struct ast_channel *c, int flag)
 			i->vname, i->PLCI);
 		return 0;
 	}
-	memset(buf, 0, sizeof(buf));
+
+	if (((flag == 1) && (i->isdnstate & CAPI_ISDN_STATE_DTMF)) ||
+	    ((flag == 0) && (!(i->isdnstate & CAPI_ISDN_STATE_DTMF)))) {
+		cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: dtmf (PLCI=%#x, flag=%d) unchanged\n",
+			i->vname, i->PLCI, flag);
+		/* nothing to do */
+		return 0;
+	}
 	
 	/* does the controller support dtmf? and do we want to use it? */
+	if ((capi_controllers[i->controller]->dtmf != 1) || (i->doDTMF != 0))
+		return 0;
 	
-	if ((capi_controllers[i->controller]->dtmf == 1) && (i->doDTMF == 0)) {
-		cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: Setting up DTMF detector (PLCI=%#x, flag=%d)\n",
-			i->vname, i->PLCI, flag);
-		FACILITY_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
-		FACILITY_REQ_PLCI(&CMSG) = i->PLCI;
-		FACILITY_REQ_FACILITYSELECTOR(&CMSG) = FACILITYSELECTOR_DTMF;
-		buf[0] = 8; /* msg length */
-		if (flag == 1) {
-			write_capi_word(&buf[1], 1); /* start DTMF listen */
-		} else {
-			write_capi_word(&buf[1], 2); /* stop DTMF listen */
-		}
-		write_capi_word(&buf[3], CAPI_DTMF_DURATION);
-		write_capi_word(&buf[5], CAPI_DTMF_DURATION);
-		FACILITY_REQ_FACILITYREQUESTPARAMETER(&CMSG) = (_cstruct)buf;
+	memset(buf, 0, sizeof(buf));
+	cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: Setting up DTMF detector (PLCI=%#x, flag=%d)\n",
+		i->vname, i->PLCI, flag);
+	FACILITY_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
+	FACILITY_REQ_PLCI(&CMSG) = i->PLCI;
+	FACILITY_REQ_FACILITYSELECTOR(&CMSG) = FACILITYSELECTOR_DTMF;
+	buf[0] = 8; /* msg length */
+	if (flag == 1) {
+		write_capi_word(&buf[1], 1); /* start DTMF listen */
+	} else {
+		write_capi_word(&buf[1], 2); /* stop DTMF listen */
+	}
+	write_capi_word(&buf[3], CAPI_DTMF_DURATION);
+	write_capi_word(&buf[5], CAPI_DTMF_DURATION);
+	FACILITY_REQ_FACILITYREQUESTPARAMETER(&CMSG) = (_cstruct)buf;
         
-		if ((error = _capi_put_cmsg(&CMSG)) != 0) {
-			return error;
-		}
+	if ((error = _capi_put_cmsg(&CMSG)) != 0) {
+		return error;
+	}
+	if (flag == 1) {
+		i->isdnstate |= CAPI_ISDN_STATE_DTMF;
+	} else {
+		i->isdnstate &= ~CAPI_ISDN_STATE_DTMF;
 	}
 	return 0;
 }
@@ -921,6 +934,7 @@ static void interface_cleanup(struct capi_pvt *i)
 	i->rtpcodec = 0;
 	if (i->rtp) {
 		ast_rtp_destroy(i->rtp);
+		i->rtp = NULL;
 	}
 
 	i->owner = NULL;
