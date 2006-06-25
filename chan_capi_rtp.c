@@ -252,7 +252,7 @@ int capi_write_rtp(struct ast_channel *c, struct ast_frame *f)
 		rtpheader = (unsigned int *)buf;
 		
 		rtpheader[1] = htonl(i->timestamp);
-		i->timestamp += (len - RTP_HEADER_SIZE);
+		i->timestamp += CAPI_MAX_B3_BLOCK_SIZE;
 			
 		if (len > (CAPI_MAX_B3_BLOCK_SIZE + RTP_HEADER_SIZE)) {
 			cc_verbose(4, 0, VERBOSE_PREFIX_4 "%s: rtp write data: frame too big (len = %d).\n",
