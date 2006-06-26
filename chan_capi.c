@@ -1023,20 +1023,11 @@ static void send_progress(struct capi_pvt *i)
 /*
  * hangup a line (CAPI messages)
  */
-static void capi_activehangup(struct ast_channel *c)
+static void capi_activehangup(struct ast_channel *c, int state)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	_cmsg CMSG;
-	int state;
 	const char *cause;
-
-	if (i == NULL) {
-		cc_log(LOG_WARNING, "No interface!\n");
-		return;
-	}
-
-	state = i->state;
-	i->state = CAPI_STATE_DISCONNECTING;
 
 	i->cause = c->hangupcause;
 	if ((cause = pbx_builtin_getvar_helper(c, "PRI_CAUSE"))) {
@@ -1087,6 +1078,7 @@ static int pbx_capi_hangup(struct ast_channel *c)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	int cleanup = 0;
+	int state;
 
 	/*
 	 * hmm....ok...this is called to free the capi interface (passive disconnect)
@@ -1098,40 +1090,46 @@ static int pbx_capi_hangup(struct ast_channel *c)
 		return -1;
 	}
 
+	cc_mutex_lock(&i->lock);
+
+	state = i->state;
+
 	cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: CAPI Hangingup for PLCI=%#x in state %d\n",
-		i->vname, i->PLCI, i->state);
-  
+		i->vname, i->PLCI, state);
+ 
 	/* are we down, yet? */
-	if (i->state != CAPI_STATE_DISCONNECTED) {
+	if (state != CAPI_STATE_DISCONNECTED) {
 		/* no */
-		capi_activehangup(c);
+		i->state = CAPI_STATE_DISCONNECTING;
 	} else {
 		cleanup = 1;
 	}
 	
+	ast_update_use_count();
+	
+	CC_CHANNEL_PVT(c) = NULL;
+	ast_setstate(c, AST_STATE_DOWN);
+
 	if ((i->doDTMF > 0) && (i->vad != NULL)) {
 		ast_dsp_free(i->vad);
 		i->vad = NULL;
 	}
 	
-	cc_mutex_lock(&usecnt_lock);
-	usecnt--;
-	cc_mutex_unlock(&usecnt_lock);
-	
-	ast_update_use_count();
-	
-	cc_mutex_lock(&i->lock);
-
-	CC_CHANNEL_PVT(c) = NULL;
-	ast_setstate(c, AST_STATE_DOWN);
-
 	if (cleanup) {
 		/* disconnect already done, so cleanup */
 		interface_cleanup(i);
 	}
-
 	cc_mutex_unlock(&i->lock);
 
+	if (!cleanup) {
+		/* not disconnected yet, we must actively do it */
+		capi_activehangup(c, state);
+	}
+
+	cc_mutex_lock(&usecnt_lock);
+	usecnt--;
+	cc_mutex_unlock(&usecnt_lock);
+	
 	return 0;
 }
 
@@ -1237,8 +1235,6 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 	cc_copy_string(buffer, idest, sizeof(buffer));
 	parse_dialstring(buffer, &interface, &dest, &param, &ocid);
 
-	cc_mutex_lock(&i->lock);
-
 	/* init param settings */
 	i->doB3 = CAPI_B3_DONT;
 	i->doOverlap = 0;
@@ -1275,7 +1271,6 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 	}
 	if (((!dest) || (!dest[0])) && (i->doB3 != CAPI_B3_ALWAYS)) {
 		cc_log(LOG_ERROR, "No destination or dialtone requested in '%s'\n", idest);
-		cc_mutex_unlock(&i->lock);
 		return -1;
 	}
 
@@ -1289,9 +1284,6 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 		i->vname, c->name, i->doB3 ? "with B3 ":" ",
 		i->doOverlap ? "overlap":"", CLIR, callernplan);
 
-	i->outgoing = 1;
-	i->isdnstate |= CAPI_ISDN_STATE_PBX;
-	
 	if ((p = pbx_builtin_getvar_helper(c, "CALLINGSUBADDRESS"))) {
 		callingsubaddress[0] = strlen(p) + 1;
 		callingsubaddress[1] = 0x80;
@@ -1359,6 +1351,11 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 	bchaninfo[2] = 0x0;
 	CONNECT_REQ_BCHANNELINFORMATION(&CMSG) = (_cstruct)bchaninfo; /* 0 */
 
+	cc_mutex_lock(&i->lock);
+
+	i->outgoing = 1;
+	i->isdnstate |= CAPI_ISDN_STATE_PBX;
+	
         if ((error = _capi_put_cmsg_wait_conf(i, &CMSG))) {
 		cc_mutex_unlock(&i->lock);
 		return error;
