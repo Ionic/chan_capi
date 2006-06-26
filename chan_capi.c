@@ -2653,6 +2653,12 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 			case 2:
 				desc = "Bearer service changed";
 				break;
+			case 0xf9:
+				desc = "User put on hold";
+				break;
+			case 0xfa:
+				desc = "User retrieved from hold";
+				break;
 			}
 		}
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element NOTIFICATION INDICATOR '%s' (0x%02x)\n",
