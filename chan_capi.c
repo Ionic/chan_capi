@@ -237,6 +237,30 @@ static struct {
 	}
 };
 
+#ifndef CC_HAVE_NO_GLOBALCONFIGURATION
+/*
+ * set the global-configuration (b-channel operation)
+ */
+static _cstruct capi_set_global_configuration(struct capi_pvt *i)
+{
+	unsigned short dtedce = 0;
+	unsigned char *buf = i->tmpbuf;
+
+	buf[0] = 2; /* len */
+
+	if (i->FaxState & CAPI_FAX_STATE_ACTIVE) {
+		if ((i->outgoing) && (!(i->FaxState & CAPI_FAX_STATE_SENDMODE)))
+			dtedce = 2;
+		if ((!(i->outgoing)) && ((i->FaxState & CAPI_FAX_STATE_SENDMODE)))
+			dtedce = 1;
+	}
+	write_capi_word(&buf[1], dtedce);
+	if (dtedce == 0)
+		buf = NULL;
+	return (_cstruct)buf;
+}
+#endif
+
 /*
  * command to string function
  */
@@ -1409,6 +1433,9 @@ static int capi_send_answer(struct ast_channel *c, _cstruct b3conf)
 	if (!b3conf)
 		b3conf = b_protocol_table[i->bproto].b3configuration;
 	CONNECT_RESP_B3CONFIGURATION(&CMSG) = b3conf;
+#ifndef CC_HAVE_NO_GLOBALCONFIGURATION
+	CONNECT_RESP_GLOBALCONFIGURATION(&CMSG) = capi_set_global_configuration(i);
+#endif
 
 	cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: Answering for %s\n",
 		i->vname, dnid);
@@ -1535,7 +1562,7 @@ static int pbx_capi_write(struct ast_channel *c, struct ast_frame *f)
 		return 0;
 	}
 	if (i->FaxState & CAPI_FAX_STATE_ACTIVE) {
-		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: write on fax_receive?\n",
+		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: write on fax activity?\n",
 			i->vname);
 		return 0;
 	}
@@ -1650,6 +1677,9 @@ static void cc_select_b(struct capi_pvt *i, _cstruct b3conf)
 	if (!b3conf)
 		b3conf = b_protocol_table[i->bproto].b3configuration;
 	SELECT_B_PROTOCOL_REQ_B3CONFIGURATION(&CMSG) = b3conf;
+#ifndef CC_HAVE_NO_GLOBALCONFIGURATION
+	SELECT_B_PROTOCOL_REQ_GLOBALCONFIGURATION(&CMSG) = capi_set_global_configuration(i);
+#endif
 
 	_capi_put_cmsg(&CMSG);
 }
@@ -2110,6 +2140,7 @@ static void capi_change_bchan_fax(struct ast_channel *c, B3_PROTO_FAXG3 *b3conf)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 
+	i->isdnstate |= CAPI_ISDN_STATE_B3_SELECT;
 	cc_disconnect_b3(i, 1);
 	cc_select_b(i, (_cstruct)b3conf);
 	return;
@@ -2124,13 +2155,12 @@ static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 	int res = 0;
 	char *filename, *stationid, *headline;
 	B3_PROTO_FAXG3 b3conf;
+	char buffer[CAPI_MAX_STRING];
 
 	if (!data) { /* no data implies no filename or anything is present */
 		cc_log(LOG_WARNING, "capi receivefax requires a filename\n");
 		return -1;
 	}
-
-	cc_mutex_lock(&i->lock);
 
 	filename = strsep(&data, "|");
 	stationid = strsep(&data, "|");
@@ -2142,7 +2172,6 @@ static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 		headline = emptyid;
 
 	if ((i->fFax = fopen(filename, "wb")) == NULL) {
-		cc_mutex_unlock(&i->lock);
 		cc_log(LOG_WARNING, "can't create fax output file (%s)\n", strerror(errno));
 		return -1;
 	}
@@ -2156,16 +2185,13 @@ static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 	case CAPI_STATE_ALERTING:
 	case CAPI_STATE_DID:
 	case CAPI_STATE_INCALL:
-		cc_mutex_unlock(&i->lock);
 		capi_send_answer(c, (_cstruct)&b3conf);
 		break;
 	case CAPI_STATE_CONNECTED:
-		cc_mutex_unlock(&i->lock);
 		capi_change_bchan_fax(c, &b3conf);
 		break;
 	default:
 		i->FaxState &= ~CAPI_FAX_STATE_ACTIVE;
-		cc_mutex_unlock(&i->lock);
 		cc_log(LOG_WARNING, "capi receive fax in wrong state (%d)\n",
 			i->state);
 		return -1;
@@ -2175,12 +2201,12 @@ static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 		usleep(10000);
 	}
 
-	res = (i->FaxState & CAPI_FAX_STATE_ERROR) ? -1 : 0;
+	res = (i->FaxState & CAPI_FAX_STATE_ERROR) ? 1 : 0;
 	i->FaxState &= ~(CAPI_FAX_STATE_ACTIVE | CAPI_FAX_STATE_ERROR);
 
 	/* if the file has zero length */
 	if (ftell(i->fFax) == 0L) {
-		res = -1;
+		res = 1;
 	}
 			
 	cc_verbose(2, 1, VERBOSE_PREFIX_3 "Closing fax file...\n");
@@ -2196,8 +2222,91 @@ static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 		cc_verbose(2, 0,
 			VERBOSE_PREFIX_1 "capi receivefax: fax receive successful.\n");
 	}
+	snprintf(buffer, CAPI_MAX_STRING-1, "%d", res);
+	pbx_builtin_setvar_helper(c, "FAXSTATUS", buffer);
 	
-	return res;
+	return 0;
+}
+
+/*
+ * capicommand 'sendfax'
+ */
+static int pbx_capi_send_fax(struct ast_channel *c, char *data)
+{
+	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+	int res = 0;
+	char *filename, *stationid, *headline;
+	B3_PROTO_FAXG3 b3conf;
+	char buffer[CAPI_MAX_STRING];
+
+	if (!data) { /* no data implies no filename or anything is present */
+		cc_log(LOG_WARNING, "capi sendfax requires a filename\n");
+		return -1;
+	}
+
+	filename = strsep(&data, "|");
+	stationid = strsep(&data, "|");
+	headline = data;
+
+	if (!stationid)
+		stationid = emptyid;
+	if (!headline)
+		headline = emptyid;
+
+	if ((i->fFax = fopen(filename, "rb")) == NULL) {
+		cc_log(LOG_WARNING, "can't open fax file (%s)\n", strerror(errno));
+		return -1;
+	}
+
+	i->FaxState |= (CAPI_FAX_STATE_ACTIVE | CAPI_FAX_STATE_SENDMODE);
+	setup_b3_fax_config(&b3conf, FAX_SFF_FORMAT, stationid, headline);
+
+	i->bproto = CC_BPROTO_FAXG3;
+
+	switch (i->state) {
+	case CAPI_STATE_ALERTING:
+	case CAPI_STATE_DID:
+	case CAPI_STATE_INCALL:
+		capi_send_answer(c, (_cstruct)&b3conf);
+		break;
+	case CAPI_STATE_CONNECTED:
+		capi_change_bchan_fax(c, &b3conf);
+		break;
+	default:
+		i->FaxState &= ~CAPI_FAX_STATE_ACTIVE;
+		cc_log(LOG_WARNING, "capi send fax in wrong state (%d)\n",
+			i->state);
+		return -1;
+	}
+
+	while (i->FaxState & CAPI_FAX_STATE_ACTIVE) {
+		usleep(10000);
+	}
+
+	res = (i->FaxState & CAPI_FAX_STATE_ERROR) ? 1 : 0;
+	i->FaxState &= ~(CAPI_FAX_STATE_ACTIVE | CAPI_FAX_STATE_ERROR);
+
+	/* if the file has zero length */
+	if (ftell(i->fFax) == 0L) {
+		res = 1;
+	}
+			
+	cc_verbose(2, 1, VERBOSE_PREFIX_3 "Closing fax file...\n");
+	fclose(i->fFax);
+	i->fFax = NULL;
+
+	if (res != 0) {
+		cc_verbose(2, 0,
+			VERBOSE_PREFIX_1 "capi sendfax: fax send failed reason=0x%04x reasonB3=0x%04x\n",
+				i->reason, i->reasonb3);
+	} else {
+		cc_verbose(2, 0,
+			VERBOSE_PREFIX_1 "capi sendfax: fax sent successful.\n");
+	}
+	snprintf(buffer, CAPI_MAX_STRING-1, "%d", res);
+	pbx_builtin_setvar_helper(c, "FAXSTATUS", buffer);
+	
+	return 0;
 }
 
 /*
@@ -2955,12 +3064,14 @@ static void capidev_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, un
 	return_on_no_interface("DATA_B3_IND");
 
 	if (i->fFax) {
-		/* we are in fax-receive and have a file open */
+		/* we are in fax mode and have a file open */
 		cc_verbose(6, 1, VERBOSE_PREFIX_3 "%s: DATA_B3_IND (len=%d) Fax\n",
 			i->vname, b3len);
-		if (fwrite(b3buf, 1, b3len, i->fFax) != b3len)
-			cc_log(LOG_WARNING, "%s : error writing output file (%s)\n",
-				i->vname, strerror(errno));
+		if (!(i->FaxState & CAPI_FAX_STATE_SENDMODE)) {
+			if (fwrite(b3buf, 1, b3len, i->fFax) != b3len)
+				cc_log(LOG_WARNING, "%s : error writing output file (%s)\n",
+					i->vname, strerror(errno));
+		}
 		return;
 	}
 
@@ -3046,6 +3157,39 @@ static void capi_signal_answer(struct capi_pvt *i)
 }
 
 /*
+ * send the next data
+ */
+static void capidev_send_faxdata(struct capi_pvt *i)
+{
+	unsigned char faxdata[CAPI_MAX_B3_BLOCK_SIZE];
+	size_t len;
+	_cmsg CMSG;
+
+	if ((i->fFax) && (!(feof(i->fFax)))) {
+		len = fread(faxdata, 1, CAPI_MAX_B3_BLOCK_SIZE, i->fFax);
+		if (len > 0) {
+			DATA_B3_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
+			DATA_B3_REQ_NCCI(&CMSG) = i->NCCI;
+			DATA_B3_REQ_DATALENGTH(&CMSG) = len;
+			DATA_B3_REQ_FLAGS(&CMSG) = 0; 
+			DATA_B3_REQ_DATAHANDLE(&CMSG) = i->send_buffer_handle;
+			DATA_B3_REQ_DATA(&CMSG) = faxdata;
+			i->send_buffer_handle++;
+			cc_verbose(5, 1, VERBOSE_PREFIX_3 "%s: send %d fax bytes.\n",
+				i->vname, len);
+			_capi_put_cmsg(&CMSG);
+			return;
+		}
+	}
+	/* finished send fax, so we hangup */
+	cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: completed faxsend.\n",
+		i->vname);
+	DISCONNECT_B3_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
+	DISCONNECT_B3_REQ_NCCI(&CMSG) = i->NCCI;
+	_capi_put_cmsg(&CMSG);
+}
+
+/*
  * CAPI CONNECT_ACTIVE_IND
  */
 static void capidev_handle_connect_active_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
@@ -3065,6 +3209,11 @@ static void capidev_handle_connect_active_indication(_cmsg *CMSG, unsigned int P
 	}
 
 	i->state = CAPI_STATE_CONNECTED;
+
+	if ((i->FaxState & CAPI_FAX_STATE_SENDMODE)) {
+		cc_start_b3(i);
+		return;
+	}
 
 	if ((i->owner) && (i->FaxState & CAPI_FAX_STATE_ACTIVE)) {
 		capi_signal_answer(i);
@@ -3120,6 +3269,12 @@ static void capidev_handle_connect_b3_active_indication(_cmsg *CMSG, unsigned in
 		i->B3q = (CAPI_MAX_B3_BLOCK_SIZE * 3);
 	}
 
+	if ((i->FaxState & CAPI_FAX_STATE_SENDMODE)) {
+		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: Start sending fax.\n",
+			i->vname);
+		capidev_send_faxdata(i);
+	}
+
 	if ((i->isdnstate & CAPI_ISDN_STATE_B3_CHANGE)) {
 		i->isdnstate &= ~CAPI_ISDN_STATE_B3_CHANGE;
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: B3 protocol changed.\n",
@@ -3167,8 +3322,16 @@ static void capidev_handle_disconnect_b3_indication(_cmsg *CMSG, unsigned int PL
 
 	if ((i->FaxState & CAPI_FAX_STATE_ACTIVE) && (i->owner)) {
 		char buffer[CAPI_MAX_STRING];
+		char *infostring;
 		unsigned char *ncpi = (unsigned char *)DISCONNECT_B3_IND_NCPI(CMSG);
 		/* if we have fax infos, set them as variables */
+		snprintf(buffer, CAPI_MAX_STRING-1, "%d", i->reasonb3);
+		pbx_builtin_setvar_helper(i->owner, "FAXREASON", buffer);
+		if ((infostring = capi_info_string(i->reasonb3)) != NULL) {
+			pbx_builtin_setvar_helper(i->owner, "FAXREASONTEXT", infostring);
+		} else {
+			pbx_builtin_setvar_helper(i->owner, "FAXREASONTEXT", "");
+		}
 		if (ncpi) {
 			snprintf(buffer, CAPI_MAX_STRING-1, "%d", read_capi_word(&ncpi[1]));
 			pbx_builtin_setvar_helper(i->owner, "FAXRATE", buffer);
@@ -3184,7 +3347,9 @@ static void capidev_handle_disconnect_b3_indication(_cmsg *CMSG, unsigned int PL
 		}
 	}
 
-	if (i->state == CAPI_STATE_DISCONNECTING) {
+	if ((i->state == CAPI_STATE_DISCONNECTING) ||
+	    ((!(i->isdnstate & CAPI_ISDN_STATE_B3_SELECT)) &&
+	     (i->FaxState & CAPI_FAX_STATE_SENDMODE))) {
 		/* active disconnect */
 		DISCONNECT_REQ_HEADER(&CMSG2, capi_ApplID, get_capi_MessageNumber(), 0);
 		DISCONNECT_REQ_PLCI(&CMSG2) = PLCI;
@@ -3672,6 +3837,10 @@ static void capidev_handle_msg(_cmsg *CMSG)
 		wInfo = SELECT_B_PROTOCOL_CONF_INFO(CMSG);
 		if(i == NULL) break;
 		if (!wInfo) {
+			i->isdnstate &= ~CAPI_ISDN_STATE_B3_SELECT;
+			if ((i->outgoing) && (i->FaxState & CAPI_FAX_STATE_SENDMODE)) {
+				cc_start_b3(i);
+			}
 			if ((i->owner) && (i->FaxState & CAPI_FAX_STATE_ACTIVE)) {
 				capi_echo_canceller(i->owner, EC_FUNCTION_DISABLE);
 				capi_detect_dtmf(i->owner, 0);
@@ -3682,6 +3851,9 @@ static void capidev_handle_msg(_cmsg *CMSG)
 		wInfo = DATA_B3_CONF_INFO(CMSG);
 		if ((i) && (i->B3q > 0) && (i->isdnstate & CAPI_ISDN_STATE_RTP)) {
 			i->B3q--;
+		}
+		if ((i) && (i->FaxState & CAPI_FAX_STATE_SENDMODE)) {
+			capidev_send_faxdata(i);
 		}
 		break;
  
@@ -4174,6 +4346,7 @@ static struct capicommands_s {
 	{ "progress",     pbx_capi_signal_progress, 1 },
 	{ "deflect",      pbx_capi_call_deflect,    1 },
 	{ "receivefax",   pbx_capi_receive_fax,     1 },
+	{ "sendfax",      pbx_capi_send_fax,        1 },
 	{ "echosquelch",  pbx_capi_echosquelch,     1 },
 	{ "echocancel",   pbx_capi_echocancel,      1 },
 	{ "malicious",    pbx_capi_malicious,       1 },

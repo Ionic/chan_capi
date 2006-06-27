@@ -30,6 +30,9 @@ Hans Petter Selasky
 No support for Asterisk 1.0.x any more, you need at least
 Asterisk 1.2.x
 
+To support all fax features (e.g. fax polling), you
+need version 3 of libcapi20.
+
 This chan_capi version includes:
 ================================
 - Multiple controller support
@@ -59,7 +62,7 @@ This chan_capi version includes:
 - report correct DIALSTATUS and HANGUPCAUSE.
 - Updated to support the new frame->delivery field
 - Compiles with different Asterisk versions (automatic build configuration)
-- receive faxes over CAPI (see below)
+- receive/send faxes over CAPI (see below)
 - Fixes and compatibility for BSD (Jan Stocker and Hans Petter Selasky)
 - Support 'type of number'.
 - ISDN hold.
@@ -123,6 +126,12 @@ Fax receive:
     Receive a fax using CAPI.
         Example:
         exten => s,1,capicommand(receivefax|/tmp/${UNIQUEID}|+49 6137 555123|Asterisk)
+	(more see below)
+
+Fax send:
+    Send a fax using CAPI.
+        Example:
+        exten => s,1,capicommand(sendfax|/path/to/faxfile.sff|+49 6137 555123|Asterisk)
 	(more see below)
 
 Enable/Disable echosquelch:
@@ -243,10 +252,13 @@ exten => 12345678,1,Dial(SIP/phone1)
 exten => 12345678,2,Hangup
 
 
-Short HOWTO of capicommand(receivefax|<filename>[|<stationid>|<headline>]):
+Short HOWTO of capicommand(receivefax...) and capicommand(sendfax...):
 ==========================================================================
 For those of you who have a CAPI card with an on-board DSP (like some Eicon and
-DIVA Server), this patch allows you to receive faxes.
+DIVA Server), this allows you to receive/send faxes.
+
+capicommand(receivefax|<filename>[|<stationid>|<headline>]):
+------------------------------------------------------------
 If you want to answer a channel in fax mode, use capicommand(receivefax|...)
 instead of Answer()
 If you use Answer(), you will be in voice mode. If the hardware DSP detects 
@@ -279,12 +291,21 @@ With a DIVA Server, following features are provided:
  - Color Fax 
  - JPEG Compression is disabled (not tested yet)
 
-After successful receive of a fax, the following variables will be set for that channel:
-FAXRATE       : The baud rate of the fax connection
-FAXRESOLUTION : 0 = standard, 1 = high
-FAXFORMAT     : 0 = SFF
-FAXPAGES      : Number of pages received
-FAXID         : The ID of the remote fax maschine
+capicommand(sendfax|<filename>[|<stationid>|<headline>]):
+------------------------------------------------------------
+To send a fax, you can use the same mechanism like with receivefax.
+Just replace the <filename> with the path to the .SFF file to send.
+
+After disconnect of a fax connection, the following variables
+will be set for that channel:
+FAXSTATUS     : 0 = OK, 1 = Error.
+FAXREASON     : Value of B3 disconnect reason.
+FAXREASONTEXT : Decoded text of FAXREASON value.
+FAXRATE       : The baud rate of the fax connection.
+FAXRESOLUTION : 0 = standard, 1 = high.
+FAXFORMAT     : 0 = SFF.
+FAXPAGES      : Number of pages received.
+FAXID         : The ID of the remote fax maschine.
 
 
 CLI command "capi show channels"

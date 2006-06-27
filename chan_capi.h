@@ -36,6 +36,11 @@
 
 #define RTP_HEADER_SIZE                  12
 
+#ifndef CONNECT_RESP_GLOBALCONFIGURATION
+#define CC_HAVE_NO_GLOBALCONFIGURATION
+#warning If you dont update your libcapi20, some fax features are not available
+#endif
+
 /* some helper functions */
 static inline void write_capi_word(void *m, unsigned short val)
 {
@@ -187,6 +192,7 @@ typedef struct fax3proto3 B3_PROTO_FAXG3;
 #define CAPI_FAX_STATE_HANDLED        0x00010000
 #define CAPI_FAX_STATE_ACTIVE         0x00020000
 #define CAPI_FAX_STATE_ERROR          0x00040000
+#define CAPI_FAX_STATE_SENDMODE       0x00080000
 #define CAPI_FAX_STATE_MASK           0xffff0000
 
 struct cc_capi_gains {
@@ -209,6 +215,7 @@ struct cc_capi_gains {
 #define CAPI_ISDN_STATE_HANGUP        0x00001000
 #define CAPI_ISDN_STATE_EC            0x00002000
 #define CAPI_ISDN_STATE_DTMF          0x00004000
+#define CAPI_ISDN_STATE_B3_SELECT     0x00008000
 #define CAPI_ISDN_STATE_PBX           0x80000000
 
 #define CAPI_CHANNELTYPE_B            0
@@ -228,6 +235,7 @@ struct capi_pvt {
 
 	char name[CAPI_MAX_STRING];
 	char vname[CAPI_MAX_STRING];
+	unsigned char tmpbuf[CAPI_MAX_STRING];
 
 	/*! Channel we belong to, possibly NULL */
 	struct ast_channel *owner;		

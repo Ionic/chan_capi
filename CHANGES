@@ -1,6 +1,7 @@
 CHANGES
 =======
 
+- added capicommand(sendfax)
 - dropped compatiblity to versions before Asterisk-1.2.0
 - added capicommand(echocancel)
 - added CAPI RTP (Eicon DIVA Server cards can do that)
