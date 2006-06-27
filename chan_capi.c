@@ -1107,9 +1107,6 @@ static int pbx_capi_hangup(struct ast_channel *c)
 	
 	ast_update_use_count();
 	
-	CC_CHANNEL_PVT(c) = NULL;
-	ast_setstate(c, AST_STATE_DOWN);
-
 	if ((i->doDTMF > 0) && (i->vad != NULL)) {
 		ast_dsp_free(i->vad);
 		i->vad = NULL;
@@ -1125,6 +1122,9 @@ static int pbx_capi_hangup(struct ast_channel *c)
 		/* not disconnected yet, we must actively do it */
 		capi_activehangup(c, state);
 	}
+
+	CC_CHANNEL_PVT(c) = NULL;
+	ast_setstate(c, AST_STATE_DOWN);
 
 	cc_mutex_lock(&usecnt_lock);
 	usecnt--;
