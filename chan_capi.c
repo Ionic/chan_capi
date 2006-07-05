@@ -2488,6 +2488,10 @@ static void start_pbx_on_match(struct capi_pvt *i, unsigned int PLCI, _cword Mes
 {
 	_cmsg CMSG2;
 
+	if ((i->isdnstate & CAPI_ISDN_STATE_PBX_DONT)) {
+		/* we already found non-match here */
+		return;
+	}
 	if ((i->isdnstate & CAPI_ISDN_STATE_PBX)) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: pbx already started on channel %s\n",
 			i->vname, i->owner->name);
@@ -2515,7 +2519,7 @@ static void start_pbx_on_match(struct capi_pvt *i, unsigned int PLCI, _cword Mes
 	case -1:
 	default:
 		/* doesn't match */
-		i->isdnstate |= CAPI_ISDN_STATE_PBX; /* don't try again */
+		i->isdnstate |= CAPI_ISDN_STATE_PBX_DONT; /* don't try again */
 		cc_log(LOG_NOTICE, "%s: did not find exten for '%s', ignoring call.\n",
 			i->vname, i->dnid);
 		CONNECT_RESP_HEADER(&CMSG2, capi_ApplID, MessageNumber, 0);
@@ -3429,7 +3433,7 @@ static void capidev_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI,
 
 	if ((i->owner) &&
 	    ((state == CAPI_STATE_DID) || (state == CAPI_STATE_INCALL)) &&
-	    (i->owner->pbx == NULL)) {
+	    (!(i->isdnstate & CAPI_ISDN_STATE_PBX))) {
 		/* the pbx was not started yet */
 		cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s: DISCONNECT_IND on incoming without pbx, doing hangup.\n",
 			i->vname);
