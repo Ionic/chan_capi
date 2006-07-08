@@ -1397,15 +1397,16 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 
 	i->outgoing = 1;
 	i->isdnstate |= CAPI_ISDN_STATE_PBX;
+	i->state = CAPI_STATE_CONNECTPENDING;
+	ast_setstate(c, AST_STATE_DIALING);
 
 	if ((error = _capi_put_cmsg_wait_conf(i, &CMSG))) {
+		i->state = CAPI_STATE_DISCONNECTED;
+		ast_setstate(c, AST_STATE_RESERVED);
 		cc_mutex_unlock(&i->lock);
 		return error;
 	}
-	i->state = CAPI_STATE_CONNECTPENDING;
 	cc_mutex_unlock(&i->lock);
-
-	ast_setstate(c, AST_STATE_DIALING);
 
 	/* now we shall return .... the rest has to be done by handle_msg */
 	return 0;
@@ -3845,7 +3846,8 @@ static void capidev_handle_msg(_cmsg *CMSG)
 		if (wInfo == 0) {
 			i->PLCI = PLCI;
 		} else {
-			/* here, something has to be done --> */
+			/* error in connect, so set correct state and signal busy */
+			i->state = CAPI_STATE_DISCONNECTED;
 			struct ast_frame fr = { AST_FRAME_CONTROL, AST_CONTROL_BUSY, };
 			local_queue_frame(i, &fr);
 		}
