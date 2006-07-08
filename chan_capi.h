@@ -284,6 +284,7 @@ struct capi_pvt {
 	char accountcode[20];	
 
 	ast_group_t callgroup;
+	ast_group_t pickupgroup;
 	ast_group_t group;
 	
 	/* language */
@@ -400,6 +401,7 @@ struct cc_capi_conf {
 	int bridge;
 	unsigned int faxsetting;
 	ast_group_t callgroup;
+	ast_group_t pickupgroup;
 	ast_group_t group;
 	float rxgain;
 	float txgain;

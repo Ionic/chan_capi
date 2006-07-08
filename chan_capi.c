@@ -159,8 +159,13 @@ static int capi_num_controllers = 0;
 static unsigned int capi_counter = 0;
 static unsigned long capi_used_controllers = 0;
 static char *emptyid = "\0";
-static struct ast_channel *chan_to_hangup = NULL;
-static struct ast_channel *chan_to_softhangup = NULL;
+
+static struct ast_channel *chan_for_task;
+static int channel_task;
+#define CAPI_CHANNEL_TASK_NONE             0
+#define CAPI_CHANNEL_TASK_HANGUP           1
+#define CAPI_CHANNEL_TASK_SOFTHANGUP       2
+#define CAPI_CHANNEL_TASK_PICKUP           3
 
 static char capi_national_prefix[AST_MAX_EXTENSION];
 static char capi_international_prefix[AST_MAX_EXTENSION];
@@ -591,6 +596,19 @@ static char *transfercapability2str(int transfercapability)
 	default:
 		return "UNKNOWN";
 	}
+}
+
+/*
+ * set task for a channel which need to be done out of lock
+ * ( after the capi thread loop )
+ */
+static void capi_channel_task(struct ast_channel *c, int task)
+{
+	chan_for_task = c;
+	channel_task = task;
+
+	cc_verbose(4, 1, VERBOSE_PREFIX_4 "%s: set channel task to %d\n",
+		c->name, task);
 }
 
 /*
@@ -1379,8 +1397,8 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 
 	i->outgoing = 1;
 	i->isdnstate |= CAPI_ISDN_STATE_PBX;
-	
-        if ((error = _capi_put_cmsg_wait_conf(i, &CMSG))) {
+
+	if ((error = _capi_put_cmsg_wait_conf(i, &CMSG))) {
 		cc_mutex_unlock(&i->lock);
 		return error;
 	}
@@ -1645,7 +1663,7 @@ static int pbx_capi_write(struct ast_channel *c, struct ast_frame *f)
 }
 
 /*
- * new channel
+ * new channel (masq)
  */
 static int pbx_capi_fixup(struct ast_channel *oldchan, struct ast_channel *newchan)
 {
@@ -1967,6 +1985,7 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 	CC_CHANNEL_PVT(tmp) = i;
 
 	tmp->callgroup = i->callgroup;
+	tmp->pickupgroup = i->pickupgroup;
 	tmp->nativeformats = capi_capability;
 	i->bproto = CC_BPROTO_TRANSPARENT;
 	if ((i->rtpcodec = (capi_controllers[i->controller]->rtpcodec & i->capability))) {
@@ -2486,7 +2505,10 @@ static void handle_progress_indicator(_cmsg *CMSG, unsigned int PLCI, struct cap
  */
 static void start_pbx_on_match(struct capi_pvt *i, unsigned int PLCI, _cword MessageNumber)
 {
+	struct ast_channel *c;
 	_cmsg CMSG2;
+
+	c = i->owner;
 
 	if ((i->isdnstate & CAPI_ISDN_STATE_PBX_DONT)) {
 		/* we already found non-match here */
@@ -2494,21 +2516,32 @@ static void start_pbx_on_match(struct capi_pvt *i, unsigned int PLCI, _cword Mes
 	}
 	if ((i->isdnstate & CAPI_ISDN_STATE_PBX)) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: pbx already started on channel %s\n",
-			i->vname, i->owner->name);
+			i->vname, c->name);
+		return;
+	}
+
+	/* check for internal pickup extension first */
+	if (!strcmp(i->dnid, ast_pickup_ext())) {
+		i->isdnstate |= CAPI_ISDN_STATE_PBX;
+		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Pickup extension '%s' found.\n",
+			i->vname, i->dnid);
+		cc_copy_string(c->exten, i->dnid, sizeof(c->exten));
+		pbx_capi_alert(c);
+		capi_channel_task(c, CAPI_CHANNEL_TASK_PICKUP);
 		return;
 	}
 
 	switch(search_did(i->owner)) {
 	case 0: /* match */
 		i->isdnstate |= CAPI_ISDN_STATE_PBX;
-		ast_setstate(i->owner, AST_STATE_RING);
+		ast_setstate(c, AST_STATE_RING);
 		if (ast_pbx_start(i->owner)) {
 			cc_log(LOG_ERROR, "%s: Unable to start pbx on channel!\n",
 				i->vname);
-			chan_to_hangup = i->owner;
+			capi_channel_task(c, CAPI_CHANNEL_TASK_HANGUP); 
 		} else {
 			cc_verbose(2, 1, VERBOSE_PREFIX_2 "Started pbx on channel %s\n",
-				i->owner->name);
+				c->name);
 		}
 		break;
 	case 1:
@@ -3437,7 +3470,7 @@ static void capidev_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI,
 		/* the pbx was not started yet */
 		cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s: DISCONNECT_IND on incoming without pbx, doing hangup.\n",
 			i->vname);
-		chan_to_hangup = i->owner;
+		capi_channel_task(i->owner, CAPI_CHANNEL_TASK_HANGUP); 
 		return;
 	}
 
@@ -4536,6 +4569,35 @@ static int pbx_capi_devicestate(void *data)
 	return res;
 }
 
+static void capi_do_channel_task(void)
+{
+	if (chan_for_task == NULL)
+		return;
+
+	switch(channel_task) {
+	case CAPI_CHANNEL_TASK_HANGUP:
+		/* deferred (out of lock) hangup */
+		ast_hangup(chan_for_task);
+		break;
+	case CAPI_CHANNEL_TASK_SOFTHANGUP:
+		/* deferred (out of lock) soft-hangup */
+		ast_softhangup(chan_for_task, AST_SOFTHANGUP_DEV);
+		break;
+	case CAPI_CHANNEL_TASK_PICKUP:
+		if (ast_pickup_call(chan_for_task)) {
+			cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Pickup not possible.\n",
+				chan_for_task->name);
+		}
+		ast_hangup(chan_for_task);
+		break;
+	default:
+		/* nothing to do */
+		break;
+	}
+	chan_for_task = NULL;
+	channel_task = CAPI_CHANNEL_TASK_NONE;
+}
+
 /*
  * module stuff, monitor...
  */
@@ -4548,16 +4610,7 @@ static void *capidev_loop(void *data)
 		switch(Info = capidev_check_wait_get_cmsg(&monCMSG)) {
 		case 0x0000:
 			capidev_handle_msg(&monCMSG);
-			if (chan_to_hangup != NULL) {
-				/* deferred (out of lock) hangup */
-				ast_hangup(chan_to_hangup);
-				chan_to_hangup = NULL;
-			}
-			if (chan_to_softhangup != NULL) {
-				/* deferred (out of lock) soft-hangup */
-				ast_softhangup(chan_to_softhangup, AST_SOFTHANGUP_DEV);
-				chan_to_softhangup = NULL;
-			}
+			capi_do_channel_task();
 			break;
 		case 0x1104:
 			/* CAPI queue is empty */
@@ -4692,6 +4745,7 @@ int mkif(struct cc_capi_conf *conf)
 		tmp->ntmode = conf->ntmode;
 		tmp->ES = conf->es;
 		tmp->callgroup = conf->callgroup;
+		tmp->pickupgroup = conf->pickupgroup;
 		tmp->group = conf->group;
 		tmp->immediate = conf->immediate;
 		tmp->holdtype = conf->holdtype;
@@ -5283,6 +5337,10 @@ static int conf_interface(struct cc_capi_conf *conf, struct ast_variable *v)
 		CONF_TRUE(conf->ntmode, "ntmode", 1)
 		if (!strcasecmp(v->name, "callgroup")) {
 			conf->callgroup = ast_get_group(v->value);
+			continue;
+		} else
+		if (!strcasecmp(v->name, "pickupgroup")) {
+			conf->pickupgroup = ast_get_group(v->value);
 			continue;
 		} else
 		if (!strcasecmp(v->name, "group")) {
