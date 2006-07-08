@@ -2049,6 +2049,8 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 		tmp->cid.cid_dnid = strdup(i->dnid);
 	}
 	tmp->cid.cid_ton = i->cid_ton;
+	if (i->amaflags)
+		tmp->amaflags = i->amaflags;
 	
 	cc_copy_string(tmp->exten, i->dnid, sizeof(tmp->exten));
 #ifdef CC_AST_HAS_STRINGFIELD_IN_CHANNEL
@@ -4784,6 +4786,7 @@ int mkif(struct cc_capi_conf *conf)
 		tmp->callgroup = conf->callgroup;
 		tmp->pickupgroup = conf->pickupgroup;
 		tmp->group = conf->group;
+		tmp->amaflags = conf->amaflags;
 		tmp->immediate = conf->immediate;
 		tmp->holdtype = conf->holdtype;
 		tmp->ecSelector = conf->ecSelector;
@@ -5324,6 +5327,8 @@ static int cc_post_init_capi(void)
  */
 static int conf_interface(struct cc_capi_conf *conf, struct ast_variable *v)
 {
+	int y;
+
 #define CONF_STRING(var, token)            \
 	if (!strcasecmp(v->name, token)) { \
 		cc_copy_string(var, v->value, sizeof(var)); \
@@ -5383,6 +5388,15 @@ static int conf_interface(struct cc_capi_conf *conf, struct ast_variable *v)
 		if (!strcasecmp(v->name, "group")) {
 			conf->group = ast_get_group(v->value);
 			continue;
+		} else
+		if (!strcasecmp(v->name, "amaflags")) {
+			y = ast_cdr_amaflags2int(v->value);
+			if (y < 0) {
+				ast_log(LOG_WARNING, "Invalid AMA flags: %s at line %d\n",
+					v->value, v->lineno);
+			} else {
+				conf->amaflags = y;
+			}
 		} else
 		if (!strcasecmp(v->name, "rxgain")) {
 			if (sscanf(v->value, "%f", &conf->rxgain) != 1) {

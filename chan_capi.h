@@ -286,6 +286,7 @@ struct capi_pvt {
 	int cid_ton;
 
 	char accountcode[20];	
+	int amaflags;
 
 	ast_group_t callgroup;
 	ast_group_t pickupgroup;
@@ -403,6 +404,7 @@ struct cc_capi_conf {
 	int holdtype;
 	int es;
 	int bridge;
+	int amaflags;
 	unsigned int faxsetting;
 	ast_group_t callgroup;
 	ast_group_t pickupgroup;

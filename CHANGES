@@ -1,6 +1,7 @@
 CHANGES
 =======
 
+- added amaflags
 - added pickupgroup (internal pickup with pickupexten)
 - added capicommand(sendfax)
 - dropped compatiblity to versions before Asterisk-1.2.0
