@@ -221,6 +221,10 @@ struct cc_capi_gains {
 
 #define CAPI_CHANNELTYPE_B            0
 #define CAPI_CHANNELTYPE_D            1
+#define CAPI_CHANNELTYPE_NONE         2
+
+/* the lower word is reserved for capi commands */
+#define CAPI_WAITEVENT_ANSWER_FINISH  0x80000000
 
 /* ! Private data for a capi device */
 struct capi_pvt {

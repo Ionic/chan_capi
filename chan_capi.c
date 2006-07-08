@@ -418,6 +418,31 @@ MESSAGE_EXCHANGE_ERROR _capi_put_cmsg_wait_conf(struct capi_pvt *i, _cmsg *CMSG)
 }
 
 /*
+ * wait for finishing answering state
+ */
+static void capi_wait_for_answered(struct capi_pvt *i)
+{
+	struct timespec abstime;
+
+	cc_mutex_lock(&i->lock);
+	if (i->state == CAPI_STATE_ANSWERING) {
+		i->waitevent = CAPI_WAITEVENT_ANSWER_FINISH;
+		abstime.tv_sec = time(NULL) + 2;
+		abstime.tv_nsec = 0;
+		cc_verbose(4, 1, "%s: wait for finish answer.\n",
+			i->vname);
+		if (ast_cond_timedwait(&i->event_trigger, &i->lock, &abstime) != 0) {
+			cc_log(LOG_WARNING, "%s: timed out waiting for finish answer.\n",
+				i->vname);
+		} else {
+			cc_verbose(4, 1, "%s: cond signal received for finish answer.\n",
+				i->vname);
+		}
+	}
+	cc_mutex_unlock(&i->lock);
+}
+
+/*
  * wait some time for a new capi message
  */
 static MESSAGE_EXCHANGE_ERROR capidev_check_wait_get_cmsg(_cmsg *CMSG)
@@ -2187,6 +2212,8 @@ static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 	if (!headline)
 		headline = emptyid;
 
+	capi_wait_for_answered(i);
+
 	if ((i->fFax = fopen(filename, "wb")) == NULL) {
 		cc_log(LOG_WARNING, "can't create fax output file (%s)\n", strerror(errno));
 		return -1;
@@ -2268,6 +2295,8 @@ static int pbx_capi_send_fax(struct ast_channel *c, char *data)
 		stationid = emptyid;
 	if (!headline)
 		headline = emptyid;
+
+	capi_wait_for_answered(i);
 
 	if ((i->fFax = fopen(filename, "rb")) == NULL) {
 		cc_log(LOG_WARNING, "can't open fax file (%s)\n", strerror(errno));
@@ -3754,11 +3783,21 @@ static void capidev_post_handling(struct capi_pvt *i, _cmsg *CMSG)
 {
 	unsigned short capicommand = ((CMSG->Subcommand << 8)|(CMSG->Command));
 
+	if ((i->waitevent == CAPI_WAITEVENT_ANSWER_FINISH) &&
+	    (i->state != CAPI_STATE_ANSWERING)) {
+		i->waitevent = 0;
+		ast_cond_signal(&i->event_trigger);
+		cc_verbose(4, 1, "%s: found and signal for finished ANSWER state.\n",
+			i->vname);
+		return;
+	}
+
 	if (i->waitevent == capicommand) {
 		i->waitevent = 0;
 		ast_cond_signal(&i->event_trigger);
 		cc_verbose(4, 1, "%s: found and signal for %s\n",
 			i->vname, capi_cmd2str(CMSG->Command, CMSG->Subcommand));
+		return;
 	}
 }
 
