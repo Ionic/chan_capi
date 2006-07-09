@@ -418,6 +418,31 @@ MESSAGE_EXCHANGE_ERROR _capi_put_cmsg_wait_conf(struct capi_pvt *i, _cmsg *CMSG)
 }
 
 /*
+ * wait for B3 up
+ */
+static void capi_wait_for_b3_up(struct capi_pvt *i)
+{
+	struct timespec abstime;
+
+	cc_mutex_lock(&i->lock);
+	if (!(i->isdnstate & CAPI_ISDN_STATE_B3_UP)) {
+		i->waitevent = CAPI_WAITEVENT_B3_UP;
+		abstime.tv_sec = time(NULL) + 2;
+		abstime.tv_nsec = 0;
+		cc_verbose(4, 1, "%s: wait for b3 up.\n",
+			i->vname);
+		if (ast_cond_timedwait(&i->event_trigger, &i->lock, &abstime) != 0) {
+			cc_log(LOG_WARNING, "%s: timed out waiting for b3 up.\n",
+				i->vname);
+		} else {
+			cc_verbose(4, 1, "%s: cond signal received for b3 up.\n",
+				i->vname);
+		}
+	}
+	cc_mutex_unlock(&i->lock);
+}
+
+/*
  * wait for finishing answering state
  */
 static void capi_wait_for_answered(struct capi_pvt *i)
@@ -1897,7 +1922,6 @@ static CC_BRIDGE_RETURN pbx_capi_bridge(struct ast_channel *c0,
 	struct capi_pvt *i0 = CC_CHANNEL_PVT(c0);
 	struct capi_pvt *i1 = CC_CHANNEL_PVT(c1);
 	CC_BRIDGE_RETURN ret = AST_BRIDGE_COMPLETE;
-	int waitcount = 20;
 
 	cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s:%s Requested native bridge for %s and %s\n",
 		i0->vname, i1->vname, c0->name, c1->name);
@@ -1909,14 +1933,9 @@ static CC_BRIDGE_RETURN pbx_capi_bridge(struct ast_channel *c0,
 	    (!capi_controllers[i1->controller]->lineinterconnect)) {
 		return AST_BRIDGE_FAILED_NOWARN;
 	}
-
-	while (((!(i0->isdnstate & CAPI_ISDN_STATE_B3_UP)) || 
-	       (!(i1->isdnstate & CAPI_ISDN_STATE_B3_UP))) &&
-	       (waitcount > 0)) {
-		/* wait a moment for B to come up */
-		usleep(20000);
-		waitcount--;
-	}
+	
+	capi_wait_for_b3_up(i0);
+	capi_wait_for_b3_up(i1);
 
 	if (!(flags & AST_BRIDGE_DTMF_CHANNEL_0))
 		capi_detect_dtmf(i0->owner, 0);
@@ -3816,6 +3835,14 @@ static void capidev_post_handling(struct capi_pvt *i, _cmsg *CMSG)
 {
 	unsigned short capicommand = ((CMSG->Subcommand << 8)|(CMSG->Command));
 
+	if ((i->waitevent == CAPI_WAITEVENT_B3_UP) &&
+	    ((i->isdnstate & CAPI_ISDN_STATE_B3_UP))) {
+		i->waitevent = 0;
+		ast_cond_signal(&i->event_trigger);
+		cc_verbose(4, 1, "%s: found and signal for b3 up state.\n",
+			i->vname);
+		return;
+	}
 	if ((i->waitevent == CAPI_WAITEVENT_B3_DOWN) &&
 	    (!(i->isdnstate & (CAPI_ISDN_STATE_B3_UP | CAPI_ISDN_STATE_B3_PEND)))) {
 		i->waitevent = 0;
