@@ -443,6 +443,32 @@ static void capi_wait_for_answered(struct capi_pvt *i)
 }
 
 /*
+ * wait until fax activity has finished
+ */
+static void capi_wait_for_fax_finish(struct capi_pvt *i)
+{
+	struct timespec abstime;
+	unsigned int timeout = 600; /* 10 minutes, to be sure */
+
+	cc_mutex_lock(&i->lock);
+	if (i->FaxState & CAPI_FAX_STATE_ACTIVE) {
+		i->waitevent = CAPI_WAITEVENT_FAX_FINISH;
+		abstime.tv_sec = time(NULL) + timeout;
+		abstime.tv_nsec = 0;
+		cc_verbose(4, 1, "%s: wait for finish fax (timeout %d seconds).\n",
+			i->vname, timeout);
+		if (ast_cond_timedwait(&i->event_trigger, &i->lock, &abstime) != 0) {
+			cc_log(LOG_WARNING, "%s: timed out waiting for finish fax.\n",
+				i->vname);
+		} else {
+			cc_verbose(4, 1, "%s: cond signal received for finish fax.\n",
+				i->vname);
+		}
+	}
+	cc_mutex_unlock(&i->lock);
+}
+
+/*
  * wait some time for a new capi message
  */
 static MESSAGE_EXCHANGE_ERROR capidev_check_wait_get_cmsg(_cmsg *CMSG)
@@ -831,7 +857,7 @@ static void update_channel_name(struct capi_pvt *i)
 	char name[AST_CHANNEL_NAME];
 
 	snprintf(name, sizeof(name) - 1, "CAPI/%s/%s-%x",
-		i->vname, i->dnid, capi_counter++);
+		i->name, i->dnid, capi_counter++);
 	ast_change_name(i->owner, name);
 	cc_verbose(3, 0, VERBOSE_PREFIX_3 "%s: Updated channel name: %s\n",
 			i->vname, name);
@@ -1014,7 +1040,7 @@ static void interface_cleanup(struct capi_pvt *i)
 static void cc_disconnect_b3(struct capi_pvt *i, int wait) 
 {
 	_cmsg CMSG;
-	int waitcount = 200;
+	struct timespec abstime;
 
 	if (!(i->isdnstate & (CAPI_ISDN_STATE_B3_UP | CAPI_ISDN_STATE_B3_PEND)))
 		return;
@@ -1023,17 +1049,28 @@ static void cc_disconnect_b3(struct capi_pvt *i, int wait)
 	DISCONNECT_B3_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
 	DISCONNECT_B3_REQ_NCCI(&CMSG) = i->NCCI;
 	_capi_put_cmsg_wait_conf(i, &CMSG);
-	cc_mutex_unlock(&i->lock);
 
-	if (!wait)
+	if (!wait) {
+		cc_mutex_unlock(&i->lock);
 		return;
+	}
 	
 	/* wait for the B3 layer to go down */
-	while ((waitcount > 0) &&
-	       ((i->isdnstate & (CAPI_ISDN_STATE_B3_UP | CAPI_ISDN_STATE_B3_PEND)))) {
-		usleep(10000);
-		waitcount--;
+	if ((i->isdnstate & (CAPI_ISDN_STATE_B3_UP | CAPI_ISDN_STATE_B3_PEND))) {
+		i->waitevent = CAPI_WAITEVENT_B3_DOWN;
+		abstime.tv_sec = time(NULL) + 2;
+		abstime.tv_nsec = 0;
+		cc_verbose(4, 1, "%s: wait for b3 down.\n",
+			i->vname);
+		if (ast_cond_timedwait(&i->event_trigger, &i->lock, &abstime) != 0) {
+			cc_log(LOG_WARNING, "%s: timed out waiting for b3 down.\n",
+				i->vname);
+		} else {
+			cc_verbose(4, 1, "%s: cond signal received for b3 down.\n",
+				i->vname);
+		}
 	}
+	cc_mutex_unlock(&i->lock);
 	if ((i->isdnstate & CAPI_ISDN_STATE_B3_UP)) {
 		cc_log(LOG_ERROR, "capi disconnect b3: didn't disconnect NCCI=0x%08x\n",
 			i->NCCI);
@@ -1964,10 +2001,10 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 
 #ifdef CC_AST_HAS_STRINGFIELD_IN_CHANNEL
 	ast_string_field_build(tmp, name, "CAPI/%s/%s-%x",
-		i->vname, i->dnid, capi_counter++);
+		i->name, i->dnid, capi_counter++);
 #else
 	snprintf(tmp->name, sizeof(tmp->name) - 1, "CAPI/%s/%s-%x",
-		i->vname, i->dnid, capi_counter++);
+		i->name, i->dnid, capi_counter++);
 #endif
 	tmp->type = channeltype;
 
@@ -2241,10 +2278,7 @@ static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 			i->state);
 		return -1;
 	}
-
-	while (i->FaxState & CAPI_FAX_STATE_ACTIVE) {
-		usleep(10000);
-	}
+	capi_wait_for_fax_finish(i);
 
 	res = (i->FaxState & CAPI_FAX_STATE_ERROR) ? 1 : 0;
 	i->FaxState &= ~(CAPI_FAX_STATE_ACTIVE | CAPI_FAX_STATE_ERROR);
@@ -2325,10 +2359,7 @@ static int pbx_capi_send_fax(struct ast_channel *c, char *data)
 			i->state);
 		return -1;
 	}
-
-	while (i->FaxState & CAPI_FAX_STATE_ACTIVE) {
-		usleep(10000);
-	}
+	capi_wait_for_fax_finish(i);
 
 	res = (i->FaxState & CAPI_FAX_STATE_ERROR) ? 1 : 0;
 	i->FaxState &= ~(CAPI_FAX_STATE_ACTIVE | CAPI_FAX_STATE_ERROR);
@@ -3785,6 +3816,22 @@ static void capidev_post_handling(struct capi_pvt *i, _cmsg *CMSG)
 {
 	unsigned short capicommand = ((CMSG->Subcommand << 8)|(CMSG->Command));
 
+	if ((i->waitevent == CAPI_WAITEVENT_B3_DOWN) &&
+	    (!(i->isdnstate & (CAPI_ISDN_STATE_B3_UP | CAPI_ISDN_STATE_B3_PEND)))) {
+		i->waitevent = 0;
+		ast_cond_signal(&i->event_trigger);
+		cc_verbose(4, 1, "%s: found and signal for b3 down state.\n",
+			i->vname);
+		return;
+	}
+	if ((i->waitevent == CAPI_WAITEVENT_FAX_FINISH) &&
+	    (!(i->FaxState & CAPI_FAX_STATE_ACTIVE))) {
+		i->waitevent = 0;
+		ast_cond_signal(&i->event_trigger);
+		cc_verbose(4, 1, "%s: found and signal for finished fax state.\n",
+			i->vname);
+		return;
+	}
 	if ((i->waitevent == CAPI_WAITEVENT_ANSWER_FINISH) &&
 	    (i->state != CAPI_STATE_ANSWERING)) {
 		i->waitevent = 0;
@@ -3793,7 +3840,6 @@ static void capidev_post_handling(struct capi_pvt *i, _cmsg *CMSG)
 			i->vname);
 		return;
 	}
-
 	if (i->waitevent == capicommand) {
 		i->waitevent = 0;
 		ast_cond_signal(&i->event_trigger);
@@ -4183,9 +4229,9 @@ static int pbx_capi_ect(struct ast_channel *c, char *param)
 		return -1;
 	}
 
-	cc_mutex_lock(&i->lock);
-
 	cc_disconnect_b3(i, 1);
+
+	cc_mutex_lock(&i->lock);
 
 	if (i->state != CAPI_STATE_CONNECTED) {
 		cc_log(LOG_WARNING, "%s: destination not connected for ECT\n",
