@@ -107,7 +107,40 @@ static const char tdesc[] = "Common ISDN API Driver (" CC_VERSION ")";
 static const char channeltype[] = "CAPI";
 static const struct ast_channel_tech capi_tech;
 
-static char *commandtdesc = "CAPI command interface.";
+static char *commandtdesc = "CAPI command interface.\n"
+"The dial command:\n"
+"Dial(CAPI/g<group>/[<callerid>:]<destination>[/<params>])\n"
+"Dial(CAPI/contr<controller>/[<callerid>:]<destination>[/<params>])\n"
+"Dial(CAPI/<interface-name>/[<callerid>:]<destination>[/<params>])\n"
+"\"params\" can be:\n"
+"early B3:\"b\"=always, \"B\"=on successful calls only\n"
+"\"d\":use callerID from capi.conf, \"o\":overlap sending number\n"
+"\n"
+"capicommand() where () can be:\n"
+"\"deflect|to_number\" forwards an unanswered call to number\n"
+"\"malicous\" report a call of malicious nature\n"
+"\"echocancel|<yes> or <no>\" echo-cancel provided by driver/hardware\n"
+"\"echosquelch|<yes> or <no>\" very primitive echo-squelch by chan-capi\n"
+"\"holdtype|<local> or <hold>\" set type of 'hold'\n"
+"\"hold[|MYHOLDVAR]\" puts an answered call on hold\n"
+"\"retrieve|${MYHOLDVAR}\" gets back the held call\n"
+"\"ect|${MYHOLDVAR})\" explicit call transfer of call on hold\n"
+"\"receivefax|filename|stationID|headline\" receive a CAPIfax\n"
+"\"sendfax|filename.sff|stationID|headline\" send a CAPIfax\n"
+"Variables set after fax receive:\n"
+"FAXSTATUS     :0=OK, 1=Error\n"
+"FAXREASON     :B3 disconnect reason\n"
+"FAXREASONTEXT :FAXREASON as text\n"
+"FAXRATE       :baud rate of fax connection\n"
+"FAXRESOLUTION :0=standard, 1=high\n"
+"FAXFORMAT     :0=SFF\n"
+"FAXPAGES      :Number of pages received\n"
+"FAXID         :ID of the remote fax machine\n"
+"Asterisk variables used/set by chan_capi:\n"
+"BCHANNELINFO,CALLEDTON,_CALLERHOLDID,CALLINGSUBADDRESS,CALLEDSUBADDRESS\n"
+"CONNECTEDNUMBER,FAXEXTEN,PRI_CAUSE,REDIRECTINGNUMBER,REDIRECTREASON\n"
+"!!! for more details and samples, check the README of chan-capi !!!\n";
+
 static char *commandapp = "capiCommand";
 static char *commandsynopsis = "Execute special CAPI commands";
 STANDARD_LOCAL_USER;
