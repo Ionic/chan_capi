@@ -2129,8 +2129,12 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 		(i->rtp) ? " (RTP)" : "");
 	cc_copy_string(tmp->context, i->context, sizeof(tmp->context));
 
-	ast_set_callerid(tmp, i->cid, NULL, NULL); 
-
+	if (!ast_strlen_zero(i->cid)) {
+		if (tmp->cid.cid_num) {
+			free(tmp->cid.cid_num);
+		}
+		tmp->cid.cid_num = strdup(i->cid);
+	}
 	if (!ast_strlen_zero(i->dnid)) {
 		if (tmp->cid.cid_dnid) {
 			free(tmp->cid.cid_dnid);
