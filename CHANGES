@@ -1,6 +1,8 @@
 CHANGES
 =======
 
+chan_capi-0.7.0
+------------------
 - added amaflags
 - added pickupgroup (internal pickup with pickupexten)
 - added capicommand(sendfax)
