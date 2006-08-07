@@ -420,33 +420,46 @@ MESSAGE_EXCHANGE_ERROR _capi_put_cmsg(_cmsg *CMSG)
 }
 
 /*
+ * wait for a specific message
+ */
+static MESSAGE_EXCHANGE_ERROR capi_wait_conf(struct capi_pvt *i, unsigned short wCmd)
+{
+	MESSAGE_EXCHANGE_ERROR error = 0;
+	struct timespec abstime;
+	unsigned char command, subcommand;
+
+	subcommand = wCmd & 0xff;
+	command = (wCmd & 0xff00) >> 8;
+	i->waitevent = (unsigned int)wCmd;
+	abstime.tv_sec = time(NULL) + 2;
+	abstime.tv_nsec = 0;
+	cc_verbose(4, 1, "%s: wait for %s\n",
+		i->vname, capi_cmd2str(command, subcommand));
+	if (ast_cond_timedwait(&i->event_trigger, &i->lock, &abstime) != 0) {
+		error = -1;
+		cc_log(LOG_WARNING, "%s: timed out waiting for %s\n",
+			i->vname, capi_cmd2str(command, subcommand));
+	} else {
+		cc_verbose(4, 1, "%s: cond signal received for %s\n",
+			i->vname, capi_cmd2str(command, subcommand));
+	}
+	return error;
+}
+
+/*
  * write a capi message and wait for CONF
  * i->lock must be held
  */
 MESSAGE_EXCHANGE_ERROR _capi_put_cmsg_wait_conf(struct capi_pvt *i, _cmsg *CMSG)
 {
 	MESSAGE_EXCHANGE_ERROR error;
-	struct timespec abstime;
 
 	error = _capi_put_cmsg(CMSG);
 
 	if (!(error)) {
-		unsigned short wCmd = (CAPI_CONF << 8)|(CMSG->Command);
-		i->waitevent = (unsigned int)wCmd;
-		abstime.tv_sec = time(NULL) + 2;
-		abstime.tv_nsec = 0;
-		cc_verbose(4, 1, "%s: wait for %s\n",
-			i->vname, capi_cmd2str(CMSG->Command, CAPI_CONF));
-		if (ast_cond_timedwait(&i->event_trigger, &i->lock, &abstime) != 0) {
-			error = -1;
-			cc_log(LOG_WARNING, "%s: timed out waiting for %s\n",
-				i->vname, capi_cmd2str(CMSG->Command, CAPI_CONF));
-		} else {
-			cc_verbose(4, 1, "%s: cond signal received for %s\n",
-				i->vname, capi_cmd2str(CMSG->Command, CAPI_CONF));
-		}
+		unsigned short wCmd = CAPICMD(CMSG->Command, CAPI_CONF);
+		error = capi_wait_conf(i, wCmd);
 	}
-
 	return error;
 }
 
@@ -1225,6 +1238,10 @@ static void capi_activehangup(struct ast_channel *c, int state)
 	if ((state == CAPI_STATE_CONNECTED) || (state == CAPI_STATE_CONNECTPENDING) ||
 	    (state == CAPI_STATE_ANSWERING) || (state == CAPI_STATE_ONHOLD)) {
 		cc_mutex_lock(&i->lock);
+		if (i->PLCI == 0) {
+			/* CONNECT_CONF not received yet? */
+			capi_wait_conf(i, CAPI_CONNECT_CONF);
+		}
 		DISCONNECT_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
 		DISCONNECT_REQ_PLCI(&CMSG) = i->PLCI;
 		_capi_put_cmsg_wait_conf(i, &CMSG);
@@ -1520,7 +1537,7 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 	i->state = CAPI_STATE_CONNECTPENDING;
 	ast_setstate(c, AST_STATE_DIALING);
 
-	if ((error = _capi_put_cmsg_wait_conf(i, &CMSG))) {
+	if ((error = _capi_put_cmsg(&CMSG))) {
 		i->state = CAPI_STATE_DISCONNECTED;
 		ast_setstate(c, AST_STATE_RESERVED);
 		cc_mutex_unlock(&i->lock);
@@ -3870,7 +3887,7 @@ static void show_capi_conf_error(struct capi_pvt *i,
  */
 static void capidev_post_handling(struct capi_pvt *i, _cmsg *CMSG)
 {
-	unsigned short capicommand = ((CMSG->Subcommand << 8)|(CMSG->Command));
+	unsigned short capicommand = CAPICMD(CMSG->Command, CMSG->Subcommand);
 
 	if ((i->waitevent == CAPI_WAITEVENT_B3_UP) &&
 	    ((i->isdnstate & CAPI_ISDN_STATE_B3_UP))) {
