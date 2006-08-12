@@ -433,8 +433,8 @@ static MESSAGE_EXCHANGE_ERROR capi_wait_conf(struct capi_pvt *i, unsigned short 
 	i->waitevent = (unsigned int)wCmd;
 	abstime.tv_sec = time(NULL) + 2;
 	abstime.tv_nsec = 0;
-	cc_verbose(4, 1, "%s: wait for %s\n",
-		i->vname, capi_cmd2str(command, subcommand));
+	cc_verbose(4, 1, "%s: wait for %s (0x%x)\n",
+		i->vname, capi_cmd2str(command, subcommand), i->waitevent);
 	if (ast_cond_timedwait(&i->event_trigger, &i->lock, &abstime) != 0) {
 		error = -1;
 		cc_log(LOG_WARNING, "%s: timed out waiting for %s\n",
@@ -1982,6 +1982,11 @@ static CC_BRIDGE_RETURN pbx_capi_bridge(struct ast_channel *c0,
 	if ((!capi_controllers[i0->controller]->lineinterconnect) ||
 	    (!capi_controllers[i1->controller]->lineinterconnect)) {
 		return AST_BRIDGE_FAILED_NOWARN;
+	}
+
+	if ((i0->isdnstate & CAPI_ISDN_STATE_ECT) ||
+	    (i0->isdnstate & CAPI_ISDN_STATE_ECT)) {
+		return AST_BRIDGE_FAILED;
 	}
 	
 	capi_wait_for_b3_up(i0);
@@ -4312,12 +4317,9 @@ static int pbx_capi_ect(struct ast_channel *c, char *param)
 
 	cc_disconnect_b3(i, 1);
 
-	cc_mutex_lock(&i->lock);
-
 	if (i->state != CAPI_STATE_CONNECTED) {
 		cc_log(LOG_WARNING, "%s: destination not connected for ECT\n",
 			i->vname);
-		cc_mutex_unlock(&i->lock);
 		return -1;
 	}
 
@@ -4333,13 +4335,14 @@ static int pbx_capi_ect(struct ast_channel *c, char *param)
 	FACILITY_REQ_FACILITYSELECTOR(&CMSG) = FACILITYSELECTOR_SUPPLEMENTARY;
 	FACILITY_REQ_FACILITYREQUESTPARAMETER(&CMSG) = (_cstruct)&fac;
 
-	_capi_put_cmsg_wait_conf(i, &CMSG);
+	cc_mutex_lock(&ii->lock);
+	_capi_put_cmsg_wait_conf(ii, &CMSG);
 	
 	ii->isdnstate &= ~CAPI_ISDN_STATE_HOLD;
 	ii->isdnstate |= CAPI_ISDN_STATE_ECT;
 	i->isdnstate |= CAPI_ISDN_STATE_ECT;
 	
-	cc_mutex_unlock(&i->lock);
+	cc_mutex_unlock(&ii->lock);
 
 	cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: sent ECT for PLCI=%#x to PLCI=%#x\n",
 		i->vname, plci, i->PLCI);
