@@ -3392,7 +3392,9 @@ static void capidev_handle_connect_active_indication(_cmsg *CMSG, unsigned int P
 	}
 
 	if ((i->owner) && (i->FaxState & CAPI_FAX_STATE_ACTIVE)) {
-		capi_signal_answer(i);
+		ast_setstate(i->owner, AST_STATE_UP);
+		if (i->owner->cdr)
+			ast_cdr_answer(i->owner->cdr);
 		return;
 	}
 	
