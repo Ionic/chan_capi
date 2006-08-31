@@ -641,7 +641,7 @@ static int tcap2cip(unsigned short tcap)
 		if (translate_tcap2cip[x].tcap == tcap)
 			return (int)translate_tcap2cip[x].cip;
 	}
-	return 0;
+	return CAPI_CIPI_SPEECH;
 }
 
 static unsigned char tcap_is_digital(unsigned short tcap)
