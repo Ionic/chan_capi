@@ -3505,7 +3505,9 @@ static void capidev_handle_disconnect_b3_indication(_cmsg *CMSG, unsigned int PL
 		/* if we have fax infos, set them as variables */
 		snprintf(buffer, CAPI_MAX_STRING-1, "%d", i->reasonb3);
 		pbx_builtin_setvar_helper(i->owner, "FAXREASON", buffer);
-		if ((infostring = capi_info_string(i->reasonb3)) != NULL) {
+		if (i->reasonb3 == 0) {
+			pbx_builtin_setvar_helper(i->owner, "FAXREASONTEXT", "OK");
+		} else if ((infostring = capi_info_string(i->reasonb3)) != NULL) {
 			pbx_builtin_setvar_helper(i->owner, "FAXREASONTEXT", infostring);
 		} else {
 			pbx_builtin_setvar_helper(i->owner, "FAXREASONTEXT", "");
