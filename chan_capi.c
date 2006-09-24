@@ -3366,6 +3366,26 @@ static void capidev_send_faxdata(struct capi_pvt *i)
 }
 
 /*
+ * CAPI MANUFACTURER_IND
+ */
+static void capidev_handle_manufacturer_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
+{
+	_cmsg CMSG2;
+	
+	MANUFACTURER_RESP_HEADER(&CMSG2, capi_ApplID, HEADER_MSGNUM(CMSG), 0);
+	MANUFACTURER_RESP_CONTROLLER(&CMSG2) = MANUFACTURER_IND_CONTROLLER(CMSG);
+	MANUFACTURER_RESP_MANUID(&CMSG2) = MANUFACTURER_IND_MANUID(CMSG);
+	_capi_put_cmsg(&CMSG2);
+	
+	return_on_no_interface("MANUFACTURER_IND");
+
+	cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: Ignored MANUFACTURER_IND Id=0x%x \n",
+		i->vname, MANUFACTURER_IND_MANUID(CMSG));
+
+	return;
+}
+
+/*
  * CAPI CONNECT_ACTIVE_IND
  */
 static void capidev_handle_connect_active_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
@@ -3995,6 +4015,9 @@ static void capidev_handle_msg(_cmsg *CMSG)
 		break;
 	case CAPI_P_IND(CONNECT_ACTIVE):
 		capidev_handle_connect_active_indication(CMSG, PLCI, NCCI, i);
+		break;
+	case CAPI_P_IND(MANUFACTURER):
+		capidev_handle_manufacturer_indication(CMSG, PLCI, NCCI, i);
 		break;
 
 	  /*
