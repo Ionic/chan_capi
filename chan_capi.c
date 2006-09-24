@@ -3592,6 +3592,7 @@ static void capidev_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI,
 	if (i->FaxState & CAPI_FAX_STATE_ACTIVE) {
 		/* in capiFax */
 		switch (i->reason) {
+		case 0x3400:
 		case 0x3490:
 		case 0x349f:
 			if (i->reasonb3 != 0)
