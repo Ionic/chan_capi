@@ -1,6 +1,14 @@
 CHANGES
 =======
 
+chan_capi-0.x.x
+------------------
+- Set FAXREASONTEXT to "OK" instead of empty string.
+- Disconnect reason 0x3400 is treated as 'successful' in faxmode.
+- use CIP speech as default if transfercapability is unkown.
+- set correct channel/cdr status in fax mode too.
+- Use correct interface to wait on for ECT facility.
+
 chan_capi-0.7.0
 ------------------
 - added amaflags
