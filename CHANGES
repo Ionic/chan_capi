@@ -1,7 +1,7 @@
 CHANGES
 =======
 
-chan_capi-0.x.x
+chan_capi-0.7.1
 ------------------
 - Set FAXREASONTEXT to "OK" instead of empty string.
 - Disconnect reason 0x3400 is treated as 'successful' in faxmode.
