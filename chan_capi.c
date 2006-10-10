@@ -2331,6 +2331,7 @@ static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 
 	capi_wait_for_answered(i);
 
+	i->FaxState &= ~CAPI_FAX_STATE_CONN;
 	if ((i->fFax = fopen(filename, "wb")) == NULL) {
 		cc_log(LOG_WARNING, "can't create fax output file (%s)\n", strerror(errno));
 		return -1;
@@ -3243,7 +3244,8 @@ static void capidev_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, un
 		/* we are in fax mode and have a file open */
 		cc_verbose(6, 1, VERBOSE_PREFIX_3 "%s: DATA_B3_IND (len=%d) Fax\n",
 			i->vname, b3len);
-		if (!(i->FaxState & CAPI_FAX_STATE_SENDMODE)) {
+		if ((!(i->FaxState & CAPI_FAX_STATE_SENDMODE)) &&
+			(i->FaxState & CAPI_FAX_STATE_CONN)) {
 			if (fwrite(b3buf, 1, b3len, i->fFax) != b3len)
 				cc_log(LOG_WARNING, "%s : error writing output file (%s)\n",
 					i->vname, strerror(errno));
@@ -3487,6 +3489,7 @@ static void capidev_handle_connect_b3_active_indication(_cmsg *CMSG, unsigned in
 	}
 
 	if (i->FaxState & CAPI_FAX_STATE_ACTIVE) {
+		i->FaxState |= CAPI_FAX_STATE_CONN;
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: Fax connection, no EC/DTMF\n",
 			i->vname);
 	} else {

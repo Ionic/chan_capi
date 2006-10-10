@@ -193,6 +193,7 @@ typedef struct fax3proto3 B3_PROTO_FAXG3;
 #define CAPI_FAX_STATE_ACTIVE         0x00020000
 #define CAPI_FAX_STATE_ERROR          0x00040000
 #define CAPI_FAX_STATE_SENDMODE       0x00080000
+#define CAPI_FAX_STATE_CONN           0x00100000
 #define CAPI_FAX_STATE_MASK           0xffff0000
 
 struct cc_capi_gains {
