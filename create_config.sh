@@ -53,6 +53,26 @@ else
 	echo " * no data on 'indicate'"
 fi
 
+if grep -q "AST_JB" $INCLUDEDIR/channel.h; then
+	if [ ! -f "$INCLUDEDIR/../../lib/asterisk/modules/chan_sip.so" ]; then
+		echo "/* AST_JB */" >>$CONFIGFILE
+		echo "#define CC_AST_HAS_JB_PATCH" >>$CONFIGFILE
+		echo " * assuming generic jitter-buffer patch"
+	else
+		if grep -q "ast_jb" "$INCLUDEDIR/../../lib/asterisk/modules/chan_sip.so"; then
+			echo "/* AST_JB */" >>$CONFIGFILE
+			echo "#define CC_AST_HAS_JB_PATCH" >>$CONFIGFILE
+			echo " * found generic jitter-buffer patch"
+		else
+			echo "#undef CC_AST_HAS_JB_PATCH" >>$CONFIGFILE
+			echo " * found DISABLED generic jitter-buffer patch"
+		fi
+	fi
+else
+	echo "#undef CC_AST_HAS_JB_PATCH" >>$CONFIGFILE
+	echo " * without generic jitter-buffer patch"
+fi
+
 echo "" >>$CONFIGFILE
 echo "#endif /* CHAN_CAPI_CONFIG_H */" >>$CONFIGFILE
 echo "" >>$CONFIGFILE

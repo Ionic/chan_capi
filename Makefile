@@ -95,6 +95,8 @@ CFLAGS+=-Wno-missing-prototypes -Wno-missing-declarations
 
 CFLAGS+=-DCRYPTO
 
+CFLAGS+=`if grep -q AST_JB config.h; then echo -DAST_JB; fi`
+
 all: config.h $(SHAREDOS)
 
 clean:
