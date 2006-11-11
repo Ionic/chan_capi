@@ -12,6 +12,8 @@
 CONFIGFILE="config.h"
 rm -f "$CONFIGFILE"
 
+VER=1_2
+
 if [ $# -lt 1 ]; then
 	echo >&2 "Missing argument"
 	exit 1
@@ -37,6 +39,14 @@ echo "#ifndef CHAN_CAPI_CONFIG_H" >>$CONFIGFILE
 echo "#define CHAN_CAPI_CONFIG_H" >>$CONFIGFILE
 echo >>$CONFIGFILE
 
+if grep -q "ASTERISK_VERSION_NUM 0104" $INCLUDEDIR/version.h; then
+	echo "#define CC_AST_HAS_VERSION_1_4" >>$CONFIGFILE
+	echo " * found Asterisk version 1.4"
+	VER=1_4
+else
+	echo "#undef CC_AST_HAS_VERSION_1_4" >>$CONFIGFILE
+fi
+
 if grep -q "AST_STRING_FIELD(name)" $INCLUDEDIR/channel.h; then
 	echo "#define CC_AST_HAS_STRINGFIELD_IN_CHANNEL" >>$CONFIGFILE
 	echo " * found stringfield in ast_channel"
@@ -53,6 +63,7 @@ else
 	echo " * no data on 'indicate'"
 fi
 
+if [ "$VER" = "1_2" ]; then
 if grep -q "AST_JB" $INCLUDEDIR/channel.h; then
 	if [ ! -f "$INCLUDEDIR/../../lib/asterisk/modules/chan_sip.so" ]; then
 		echo "/* AST_JB */" >>$CONFIGFILE
@@ -71,6 +82,7 @@ if grep -q "AST_JB" $INCLUDEDIR/channel.h; then
 else
 	echo "#undef CC_AST_HAS_JB_PATCH" >>$CONFIGFILE
 	echo " * without generic jitter-buffer patch"
+fi
 fi
 
 echo "" >>$CONFIGFILE

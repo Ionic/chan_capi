@@ -59,6 +59,8 @@ endif
 
 PROC=$(shell uname -m)
 
+AVERSION=$(shell if grep -q "VERSION_NUM 0104" $(ASTERISK_HEADER_DIR)/asterisk/version.h; then echo V1_4; fi)
+
 LIBLINUX=
 DEBUG=-g #-pg
 INCLUDE=-I$(ASTERISK_HEADER_DIR)
@@ -95,7 +97,9 @@ CFLAGS+=-Wno-missing-prototypes -Wno-missing-declarations
 
 CFLAGS+=-DCRYPTO
 
+ifneq (${AVERSION},V1_4)
 CFLAGS+=`if grep -q AST_JB config.h; then echo -DAST_JB; fi`
+endif
 
 all: config.h $(SHAREDOS)
 

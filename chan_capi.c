@@ -61,6 +61,10 @@ OPENPBX_FILE_VERSION("$HeadURL$", "$Revision$")
 #else
 #include "config.h"
 
+#ifdef CC_AST_HAS_VERSION_1_4
+#include <asterisk.h>
+#endif
+
 #include <asterisk/lock.h>
 #include <asterisk/frame.h> 
 #include <asterisk/channel.h>
@@ -98,14 +102,18 @@ OPENPBX_FILE_VERSION("$HeadURL$", "$Revision$")
 unsigned capi_ApplID = CAPI_APPLID_UNUSED;
 
 static _cword capi_MessageNumber;
+static const char tdesc[] = "Common ISDN API Driver (" CC_VERSION ")";
+static const char channeltype[] = "CAPI";
+static const struct ast_channel_tech capi_tech;
+#ifdef CC_AST_HAS_VERSION_1_4
+#define AST_MODULE "chan_capi"
+#else
 #ifdef PBX_IS_OPBX
 static char *ccdesc = "Common ISDN API for OpenPBX";
 #else
 static char *ccdesc = "Common ISDN API for Asterisk";
 #endif
-static const char tdesc[] = "Common ISDN API Driver (" CC_VERSION ")";
-static const char channeltype[] = "CAPI";
-static const struct ast_channel_tech capi_tech;
+#endif
 
 static char *commandtdesc = "CAPI command interface.\n"
 "The dial command:\n"
@@ -143,8 +151,10 @@ static char *commandtdesc = "CAPI command interface.\n"
 
 static char *commandapp = "capiCommand";
 static char *commandsynopsis = "Execute special CAPI commands";
+#ifndef CC_AST_HAS_VERSION_1_4
 STANDARD_LOCAL_USER;
 LOCAL_USER_DECL;
+#endif
 
 static int usecnt;
 
@@ -177,7 +187,9 @@ static int usecnt;
  */
 
 AST_MUTEX_DEFINE_STATIC(messagenumber_lock);
+#ifndef CC_AST_HAS_VERSION_1_4
 AST_MUTEX_DEFINE_STATIC(usecnt_lock);
+#endif
 AST_MUTEX_DEFINE_STATIC(iflock);
 AST_MUTEX_DEFINE_STATIC(capi_put_lock);
 AST_MUTEX_DEFINE_STATIC(verbose_lock);
@@ -967,6 +979,16 @@ static int capi_send_info_digits(struct capi_pvt *i, char *digits, int len)
 	return 0;
 }
 
+#ifdef CC_AST_HAS_VERSION_1_4
+/*
+ *  begin send DMTF
+ */
+static int pbx_capi_send_digit_begin(struct ast_channel *c, char digit)
+{
+	/* Not needed */
+	return 0;
+}
+#endif
 /*
  * send a DTMF digit
  */
@@ -1284,8 +1306,6 @@ static int pbx_capi_hangup(struct ast_channel *c)
 		cleanup = 1;
 	}
 	
-	ast_update_use_count();
-	
 	if ((i->doDTMF > 0) && (i->vad != NULL)) {
 		ast_dsp_free(i->vad);
 		i->vad = NULL;
@@ -1305,9 +1325,14 @@ static int pbx_capi_hangup(struct ast_channel *c)
 	CC_CHANNEL_PVT(c) = NULL;
 	ast_setstate(c, AST_STATE_DOWN);
 
+#ifdef CC_AST_HAS_VERSION_1_4
+	ast_atomic_fetchadd_int(&usecnt, -1);
+#else
 	cc_mutex_lock(&usecnt_lock);
 	usecnt--;
 	cc_mutex_unlock(&usecnt_lock);
+#endif
+	ast_update_use_count();
 	
 	return 0;
 }
@@ -2080,7 +2105,9 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 	snprintf(tmp->name, sizeof(tmp->name) - 1, "CAPI/%s/%s-%x",
 		i->name, i->dnid, capi_counter++);
 #endif
+#ifndef CC_AST_HAS_VERSION_1_4
 	tmp->type = channeltype;
+#endif
 
 	if (pipe(fds) != 0) {
 		cc_log(LOG_ERROR, "%s: unable to create pipe.\n",
@@ -2176,9 +2203,14 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 	cc_copy_string(tmp->language, i->language, sizeof(tmp->language));
 #endif
 	i->owner = tmp;
+
+#ifdef CC_AST_HAS_VERSION_1_4
+	ast_atomic_fetchadd_int(&usecnt, 1);
+#else
 	cc_mutex_lock(&usecnt_lock);
 	usecnt++;
 	cc_mutex_unlock(&usecnt_lock);
+#endif
 	ast_update_use_count();
 	
 	ast_setstate(tmp, state);
@@ -4225,7 +4257,7 @@ static int pbx_capi_retrieve(struct ast_channel *c, char *param)
 	char	fac[4];
 	unsigned int plci = 0;
 
-	if (c->tech->type == channeltype) {
+	if (c->tech == &capi_tech) {
 		plci = i->onholdPLCI;
 	} else {
 		i = NULL;
@@ -4602,7 +4634,11 @@ static struct capicommands_s {
 static int pbx_capicommand_exec(struct ast_channel *chan, void *data)
 {
 	int res = 0;
+#ifdef CC_AST_HAS_VERSION_1_4
+	struct ast_module_user *u;
+#else
 	struct localuser *u;
+#endif
 	char *s;
 	char *stringp;
 	char *command, *params;
@@ -4613,7 +4649,11 @@ static int pbx_capicommand_exec(struct ast_channel *chan, void *data)
 		return -1;
 	}
 
+#ifdef CC_AST_HAS_VERSION_1_4
+	u = ast_module_user_add(chan);
+#else
 	LOCAL_USER_ADD(u);
+#endif
 
 	s = ast_strdupa(data);
 	stringp = s;
@@ -4628,21 +4668,33 @@ static int pbx_capicommand_exec(struct ast_channel *chan, void *data)
 		capicmd++;
 	}
 	if (!capicmd->cmd) {
+#ifdef CC_AST_HAS_VERSION_1_4
+	ast_module_user_remove(u);
+#else
 		LOCAL_USER_REMOVE(u);
+#endif
 		cc_log(LOG_WARNING, "Unknown command '%s' for capiCommand\n",
 			command);
 		return -1;
 	}
 
-	if ((capicmd->capionly) && (chan->tech->type != channeltype)) {
+	if ((capicmd->capionly) && (chan->tech != &capi_tech)) {
+#ifdef CC_AST_HAS_VERSION_1_4
+	ast_module_user_remove(u);
+#else
 		LOCAL_USER_REMOVE(u);
+#endif
 		cc_log(LOG_WARNING, "capiCommand works on CAPI channels only, check your extensions.conf!\n");
 		return -1;
 	}
 
 	res = (capicmd->cmd)(chan, params);
 	
+#ifdef CC_AST_HAS_VERSION_1_4
+	ast_module_user_remove(u);
+#else
 	LOCAL_USER_REMOVE(u);
+#endif
 	return(res);
 }
 
@@ -5275,7 +5327,12 @@ static const struct ast_channel_tech capi_tech = {
 	.description = tdesc,
 	.capabilities = AST_FORMAT_ALAW,
 	.requester = pbx_capi_request,
+#ifdef CC_AST_HAS_VERSION_1_4
+	.send_digit_begin = pbx_capi_send_digit_begin,
+	.send_digit_end = pbx_capi_send_digit,
+#else
 	.send_digit = pbx_capi_send_digit,
+#endif
 	.send_text = NULL,
 	.call = pbx_capi_call,
 	.hangup = pbx_capi_hangup,
@@ -5718,10 +5775,21 @@ static int capi_eval_config(struct ast_config *cfg)
 	return 0;
 }
 
+#ifdef CC_AST_HAS_VERSION_1_4
+static int reload(void)
+{
+	cc_log(LOG_WARNING, "config reload is not supported yet.\n");
+
+	return 0;
+}
+#endif
 /*
  * unload the module
  */
-int unload_module()
+#ifdef CC_AST_HAS_VERSION_1_4
+static
+#endif
+int unload_module(void)
 {
 	struct capi_pvt *i, *itmp;
 	int controller;
@@ -5732,6 +5800,10 @@ int unload_module()
 	ast_cli_unregister(&cli_show_channels);
 	ast_cli_unregister(&cli_debug);
 	ast_cli_unregister(&cli_no_debug);
+
+#ifdef CC_AST_HAS_VERSION_1_4
+	ast_module_user_hangup_all();
+#endif
 
 	if (monitor_thread != (pthread_t)(0-1)) {
 		pthread_cancel(monitor_thread);
@@ -5776,6 +5848,9 @@ int unload_module()
 /*
  * main: load the module
  */
+#ifdef CC_AST_HAS_VERSION_1_4
+static
+#endif
 int load_module(void)
 {
 	struct ast_config *cfg;
@@ -5838,6 +5913,13 @@ int load_module(void)
 	return 0;
 }
 
+#ifdef CC_AST_HAS_VERSION_1_4
+AST_MODULE_INFO(ASTERISK_GPL_KEY, AST_MODFLAG_DEFAULT, tdesc,
+		.load = load_module,
+		.unload = unload_module,
+		.reload = reload,
+	       );
+#else
 int usecount()
 {
 	int res;
@@ -5860,3 +5942,4 @@ char *key()
 	return ASTERISK_GPL_KEY;
 }
 #endif
+#endif /* CC_AST_HAS_VERSION_1_4 */

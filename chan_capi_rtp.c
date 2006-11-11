@@ -197,7 +197,9 @@ int capi_alloc_rtp(struct capi_pvt *i)
 	struct hostent *hp;
 	struct in_addr addr;
 	struct sockaddr_in us;
+#ifndef CC_AST_HAS_VERSION_1_4
 	char temp[MAXHOSTNAMELEN];
+#endif
 
 	hp = ast_gethostbyname("localhost", &ahp);
 	memcpy(&addr, hp->h_addr, sizeof(addr));
@@ -210,7 +212,11 @@ int capi_alloc_rtp(struct capi_pvt *i)
 	ast_rtp_set_peer(i->rtp, &us);
 	cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: alloc rtp socket on %s:%d\n",
 		i->vname,
+#ifdef CC_AST_HAS_VERSION_1_4
+		ast_inet_ntoa(us.sin_addr),
+#else
 		ast_inet_ntoa(temp, sizeof(temp), us.sin_addr),
+#endif
 		ntohs(us.sin_port));
 	i->timestamp = 0;
 	return 0;
@@ -224,7 +230,8 @@ int capi_write_rtp(struct ast_channel *c, struct ast_frame *f)
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	_cmsg CMSG;
 	struct sockaddr_in us;
-	int len, uslen;
+	int len;
+	socklen_t uslen;
 	unsigned int *rtpheader;
 	unsigned char buf[256];
 
