@@ -2091,19 +2091,26 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 	int fds[2];
 	int flags;
 
+#ifdef CC_AST_HAS_EXT_CHAN_ALLOC
+	tmp = ast_channel_alloc(0, state, i->cid, NULL,
+		"CAPI/%s/%s-%x", i->name, i->dnid, capi_counter++);
+#else
 	tmp = ast_channel_alloc(0);
+#endif
 	
 	if (tmp == NULL) {
 		cc_log(LOG_ERROR,"Unable to allocate channel!\n");
 		return(NULL);
 	}
 
+#ifndef CC_AST_HAS_EXT_CHAN_ALLOC
 #ifdef CC_AST_HAS_STRINGFIELD_IN_CHANNEL
 	ast_string_field_build(tmp, name, "CAPI/%s/%s-%x",
 		i->name, i->dnid, capi_counter++);
 #else
 	snprintf(tmp->name, sizeof(tmp->name) - 1, "CAPI/%s/%s-%x",
 		i->name, i->dnid, capi_counter++);
+#endif
 #endif
 #ifndef CC_AST_HAS_VERSION_1_4
 	tmp->type = channeltype;
@@ -2178,12 +2185,14 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 		(i->rtp) ? " (RTP)" : "");
 	cc_copy_string(tmp->context, i->context, sizeof(tmp->context));
 
+#ifndef CC_AST_HAS_EXT_CHAN_ALLOC
 	if (!ast_strlen_zero(i->cid)) {
 		if (tmp->cid.cid_num) {
 			free(tmp->cid.cid_num);
 		}
 		tmp->cid.cid_num = strdup(i->cid);
 	}
+#endif
 	if (!ast_strlen_zero(i->dnid)) {
 		if (tmp->cid.cid_dnid) {
 			free(tmp->cid.cid_dnid);
@@ -2213,7 +2222,9 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 #endif
 	ast_update_use_count();
 	
+#ifndef CC_AST_HAS_EXT_CHAN_ALLOC
 	ast_setstate(tmp, state);
+#endif
 
 	return tmp;
 }

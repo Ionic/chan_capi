@@ -44,7 +44,13 @@ if grep -q "ASTERISK_VERSION_NUM 0104" $INCLUDEDIR/version.h; then
 	echo " * found Asterisk version 1.4"
 	VER=1_4
 else
-	echo "#undef CC_AST_HAS_VERSION_1_4" >>$CONFIGFILE
+	if [ -f "$INCLUDEDIR/../asterisk.h" ]; then
+		echo "#define CC_AST_HAS_VERSION_1_4" >>$CONFIGFILE
+		echo " * assuming Asterisk version 1.4"
+		VER=1_4
+	else
+		echo "#undef CC_AST_HAS_VERSION_1_4" >>$CONFIGFILE
+	fi
 fi
 
 if grep -q "AST_STRING_FIELD(name)" $INCLUDEDIR/channel.h; then
@@ -61,6 +67,14 @@ if grep -q "const indicate.*datalen" $INCLUDEDIR/channel.h; then
 else
 	echo "#undef CC_AST_HAS_INDICATE_DATA" >>$CONFIGFILE
 	echo " * no data on 'indicate'"
+fi
+
+if grep -q "ast_channel_alloc.*name_fmt" $INCLUDEDIR/channel.h; then
+	echo "#define CC_AST_HAS_EXT_CHAN_ALLOC" >>$CONFIGFILE
+	echo " * found extended ast_channel_alloc"
+else
+	echo "#undef CC_AST_HAS_EXT_CHAN_ALLOC" >>$CONFIGFILE
+	echo " * no extended ast_channel_alloc"
 fi
 
 if [ "$VER" = "1_2" ]; then
