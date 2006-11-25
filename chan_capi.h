@@ -314,6 +314,7 @@ struct capi_pvt {
 	int doDTMF;
 	/* CAPI echo cancellation */
 	int doEC;
+	int doEC_global;
 	int ecOption;
 	int ecTail;
 	int ecSelector;

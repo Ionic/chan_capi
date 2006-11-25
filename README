@@ -145,7 +145,8 @@ Enable/Disable echosquelch:
 Enable/Disable echocancel:
     Enable or disable echo-cancel provided by CAPI driver/hardware.
     You may need to disable echo-cancel when e.g. data/fax transmission handled
-    by non-CAPI application.
+    by non-CAPI application. After hangup, this setting is restored to value
+    set in capi.conf.
         Example:
         exten => s,1,capicommand(echocancel|yes)
           or

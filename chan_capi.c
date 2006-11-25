@@ -1112,6 +1112,7 @@ static void interface_cleanup(struct capi_pvt *i)
 	i->MessageNumber = 0;
 	i->NCCI = 0;
 	i->onholdPLCI = 0;
+	i->doEC = i->doEC_global;
 
 	memset(i->cid, 0, sizeof(i->cid));
 	memset(i->dnid, 0, sizeof(i->dnid));
@@ -5001,6 +5002,7 @@ int mkif(struct cc_capi_conf *conf)
 		tmp->controller = unit;
 		capi_used_controllers |= (1 << unit);
 		tmp->doEC = conf->echocancel;
+		tmp->doEC_global = conf->echocancel;
 		tmp->ecOption = conf->ecoption;
 		if (conf->ecnlp) tmp->ecOption |= 0x01; /* bit 0 of ec-option is NLP */
 		tmp->ecTail = conf->ectail;
