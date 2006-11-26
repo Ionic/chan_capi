@@ -44,7 +44,7 @@ if grep -q "ASTERISK_VERSION_NUM 0104" $INCLUDEDIR/version.h; then
 	echo " * found Asterisk version 1.4"
 	VER=1_4
 else
-	if [ -f "$INCLUDEDIR/../asterisk.h" ]; then
+	if grep -q "ASTERISK_VERSION_NUM 99999" $INCLUDEDIR/version.h; then
 		echo "#define CC_AST_HAS_VERSION_1_4" >>$CONFIGFILE
 		echo " * assuming Asterisk version 1.4"
 		VER=1_4
