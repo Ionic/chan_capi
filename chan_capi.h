@@ -227,8 +227,7 @@ struct cc_capi_gains {
 /* the lower word is reserved for capi commands */
 #define CAPI_WAITEVENT_B3_UP          0x00010000
 #define CAPI_WAITEVENT_B3_DOWN        0x00020000
-#define CAPI_WAITEVENT_FAX_FINISH     0x00030000
-#define CAPI_WAITEVENT_ANSWER_FINISH  0x00040000
+#define CAPI_WAITEVENT_ANSWER_FINISH  0x00030000
 
 /* ! Private data for a capi device */
 struct capi_pvt {

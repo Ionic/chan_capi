@@ -526,29 +526,17 @@ static void capi_wait_for_answered(struct capi_pvt *i)
 }
 
 /*
- * wait until fax activity has finished
+ * function to tell if fax activity has finished
  */
-static void capi_wait_for_fax_finish(struct capi_pvt *i)
+static int capi_tell_fax_finish(void *data)
 {
-	struct timespec abstime;
-	unsigned int timeout = 600; /* 10 minutes, to be sure */
+	struct capi_pvt *i = (struct capi_pvt *)data;
 
-	cc_mutex_lock(&i->lock);
 	if (i->FaxState & CAPI_FAX_STATE_ACTIVE) {
-		i->waitevent = CAPI_WAITEVENT_FAX_FINISH;
-		abstime.tv_sec = time(NULL) + timeout;
-		abstime.tv_nsec = 0;
-		cc_verbose(4, 1, "%s: wait for finish fax (timeout %d seconds).\n",
-			i->vname, timeout);
-		if (ast_cond_timedwait(&i->event_trigger, &i->lock, &abstime) != 0) {
-			cc_log(LOG_WARNING, "%s: timed out waiting for finish fax.\n",
-				i->vname);
-		} else {
-			cc_verbose(4, 1, "%s: cond signal received for finish fax.\n",
-				i->vname);
-		}
+		return 1;
 	}
-	cc_mutex_unlock(&i->lock);
+
+	return 0;
 }
 
 /*
@@ -2401,7 +2389,17 @@ static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 			i->state);
 		return -1;
 	}
-	capi_wait_for_fax_finish(i);
+
+	while (capi_tell_fax_finish(i)) {
+		if (ast_safe_sleep_conditional(c, 1000, capi_tell_fax_finish, i) != 0) {
+			/* we got a hangup before fax finish */
+			cc_verbose(3, 1,
+				VERBOSE_PREFIX_2 "capi receivefax: hangup before fax finish.\n");
+			break;
+		}
+	}
+
+	cc_mutex_lock(&i->lock);
 
 	res = (i->FaxState & CAPI_FAX_STATE_ERROR) ? 1 : 0;
 	i->FaxState &= ~(CAPI_FAX_STATE_ACTIVE | CAPI_FAX_STATE_ERROR);
@@ -2414,6 +2412,8 @@ static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 	cc_verbose(2, 1, VERBOSE_PREFIX_3 "Closing fax file...\n");
 	fclose(i->fFax);
 	i->fFax = NULL;
+
+	cc_mutex_unlock(&i->lock);
 
 	if (res != 0) {
 		cc_verbose(2, 0,
@@ -2482,19 +2482,25 @@ static int pbx_capi_send_fax(struct ast_channel *c, char *data)
 			i->state);
 		return -1;
 	}
-	capi_wait_for_fax_finish(i);
+	while (capi_tell_fax_finish(i)) {
+		if (ast_safe_sleep_conditional(c, 1000, capi_tell_fax_finish, i) != 0) {
+			/* we got a hangup before fax finish */
+			cc_verbose(3, 1,
+				VERBOSE_PREFIX_2 "capi sendfax: hangup before fax finish.\n");
+			break;
+		}
+	}
+
+	cc_mutex_lock(&i->lock);
 
 	res = (i->FaxState & CAPI_FAX_STATE_ERROR) ? 1 : 0;
 	i->FaxState &= ~(CAPI_FAX_STATE_ACTIVE | CAPI_FAX_STATE_ERROR);
 
-	/* if the file has zero length */
-	if (ftell(i->fFax) == 0L) {
-		res = 1;
-	}
-			
 	cc_verbose(2, 1, VERBOSE_PREFIX_3 "Closing fax file...\n");
 	fclose(i->fFax);
 	i->fFax = NULL;
+
+	cc_mutex_unlock(&i->lock);
 
 	if (res != 0) {
 		cc_verbose(2, 0,
@@ -3979,14 +3985,6 @@ static void capidev_post_handling(struct capi_pvt *i, _cmsg *CMSG)
 		i->waitevent = 0;
 		ast_cond_signal(&i->event_trigger);
 		cc_verbose(4, 1, "%s: found and signal for b3 down state.\n",
-			i->vname);
-		return;
-	}
-	if ((i->waitevent == CAPI_WAITEVENT_FAX_FINISH) &&
-	    (!(i->FaxState & CAPI_FAX_STATE_ACTIVE))) {
-		i->waitevent = 0;
-		ast_cond_signal(&i->event_trigger);
-		cc_verbose(4, 1, "%s: found and signal for finished fax state.\n",
 			i->vname);
 		return;
 	}
