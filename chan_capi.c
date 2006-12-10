@@ -2392,9 +2392,9 @@ static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 
 	while (capi_tell_fax_finish(i)) {
 		if (ast_safe_sleep_conditional(c, 1000, capi_tell_fax_finish, i) != 0) {
-			/* we got a hangup before fax finish */
+			/* we got a hangup */
 			cc_verbose(3, 1,
-				VERBOSE_PREFIX_2 "capi receivefax: hangup before fax finish.\n");
+				VERBOSE_PREFIX_3 "capi receivefax: hangup.\n");
 			break;
 		}
 	}
@@ -2484,9 +2484,9 @@ static int pbx_capi_send_fax(struct ast_channel *c, char *data)
 	}
 	while (capi_tell_fax_finish(i)) {
 		if (ast_safe_sleep_conditional(c, 1000, capi_tell_fax_finish, i) != 0) {
-			/* we got a hangup before fax finish */
+			/* we got a hangup */
 			cc_verbose(3, 1,
-				VERBOSE_PREFIX_2 "capi sendfax: hangup before fax finish.\n");
+				VERBOSE_PREFIX_3 "capi sendfax: hangup.\n");
 			break;
 		}
 	}
@@ -3300,6 +3300,11 @@ static void capidev_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, un
 				cc_log(LOG_WARNING, "%s : error writing output file (%s)\n",
 					i->vname, strerror(errno));
 		}
+#ifndef CC_AST_HAS_VERSION_1_4
+		fr.frametype = AST_FRAME_CONTROL;
+		fr.subclass = AST_CONTROL_PROGRESS;
+		local_queue_frame(i, &fr);
+#endif
 		return;
 	}
 
@@ -3389,9 +3394,18 @@ static void capi_signal_answer(struct capi_pvt *i)
  */
 static void capidev_send_faxdata(struct capi_pvt *i)
 {
+#ifndef CC_AST_HAS_VERSION_1_4
+	struct ast_frame fr = { AST_FRAME_CONTROL, AST_CONTROL_PROGRESS, };
+#endif
 	unsigned char faxdata[CAPI_MAX_B3_BLOCK_SIZE];
 	size_t len;
 	_cmsg CMSG;
+
+	if (i->state == CAPI_STATE_DISCONNECTING) {
+		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: send_faxdata in DISCONNECTING.\n",
+			i->vname);
+		return;
+	}
 
 	if ((i->fFax) && (!(feof(i->fFax)))) {
 		len = fread(faxdata, 1, CAPI_MAX_B3_BLOCK_SIZE, i->fFax);
@@ -3406,6 +3420,9 @@ static void capidev_send_faxdata(struct capi_pvt *i)
 			cc_verbose(5, 1, VERBOSE_PREFIX_3 "%s: send %d fax bytes.\n",
 				i->vname, len);
 			_capi_put_cmsg(&CMSG);
+#ifndef CC_AST_HAS_VERSION_1_4
+			local_queue_frame(i, &fr);
+#endif
 			return;
 		}
 	}
