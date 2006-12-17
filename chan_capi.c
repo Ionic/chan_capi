@@ -5010,6 +5010,13 @@ int mkif(struct cc_capi_conf *conf)
 				unit = capi_num_controllers;
 			}
 
+		if (unit > capi_num_controllers){
+			free(tmp);
+			cc_verbose(2, 0, VERBOSE_PREFIX_3 "controller %d invalid, ignoring interface.\n",
+				unit);
+			return 0;
+		}
+
 		/* always range check user input */
 		if (unit > CAPI_MAX_CONTROLLERS)
 			unit = CAPI_MAX_CONTROLLERS;
