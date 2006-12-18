@@ -217,6 +217,7 @@ struct cc_capi_gains {
 #define CAPI_ISDN_STATE_EC            0x00002000
 #define CAPI_ISDN_STATE_DTMF          0x00004000
 #define CAPI_ISDN_STATE_B3_SELECT     0x00008000
+#define CAPI_ISDN_STATE_3PTY	      0x10000000
 #define CAPI_ISDN_STATE_PBX_DONT      0x40000000
 #define CAPI_ISDN_STATE_PBX           0x80000000
 

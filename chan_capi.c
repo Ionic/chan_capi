@@ -3217,6 +3217,16 @@ static void capidev_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, u
 			show_capi_info(i, read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]));
 		}
 
+		/* 3PTY */
+		if ( (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[1] == 0x7) &&
+		     (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[3] == 0x2) ) {
+			cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: PLCI=%#x 3PTY  Reason=0x%02x%02x\n",
+				i->vname, PLCI,
+				FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[5],
+				FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]);
+			show_capi_info(i, read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]));
+		}
+
 		/* RETRIEVE */
 		if ( (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[1] == 0x3) &&
 		     (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[3] == 0x2) ) {
@@ -4634,6 +4644,91 @@ static int pbx_capi_signal_progress(struct ast_channel *c, char *param)
 }
 
 /*
+ * Initiate a Three-Party-Conference (3PTY) with one active and one
+ * held call
+ */
+static int pbx_capi_3pty_begin(struct ast_channel *c, char *param)
+{
+	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+	struct capi_pvt *ii = NULL;
+	_cmsg		CMSG;
+	char		fac[8];
+	const char	*id;
+	unsigned int	plci = 0;
+
+	if ((id = pbx_builtin_getvar_helper(c, "CALLERHOLDID"))) {
+		plci = (unsigned int)strtoul(id, NULL, 0);
+	}
+	
+	if (param) {
+		plci = (unsigned int)strtoul(param, NULL, 0);
+	}
+
+	if (!plci) {
+		cc_log(LOG_WARNING, "%s: No id for 3PTY !\n", i->vname);
+		return -1;
+	}
+
+	cc_mutex_lock(&iflock);
+	for (ii = iflist; ii; ii = ii->next) {
+		if (ii->onholdPLCI == plci)
+			break;
+	}
+	cc_mutex_unlock(&iflock);
+
+	if (!ii) {
+		cc_log(LOG_WARNING, "%s: 0x%x is not on hold !\n",
+			i->vname, plci);
+		return -1;
+	}
+
+	cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: using PLCI=%#x for 3PTY\n",
+		i->vname, plci);
+
+	if (!(ii->isdnstate & CAPI_ISDN_STATE_HOLD)) {
+		cc_log(LOG_WARNING, "%s: PLCI %#x (%s) is not on hold for 3PTY\n",
+			i->vname, plci, ii->vname);
+		return -1;
+	}
+	if (!(i->isdnstate & CAPI_ISDN_STATE_B3_UP)) {
+		cc_log(LOG_NOTICE,"%s: Cannot initiate conference %s while not connected.\n",
+			i->vname, c->name);
+		return 0;
+	}
+	if (!(capi_controllers[i->controller]->threePTY)) {
+	        cc_log(LOG_NOTICE,"%s: 3PTY for %s not supported by controller.\n",
+			i->vname, c->name);
+		return 0;
+	}
+
+	fac[0] = 7;	/* len */
+	fac[1] = 0x07;	/* this is a 3PTY Begin */
+	fac[2] = 0x00;
+	fac[3] = 4;	/* length of PLCI parameter (DWORD) */
+	write_capi_dword(&(fac[4]), plci);
+
+	FACILITY_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
+	FACILITY_REQ_CONTROLLER(&CMSG) = i->controller;
+	FACILITY_REQ_PLCI(&CMSG) = plci; /* implicit 3PTY */
+	FACILITY_REQ_FACILITYSELECTOR(&CMSG) = FACILITYSELECTOR_SUPPLEMENTARY;
+	FACILITY_REQ_FACILITYREQUESTPARAMETER(&CMSG) = (_cstruct)&fac;
+
+	cc_mutex_lock(&ii->lock);
+	_capi_put_cmsg_wait_conf(ii, &CMSG);
+
+	ii->isdnstate &= ~CAPI_ISDN_STATE_HOLD;
+	ii->isdnstate |= CAPI_ISDN_STATE_3PTY;
+	i->isdnstate |= CAPI_ISDN_STATE_3PTY;
+
+	cc_mutex_unlock(&ii->lock);
+
+	cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: sent 3PTY for PLCI=%#x to PLCI=%#x\n",
+		i->vname, plci, i->PLCI);
+
+	return 0;
+}
+
+/*
  * struct of capi commands
  */
 static struct capicommands_s {
@@ -4652,6 +4747,7 @@ static struct capicommands_s {
 	{ "holdtype",     pbx_capi_holdtype,        1 },
 	{ "retrieve",     pbx_capi_retrieve,        0 },
 	{ "ect",          pbx_capi_ect,             1 },
+	{ "3pty_begin",	  pbx_capi_3pty_begin,	    1 },
 	{ NULL, NULL, 0 }
 };
 
@@ -5217,6 +5313,8 @@ static char *show_isdnstate(unsigned int isdnstate, char *str)
 		strcat(str, "H");
 	if (isdnstate & CAPI_ISDN_STATE_ECT)
 		strcat(str, "T");
+	if (isdnstate & CAPI_ISDN_STATE_3PTY)
+	        strcat(str, "3");
 	if (isdnstate & (CAPI_ISDN_STATE_SETUP | CAPI_ISDN_STATE_SETUP_ACK))
 		strcat(str, "S");
 
