@@ -24,6 +24,7 @@ Petr Michalek <petr.michalek@aca.cz>
 Jan Stocker
 Frank Sautter, levigo group
 Hans Petter Selasky
+Simon Peter <dn.tlp@gmx.net>
 
 (...and all the others that have been forgotten...) :-)
 
@@ -38,7 +39,7 @@ This chan_capi version includes:
 - Multiple controller support
 - CID,DNID (callling party, called party)
 - CLIR/CLIP
-- Supplementary services: CD (deflect/reroute),HOLD,RETRIEVE,ECT
+- Supplementary services: CD (deflect/reroute),HOLD,RETRIEVE,ECT,3PTY
 - DTMF (dependend on card) + software DTMF support
 - Early B3 connects (always,success,never)
 - Digital audio (what did you think?)
@@ -198,6 +199,17 @@ ECT:
         exten => s,1,capicommand(hold)
         exten => s,2,Wait(1)
         exten => s,3,Dial(CAPI/contr1/1234,60,M(capiect))
+
+3PTY:
+    Initiate a Three-Party Conference (must have one call on hold and one active call!).
+        Example:
+        exten => s,1,capicommand(3pty_begin|${MYHOLDVAR})
+         or
+        [macro-capi3pty]
+        exten => s,1,capicommand(3pty_begin)
+        [default]
+        exten => s,1,capicommand(hold)
+        exten => s,2,Dial(CAPI/contr1/1234,,M(capi3pty))
 
 
 Using CLIR
