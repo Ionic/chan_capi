@@ -991,7 +991,11 @@ static int pbx_capi_send_digit_begin(struct ast_channel *c, char digit)
 /*
  * send a DTMF digit
  */
+#ifdef CC_AST_HAS_VERSION_1_4
+static int pbx_capi_send_digit(struct ast_channel *c, char digit, unsigned int duration)
+#else
 static int pbx_capi_send_digit(struct ast_channel *c, char digit)
+#endif
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	_cmsg CMSG;
@@ -1039,6 +1043,7 @@ static int pbx_capi_send_digit(struct ast_channel *c, char digit)
 	        FACILITY_REQ_FACILITYSELECTOR(&CMSG) = FACILITYSELECTOR_DTMF;
         	buf[0] = 8;
 	        write_capi_word(&buf[1], 3); /* send DTMF digit */
+		/* XXX: duration comes from asterisk in 1.4 */
 	        write_capi_word(&buf[3], CAPI_DTMF_DURATION);
 	        write_capi_word(&buf[5], CAPI_DTMF_DURATION);
 	        buf[7] = 1;
