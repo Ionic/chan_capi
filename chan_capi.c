@@ -2190,14 +2190,12 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 		(i->rtp) ? " (RTP)" : "");
 	cc_copy_string(tmp->context, i->context, sizeof(tmp->context));
 
-#ifndef CC_AST_HAS_EXT_CHAN_ALLOC
 	if (!ast_strlen_zero(i->cid)) {
 		if (tmp->cid.cid_num) {
 			free(tmp->cid.cid_num);
 		}
 		tmp->cid.cid_num = strdup(i->cid);
 	}
-#endif
 	if (!ast_strlen_zero(i->dnid)) {
 		if (tmp->cid.cid_dnid) {
 			free(tmp->cid.cid_dnid);
