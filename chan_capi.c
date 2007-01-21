@@ -752,6 +752,7 @@ static void capi_echo_canceller(struct ast_channel *c, int function)
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	_cmsg CMSG;
 	char buf[10];
+	int ecAvail = 0;
 
 	if ((i->isdnstate & CAPI_ISDN_STATE_DISCONNECT))
 		return;
@@ -764,8 +765,18 @@ static void capi_echo_canceller(struct ast_channel *c, int function)
 		return;
 	}
 
+	/* check for old echo-cancel configuration */
+	if ((i->ecSelector != FACILITYSELECTOR_ECHO_CANCEL) &&
+	    (capi_controllers[i->controller]->broadband)) {
+		ecAvail = 1;
+	}
+	if ((i->ecSelector == FACILITYSELECTOR_ECHO_CANCEL) &&
+	    (capi_controllers[i->controller]->echocancel)) {
+		ecAvail = 1;
+	}
+
 	/* If echo cancellation is not requested or supported, don't attempt to enable it */
-	if (!capi_controllers[i->controller]->echocancel || !i->doEC) {
+	if (!ecAvail || !i->doEC) {
 		return;
 	}
 
@@ -5582,6 +5593,17 @@ static int cc_init_capi(void)
 			cp->dtmf = 1;
 		}
 		
+	
+#if (CAPI_OS_HINT == 1)
+		if (profile.dwGlobalOptions & 0x01) {
+#else
+		if (profile.globaloptions2 & 0x01) {
+#endif
+			cc_verbose(3, 0, VERBOSE_PREFIX_3 "CAPI/contr%d supports broadband (or old echo-cancel)\n",
+				controller);
+			cp->broadband = 1;
+		}
+
 #if (CAPI_OS_HINT == 1)
 		if (profile.dwGlobalOptions & CAPI_PROFILE_ECHO_CANCELLATION) {
 #else

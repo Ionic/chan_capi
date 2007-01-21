@@ -399,6 +399,7 @@ struct cc_capi_conf {
 	int devices;
 	int softdtmf;
 	int echocancel;
+	int broadband;
 	int ecoption;
 	int ectail;
 	int ecnlp;
