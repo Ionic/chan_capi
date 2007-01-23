@@ -1799,7 +1799,7 @@ static int pbx_capi_write(struct ast_channel *c, struct ast_frame *f)
 			}
 			i->txavg[ECHO_TX_COUNT - 1] = txavg;
 		} else {
-			if ((i->txgain == 1.0) || (!tcap_is_digital(c->transfercapability))) {
+			if ((i->txgain == 1.0) || (tcap_is_digital(c->transfercapability))) {
 				for (j = 0; j < fsmooth->datalen; j++) {
 					buf[j] = reversebits[((unsigned char *)fsmooth->data)[j]];
 				}
@@ -3290,6 +3290,7 @@ static void capidev_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, u
 static void capidev_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
 {
 	_cmsg CMSG2;
+	struct ast_channel *chan;
 	struct ast_frame fr = { AST_FRAME_NULL, };
 	unsigned char *b3buf = NULL;
 	int b3len = 0;
@@ -3312,6 +3313,8 @@ static void capidev_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, un
 	_capi_put_cmsg(&CMSG2);
 
 	return_on_no_interface("DATA_B3_IND");
+
+	chan = i->owner;
 
 	if (i->fFax) {
 		/* we are in fax mode and have a file open */
@@ -3349,7 +3352,7 @@ static void capidev_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, un
 		i->B3q += b3len;
 	}
 
-	if ((i->doES == 1)) {
+	if ((i->doES == 1) && (!tcap_is_digital(chan->transfercapability))) {
 		for (j = 0; j < b3len; j++) {
 			*(b3buf + j) = reversebits[*(b3buf + j)]; 
 			if (capi_capability == AST_FORMAT_ULAW) {
@@ -3374,7 +3377,7 @@ static void capidev_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, un
 					i->vname, rxavg, txavg);
 		}
 	} else {
-		if (i->rxgain == 1.0) {
+		if ((i->rxgain == 1.0) || (tcap_is_digital(chan->transfercapability))) {
 			for (j = 0; j < b3len; j++) {
 				*(b3buf + j) = reversebits[*(b3buf + j)];
 			}
