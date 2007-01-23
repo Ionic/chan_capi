@@ -1143,18 +1143,17 @@ static void cc_disconnect_b3(struct capi_pvt *i, int wait)
 	if (!(i->isdnstate & (CAPI_ISDN_STATE_B3_UP | CAPI_ISDN_STATE_B3_PEND)))
 		return;
 
-	if (wait) {
-		cc_mutex_lock(&i->lock);
-	}
-
 	DISCONNECT_B3_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
 	DISCONNECT_B3_REQ_NCCI(&CMSG) = i->NCCI;
-	_capi_put_cmsg_wait_conf(i, &CMSG);
 
-	if (!wait) {
+	if (wait) {
+		cc_mutex_lock(&i->lock);
+		_capi_put_cmsg_wait_conf(i, &CMSG);
+	} else {
+		_capi_put_cmsg(&CMSG);
 		return;
 	}
-	
+
 	/* wait for the B3 layer to go down */
 	if ((i->isdnstate & (CAPI_ISDN_STATE_B3_UP | CAPI_ISDN_STATE_B3_PEND))) {
 		i->waitevent = CAPI_WAITEVENT_B3_DOWN;
