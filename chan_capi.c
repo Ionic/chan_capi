@@ -1143,13 +1143,15 @@ static void cc_disconnect_b3(struct capi_pvt *i, int wait)
 	if (!(i->isdnstate & (CAPI_ISDN_STATE_B3_UP | CAPI_ISDN_STATE_B3_PEND)))
 		return;
 
-	cc_mutex_lock(&i->lock);
+	if (wait) {
+		cc_mutex_lock(&i->lock);
+	}
+
 	DISCONNECT_B3_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
 	DISCONNECT_B3_REQ_NCCI(&CMSG) = i->NCCI;
 	_capi_put_cmsg_wait_conf(i, &CMSG);
 
 	if (!wait) {
-		cc_mutex_unlock(&i->lock);
 		return;
 	}
 	
@@ -1224,6 +1226,7 @@ static void send_progress(struct capi_pvt *i)
 
 /*
  * hangup a line (CAPI messages)
+ * (this must be called with i->lock held)
  */
 static void capi_activehangup(struct ast_channel *c, int state)
 {
@@ -1264,7 +1267,6 @@ static void capi_activehangup(struct ast_channel *c, int state)
 	
 	if ((state == CAPI_STATE_CONNECTED) || (state == CAPI_STATE_CONNECTPENDING) ||
 	    (state == CAPI_STATE_ANSWERING) || (state == CAPI_STATE_ONHOLD)) {
-		cc_mutex_lock(&i->lock);
 		if (i->PLCI == 0) {
 			/* CONNECT_CONF not received yet? */
 			capi_wait_conf(i, CAPI_CONNECT_CONF);
@@ -1272,7 +1274,6 @@ static void capi_activehangup(struct ast_channel *c, int state)
 		DISCONNECT_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
 		DISCONNECT_REQ_PLCI(&CMSG) = i->PLCI;
 		_capi_put_cmsg_wait_conf(i, &CMSG);
-		cc_mutex_unlock(&i->lock);
 	}
 	return;
 }
@@ -1319,13 +1320,11 @@ static int pbx_capi_hangup(struct ast_channel *c)
 	if (cleanup) {
 		/* disconnect already done, so cleanup */
 		interface_cleanup(i);
-	}
-	cc_mutex_unlock(&i->lock);
-
-	if (!cleanup) {
+	} else {
 		/* not disconnected yet, we must actively do it */
 		capi_activehangup(c, state);
 	}
+	cc_mutex_unlock(&i->lock);
 
 	CC_CHANNEL_PVT(c) = NULL;
 	ast_setstate(c, AST_STATE_DOWN);
