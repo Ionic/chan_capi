@@ -3739,6 +3739,8 @@ static void capidev_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI,
 		interface_cleanup(i);
 	} else {
 		local_queue_frame(i, &fr);
+		/* PLCI is now removed, make sure it doesn't match with new one */
+		i->PLCI = 0xdead0000;
 	}
 	return;
 }
