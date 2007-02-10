@@ -352,6 +352,10 @@ struct capi_pvt {
 	short txavg[ECHO_TX_COUNT];
 	float rxmin;
 	float txmin;
+
+#ifdef CC_AST_HAS_VERSION_1_4
+	struct ast_jb_conf jbconf;
+#endif
 	
 	struct cc_capi_gains g;
 
@@ -418,6 +422,9 @@ struct cc_capi_conf {
 	float txgain;
 	struct ast_codec_pref prefs;
 	int capability;
+#ifdef CC_AST_HAS_VERSION_1_4
+	struct ast_jb_conf jbconf;
+#endif
 };
 
 struct cc_capi_controller {

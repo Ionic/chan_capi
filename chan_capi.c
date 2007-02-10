@@ -81,6 +81,9 @@ OPENPBX_FILE_VERSION("$HeadURL$", "$Revision$")
 #include <asterisk/strings.h>
 #include <asterisk/dsp.h>
 #include <asterisk/devicestate.h>
+#ifdef CC_AST_HAS_VERSION_1_4
+#include "asterisk/abstract_jb.h"
+#endif
 #include "xlaw.h"
 #include "chan_capi20.h"
 #include "chan_capi.h"
@@ -218,6 +221,18 @@ static char capi_international_prefix[AST_MAX_EXTENSION];
 static char default_language[MAX_LANGUAGE] = "";
 
 static int capidebug = 0;
+
+#ifdef CC_AST_HAS_VERSION_1_4
+/* Global jitterbuffer configuration - by default, jb is disabled */
+static struct ast_jb_conf default_jbconf =
+{
+	.flags = 0,
+	.max_size = -1,
+	.resync_threshold = -1,
+	.impl = ""
+};
+static struct ast_jb_conf global_jbconf;
+#endif
 
 /* local prototypes */
 #ifdef CC_AST_HAS_INDICATE_DATA
@@ -2216,6 +2231,7 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 
 #ifdef CC_AST_HAS_VERSION_1_4
 	ast_atomic_fetchadd_int(&usecnt, 1);
+	ast_jb_configure(tmp, &i->jbconf);
 #else
 	cc_mutex_lock(&usecnt_lock);
 	usecnt++;
@@ -5726,6 +5742,12 @@ static int conf_interface(struct cc_capi_conf *conf, struct ast_variable *v)
 	} else
 
 	for (; v; v = v->next) {
+#ifdef CC_AST_HAS_VERSION_1_4
+		/* handle jb conf */
+		if (!ast_jb_read_conf(&conf->jbconf, v->name, v->value)) {
+			continue;
+		}
+#endif
 		CONF_INTEGER(conf->devices, "devices")
 		CONF_STRING(conf->context, "context")
 		CONF_STRING(conf->incomingmsn, "incomingmsn")
@@ -5878,8 +5900,19 @@ static int capi_eval_config(struct ast_config *cfg)
 	cc_copy_string(capi_national_prefix, CAPI_NATIONAL_PREF, sizeof(capi_national_prefix));
 	cc_copy_string(capi_international_prefix, CAPI_INTERNAT_PREF, sizeof(capi_international_prefix));
 
+#ifdef CC_AST_HAS_VERSION_1_4
+	/* Copy the default jb config over global_jbconf */
+	memcpy(&global_jbconf, &default_jbconf, sizeof(struct ast_jb_conf));
+#endif
+
 	/* read the general section */
 	for (v = ast_variable_browse(cfg, "general"); v; v = v->next) {
+#ifdef CC_AST_HAS_VERSION_1_4
+		/* handle global jb conf */
+		if (!ast_jb_read_conf(&global_jbconf, v->name, v->value)) {
+			continue;
+		}
+#endif
 		if (!strcasecmp(v->name, "nationalprefix")) {
 			cc_copy_string(capi_national_prefix, v->value, sizeof(capi_national_prefix));
 		} else if (!strcasecmp(v->name, "internationalprefix")) {
@@ -5898,7 +5931,6 @@ static int capi_eval_config(struct ast_config *cfg)
 			if (ast_true(v->value)) {
 				capi_capability = AST_FORMAT_ULAW;
 			}
-		}
 	}
 
 	/* go through all other sections, which are our interfaces */
@@ -5922,6 +5954,10 @@ static int capi_eval_config(struct ast_config *cfg)
 		conf.ecSelector = FACILITYSELECTOR_ECHO_CANCEL;
 		cc_copy_string(conf.name, cat, sizeof(conf.name));
 		cc_copy_string(conf.language, default_language, sizeof(conf.language));
+#ifdef CC_AST_HAS_VERSION_1_4
+		/* Copy the global jb config into interface conf */
+		memcpy(&conf.jbconf, &global_jbconf, sizeof(struct ast_jb_conf));
+#endif
 
 		if (conf_interface(&conf, ast_variable_browse(cfg, cat))) {
 			cc_log(LOG_ERROR, "Error interface config.\n");

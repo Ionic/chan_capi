@@ -70,6 +70,7 @@ This chan_capi version includes:
 - CAPI Line Interconnect.
 - Eicon DIVA Server VoIP/RTP
 - CLI command "capi show channels" shows details on channel status.
+- Asterisk 1.4 jitterbuffer configuration.
 
 Permissions
 ===========
