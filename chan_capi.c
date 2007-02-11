@@ -89,6 +89,7 @@ OPENPBX_FILE_VERSION("$HeadURL$", "$Revision$")
 #include "chan_capi20.h"
 #include "chan_capi.h"
 #include "chan_capi_rtp.h"
+#include "chan_capi_qsig.h"
 #endif
 
 #ifdef PBX_IS_OPBX
@@ -1454,6 +1455,7 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 	char *dsa = NULL;
 	char callingsubaddress[AST_MAX_EXTENSION];
 	char calledsubaddress[AST_MAX_EXTENSION];
+	int doqsig;
 	
 	_cmsg CMSG;
 	MESSAGE_EXCHANGE_ERROR  error;
@@ -1465,6 +1467,7 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 	i->doB3 = CAPI_B3_DONT;
 	i->doOverlap = 0;
 	memset(i->overlapdigits, 0, sizeof(i->overlapdigits));
+	doqsig = i->doqsig;
 
 	/* parse the parameters */
 	while ((param) && (*param)) {
@@ -1488,6 +1491,11 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 			if (use_defaultcid)
 				cc_log(LOG_WARNING, "Default CID already set in '%s'\n", idest);
 			use_defaultcid = 1;
+			break;
+		case 'q':	/* disable QSIG */
+			cc_verbose(4, 0, VERBOSE_PREFIX_4 "%s: QSIG extensions for this call disabled\n",
+				i->vname);
+			doqsig = 0;
 			break;
 		default:
 			cc_log(LOG_WARNING, "Unknown parameter '%c' in '%s', ignoring.\n",
@@ -1576,6 +1584,12 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 	bchaninfo[1] = 0x0;
 	bchaninfo[2] = 0x0;
 	CONNECT_REQ_BCHANNELINFORMATION(&CMSG) = (_cstruct)bchaninfo; /* 0 */
+
+	if (doqsig) {
+		char *facilityarray = alloca(CAPI_MAX_FACILITYDATAARRAY_SIZE);
+		cc_qsig_add_call_setup_data(facilityarray, i);
+		CONNECT_REQ_FACILITYDATAARRAY(&CMSG) = facilityarray;
+	}
 
 	cc_mutex_lock(&i->lock);
 
@@ -3914,6 +3928,11 @@ static void capidev_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, un
 			pbx_builtin_setvar_helper(i->owner, "ANI2", buffer);
 			pbx_builtin_setvar_helper(i->owner, "SECONDCALLERID", buffer);
 			*/
+
+			if (i->qsigfeat == QSIG_ENABLED) {
+				cc_qsig_handle_capiind(CONNECT_IND_FACILITYDATAARRAY(CMSG), i);
+			}
+			
 			if ((i->isdnmode == CAPI_ISDNMODE_MSN) && (i->immediate)) {
 				/* if we don't want to wait for SETUP/SENDING-COMPLETE in MSN mode */
 				start_pbx_on_match(i, PLCI, HEADER_MSGNUM(CMSG));
@@ -5197,6 +5216,8 @@ int mkif(struct cc_capi_conf *conf)
 		tmp->doDTMF = conf->softdtmf;
 		tmp->capability = conf->capability;
 
+		tmp->qsigfeat = conf->qsigfeat;
+
 		tmp->next = iflist; /* prepend */
 		iflist = tmp;
 		cc_verbose(2, 0, VERBOSE_PREFIX_3 "capi %c %s (%s:%s) contr=%d devs=%d EC=%d,opt=%d,tail=%d\n",
@@ -5797,6 +5818,7 @@ static int conf_interface(struct cc_capi_conf *conf, struct ast_variable *v)
 		CONF_TRUE(conf->es, "echosquelch", 1)
 		CONF_TRUE(conf->bridge, "bridge", 1)
 		CONF_TRUE(conf->ntmode, "ntmode", 1)
+		CONF_TRUE(conf->qsigfeat, "qsig", 1)
 		if (!strcasecmp(v->name, "callgroup")) {
 			conf->callgroup = ast_get_group(v->value);
 			continue;

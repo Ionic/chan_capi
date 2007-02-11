@@ -36,6 +36,8 @@
 
 #define RTP_HEADER_SIZE                  12
 
+#define CAPI_MAX_FACILITYDATAARRAY_SIZE 300
+
 #ifndef CONNECT_RESP_GLOBALCONFIGURATION
 #define CC_HAVE_NO_GLOBALCONFIGURATION
 #warning If you dont update your libcapi20, some fax features are not available
@@ -374,6 +376,9 @@ struct capi_pvt {
 	int codec;
 	unsigned int timestamp;
 
+	/* Q.SIG features */
+	int qsigfeat;
+
 	/*! Next channel in list */
 	struct capi_pvt *next;
 };
@@ -415,6 +420,7 @@ struct cc_capi_conf {
 	int es;
 	int bridge;
 	int amaflags;
+	int qsigfeat;
 	unsigned int faxsetting;
 	ast_group_t callgroup;
 	ast_group_t pickupgroup;
@@ -463,6 +469,7 @@ struct cc_capi_controller {
 #define CAPI_ETSI_IE_CAUSE                      0x08
 #define CAPI_ETSI_IE_PROGRESS_INDICATOR         0x1e
 #define CAPI_ETSI_IE_CALLED_PARTY_NUMBER        0x70
+#define CAPI_ETSI_IE_FACILITY                   0x1c
 
 /* ETIS 300 102-1 message types */
 #define CAPI_ETSI_ALERTING                      0x01

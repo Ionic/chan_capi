@@ -1,0 +1,63 @@
+(CAPI*) chan_capi a Common ISDN API 2.0 implementation
+for Asterisk/OpenPBX
+
+QSIG Extension for chan_capi
+
+ Copyright (C) 2005-2007 Cytronics & Melware
+ Armin Schindler <armin@melware.de>
+
+ Copyright (C) 2006-2007 Mario Goegel
+ Mario Goegel <m.goegel@gmx.de>
+
+This program is free software and may be modified and distributed under
+the terms of the GNU Public License. There is _NO_ warranty for this!
+
+Thanks go to the debuggers, bugfixers and contributors :)
+===========================================================================
+None yet - you will be welcome here :-)
+
+(...and all the others that have been forgotten...) :-)
+
+No support for Asterisk 1.0.x any more, you need at least
+Asterisk 1.2.x
+
+What is Q.SIG
+=============
+
+Q.SIG is an protocoll extension for ISDN.
+It is mainly used on connecting PBXs of different PBX vendors, which allows 
+better interoperability.
+As example there can be a name of an extension transferred between different
+PBXs, which is with standard ISDN not possible.
+
+These extensions will be transmitted as encoded facility information elements.
+To use Q.SIG with asterisk, you'll need a card like Eicon DIVA Server 
+(BRI like PRI), which supports QSIG. Maybe others do also work, let me now.
+
+The QSIG support includes:
+==========================
+- Name presentation on Call SETUP incoming like outgoing
+
+Future Targets:
+===============
+- better name handling - there are still some case which are wrongly handled
+- check code for buffer overflows
+- Path Replacement
+- CCBS
+- AOC
+- ...
+
+How to use:
+===========
+
+simply enable Q.SIG with following line in your capi.conf interface:
+
+qsig=on
+
+Take care that you enable this only for interfaces, where the other end 
+understands the Q.SIG protocoll. If not, then these switches may reject the 
+entire call, because of wrong facility contents.
+
+Later this will change to qsig=off or qsig=1..x where we can support some 
+pbx manufacturer specific operations.
+
