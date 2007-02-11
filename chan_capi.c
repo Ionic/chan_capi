@@ -1467,7 +1467,7 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 	i->doB3 = CAPI_B3_DONT;
 	i->doOverlap = 0;
 	memset(i->overlapdigits, 0, sizeof(i->overlapdigits));
-	doqsig = i->doqsig;
+	doqsig = i->qsigfeat;
 
 	/* parse the parameters */
 	while ((param) && (*param)) {
@@ -1586,7 +1586,7 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 	CONNECT_REQ_BCHANNELINFORMATION(&CMSG) = (_cstruct)bchaninfo; /* 0 */
 
 	if (doqsig) {
-		char *facilityarray = alloca(CAPI_MAX_FACILITYDATAARRAY_SIZE);
+		unsigned char *facilityarray = alloca(CAPI_MAX_FACILITYDATAARRAY_SIZE);
 		cc_qsig_add_call_setup_data(facilityarray, i);
 		CONNECT_REQ_FACILITYDATAARRAY(&CMSG) = facilityarray;
 	}
