@@ -1,6 +1,36 @@
 CHANGES
 =======
 
+chan_capi-1.0.0
+------------------
+- Added preliminary handling of MANUFACTURER_IND.
+- Check for fax connection when in receivefax mode before writing data
+  to file.
+- Try to detect for generic jitter buffer patch
+- Adapted to new Asterisk version 1.4 (Bug PR#20)
+- Adapted to new ast_channel_alloc from asterisk trunk.
+- Make capicommand(echocancel) setting non-permanent.
+  Setting is restored after hangup.
+- Better check for asterisk version 1.4 BUG#23
+- Added information and changed example for tx/rx gains.
+- Read the channel frames during wait for fax finish.
+- Added progress when in faxmode to wakeup asterisk-1.2.
+  (needed for e.g. auto-hangup on timeout)
+- Don't error on invalid controller in capi.conf, just ignore it.
+- Added 3PTY patch by Simon Peter.
+- Allow echo-cancel even with old capi configuration bit for
+  echo-cancel.
+- Fix compiler warnings.
+- Fixed callerid on incoming call with Asterisk 1.4 (PR#25)
+- Remove possible race condition in with hangup and DISCONNECT_IND.
+- Rixed gain and echosquelch use according to transfercapability.
+- Don't wait for DISCONNECT_B3_CONF in activehangup.
+- Reset PLCI on DISCONNECT_IND to avoid race if asterisk is too slow
+  with hangup command.
+- Added Asterisk 1.4 jitterbuffer usage.
+- Fixed compiler warning with Asterisk 1.4.0
+- Added music-on-hold on HOLD request for Asterisk 1.4
+
 chan_capi-0.7.1
 ------------------
 - Set FAXREASONTEXT to "OK" instead of empty string.
