@@ -6,7 +6,7 @@
 #
 # Makefile, based on the Asterisk Makefile, Coypright (C) 1999, Mark Spencer
 #
-# Copyright (C) 2005-2006 Cytronics & Melware
+# Copyright (C) 2005-2007 Cytronics & Melware
 # 
 # Armin Schindler <armin@melware.de>
 # 

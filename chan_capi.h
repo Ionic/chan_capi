@@ -4,7 +4,7 @@
  * An implementation of Common ISDN API 2.0 for
  * Asterisk / OpenPBX.org
  *
- * Copyright (C) 2005-2006 Cytronics & Melware
+ * Copyright (C) 2005-2007 Cytronics & Melware
  *
  * Armin Schindler <armin@melware.de>
  * 
