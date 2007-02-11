@@ -83,6 +83,7 @@ OPENPBX_FILE_VERSION("$HeadURL$", "$Revision$")
 #include <asterisk/devicestate.h>
 #ifdef CC_AST_HAS_VERSION_1_4
 #include "asterisk/abstract_jb.h"
+#include "asterisk/musiconhold.h"
 #endif
 #include "xlaw.h"
 #include "chan_capi20.h"
@@ -234,6 +235,7 @@ static struct ast_jb_conf default_jbconf =
 	.impl = ""
 };
 static struct ast_jb_conf global_jbconf;
+static char global_mohinterpret[MAX_MUSICCLASS] = "default";
 #endif
 
 /* local prototypes */
@@ -1008,7 +1010,7 @@ static int pbx_capi_send_digit_begin(struct ast_channel *c, char digit)
 /*
  * send a DTMF digit
  */
-#ifdef CC_AST_HAS_VERSION_1_4
+#if defined(CC_AST_HAS_VERSION_1_4) && defined(CC_AST_HAS_SEND_DIGIT_END_DURATION)
 static int pbx_capi_send_digit(struct ast_channel *c, char digit, unsigned int duration)
 #else
 static int pbx_capi_send_digit(struct ast_channel *c, char digit)
@@ -4938,6 +4940,11 @@ static int pbx_capi_indicate(struct ast_channel *c, int condition)
 		if (i->doholdtype != CC_HOLDTYPE_LOCAL) {
 			ret = pbx_capi_hold(c, NULL);
 		}
+#ifdef CC_AST_HAS_VERSION_1_4
+		else {
+			ast_moh_start(c, data, i->mohinterpret);
+		}
+#endif
 		break;
 	case AST_CONTROL_UNHOLD:
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested UNHOLD-Indication for %s\n",
@@ -4945,6 +4952,11 @@ static int pbx_capi_indicate(struct ast_channel *c, int condition)
 		if (i->doholdtype != CC_HOLDTYPE_LOCAL) {
 			ret = pbx_capi_retrieve(c, NULL);
 		}
+#ifdef CC_AST_HAS_VERSION_1_4
+		else {
+			ast_moh_stop(c);
+		}
+#endif
 		break;
 	case -1: /* stop indications */
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested Indication-STOP for %s\n",
@@ -5125,6 +5137,10 @@ int mkif(struct cc_capi_conf *conf)
 		cc_copy_string(tmp->prefix, conf->prefix, sizeof(tmp->prefix));
 		cc_copy_string(tmp->accountcode, conf->accountcode, sizeof(tmp->accountcode));
 		cc_copy_string(tmp->language, conf->language, sizeof(tmp->language));
+#ifdef CC_AST_HAS_VERSION_1_4
+		cc_copy_string(tmp->mohinterpret, conf->mohinterpret, sizeof(tmp->mohinterpret));
+		memcpy(&tmp->jbconf, &conf->jbconf, sizeof(struct ast_jb_conf));
+#endif
 
 		unit = atoi(conf->controllerstr);
 			/* There is no reason not to
@@ -5749,6 +5765,7 @@ static int conf_interface(struct cc_capi_conf *conf, struct ast_variable *v)
 		if (!ast_jb_read_conf(&conf->jbconf, v->name, v->value)) {
 			continue;
 		}
+		CONF_STRING(conf->mohinterpret, "mohinterpret")
 #endif
 		CONF_INTEGER(conf->devices, "devices")
 		CONF_STRING(conf->context, "context")
@@ -5914,6 +5931,9 @@ static int capi_eval_config(struct ast_config *cfg)
 		if (!ast_jb_read_conf(&global_jbconf, v->name, v->value)) {
 			continue;
 		}
+		if (!strcasecmp(v->name, "mohinterpret")) {
+			cc_copy_string(global_mohinterpret, v->value, sizeof(global_mohinterpret));
+		} else
 #endif
 		if (!strcasecmp(v->name, "nationalprefix")) {
 			cc_copy_string(capi_national_prefix, v->value, sizeof(capi_national_prefix));
@@ -5958,6 +5978,7 @@ static int capi_eval_config(struct ast_config *cfg)
 		cc_copy_string(conf.name, cat, sizeof(conf.name));
 		cc_copy_string(conf.language, default_language, sizeof(conf.language));
 #ifdef CC_AST_HAS_VERSION_1_4
+		cc_copy_string(conf.mohinterpret, global_mohinterpret, sizeof(conf.mohinterpret));
 		/* Copy the global jb config into interface conf */
 		memcpy(&conf.jbconf, &global_jbconf, sizeof(struct ast_jb_conf));
 #endif

@@ -77,6 +77,14 @@ else
 	echo " * no extended ast_channel_alloc"
 fi
 
+if grep -q "send_digit_end.*duration" $INCLUDEDIR/channel.h; then
+	echo "#define CC_AST_HAS_SEND_DIGIT_END_DURATION" >>$CONFIGFILE
+	echo " * found send_digit_end with duration"
+else
+	echo "#undef CC_AST_HAS_SEND_DIGIT_END_DURATION" >>$CONFIGFILE
+	echo " * no duration with send_digit_end"
+fi
+
 if [ "$VER" = "1_2" ]; then
 if grep -q "AST_JB" $INCLUDEDIR/channel.h; then
 	if [ ! -f "$INCLUDEDIR/../../lib/asterisk/modules/chan_sip.so" ]; then

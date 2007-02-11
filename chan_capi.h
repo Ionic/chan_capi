@@ -355,6 +355,7 @@ struct capi_pvt {
 
 #ifdef CC_AST_HAS_VERSION_1_4
 	struct ast_jb_conf jbconf;
+	char mohinterpret[MAX_MUSICCLASS];
 #endif
 	
 	struct cc_capi_gains g;
@@ -424,6 +425,7 @@ struct cc_capi_conf {
 	int capability;
 #ifdef CC_AST_HAS_VERSION_1_4
 	struct ast_jb_conf jbconf;
+	char mohinterpret[MAX_MUSICCLASS];
 #endif
 };
 
