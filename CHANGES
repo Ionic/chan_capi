@@ -1,6 +1,10 @@
 CHANGES
 =======
 
+HEAD
+------------------
+- added qsig caller-name patch by Mario Goegel
+
 chan_capi-1.0.0
 ------------------
 - Added preliminary handling of MANUFACTURER_IND.
