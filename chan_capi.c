@@ -5555,7 +5555,7 @@ static const struct ast_channel_tech capi_tech = {
 /*
  * register at CAPI interface
  */
-static int cc_register_capi(unsigned blocksize)
+static int cc_register_capi(unsigned blocksize, unsigned connections)
 {
 	u_int16_t error = 0;
 
@@ -5564,13 +5564,13 @@ static int cc_register_capi(unsigned blocksize)
 			cc_log(LOG_WARNING,"Unable to unregister from CAPI!\n");
 	}
 	cc_verbose(3, 0, VERBOSE_PREFIX_3 "Registering at CAPI "
-		   "(blocksize=%d)\n", blocksize);
+		   "(blocksize=%d maxlogicalchannels)\n", blocksize, connections);
 
 #if (CAPI_OS_HINT == 2)
-	error = capi20_register(CAPI_BCHANS, CAPI_MAX_B3_BLOCKS, 
+	error = capi20_register(connections, CAPI_MAX_B3_BLOCKS, 
 				blocksize, &capi_ApplID, CAPI_STACK_VERSION);
 #else
-	error = capi20_register(CAPI_BCHANS, CAPI_MAX_B3_BLOCKS, 
+	error = capi20_register(connections, CAPI_MAX_B3_BLOCKS, 
 				blocksize, &capi_ApplID);
 #endif
 	if (error != 0) {
@@ -5600,7 +5600,7 @@ static int cc_init_capi(void)
 		return -1;
 	}
 
-	if (cc_register_capi(CAPI_MAX_B3_BLOCK_SIZE))
+	if (cc_register_capi(CAPI_MAX_B3_BLOCK_SIZE, 2))
 		return -1;
 
 #if (CAPI_OS_HINT == 1)
@@ -5724,20 +5724,24 @@ static int cc_post_init_capi(void)
 	struct capi_pvt *i;
 	int controller;
 	unsigned error;
-	int use_rtp = 0;
+	int rtp_ext_size = 0;
+	unsigned needchannels = 0;
 
-	for (i = iflist; i && !use_rtp; i = i->next) {
+	for (i = iflist; i && !rtp_ext_size; i = i->next) {
 		/* if at least one line wants RTP, we need to re-register with
 		   bigger block size for RTP-header */
 		if (capi_controllers[i->controller]->rtpcodec & i->capability) {
 			cc_verbose(3, 0, VERBOSE_PREFIX_4 "at least one CAPI controller wants RTP.\n");
-			use_rtp = 1;
+			rtp_ext_size = RTP_HEADER_SIZE;
 		}
 	}
-	if (use_rtp) {
-		if (cc_register_capi(CAPI_MAX_B3_BLOCK_SIZE + RTP_HEADER_SIZE))
-			return -1;
+	for (controller = 1; controller <= capi_num_controllers; controller++) {
+		if (capi_controllers[controller] != NULL) {
+			needchannels += (capi_controllers[controller]->nbchannels + 1);
+		}
 	}
+	if (cc_register_capi(CAPI_MAX_B3_BLOCK_SIZE + rtp_ext_size, needchannels))
+		return -1;
 
 	for (controller = 1; controller <= capi_num_controllers; controller++) {
 		if (capi_used_controllers & (1 << controller)) {

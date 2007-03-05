@@ -28,7 +28,6 @@
 /* you can tune this to your need. higher value == more latency */
 #define CAPI_MAX_B3_BLOCK_SIZE          160
 
-#define CAPI_BCHANS                     120
 #define ALL_SERVICES             0x1FFF03FF
 
 #define CAPI_ISDNMODE_MSN                 0
