@@ -23,15 +23,18 @@
 #include "chan_capi20.h"
 #include "chan_capi.h"
 #include "chan_capi_qsig.h"
+#include "chan_capi_qsig_asn197ade.h"
+#include "chan_capi_qsig_asn197no.h"
 
-
-// Returns an String from ASN.1 Encoded String
+/*
+ * Encodes an ASN.1 string
+ */
 unsigned int cc_qsig_asn1_add_string(unsigned char *buf, int *idx, char *data, int datalen)
 {
 	int myidx=*idx;
 	
 	if ((1 + datalen + (*idx) ) > sizeof(*buf)) {
-		// String exceeds buffer size
+		/* String exceeds buffer size */
 		return -1;
 	}
 	
@@ -43,7 +46,9 @@ unsigned int cc_qsig_asn1_add_string(unsigned char *buf, int *idx, char *data, i
 	return 0;
 }
 
-// Returns an String from ASN.1 Encoded String
+/*
+ * Returns an string from ASN.1 encoded string
+ */
 unsigned int cc_qsig_asn1_get_string(unsigned char *buf, int buflen, unsigned char *data)
 {
 	int strsize;
@@ -53,20 +58,24 @@ unsigned int cc_qsig_asn1_get_string(unsigned char *buf, int buflen, unsigned ch
 	if (strsize > buflen)
 		strsize = buflen - 1;
 	memcpy(buf, &data[myidx], strsize);
-//	cc_verbose(1, 1, VERBOSE_PREFIX_4 " get_string length %i\n", strsize);
+	buf[strsize] = 0;
+/*	cc_verbose(1, 1, VERBOSE_PREFIX_4 " get_string length %i\n", strsize); */
 	return strsize;
 }
 
+/*
+ * Encode ASN.1 Integer
+ */
 unsigned int cc_qsig_asn1_add_integer(unsigned char *buf, int *idx, int value)
 {
 	int myidx = *idx;
 	int intlen = 1;
 	
 	if ((unsigned int)value > (unsigned int)0xFFFF)
-		return -1;	// no support at the moment
+		return -1;	/* no support at the moment */
 	
 	if (value > 255)
-		intlen++;	// we need 2 bytes
+		intlen++;	/* we need 2 bytes */
 	
 	buf[myidx++] = ASN1_INTEGER;
 	buf[myidx++] = intlen;
@@ -81,15 +90,17 @@ unsigned int cc_qsig_asn1_add_integer(unsigned char *buf, int *idx, int value)
 	return 0;
 }
 
-// Returns an Integer from ASN.1 Encoded Integer
+/*
+ * Returns an Integer from ASN.1 Encoded Integer
+ */
 unsigned int cc_qsig_asn1_get_integer(unsigned char *data, int *idx)
-{	// TODO: not conform with negative Integers
+{	/* TODO: not conform with negative integers */
 	int myidx = *idx;
 	int intlen;
 	int temp;
 	
 	intlen = data[myidx++];
-	if ((intlen < 1) || (intlen > 2)) {  // i don't know if there's a bigger Integer as 16bit -> read specs
+	if ((intlen < 1) || (intlen > 2)) {  /* i don't know if there's a bigger Integer as 16bit -> read specs */
 		cc_verbose(1, 1, VERBOSE_PREFIX_3 "ASN1Decode: Size of ASN.1 Integer not supported: %i\n", intlen);
 		*idx = myidx + intlen;
 		return 0;
@@ -104,59 +115,69 @@ unsigned int cc_qsig_asn1_get_integer(unsigned char *data, int *idx)
 	return temp;
 }
 
-// Returns an Human Readable OID from ASN.1 Encoded OID
+/*
+ * Returns an Human Readable OID from ASN.1 Encoded OID
+ */
 unsigned char cc_qsig_asn1_get_oid(unsigned char *data, int *idx)
 {
-	// TODO: Add code
+	/* TODO: Add code */
 	return 0;
 }
 
 
-// Check if OID is ECMA-ISDN (1.3.12.9.*)
+/*
+ * Check if OID is ECMA-ISDN (1.3.12.9.*)
+ */
 signed int cc_qsig_asn1_check_ecma_isdn_oid(unsigned char *data, int len)
 {
-	//	1.3			.12		.9
+	/*	1.3			.12		.9 */
 	if ((data[0] == 0x2B) && (data[1] == 0x0C) && (data[2] == 0x09)) 
 		return 0;
 	return -1;
 }
 
 
-// This function simply updates the length informations of the facility struct
+/*
+ * This function simply updates the length informations of the facility struct
+ */
 void cc_qsig_update_facility_length(unsigned char * buf, unsigned int idx)
 {
 	buf[0] = idx;
 	buf[2] = idx-2;
 }
 
-// Create Invoke Struct
+/*
+ * Create Invoke Struct
+ */
 int cc_qsig_build_facility_struct(unsigned char * buf, unsigned int *idx, int apdu_interpr, struct cc_qsig_nfe *nfe)
 {
-	int myidx = 1;	// we start with Index 1 - Byte 0 is Length of Facilitydataarray
+	int myidx = 1;	/* we start with Index 1 - Byte 0 is Length of Facilitydataarray */
 	
 	buf[myidx++] = 0x1c;
-	buf[myidx++] = 0;		// Byte 2 length of Facilitydataarray
-	buf[myidx++] = COMP_TYPE_DISCR_SS;	// QSIG Facility
-	// TODO: Outsource following struct to an separate function
-	buf[myidx++] = COMP_TYPE_NFE;		// Network Facility Extension
-	buf[myidx++] = 6;				// NFE Size hardcoded - not good
-	buf[myidx++] = 0x80;			// Source Entity
+	buf[myidx++] = 0;		/* Byte 2 length of Facilitydataarray */
+	buf[myidx++] = COMP_TYPE_DISCR_SS;	/* QSIG Facility */
+	/* TODO: Outsource following struct to an separate function */
+	buf[myidx++] = COMP_TYPE_NFE;		/* Network Facility Extension */
+	buf[myidx++] = 6;				/* NFE Size hardcoded - not good */
+	buf[myidx++] = 0x80;			/* Source Entity */
 	buf[myidx++] = 0x01;
-	buf[myidx++] = 0x00;			// End PINX hardcoded
-	buf[myidx++] = 0x82;			// Dest. Entity
+	buf[myidx++] = 0x00;			/* End PINX hardcoded */
+	buf[myidx++] = 0x82;			/* Dest. Entity */
 	buf[myidx++] = 0x01;
-	buf[myidx++] = 0x00;			// End PINX hardcoded
-	buf[myidx++] = COMP_TYPE_APDU_INTERP;	// How to interpret this APDU
-	buf[myidx++] = 0x01;			// Length
+	buf[myidx++] = 0x00;			/* End PINX hardcoded */
+	buf[myidx++] = COMP_TYPE_APDU_INTERP;	/* How to interpret this APDU */
+	buf[myidx++] = 0x01;			/* Length */
 	buf[myidx++] = apdu_interpr;
-						// Here will follow now the Invoke
+						/* Here will follow now the Invoke */
 	*idx = myidx;
 	cc_qsig_update_facility_length(buf, myidx);
 	return 0;
 }
 
 
-// Add invoke to buf
+/*
+ * Add invoke to buf
+ */
 int cc_qsig_add_invoke(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke)
 {
 	int myidx = *idx;
@@ -164,7 +185,7 @@ int cc_qsig_add_invoke(unsigned char * buf, unsigned int *idx, struct cc_qsig_in
 	int result;
 	
 	buf[myidx++] = COMP_TYPE_INVOKE;
-	invlenidx = myidx;	// save the Invoke length index for later
+	invlenidx = myidx;	/* save the Invoke length index for later */
 	buf[myidx++] = 0;
 	
 	result = cc_qsig_asn1_add_integer(buf, &myidx, invoke->id);
@@ -197,7 +218,7 @@ int cc_qsig_add_invoke(unsigned char * buf, unsigned int *idx, struct cc_qsig_in
 			break;
 	}
 	
-	if (invoke->datalen > 0) {	// may be no error, if there's no data
+	if (invoke->datalen > 0) {	/* may be no error, if there's no data */
 		memcpy(&buf[myidx], invoke->data, invoke->datalen);
 		myidx += invoke->datalen;
 	}
@@ -211,24 +232,26 @@ int cc_qsig_add_invoke(unsigned char * buf, unsigned int *idx, struct cc_qsig_in
 
 
 		
-// Valid QSIG-Facility?
-// Returns 0 if not
-unsigned int cc_qsig_check_facility(unsigned char *data, int *idx, int *apduval)
+/*
+ * Valid QSIG-Facility?
+ * Returns 0 if not
+ */
+unsigned int cc_qsig_check_facility(unsigned char *data, int *idx, int *apduval, int protocol)
 {
 	int myidx = *idx;
 	
-	// First byte after Facility Length 
-	if (data[myidx] == (unsigned char)(0x80 | Q932_PROTOCOL_ROSE)) {
+	/* First byte after Facility Length */ 
+	if (data[myidx] == (unsigned char)(0x80 | protocol)) {
 		myidx++;
-		cc_verbose(1, 1, VERBOSE_PREFIX_3 "QSIG: ROSE Supplementary Services\n");
+		cc_verbose(1, 1, VERBOSE_PREFIX_3 "QSIG: Supplementary Services\n");
 		if (data[myidx++] == (unsigned char)COMP_TYPE_NFE) {
-			// Todo: Check Entities?
+			/* Todo: Check Entities? */
 			myidx = myidx + data[myidx] + 1;
-			// cc_verbose(1, 1, VERBOSE_PREFIX_3 "CONNECT_IND (idc #1 %i)\n",idx);
+			/* cc_verbose(1, 1, VERBOSE_PREFIX_3 "CONNECT_IND (idc #1 %i)\n",idx); */
 			if ((data[myidx++] == (unsigned char)COMP_TYPE_APDU_INTERP)) {
 				myidx = myidx + data[myidx];
 				*apduval = data[myidx];
-				// ToDo: implement real reject or clear call ?
+				/* ToDo: implement real reject or clear call ? */
 				*idx = ++myidx;
 				return 1;
 			}
@@ -237,27 +260,34 @@ unsigned int cc_qsig_check_facility(unsigned char *data, int *idx, int *apduval)
 	return 0;
 }
 
-// Is this an INVOKE component?
-// when not return -1, set idx to next byte (length of component?)
-//		*** check idx in this case, that we are not out of range - maybe we got an unknown component then
-// when it is an invoke, return invoke length and set idx to first byte of component
+
+/*
+ * Is this an INVOKE component?
+ * when not return -1, set idx to next byte (length of component?)
+ *		*** check idx in this case, that we are not out of range - maybe we got an unknown component then
+ * when it is an invoke, return invoke length and set idx to first byte of component
+ *
+ */
 signed int cc_qsig_check_invoke(unsigned char *data, int *idx)
 {
 	int myidx = *idx;
 	
 	if (data[myidx] == (unsigned char)COMP_TYPE_INVOKE) {
-		// is an INVOKE_IDENT
-		*idx = myidx + 1;		// Set index to first byte of component
-//		cc_verbose(1, 1, VERBOSE_PREFIX_4 "CONNECT_IND (Invoke Length %i)\n", data[myidx+1]);
-		return data[myidx + 1];	// return component length
+		/* is an INVOKE_IDENT */
+		*idx = myidx + 1;		/* Set index to length byte of component */
+/*		cc_verbose(1, 1, VERBOSE_PREFIX_4 "CONNECT_IND (Invoke Length %i)\n", data[myidx+1]); */
+		return data[myidx + 1];	/* return component length */
 	}
 	*idx = ++myidx;
-	return -1;			// what to do now? got no Invoke
+	return -1;			/* what to do now? got no Invoke */
 }
 
-// Get Invoke ID
-//	returns current index
-//	idx points to next byte in array
+
+/*
+ * Get Invoke ID
+ *	returns current index
+ *	idx points to next byte in array
+ */
 signed int cc_qsig_get_invokeid(unsigned char *data, int *idx, struct cc_qsig_invokedata *invoke)
 {
 	int myidx;
@@ -270,23 +300,27 @@ signed int cc_qsig_get_invokeid(unsigned char *data, int *idx, struct cc_qsig_in
 	invoffset = myidx;
 	invlen = data[myidx++];
 	if (invlen > 0) {
-		invoke->len = invlen;		// set Length of Invoke struct
-		invoke->offset = invoffset;	// offset in Facility Array, where the Invoke Data starts
-		invidtype = data[myidx++];	// Get INVOKE Id Type
+		invoke->len = invlen;		/* set Length of Invoke struct */
+		invoke->offset = invoffset;	/* offset in Facility Array, where the Invoke Data starts */
+		invidtype = data[myidx++];	/* Get INVOKE Id Type */
 		if (invidtype != ASN1_INTEGER) {
 			cc_verbose(1, 1, VERBOSE_PREFIX_3 "QSIG: Unknown Invoke Identifier Type 0x%#x\n", invidtype);
 			return -1;
 		}
-		*idx = myidx;
-		temp = cc_qsig_asn1_get_integer(data, idx);
+		temp = cc_qsig_asn1_get_integer(data, &myidx);
 		invoke->id = temp;
-//		cc_verbose(1, 1, VERBOSE_PREFIX_3 "CONNECT_IND (Invoke Identifier %#x)\n", temp);
-//		*idx=myidx; 	// Set by cc_qsig_asn1get_integer
+ 		*idx = myidx; 
+/*		*idx += invlen + 1; */
+/*		cc_verbose(1, 1, VERBOSE_PREFIX_3 "CONNECT_IND (Invoke Identifier %#x)\n", temp); */
+/*		*idx=myidx; 	/* Set by cc_qsig_asn1get_integer */
 	}
 	return 0;
 }
 
-// fill the Invoke struct with all the invoke data
+
+/*
+ * fill the Invoke struct with all the invoke data
+ */
 signed int cc_qsig_fill_invokestruct(unsigned char *data, int *idx, struct cc_qsig_invokedata *invoke, int apduval)
 {
 	int myidx = *idx;
@@ -295,16 +329,16 @@ signed int cc_qsig_fill_invokestruct(unsigned char *data, int *idx, struct cc_qs
 	int temp2;
 	int datalen;
 	
-	invoptyp = data[myidx++];		// Invoke Operation Type 0x02=INTEGER, 0x06=OID
+	invoptyp = data[myidx++];		/* Invoke Operation Type 0x02=INTEGER, 0x06=OID */
 	switch (invoptyp) {
 		case ASN1_INTEGER:
 			invoke->apdu_interpr = apduval;
-			temp = cc_qsig_asn1_get_integer(data, idx);
+			temp = cc_qsig_asn1_get_integer(data, &myidx);
 			invoke->descr_type = ASN1_INTEGER;
 			invoke->type = temp;
-			myidx++;				// component length
-			//datalen=data[myidx++];		// maybe correct, better we calculate the datalength
-			temp2 = (invoke->len) + (invoke->offset) + 1;	// Array End = Invoke Length + Invoke Offset +1
+			/*myidx++;*/				/* component length */
+			/*datalen=data[myidx++];		/* maybe correct, better we calculate the datalength */
+			temp2 = (invoke->len) + (invoke->offset) + 1;	/* Array End = Invoke Length + Invoke Offset +1 */
 			datalen = temp2 - myidx;
 					
 			if (datalen > 255) {
@@ -313,8 +347,8 @@ signed int cc_qsig_fill_invokestruct(unsigned char *data, int *idx, struct cc_qs
 			}
 			
 			invoke->datalen = datalen;
-			memcpy(invoke->data, &data[myidx], datalen);	// copy data of Invoke Operation
-			myidx = myidx + datalen;		// points to next INVOKE component, if there's any
+			memcpy(invoke->data, &data[myidx], datalen);	/* copy data of Invoke Operation */
+			myidx = myidx + datalen;		/* points to next INVOKE component, if there's any */
 			*idx = myidx;
 			
 			break;
@@ -322,20 +356,20 @@ signed int cc_qsig_fill_invokestruct(unsigned char *data, int *idx, struct cc_qs
 		case ASN1_OBJECTIDENTIFIER:
 			invoke->apdu_interpr = apduval;
 			invoke->descr_type = ASN1_OBJECTIDENTIFIER;
-			temp = data[myidx++];		// Length of OID
+			temp = data[myidx++];		/* Length of OID */
 			if (temp > 20)  {
 				cc_verbose(1, 1, VERBOSE_PREFIX_3 "QSIG: Unsupported INVOKE Operation OID Size (max 20 Bytes): %i\n", temp);
 				temp = 20;
 			}
 			
-			// TODO: Maybe we decode the OID here and be verbose - have to write cc_qsig_asn1get_oid
+			/* TODO: Maybe we decode the OID here and be verbose - have to write cc_qsig_asn1get_oid */
 			
-//			cc_verbose(1, 1, VERBOSE_PREFIX_3 "CONNECT_IND (OID, Length %i)\n", temp);
+/*			cc_verbose(1, 1, VERBOSE_PREFIX_3 "CONNECT_IND (OID, Length %i)\n", temp); */
 			invoke->oid_len = temp;
-			memcpy(invoke->oid_bin, &data[myidx], temp);	// Copy OID to separate array
-			myidx = myidx + temp;				// Set index to next information
+			memcpy(invoke->oid_bin, &data[myidx], temp);	/* Copy OID to separate array */
+			myidx = myidx + temp;				/* Set index to next information */
 			
-			temp2 = (invoke->len) + (invoke->offset) + 1;	// Array End = Invoke Length + Invoke Offset +1
+			temp2 = (invoke->len) + (invoke->offset) + 1;	/* Array End = Invoke Length + Invoke Offset +1 */
 			datalen = temp2 - myidx;
 					
 			if (datalen > 255) {
@@ -343,10 +377,10 @@ signed int cc_qsig_fill_invokestruct(unsigned char *data, int *idx, struct cc_qs
 				datalen = 255;
 			}
 			
-//			cc_verbose(1, 1, VERBOSE_PREFIX_3 "CONNECT_IND (OID, Datalength %i)\n",datalen);
+/*			cc_verbose(1, 1, VERBOSE_PREFIX_3 "CONNECT_IND (OID, Datalength %i)\n",datalen); */
 			invoke->datalen = datalen;
-			memcpy(invoke->data, &data[myidx], datalen);	// copy data of Invoke Operation
-			myidx = myidx + datalen;		// points to next INVOKE component, if there's any
+			memcpy(invoke->data, &data[myidx], datalen);	/* copy data of Invoke Operation */
+			myidx = myidx + datalen;		/* points to next INVOKE component, if there's any */
 			*idx = myidx;
 
 			break;
@@ -354,7 +388,7 @@ signed int cc_qsig_fill_invokestruct(unsigned char *data, int *idx, struct cc_qs
 		default:
 			cc_verbose(1, 1, VERBOSE_PREFIX_3 "QSIG: Unknown INVOKE Operation Type: %i\n", invoptyp);
 			
-			temp2 = (invoke->len) + (invoke->offset) + 1;	// Array End = Invoke Length + Invoke Offset +1
+			temp2 = (invoke->len) + (invoke->offset) + 1;	/* Array End = Invoke Length + Invoke Offset +1 */
 			datalen = temp2 - myidx;
 					
 			if (datalen > 255) {
@@ -362,56 +396,94 @@ signed int cc_qsig_fill_invokestruct(unsigned char *data, int *idx, struct cc_qs
 				datalen = 255;
 			}
 			
-			*idx = datalen;	// Set index to next INVOKE, if there's any
+			*idx = datalen;	/* Set index to next INVOKE, if there's any */
 			return -1;
 			break;
 	}
-	return 0;	// No problems
+	return 0;	/* No problems */
 	
 }
 
-// Identify an INVOKE and return our own Ident Integer (CCQSIG__*)
-
-signed int cc_qsig_identifyinvoke(struct cc_qsig_invokedata *invoke)
+/*
+ * Identify an INVOKE and return our own Ident Integer (CCQSIG__*)
+ */
+signed int cc_qsig_identifyinvoke(struct cc_qsig_invokedata *invoke, int protocol)
 {
 	int invokedescrtype = 0;
 	int datalen;
 	
-//	cc_verbose(1, 1, VERBOSE_PREFIX_4 "CONNECT_IND (Ident Invoke %i)\n", invoke->descr_type);
+/*	cc_verbose(1, 1, VERBOSE_PREFIX_4 "CONNECT_IND (Ident Invoke %i)\n", invoke->descr_type); */
 
-	switch (invoke->descr_type) {
-		case ASN1_INTEGER:
-			invokedescrtype = 1;
+	switch (protocol) {
+		case QSIG_TYPE_ALCATEL_ECMA:
+			switch (invoke->descr_type) {
+				case ASN1_INTEGER:
+					invokedescrtype = 1;
+					break;
+				case ASN1_OBJECTIDENTIFIER:
+					invokedescrtype = 2;
+					datalen = invoke->oid_len;
+					if ((datalen) == 4) {
+						if (!cc_qsig_asn1_check_ecma_isdn_oid(invoke->oid_bin, datalen)) {
+							switch (invoke->oid_bin[3]) {
+								case 0:		/* ECMA QSIG Name Presentation */
+									return CCQSIG__ECMA__NAMEPRES;
+								case 21:
+									return CCQSIG__ECMA__LEGINFO2;
+								default:	/* Unknown Operation */
+									cc_verbose(1, 1, VERBOSE_PREFIX_4 "QSIG: Unhandled ECMA-ISDN QSIG INVOKE (%i)\n", invoke->oid_bin[3]);
+									return 0;
+							}
+						}
+					}
+					
+					break;
+				default:
+					cc_verbose(1, 1, VERBOSE_PREFIX_3 "QSIG: Unidentified INVOKE OP\n");
+					break;
+			}
 			break;
-		case ASN1_OBJECTIDENTIFIER:
-			invokedescrtype = 2;
-			datalen = invoke->oid_len;
-			if ((datalen) == 4) {
-				if (!cc_qsig_asn1_check_ecma_isdn_oid(invoke->oid_bin, datalen)) {
-					switch (invoke->oid_bin[3]) {
-						case 0:		// ECMA QSIG Name Presentation
+		case QSIG_TYPE_HICOM_ECMAV2:
+			switch (invoke->descr_type) {
+				case ASN1_INTEGER:
+					invokedescrtype = 1;
+					switch (invoke->type) {
+						case 0:
 							return CCQSIG__ECMA__NAMEPRES;
-						default:	// Unknown Operation
-							cc_verbose(1, 1, VERBOSE_PREFIX_4 "QSIG: Unhandled ECMA-ISDN QSIG INVOKE (%i)\n", invoke->oid_bin[3]);
+						case 21:
+							return CCQSIG__ECMA__LEGINFO2;
+						default:
+							cc_verbose(1, 1, VERBOSE_PREFIX_4 "QSIG: Unhandled QSIG INVOKE (%i)\n", invoke->type);
 							return 0;
 					}
-				}
+					break;
+				case ASN1_OBJECTIDENTIFIER:
+					invokedescrtype = 2;
+					break;
+				default:
+					cc_verbose(1, 1, VERBOSE_PREFIX_3 "QSIG: Unidentified INVOKE OP\n");
+					break;
 			}
-			
 			break;
 		default:
-			cc_verbose(1, 1, VERBOSE_PREFIX_3 "QSIG: Unidentified INVOKE OP\n");
 			break;
 	}
 	return 0;
 	
 }
 
+
+/*
+ *
+ */
 unsigned int cc_qsig_handle_invokeoperation(int invokeident, struct cc_qsig_invokedata *invoke, struct capi_pvt *i)
 {
 	switch (invokeident) {
 		case CCQSIG__ECMA__NAMEPRES:
 			cc_qsig_op_ecma_isdn_namepres(invoke, i);
+			break;
+		case CCQSIG__ECMA__LEGINFO2:
+			cc_qsig_op_ecma_isdn_leginfo2(invoke, i);
 			break;
 		default:
 			break;
@@ -424,36 +496,64 @@ unsigned int cc_qsig_handle_invokeoperation(int invokeident, struct cc_qsig_invo
  */
 unsigned int cc_qsig_handle_capiind(unsigned char *data, struct capi_pvt *i)
 {
-	int faclen;
+	int faclen = 0;
 	int facidx = 2;
-	int action_unkn_apdu;		// What to do with unknown Invoke-APDUs (0=Ignore, 1=clear call, 2=reject APDU)
+	int action_unkn_apdu;		/* What to do with unknown Invoke-APDUs (0=Ignore, 1=clear call, 2=reject APDU) */
 	
-	int invoke_len;			// Length of Invoke APDU
-	unsigned int invoke_op;		// Invoke Operation ID
+	int invoke_len;			/* Length of Invoke APDU */
+	unsigned int invoke_op;		/* Invoke Operation ID */
 	struct cc_qsig_invokedata invoke;
 	int invoketmp1;
 	
 	
 	if (data) {
-		faclen=data[facidx];
-//					cc_verbose(1, 1, VERBOSE_PREFIX_3 "CONNECT_IND (Got Facility IE, Length=%#x)\n", faclen);
+		faclen=data[facidx-2];
+/*					cc_verbose(1, 1, VERBOSE_PREFIX_3 "CONNECT_IND (Got Facility IE, Length=%#x)\n", faclen); */
 		facidx++;
-		if (cc_qsig_check_facility(data, &facidx, &action_unkn_apdu)) {
-//						cc_verbose(1, 1, VERBOSE_PREFIX_3 "CONNECT_IND ROSE Supplementary Services (APDU Interpretation: %i)\n", action_unkn_apdu);
-			while ((facidx-1)<faclen) {
-				invoke_len=cc_qsig_check_invoke(data, &facidx);
-				if (invoke_len>0) {
-					if (cc_qsig_get_invokeid(data, &facidx, &invoke)==0) {
-						invoketmp1=cc_qsig_fill_invokestruct(data, &facidx, &invoke, action_unkn_apdu);
-						invoke_op=cc_qsig_identifyinvoke(&invoke);
-						cc_qsig_handle_invokeoperation(invoke_op, &invoke, i);
+		while (facidx < faclen) {
+			cc_verbose(1, 1, VERBOSE_PREFIX_3 "Checking Facility at index %i\n", facidx);
+			switch (i->qsigfeat) {
+				case QSIG_TYPE_ALCATEL_ECMA:
+					if (cc_qsig_check_facility(data, &facidx, &action_unkn_apdu, Q932_PROTOCOL_ROSE)) {
+	/*						cc_verbose(1, 1, VERBOSE_PREFIX_3 "CONNECT_IND ROSE Supplementary Services (APDU Interpretation:  %i)\n", action_unkn_apdu); */
+						while ((facidx-1)<faclen) {
+							invoke_len=cc_qsig_check_invoke(data, &facidx);
+							if (invoke_len>0) {
+								if (cc_qsig_get_invokeid(data, &facidx, &invoke)==0) {
+									invoketmp1=cc_qsig_fill_invokestruct(data, &facidx, &invoke, action_unkn_apdu);
+									invoke_op=cc_qsig_identifyinvoke(&invoke, i->qsigfeat);
+									cc_qsig_handle_invokeoperation(invoke_op, &invoke, i);
+								}
+							} else {
+									/* Not an Invoke */
+							}
+						}
 					}
-				} else {
-								// Not an Invoke
-				}
+					break;
+				case QSIG_TYPE_HICOM_ECMAV2:
+					if (cc_qsig_check_facility(data, &facidx, &action_unkn_apdu, Q932_PROTOCOL_EXTENSIONS)) {
+						/*						cc_verbose(1, 1, VERBOSE_PREFIX_3 "CONNECT_IND ROSE Supplementary Services (APDU Interpretation:  %i)\n", action_unkn_apdu); */
+						while ((facidx-1)<faclen) {
+							invoke_len=cc_qsig_check_invoke(data, &facidx);
+							if (invoke_len>0) {
+								if (cc_qsig_get_invokeid(data, &facidx, &invoke)==0) {
+									invoketmp1=cc_qsig_fill_invokestruct(data, &facidx, &invoke, action_unkn_apdu);
+									invoke_op=cc_qsig_identifyinvoke(&invoke, i->qsigfeat);
+									cc_qsig_handle_invokeoperation(invoke_op, &invoke, i);
+								}
+							} else {
+								/* Not an Invoke */
+							}
+						}
+					}
+					break;
+				default:
+					cc_verbose(1, 1, VERBOSE_PREFIX_3 "Unknown QSIG protocol configured (%i)\n", i->qsigfeat);
+					break;
 			}
 		}
 	}
+	cc_verbose(1, 1, VERBOSE_PREFIX_3 "Facility done at index %i from %i\n", facidx, faclen);
 	return 0;
 }
 
@@ -467,8 +567,11 @@ unsigned int cc_qsig_add_call_setup_data(unsigned char *data, struct capi_pvt *i
 	struct cc_qsig_nfe nfe;
 	unsigned int dataidx;
 	
+/*mg:remember me	switch (i->doqsig) {*/
 	cc_qsig_build_facility_struct(data, &dataidx, APDUINTERPRETATION_IGNORE, &nfe);
 	cc_qsig_encode_ecma_name_invoke(data, &dataidx, &invoke, i);
 	cc_qsig_add_invoke(data, &dataidx, &invoke);
+/*	}*/
 	return 0;
 }
+

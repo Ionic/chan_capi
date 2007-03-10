@@ -37,10 +37,20 @@ To use Q.SIG with asterisk, you'll need a card like Eicon DIVA Server
 The QSIG support includes:
 ==========================
 - Name presentation on Call SETUP incoming like outgoing
+- ISDN LEG INFO2 field - a message which delivers informations about call diversions on incoming call to asterisk
+    Data is stored in Asterisk variables:
+    QSIG_LI2_DIVREASON		Reason of divertion: 0 - unknown, 1 - unconditional, 2 - user busy, 3 - user no reply
+    QSIG_LI2_ODIVREASON		Reason of original divertion (like above)
+    QSIG_LI2_DIVCOUNT		divertion counter - how many divertions
+    QSIG_LI2_DIVNUM		diverting number
+    QSIG_LI2_ODIVNUM		original diverting number
+    QSIG_LI2_DIVNAME		diverting name
+    QSIG_LI2_ODIVNAME		original diverting name
+
+    at the moment only incoming handling is supported
 
 Future Targets:
 ===============
-- better name handling - there are still some case which are wrongly handled
 - check code for buffer overflows
 - Path Replacement
 - CCBS
@@ -52,12 +62,23 @@ How to use:
 
 simply enable Q.SIG with following line in your capi.conf interface:
 
-qsig=on
+================================================================================
+********** deprecated **********************************************************
+#### qsig=on
 
-Take care that you enable this only for interfaces, where the other end 
-understands the Q.SIG protocoll. If not, then these switches may reject the 
-entire call, because of wrong facility contents.
+#### Take care that you enable this only for interfaces, where the other end 
+#### understands the Q.SIG protocoll. If not, then these switches may reject the 
+#### entire call, because of wrong facility contents.
 
-Later this will change to qsig=off or qsig=1..x where we can support some 
-pbx manufacturer specific operations.
+#### Later this will change to qsig=off or qsig=1..x where we can support some 
+#### pbx manufacturer specific operations.
+================================================================================
+
+Here we go with new configuration
+
+Set qsig to one of the following values, which corresponds to your configuration.
+
+0	QSIG turned off
+1	Alcatel (4400 & Enterprise - Maybe OXO/4200) ECMA variant
+2	Siemens HiPath 4000 ECMAV2
 

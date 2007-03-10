@@ -91,7 +91,7 @@ INSTALL=install
 
 SHAREDOS=chan_capi.so
 
-OBJECTS=chan_capi.o c20msg.o chan_capi_rtp.o chan_capi_qsig_core.o chan_capi_qsig_ecma.o
+OBJECTS=chan_capi.o c20msg.o chan_capi_rtp.o chan_capi_qsig_core.o chan_capi_qsig_ecma.o chan_capi_qsig_asn197ade.o chan_capi_qsig_asn197no.o
 
 CFLAGS+=-Wno-missing-prototypes -Wno-missing-declarations
 

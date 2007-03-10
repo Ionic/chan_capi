@@ -90,6 +90,8 @@ OPENPBX_FILE_VERSION("$HeadURL$", "$Revision$")
 #include "chan_capi.h"
 #include "chan_capi_rtp.h"
 #include "chan_capi_qsig.h"
+#include "chan_capi_qsig_asn197ade.h"
+#include "chan_capi_qsig_asn197no.h"
 #endif
 
 #ifdef PBX_IS_OPBX
@@ -3929,7 +3931,7 @@ static void capidev_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, un
 			pbx_builtin_setvar_helper(i->owner, "SECONDCALLERID", buffer);
 			*/
 
-			if (i->qsigfeat == QSIG_ENABLED) {
+			if (i->qsigfeat != QSIG_DISABLED) {
 				cc_qsig_handle_capiind(CONNECT_IND_FACILITYDATAARRAY(CMSG), i);
 			}
 			
@@ -5822,7 +5824,7 @@ static int conf_interface(struct cc_capi_conf *conf, struct ast_variable *v)
 		CONF_TRUE(conf->es, "echosquelch", 1)
 		CONF_TRUE(conf->bridge, "bridge", 1)
 		CONF_TRUE(conf->ntmode, "ntmode", 1)
-		CONF_TRUE(conf->qsigfeat, "qsig", 1)
+		CONF_INTEGER(conf->qsigfeat, "qsig")
 		if (!strcasecmp(v->name, "callgroup")) {
 			conf->callgroup = ast_get_group(v->value);
 			continue;

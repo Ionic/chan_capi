@@ -15,11 +15,10 @@
 #define PBX_QSIG_H
 
 #define QSIG_DISABLED		0x00
-#define QSIG_ENABLED		0x01
+#define QSIG_ENABLED		0x01		/* shouldn't be used anymore */
 
-#define QSIG_TYPE_DEFAULT	0x00		/* use only common features */
-#define QSIG_TYPE_ALCATEL	0x01		/* use additional Alcatel features */
-#define QSIG_TYPE_HICOM		0x02		/* use additional Hicom features */
+#define QSIG_TYPE_ALCATEL_ECMA	0x01		/* use additional Alcatel ECMA */
+#define QSIG_TYPE_HICOM_ECMAV2	0x02		/* use additional Hicom ECMA V2 */
 
 #define Q932_PROTOCOL_ROSE			0x11	/* X.219 & X.229 */
 #define Q932_PROTOCOL_CMIP			0x12	/* Q.941 */
@@ -64,6 +63,15 @@
 #define ASN1_UTCTIME			0x17
 #define ASN1_GENERALIZEDTIME	0x18
 
+/* ASN.1 Type/Tag Class (bits 7 & 6 of Tag octet) */
+#define ASN1_TC_UNIVERSAL	0x00
+#define ASN1_TC_APPLICATION	0x40
+#define ASN1_TC_CONTEXTSPEC	0x80
+#define ASN1_TC_PRIVATE		0xC0
+
+/* ASN.1 Type/Tag Form (bit 5 of Tag octet) */
+#define	ASN1_TF_PRIMITVE	0x00
+#define ASN1_TF_CONSTRUCTED	0x20		/* field may be a type of sequence or set */
 
 #define CNIP_CALLINGNAME	0x00		/* Name-Types defined in ECMA-164 */
 #define CNIP_CALLEDNAME		0x01
@@ -79,6 +87,7 @@
 #define CNIP_NAMEUSERPROVIDEDV	0x01		/* Name is User-provided and validated */
 		
 #define CCQSIG__ECMA__NAMEPRES	1000		/* Setting an own constant for ECMA Operation/Namepresentation, others will follow */
+#define CCQSIG__ECMA__LEGINFO2	1011		/* LEG INFORMATION2 */
 
 /*
  * INVOKE Data struct, contains data for further operations
@@ -117,73 +126,35 @@ struct cc_qsig_nfe {
 
 
 
-/*****************  QSIG Core Functions */
+/*
+ * prototypes
+ */
 
-/* Create an default QSIG Facility Array */
+/*
+ ***  QSIG Core Functions 
+ */
+
 extern int cc_qsig_build_facility_struct(unsigned char * buf, unsigned int *idx, int apdu_interpr, struct cc_qsig_nfe *nfe);
-
 extern int cc_qsig_add_invoke(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke);
-
-/* Returns an String from ASN.1 Encoded String */
 extern unsigned int cc_qsig_asn1_get_string(unsigned char *buf, int buflen, unsigned char *data);
-
-/* Returns an Integer from ASN.1 Encoded Integer */
 extern unsigned int cc_qsig_asn1_get_integer(unsigned char *data, int *idx);
-
-/* Returns an Human Readable OID from ASN.1 Encoded OID */
 extern unsigned char cc_qsig_asn1_get_oid(unsigned char *data, int *idx);
-
-
-/* Check if OID is ECMA-ISDN (1.3.12.9.*) */
 extern signed int cc_qsig_asn1_check_ecma_isdn_oid(unsigned char *data, int len);
-
-		
-/* 
- * Valid QSIG-Facility?
- * Returns 0 if not 
- */
-extern unsigned int cc_qsig_check_facility(unsigned char *data, int *idx, int *apduval);
-
-/*
- * Is this an INVOKE component?
- * when not return -1, set idx to next byte (length of component?)
- *		*** check idx in this case, that we are not out of range - maybe we got an unknown component then
- * when it is an invoke, return invoke length and set idx to first byte of component
- */
+extern unsigned int cc_qsig_check_facility(unsigned char *data, int *idx, int *apduval, int protocol);
 extern signed int cc_qsig_check_invoke(unsigned char *data, int *idx);
-
-/*
- * Get Invoke ID
- *	returns current index
- *	idx points to next byte in array
- */
 extern signed int cc_qsig_get_invokeid(unsigned char *data, int *idx, struct cc_qsig_invokedata *invoke);
-
-/* fill the Invoke struct with all the invoke data */
 extern signed int cc_qsig_fill_invokestruct(unsigned char *data, int *idx, struct cc_qsig_invokedata *invoke, int apduval);
-
-/*
- * Handles incoming Facilities on CAPI Indications
- */
 extern unsigned int cc_qsig_handle_capiind(unsigned char *data, struct capi_pvt *i);
-
-/*
- * Handles outgoing Facilies on Call SETUP
- */
 extern unsigned int cc_qsig_add_call_setup_data(unsigned char *data, struct capi_pvt *i);
-
-/* Identify an INVOKE and return our own Ident Integer (CCQSIG__*) */
-extern signed int cc_qsig_identifyinvoke(struct cc_qsig_invokedata *invoke);
-
+extern signed int cc_qsig_identifyinvoke(struct cc_qsig_invokedata *invoke, int protocol);
 extern unsigned int cc_qsig_handle_invokeoperation(int invokeident, struct cc_qsig_invokedata *invoke, struct capi_pvt *i);
 
+/*
+ *** ECMA QSIG Functions 
+ */
 
-
-/* ECMA QSIG Functions */
-
-/* Handle Operation: 1.3.12.9.0-3		ECMA/ISDN/NAMEPRESENTATION */
 extern void cc_qsig_op_ecma_isdn_namepres(struct cc_qsig_invokedata *invoke, struct capi_pvt *i);
-
 extern int cc_qsig_encode_ecma_name_invoke(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke, struct capi_pvt *i);
+extern void cc_qsig_op_ecma_isdn_leginfo2(struct cc_qsig_invokedata *invoke, struct capi_pvt *i);
 
 #endif
