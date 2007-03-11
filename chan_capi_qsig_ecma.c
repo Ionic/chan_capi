@@ -20,6 +20,7 @@
 		
 #include <asterisk/channel.h>
 #include <asterisk/options.h>
+#include <asterisk/pbx.h>
 #include "chan_capi20.h"
 #include "chan_capi.h"
 #include "chan_capi_qsig.h"
@@ -153,10 +154,10 @@ void cc_qsig_op_ecma_isdn_leginfo2(struct cc_qsig_invokedata *invoke, struct cap
 	unsigned int divReason = 0;
 	unsigned int orgDivReason = 0;
 	char tempstr[5];
-	unsigned char divertNum[ASN197ADE_NUMDIGITS_STRSIZE+1];
-	unsigned char origCalledNum[ASN197ADE_NUMDIGITS_STRSIZE+1];
-	unsigned char divertName[ASN197NO_NAME_STRSIZE+1];
-	unsigned char origCalledName[ASN197NO_NAME_STRSIZE+1];
+	char divertNum[ASN197ADE_NUMDIGITS_STRSIZE+1];
+	char origCalledNum[ASN197ADE_NUMDIGITS_STRSIZE+1];
+	char divertName[ASN197NO_NAME_STRSIZE+1];
+	char origCalledName[ASN197NO_NAME_STRSIZE+1];
 	unsigned int temp = 0;
 	unsigned int temp2 = 0;
 	
@@ -240,7 +241,7 @@ void cc_qsig_op_ecma_isdn_leginfo2(struct cc_qsig_invokedata *invoke, struct cap
 	pbx_builtin_setvar_helper(i->owner, "QSIG_LI2_DIVNAME", divertName);
 	pbx_builtin_setvar_helper(i->owner, "QSIG_LI2_ODIVNAME", origCalledName);
 
-	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * QSIG_LEG_INFO2: (%i(%i), %ix %s->%s, %s->%s)\n", divReason, orgDivReason, divCount, origCalledNum, divertNum, origCalledName, divertName);
+	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * QSIG_LEG_INFO2: %i(%i), %ix %s->%s, %s->%s\n", divReason, orgDivReason, divCount, origCalledNum, divertNum, origCalledName, divertName);
 	
 	return;
 	

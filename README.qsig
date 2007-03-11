@@ -82,3 +82,10 @@ Set qsig to one of the following values, which corresponds to your configuration
 1	Alcatel (4400 & Enterprise - Maybe OXO/4200) ECMA variant
 2	Siemens HiPath 4000 ECMAV2
 
+
+ToDo List:
+==========
+
+- Invoke Identifier handling - currently i use invoke id #1, will be corrected by capi (outgoing)
+- Handle later facilities - i don't know what to do with most informations now, maybe they are useless in asterisk
+- Outgoing calls support only qsig type 1 (Alcatel) - add support for others on outgoing

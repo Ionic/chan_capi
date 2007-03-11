@@ -23,7 +23,7 @@
 
 #define ASN197ADE_NUMDIGITS_STRSIZE	20
 
-extern unsigned int cc_qsig_asn197ade_get_partynumber(unsigned char *buf, int buflen, int *idx, unsigned char *data);
-extern unsigned int cc_qsig_asn197ade_get_numdigits(unsigned char *buf, int buflen, int *idx, unsigned char *data);
+extern unsigned int cc_qsig_asn197ade_get_partynumber(char *buf, int buflen, int *idx, unsigned char *data);
+extern unsigned int cc_qsig_asn197ade_get_numdigits(char *buf, int buflen, int *idx, unsigned char *data);
 
 #endif

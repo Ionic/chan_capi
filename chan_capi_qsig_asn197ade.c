@@ -35,11 +35,19 @@
  *  return:
  *	index counter
  */
-unsigned int cc_qsig_asn197ade_get_partynumber(unsigned char *buf, int buflen, int *idx, unsigned char *data)
+unsigned int cc_qsig_asn197ade_get_partynumber(char *buf, int buflen, int *idx, unsigned char *data)
 {
 	int myidx = *idx;
-	int datalength = data[myidx++];
-	int numtype = (data[myidx++] & 0x0F);	/* defines type of Number: numDigits, publicPartyNum, nsapEncNum, dataNumDigits */
+	int datalength;
+	int numtype;
+	
+	datalength = data[myidx++];
+	
+	if (!datalength) {
+		return 0;
+	}
+	
+	numtype = (data[myidx++] & 0x0F);	/* defines type of Number: numDigits, publicPartyNum, nsapEncNum, dataNumDigits */
 	
 	/* cc_verbose(1, 1, VERBOSE_PREFIX_4 " * num type %i\n", numtype);  */
 	switch (numtype){
@@ -66,7 +74,7 @@ unsigned int cc_qsig_asn197ade_get_partynumber(unsigned char *buf, int buflen, i
 /*
  * Returns an string from ASN.1 encoded string
  */
-unsigned int cc_qsig_asn197ade_get_numdigits(unsigned char *buf, int buflen, int *idx, unsigned char *data)
+unsigned int cc_qsig_asn197ade_get_numdigits(char *buf, int buflen, int *idx, unsigned char *data)
 {
 	int strsize;
 	int myidx = *idx;

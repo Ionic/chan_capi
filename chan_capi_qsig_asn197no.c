@@ -37,9 +37,9 @@
  *	index counter
  */
 
-unsigned int cc_qsig_asn197no_get_name(unsigned char *buf, int buflen, unsigned int *bufds, int *idx, unsigned char *data)
+unsigned int cc_qsig_asn197no_get_name(char *buf, int buflen, unsigned int *bufds, int *idx, unsigned char *data)
 {
-	unsigned int myidx = *idx;
+	int myidx = *idx;
 	unsigned int nametag;
 	unsigned int namelength = 0;
 	unsigned int nametype;
@@ -79,7 +79,7 @@ unsigned int cc_qsig_asn197no_get_name(unsigned char *buf, int buflen, unsigned 
 					break;
 				}
 				if (data[myidx++] == ASN1_INTEGER) {
-					charset=cc_qsig_asn1_get_integer(data, &myidx);
+					charset = cc_qsig_asn1_get_integer(data, &myidx);
 				} else {
 					cc_verbose(1, 1, VERBOSE_PREFIX_4 " Namestruct not ECMA conform (Integer expected)\n");
 				}

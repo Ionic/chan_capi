@@ -23,6 +23,6 @@
 
 #define ASN197NO_NAME_STRSIZE	50
 
-extern unsigned int cc_qsig_asn197no_get_name(unsigned char *buf, int buflen, unsigned int *bufds, int *idx, unsigned char *data);
+extern unsigned int cc_qsig_asn197no_get_name(char *buf, int buflen, unsigned int *bufds, int *idx, unsigned char *data);
 
 #endif

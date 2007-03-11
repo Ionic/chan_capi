@@ -6,6 +6,9 @@ HEAD
 - added qsig caller-name patch by Mario Goegel
 - recognise asterisk 1.4.1
 - register at CAPI with needed maxLogicalConnections only
+QSIG:
+ - added support for different qsig variants
+ - added support for rerouting informations on incoming calls
 
 chan_capi-1.0.0
 ------------------

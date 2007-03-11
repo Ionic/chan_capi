@@ -310,9 +310,6 @@ signed int cc_qsig_get_invokeid(unsigned char *data, int *idx, struct cc_qsig_in
 		temp = cc_qsig_asn1_get_integer(data, &myidx);
 		invoke->id = temp;
  		*idx = myidx; 
-/*		*idx += invlen + 1; */
-/*		cc_verbose(1, 1, VERBOSE_PREFIX_3 "CONNECT_IND (Invoke Identifier %#x)\n", temp); */
-/*		*idx=myidx; 	/* Set by cc_qsig_asn1get_integer */
 	}
 	return 0;
 }
@@ -336,8 +333,6 @@ signed int cc_qsig_fill_invokestruct(unsigned char *data, int *idx, struct cc_qs
 			temp = cc_qsig_asn1_get_integer(data, &myidx);
 			invoke->descr_type = ASN1_INTEGER;
 			invoke->type = temp;
-			/*myidx++;*/				/* component length */
-			/*datalen=data[myidx++];		/* maybe correct, better we calculate the datalength */
 			temp2 = (invoke->len) + (invoke->offset) + 1;	/* Array End = Invoke Length + Invoke Offset +1 */
 			datalen = temp2 - myidx;
 					
