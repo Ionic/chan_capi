@@ -53,6 +53,12 @@ else
 	fi
 fi
 
+if [ "$VER" = "1_2" ]; then
+	echo "Using Asterisk 1.2 API"
+else
+	echo "Using Asterisk 1.4 API"
+fi
+
 if grep -q "AST_STRING_FIELD(name)" $INCLUDEDIR/channel.h; then
 	echo "#define CC_AST_HAS_STRINGFIELD_IN_CHANNEL" >>$CONFIGFILE
 	echo " * found stringfield in ast_channel"
@@ -112,5 +118,6 @@ echo "#endif /* CHAN_CAPI_CONFIG_H */" >>$CONFIGFILE
 echo "" >>$CONFIGFILE
 
 echo "config.h complete."
+echo
 exit 0
 

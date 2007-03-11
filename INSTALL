@@ -11,9 +11,15 @@ To build the channel driver:
 ---------------------------------
 make
 
+For verbose compiling:
+---------------------------------
+make V=1
+
+
 To install:
 ----------------
 make install
+
 
 To install a sample configuration:
 ----------------------------------
