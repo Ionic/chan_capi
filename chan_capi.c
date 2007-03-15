@@ -3462,6 +3462,12 @@ static void capidev_send_faxdata(struct capi_pvt *i)
 	size_t len;
 	_cmsg CMSG;
 
+	if (i->NCCI == 0) {
+		cc_verbose(3, 0, VERBOSE_PREFIX_3 "%s: send_faxdata on NCCI = 0.\n",
+			i->vname);
+		return;
+	}
+
 	if (i->state == CAPI_STATE_DISCONNECTING) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: send_faxdata in DISCONNECTING.\n",
 			i->vname);
