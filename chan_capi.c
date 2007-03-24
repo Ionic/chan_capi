@@ -5572,7 +5572,7 @@ static int cc_register_capi(unsigned blocksize, unsigned connections)
 			cc_log(LOG_WARNING,"Unable to unregister from CAPI!\n");
 	}
 	cc_verbose(3, 0, VERBOSE_PREFIX_3 "Registering at CAPI "
-		   "(blocksize=%d maxlogicalchannels)\n", blocksize, connections);
+		   "(blocksize=%d maxlogicalchannels=%d)\n", blocksize, connections);
 
 #if (CAPI_OS_HINT == 2)
 	error = capi20_register(connections, CAPI_MAX_B3_BLOCKS, 
