@@ -78,7 +78,7 @@ void cc_qsig_op_ecma_isdn_namepres(struct cc_qsig_invokedata *invoke, struct cap
  * returns
  * 	always 0
  */
-int cc_qsig_encode_ecma_name_invoke(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke, struct capi_pvt *i)
+int cc_qsig_encode_ecma_name_invoke(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke, struct capi_pvt *i, int nametype)
 {
 	const unsigned char oid[] = {0x2b,0x0c,0x09,0x00};	/* 1.3.12.9.0 */
 	int oid_len = sizeof(oid);
@@ -86,7 +86,6 @@ int cc_qsig_encode_ecma_name_invoke(unsigned char * buf, unsigned int *idx, stru
 	unsigned char data[255];
 	int dataidx = 0;
 	int namelen = 0;
-	/*TODO: write something */
 	
 	if (i->owner->cid.cid_name)
 		namelen = strlen(i->owner->cid.cid_name);
@@ -111,6 +110,10 @@ int cc_qsig_encode_ecma_name_invoke(unsigned char * buf, unsigned int *idx, stru
 	invoke->oid_len = oid_len;
 	memcpy(invoke->oid_bin, oid, oid_len);
 	
+	/* HACK: */
+	if (nametype)
+		invoke->oid_bin[3] = 2;
+	
 	if (namelen>0) {
 		data[dataidx++] = 0x80;	/* We send only simple Name, Namepresentation allowed */
 		data[dataidx++] = namelen;
@@ -133,8 +136,8 @@ int cc_qsig_encode_ecma_name_invoke(unsigned char * buf, unsigned int *idx, stru
 /* 
  * Handle Operation: 1.3.12.9.21		ECMA/ISDN/LEG_INFORMATION2
  * 
- * This function decodes the namepresentation facility
- * The name will be copied in the cid.cid_name field of the asterisk channel struct
+ * This function decodes the LEG INFORMATION2 facility
+ * The datas will be copied in the some Asterisk channel variables -> see README.qsig
  *
  * parameters
  *	invoke	struct, which contains encoded data from facility

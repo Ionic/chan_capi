@@ -48,10 +48,17 @@ The QSIG support includes:
     QSIG_LI2_ODIVNAME		original diverting name
 
     at the moment only incoming handling is supported
+- Possibility to inform QSIG switch about call from public network
+    If you set variable QSIG_SETUP=X then the QSIG switch on the other side will know, 
+    this call source is public network - you will get different ring tone, etc.
+    In dialplan use:    Set(__QSIG_SETUP=X)  command.
+    The leading "__" tells asterisk, to export this variable to the outgoing channel and
+    its subchannels
 
 Future Targets:
 ===============
 - check code for buffer overflows
+- Call Transfer
 - Path Replacement
 - CCBS
 - AOC
@@ -79,8 +86,8 @@ Here we go with new configuration
 Set qsig to one of the following values, which corresponds to your configuration.
 
 0	QSIG turned off
-1	Alcatel (4400 & Enterprise - Maybe OXO/4200) ECMA variant
-2	Siemens HiPath 4000 ECMAV2
+1	Alcatel (4400 & Enterprise - Maybe OXO/4200) ECMA (wrongly named ECMA - it is ETSI) variant
+2	Siemens HiPath 4000 ECMAV2 & Alcatel 4400/Enterprise in ISO mode
 
 
 ToDo List:

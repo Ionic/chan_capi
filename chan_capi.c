@@ -130,6 +130,7 @@ static char *commandtdesc = "CAPI command interface.\n"
 "\"params\" can be:\n"
 "early B3:\"b\"=always, \"B\"=on successful calls only\n"
 "\"d\":use callerID from capi.conf, \"o\":overlap sending number\n"
+"\n\"q\":disable QSIG functions on outgoing call\n"
 "\n"
 "capicommand() where () can be:\n"
 "\"progress\" send progress (for NT mode)\n"
@@ -1589,7 +1590,7 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 
 	if (doqsig) {
 		unsigned char *facilityarray = alloca(CAPI_MAX_FACILITYDATAARRAY_SIZE);
-		cc_qsig_add_call_setup_data(facilityarray, i);
+		cc_qsig_add_call_setup_data(facilityarray, i, c);
 		CONNECT_REQ_FACILITYDATAARRAY(&CMSG) = facilityarray;
 	}
 

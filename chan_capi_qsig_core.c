@@ -20,6 +20,7 @@
 		
 #include <asterisk/channel.h>
 #include <asterisk/options.h>
+#include <asterisk/pbx.h>
 #include "chan_capi20.h"
 #include "chan_capi.h"
 #include "chan_capi_qsig.h"
@@ -555,18 +556,73 @@ unsigned int cc_qsig_handle_capiind(unsigned char *data, struct capi_pvt *i)
 /*
  * Handles outgoing Facilies on Call SETUP
  */
-unsigned int cc_qsig_add_call_setup_data(unsigned char *data, struct capi_pvt *i)
+unsigned int cc_qsig_add_call_setup_data(unsigned char *data, struct capi_pvt *i, struct  ast_channel *c)
+{
+	/* TODO: Check buffers */
+	struct cc_qsig_invokedata invoke;
+	struct cc_qsig_nfe nfe;
+	unsigned int dataidx = 0;
+	
+	const unsigned char xprogress[] = {0x1e,0x02,0xa0,0x90};
+	char *p = NULL;
+	int add_externalinfo = 0;
+			
+	if ((p = pbx_builtin_getvar_helper(c, "QSIG_SETUP"))) {
+		/* some special dial parameters */
+		/* parse the parameters */
+		while ((p) && (*p)) {
+			switch (*p) {
+				case 'X':	/* add PROGRESS INDICATOR for external calls*/
+					cc_verbose(1, 1, VERBOSE_PREFIX_4, "Sending QSIG external PROGRESS IE.\n");
+					add_externalinfo = 1;
+					while (((char)*p!=',')&&(*p)) 	/* Remove next values until separator (,), stop if zero */
+						p++;
+					break;
+				default:
+					cc_log(LOG_WARNING, "Unknown parameter '%c' in QSIG_SETUP, ignoring.\n", *p);
+					while (((char)*p!=',')&&(*p)) 
+						p++;
+			}
+			if (*p)	/* this is not the end */
+				p++;
+		}
+	}
+	
+/*mg:remember me	switch (i->doqsig) {*/
+	cc_qsig_build_facility_struct(data, &dataidx, APDUINTERPRETATION_IGNORE, &nfe);
+	cc_qsig_encode_ecma_name_invoke(data, &dataidx, &invoke, i, 0);
+	cc_qsig_add_invoke(data, &dataidx, &invoke);
+	
+	if (add_externalinfo) {
+		/* add PROGRESS INDICATOR for external calls*/
+		memcpy(&data[dataidx], xprogress, sizeof(xprogress));
+		data[0] += data[0] + sizeof(xprogress);
+	}
+/*	}*/
+	return 0;
+}
+
+/*
+ * Handles outgoing Facilies on Call
+ */
+unsigned int cc_qsig_add_call_facility_data(unsigned char *data, struct capi_pvt *i, int facility)
 {
 	/* TODO: Check buffers */
 	struct cc_qsig_invokedata invoke;
 	struct cc_qsig_nfe nfe;
 	unsigned int dataidx;
 	
-/*mg:remember me	switch (i->doqsig) {*/
+	/*mg:remember me	switch (i->doqsig) {*/
 	cc_qsig_build_facility_struct(data, &dataidx, APDUINTERPRETATION_IGNORE, &nfe);
-	cc_qsig_encode_ecma_name_invoke(data, &dataidx, &invoke, i);
-	cc_qsig_add_invoke(data, &dataidx, &invoke);
-/*	}*/
+	switch(facility) {
+		case 1:	/* HACK:  Test only */
+			cc_qsig_encode_ecma_name_invoke(data, &dataidx, &invoke, i, 1);
+			cc_qsig_add_invoke(data, &dataidx, &invoke);
+			break;
+		default:
+			break;
+	}
+	/*	}*/
 	return 0;
 }
 

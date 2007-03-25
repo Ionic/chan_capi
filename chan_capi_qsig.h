@@ -145,7 +145,9 @@ extern signed int cc_qsig_check_invoke(unsigned char *data, int *idx);
 extern signed int cc_qsig_get_invokeid(unsigned char *data, int *idx, struct cc_qsig_invokedata *invoke);
 extern signed int cc_qsig_fill_invokestruct(unsigned char *data, int *idx, struct cc_qsig_invokedata *invoke, int apduval);
 extern unsigned int cc_qsig_handle_capiind(unsigned char *data, struct capi_pvt *i);
-extern unsigned int cc_qsig_add_call_setup_data(unsigned char *data, struct capi_pvt *i);
+extern unsigned int cc_qsig_add_call_setup_data(unsigned char *data, struct capi_pvt *i, struct  ast_channel *c);
+extern unsigned int cc_qsig_add_call_facility_data(unsigned char *data, struct capi_pvt *i, int facility);
+
 extern signed int cc_qsig_identifyinvoke(struct cc_qsig_invokedata *invoke, int protocol);
 extern unsigned int cc_qsig_handle_invokeoperation(int invokeident, struct cc_qsig_invokedata *invoke, struct capi_pvt *i);
 
@@ -154,7 +156,7 @@ extern unsigned int cc_qsig_handle_invokeoperation(int invokeident, struct cc_qs
  */
 
 extern void cc_qsig_op_ecma_isdn_namepres(struct cc_qsig_invokedata *invoke, struct capi_pvt *i);
-extern int cc_qsig_encode_ecma_name_invoke(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke, struct capi_pvt *i);
+extern int cc_qsig_encode_ecma_name_invoke(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke, struct capi_pvt *i, int nametype);
 extern void cc_qsig_op_ecma_isdn_leginfo2(struct cc_qsig_invokedata *invoke, struct capi_pvt *i);
 
 #endif
