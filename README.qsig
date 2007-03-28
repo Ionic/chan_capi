@@ -54,6 +54,11 @@ The QSIG support includes:
     In dialplan use:    Set(__QSIG_SETUP=X)  command.
     The leading "__" tells asterisk, to export this variable to the outgoing channel and
     its subchannels
+- Simple Call Transfer
+    With capicommand(qsig_ct|src-id|dst-id) you can transfer an inbound call back to the qsig switch.
+    The B-Channel of this call will be relased, so that the line is free for a next call.
+    Unfortunately the call will be completely released by the switch, if the target is busy.
+    I have to read the ECMA-300 standard, if there's a chance, to refuse the transfer in such a case.
 
 Future Targets:
 ===============

@@ -145,6 +145,7 @@ static char *commandtdesc = "CAPI command interface.\n"
 "\"3pty_begin|${MYHOLDVAR})\" Three-Party-Conference (3PTY) with active and held call\n"
 "\"receivefax|filename|stationID|headline\" receive a CAPIfax\n"
 "\"sendfax|filename.sff|stationID|headline\" send a CAPIfax\n"
+"\"qsig_ct|cidsrc|ciddst\" QSIG call transfer\n"
 "Variables set after fax receive:\n"
 "FAXSTATUS     :0=OK, 1=Error\n"
 "FAXREASON     :B3 disconnect reason\n"
@@ -4794,6 +4795,33 @@ static int pbx_capi_3pty_begin(struct ast_channel *c, char *param)
 }
 
 /*
+ * Initiate a QSIG Call Transfer
+ */
+static int pbx_capi_qsig_ct(struct ast_channel *c, char *param)
+{
+	unsigned char fac[CAPI_MAX_FACILITYDATAARRAY_SIZE];
+	_cmsg		CMSG;
+	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+
+	if (!param) { /* no data implies no Calling Number and Destination Number */
+		cc_log(LOG_WARNING, "capi qsig_ct requires source number and destination number\n");
+		return -1;
+	}
+
+	cc_qsig_do_facility(fac, c, param, 99);
+	
+	INFO_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(),0);
+	INFO_REQ_PLCI(&CMSG) = i->PLCI;
+	//		/ *INFO_REQ_FACILITYSELECTOR(&CMSG) = 0;* /
+	INFO_REQ_FACILITYDATAARRAY(&CMSG) = fac;
+		
+	_capi_put_cmsg(&CMSG);
+
+
+	return 0;
+}
+
+/*
  * struct of capi commands
  */
 static struct capicommands_s {
@@ -4813,6 +4841,7 @@ static struct capicommands_s {
 	{ "retrieve",     pbx_capi_retrieve,        0 },
 	{ "ect",          pbx_capi_ect,             1 },
 	{ "3pty_begin",	  pbx_capi_3pty_begin,	    1 },
+ 	{ "qsig_ct",	  pbx_capi_qsig_ct,	    1 },
 	{ NULL, NULL, 0 }
 };
 

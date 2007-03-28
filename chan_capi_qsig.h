@@ -136,9 +136,13 @@ struct cc_qsig_nfe {
 
 extern int cc_qsig_build_facility_struct(unsigned char * buf, unsigned int *idx, int apdu_interpr, struct cc_qsig_nfe *nfe);
 extern int cc_qsig_add_invoke(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke);
+
 extern unsigned int cc_qsig_asn1_get_string(unsigned char *buf, int buflen, unsigned char *data);
 extern unsigned int cc_qsig_asn1_get_integer(unsigned char *data, int *idx);
 extern unsigned char cc_qsig_asn1_get_oid(unsigned char *data, int *idx);
+extern unsigned int cc_qsig_asn1_add_string(unsigned char *buf, int *idx, char *data, int datalen);
+extern unsigned int cc_qsig_asn1_add_integer(unsigned char *buf, int *idx, int value);
+
 extern signed int cc_qsig_asn1_check_ecma_isdn_oid(unsigned char *data, int len);
 extern unsigned int cc_qsig_check_facility(unsigned char *data, int *idx, int *apduval, int protocol);
 extern signed int cc_qsig_check_invoke(unsigned char *data, int *idx);
@@ -151,12 +155,17 @@ extern unsigned int cc_qsig_add_call_facility_data(unsigned char *data, struct c
 extern signed int cc_qsig_identifyinvoke(struct cc_qsig_invokedata *invoke, int protocol);
 extern unsigned int cc_qsig_handle_invokeoperation(int invokeident, struct cc_qsig_invokedata *invoke, struct capi_pvt *i);
 
+extern unsigned int cc_qsig_do_facility(unsigned char *fac, struct  ast_channel *c, char *param, unsigned int factype);
+
 /*
  *** ECMA QSIG Functions 
  */
 
 extern void cc_qsig_op_ecma_isdn_namepres(struct cc_qsig_invokedata *invoke, struct capi_pvt *i);
 extern int cc_qsig_encode_ecma_name_invoke(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke, struct capi_pvt *i, int nametype);
+
 extern void cc_qsig_op_ecma_isdn_leginfo2(struct cc_qsig_invokedata *invoke, struct capi_pvt *i);
+
+extern void cc_qsig_encode_ecma_sscalltransfer(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke, struct capi_pvt *i, char *param);
 
 #endif

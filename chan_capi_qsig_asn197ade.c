@@ -88,3 +88,21 @@ unsigned int cc_qsig_asn197ade_get_numdigits(char *buf, int buflen, int *idx, un
 /*	cc_verbose(1, 1, VERBOSE_PREFIX_4 " * string length %i\n", strsize); */
 	return strsize;
 }
+
+/*
+ * Returns an string from ASN.1 encoded string
+ */
+unsigned int cc_qsig_asn197ade_add_numdigits(char *buf, int buflen, int *idx, unsigned char *data)
+{
+	int myidx=0;
+	
+	if ((1 + buflen) > sizeof(*buf)) {
+		/* String exceeds buffer size */
+		return 0;
+	}
+	
+	buf[myidx++] = buflen;
+	memcpy(&buf[myidx], data, buflen);
+	myidx = 1 + strlen(buf);
+	return myidx;
+}

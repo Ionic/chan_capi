@@ -249,3 +249,78 @@ void cc_qsig_op_ecma_isdn_leginfo2(struct cc_qsig_invokedata *invoke, struct cap
 	return;
 	
 }
+
+
+/* 
+ * Encode Operation: 1.3.12.9.99		ECMA/ISDN/SIMPLECALLTRANSFER
+ * 
+ * This function encodes the simple call transfer facility
+ *
+ * We create an invoke struct with the complete encoded invoke.
+ *
+ * parameters
+ *	buf 	is pointer to facility array, not used now
+ *	idx	current idx in facility array, not used now
+ *	invoke	struct, which contains encoded data for facility
+ *	i	is pointer to capi channel
+ *	param	is parameter from capicommand
+ * returns
+ * 	always 0
+ */
+void cc_qsig_encode_ecma_sscalltransfer(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke, struct capi_pvt *i, char *param)
+{
+	const unsigned char oid[] = {0x2b,0x0c,0x09,0x63};	/* 1.3.12.9.99 */
+	char *cidsrc, *ciddst;
+	int srclen, dstlen;
+	int seqlen = 12;
+	char c[255];
+	int ix = 0;
+
+	cidsrc = strsep(&param, "|");
+	srclen = strlen(cidsrc);
+	if (srclen > 20)	/* HACK: stop action here, maybe we have invalid data */
+		srclen = 20;
+	
+	ciddst = strsep(&param, "|");
+	dstlen = strlen(ciddst);
+	if (dstlen > 20)	/* HACK: stop action here, maybe we have invalid data */
+		dstlen = 20;
+	
+	seqlen += srclen + dstlen;
+	
+	
+	c[ix++] = ASN1_SEQUENCE | ASN1_TF_CONSTRUCTED;	/* start of SEQUENCE */
+	c[ix++] = seqlen;
+		
+	c[ix++] = ASN1_TC_CONTEXTSPEC;		/* val 1 - Destination CallerID */
+	c[ix++] = dstlen;
+	memcpy(&c[ix], ciddst, dstlen);
+	ix += dstlen;
+	
+	c[ix++] = ASN1_TC_CONTEXTSPEC | ASN1_TF_CONSTRUCTED;	/* val 2 - Source Caller ID struct */
+	c[ix++] = 5 + srclen;
+	c[ix++] = ASN1_TC_CONTEXTSPEC;				/* CallerID */
+	c[ix++] = srclen;
+	memcpy(&c[ix], cidsrc, srclen);
+	ix += srclen;
+	c[ix++] = ASN1_ENUMERATED;					/* Screening Indicator */
+	c[ix++] = 1; /* length */
+	c[ix++] = 1; /* 01 = userProvidedVerifiedAndPassed    ...we hope so */
+	
+	c[ix++] = ASN1_BOOLEAN;			/* val 3 - wait for connect ? */
+	c[ix++] = 1;
+	c[ix++] = 0;
+	
+					/* end of SEQUENCE */
+	/* there are optional data possible here */
+	
+	invoke->id = 99;
+	invoke->descr_type = ASN1_OBJECTIDENTIFIER;
+	invoke->oid_len = sizeof(oid);
+	memcpy(invoke->oid_bin, oid, sizeof(oid));
+	
+	invoke->datalen = ix;
+	memcpy(invoke->data, c, ix);
+	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * QSIG_CT: %s->%s\n", cidsrc, ciddst);
+	
+}

@@ -26,4 +26,6 @@
 extern unsigned int cc_qsig_asn197ade_get_partynumber(char *buf, int buflen, int *idx, unsigned char *data);
 extern unsigned int cc_qsig_asn197ade_get_numdigits(char *buf, int buflen, int *idx, unsigned char *data);
 
+extern unsigned int cc_qsig_asn197ade_add_numdigits(char *buf, int buflen, int *idx, unsigned char *data);
+
 #endif

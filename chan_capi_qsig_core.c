@@ -218,13 +218,12 @@ int cc_qsig_add_invoke(unsigned char * buf, unsigned int *idx, struct cc_qsig_in
 			return -1;
 			break;
 	}
-	
 	if (invoke->datalen > 0) {	/* may be no error, if there's no data */
 		memcpy(&buf[myidx], invoke->data, invoke->datalen);
 		myidx += invoke->datalen;
 	}
 	
-	buf[invlenidx] = myidx-1;
+	buf[invlenidx] = myidx - invlenidx - 1;
 	cc_qsig_update_facility_length(buf, myidx - 1);
 	*idx = myidx;
 
@@ -602,27 +601,27 @@ unsigned int cc_qsig_add_call_setup_data(unsigned char *data, struct capi_pvt *i
 	return 0;
 }
 
+
 /*
- * Handles outgoing Facilies on Call
+ * Handles outgoing Facilies on capicommand
  */
-unsigned int cc_qsig_add_call_facility_data(unsigned char *data, struct capi_pvt *i, int facility)
+unsigned int cc_qsig_do_facility(unsigned char *fac, struct  ast_channel *c, char *param, unsigned int factype)
 {
-	/* TODO: Check buffers */
 	struct cc_qsig_invokedata invoke;
 	struct cc_qsig_nfe nfe;
-	unsigned int dataidx;
+	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+	/* struct capi_pvt *ii = NULL; */
+	unsigned int facidx = 0;
 	
-	/*mg:remember me	switch (i->doqsig) {*/
-	cc_qsig_build_facility_struct(data, &dataidx, APDUINTERPRETATION_IGNORE, &nfe);
-	switch(facility) {
-		case 1:	/* HACK:  Test only */
-			cc_qsig_encode_ecma_name_invoke(data, &dataidx, &invoke, i, 1);
-			cc_qsig_add_invoke(data, &dataidx, &invoke);
+	cc_qsig_build_facility_struct(fac, &facidx, APDUINTERPRETATION_REJECT, &nfe);
+	switch (factype) {
+		case 99: /* ECMA-300 simpleCallTransfer */
+			cc_qsig_encode_ecma_sscalltransfer(fac, &facidx, &invoke, i, param);
+			cc_qsig_add_invoke(fac, &facidx, &invoke);
 			break;
 		default:
 			break;
 	}
-	/*	}*/
+	
 	return 0;
 }
-
