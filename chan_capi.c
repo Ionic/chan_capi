@@ -4221,6 +4221,8 @@ static void capidev_handle_msg(_cmsg *CMSG)
 				capi_echo_canceller(i->owner, EC_FUNCTION_DISABLE);
 				capi_detect_dtmf(i->owner, 0);
 			}
+		} else {
+			i->isdnstate &= ~CAPI_ISDN_STATE_B3_PEND;
 		}
 		break;
 	case CAPI_P_CONF(DATA_B3):
@@ -4703,6 +4705,12 @@ static int pbx_capi_signal_progress(struct ast_channel *c, char *param)
 			i->vname);
 		return 0;
 	}
+	if ((i->isdnstate & CAPI_ISDN_STATE_B3_PEND)) {
+		cc_verbose(4, 1, VERBOSE_PREFIX_4 "%s: signal_progress in NT: B-channel already pending\n",
+			i->vname);
+		return 0;
+	}
+	i->isdnstate |= CAPI_ISDN_STATE_B3_PEND;
 
 	cc_select_b(i, NULL);
 
