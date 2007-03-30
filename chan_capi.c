@@ -1800,6 +1800,11 @@ static int pbx_capi_write(struct ast_channel *c, struct ast_frame *f)
 		}
 		return capi_write_rtp(c, f);
 	}
+	if (i->B3count >= CAPI_MAX_B3_BLOCKS) {
+		cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: B3count is full, dropping packet.\n",
+			i->vname);
+		return 0;
+	}
 
 	if ((!i->smoother) || (ast_smoother_feed(i->smoother, f) != 0)) {
 		cc_log(LOG_ERROR, "%s: failed to fill smoother\n", i->vname);
@@ -1856,6 +1861,7 @@ static int pbx_capi_write(struct ast_channel *c, struct ast_frame *f)
 
 		if (!error) {
 			cc_mutex_lock(&i->lock);
+			i->B3count++;
 			i->B3q -= fsmooth->datalen;
 			if (i->B3q < 0)
 				i->B3q = 0;
@@ -2183,6 +2189,7 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 	i->onholdPLCI = 0;
 	i->doholdtype = i->holdtype;
 	i->B3q = 0;
+	i->B3count = 0;
 	memset(i->txavg, 0, ECHO_TX_COUNT);
 
 	if (i->doDTMF > 0) {
@@ -3602,8 +3609,9 @@ static void capidev_handle_connect_b3_active_indication(_cmsg *CMSG, unsigned in
 		i->isdnstate |= CAPI_ISDN_STATE_RTP;
 	} else {
 		i->isdnstate &= ~CAPI_ISDN_STATE_RTP;
-		i->B3q = (CAPI_MAX_B3_BLOCK_SIZE * 3);
 	}
+
+	i->B3q = (CAPI_MAX_B3_BLOCK_SIZE * 3);
 
 	if ((i->FaxState & CAPI_FAX_STATE_SENDMODE)) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: Start sending fax.\n",
@@ -3715,6 +3723,7 @@ static void capidev_handle_connect_b3_indication(_cmsg *CMSG, unsigned int PLCI,
 	return_on_no_interface("CONNECT_B3_IND");
 
 	i->NCCI = NCCI;
+	i->B3count = 0;
 
 	return;
 }
@@ -4227,8 +4236,8 @@ static void capidev_handle_msg(_cmsg *CMSG)
 		break;
 	case CAPI_P_CONF(DATA_B3):
 		wInfo = DATA_B3_CONF_INFO(CMSG);
-		if ((i) && (i->B3q > 0) && (i->isdnstate & CAPI_ISDN_STATE_RTP)) {
-			i->B3q--;
+		if ((i) && (i->B3count > 0)) {
+			i->B3count--;
 		}
 		if ((i) && (i->FaxState & CAPI_FAX_STATE_SENDMODE)) {
 			capidev_send_faxdata(i);
@@ -5447,7 +5456,7 @@ static int pbxcli_capi_show_channels(int fd, int argc, char *argv[])
 	struct capi_pvt *i;
 	char iochar;
 	char i_state[80];
-	char b3q[16];
+	char b3q[32];
 	
 	if (argc != 3)
 		return RESULT_SHOWUSAGE;
@@ -5469,10 +5478,12 @@ static int pbxcli_capi_show_channels(int fd, int argc, char *argv[])
 		else
 			iochar = 'I';
 
-		if (capidebug)
-			snprintf(b3q, sizeof(b3q), "  B3q=%d", i->B3q);
-		else
+		if (capidebug) {
+			snprintf(b3q, sizeof(b3q), "  B3q=%d B3count=%d",
+				i->B3q, i->B3count);
+		} else {
 			b3q[0] = '\0';
+		}
 
 		ast_cli(fd,
 			"%-16s %s   %s  %c  %s  %-10s  0x%02x '%s'->'%s'%s\n",

@@ -266,13 +266,13 @@ int capi_write_rtp(struct ast_channel *c, struct ast_frame *f)
 				i->vname, len);
 			continue;
 		}
-		if (i->B3q >= CAPI_MAX_B3_BLOCKS) {
-			cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: B3q is full, dropping packet.\n",
+		if (i->B3count >= CAPI_MAX_B3_BLOCKS) {
+			cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: B3count is full, dropping packet.\n",
 				i->vname);
 			continue;
 		}
 		cc_mutex_lock(&i->lock);
-		i->B3q++;
+		i->B3count++;
 		cc_mutex_unlock(&i->lock);
 
 		i->send_buffer_handle++;

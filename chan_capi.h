@@ -346,6 +346,7 @@ struct capi_pvt {
 
 	/* outgoing queue count */
 	int B3q;
+	int B3count;
 
 	/* do ECHO SURPRESSION */
 	int ES;
