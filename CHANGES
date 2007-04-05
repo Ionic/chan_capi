@@ -8,6 +8,7 @@ HEAD
 - register at CAPI with needed maxLogicalConnections only
 - don't send SELECT_B_PROTOCOL more than once
 - don't send more DATA_B3 messages than allowed by CAPI_MAX_B3_BLOCKS
+- added 'k' option to capi receivefax command for not deleting bad faxes
 QSIG:
  - added support for different qsig variants
  - added support for rerouting informations on incoming calls

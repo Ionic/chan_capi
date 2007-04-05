@@ -71,6 +71,7 @@ This chan_capi version includes:
 - Eicon DIVA Server VoIP/RTP
 - CLI command "capi show channels" shows details on channel status.
 - Asterisk 1.4 jitterbuffer configuration.
+- some QSIG extensions (see README.qsig)
 
 Permissions
 ===========
@@ -127,7 +128,7 @@ Call Deflection:
 Fax receive:
     Receive a fax using CAPI.
         Example:
-        exten => s,1,capicommand(receivefax|/tmp/${UNIQUEID}|+49 6137 555123|Asterisk)
+        exten => s,1,capicommand(receivefax|/tmp/${UNIQUEID}|+49 6137 555123|Asterisk|<options>)
 	(more see below)
 
 Fax send:
@@ -271,14 +272,17 @@ Short HOWTO of capicommand(receivefax...) and capicommand(sendfax...):
 For those of you who have a CAPI card with an on-board DSP (like some Eicon and
 DIVA Server), this allows you to receive/send faxes.
 
-capicommand(receivefax|<filename>[|<stationid>|<headline>]):
+capicommand(receivefax|<filename>[|<stationid>|<headline>|<options>]):
 ------------------------------------------------------------
 If you want to answer a channel in fax mode, use capicommand(receivefax|...)
 instead of Answer()
 If you use Answer(), you will be in voice mode. If the hardware DSP detects 
 fax tone, you can switch from voice to fax mode by calling capicommand(receivefax|...).
-The parameter <filename> is mandatory and the parameters <stationid> and
-<headline> are optional.
+The parameter <filename> is mandatory and the parameters <stationid>,
+<headline> and <options> are optional.
+By default, if fax reception was not successful, the file is deleted. If you want even
+partly received or broken fax files, use 'k' for "keep bad fax" in the <options>:
+  capicommand(receivefax|/tmp/${UNIQUEID}|+123456789||k)
 To enable fax tone detection and redirect to extension 'fax', use config variable
 'faxdetect' in capi.conf.
 
@@ -293,7 +297,7 @@ exten => 124,1,Goto(handle_fax,s,1)
 exten => fax,1,Goto(handle_fax,s,1)
 
 [handle_fax]
-exten => s,1,capicommand(receivefax|/tmp/${UNIQUEID}[|<stationid>|<headline>])
+exten => s,1,capicommand(receivefax|/tmp/${UNIQUEID}[|<stationid>|<headline>|<options>])
 exten => s,2,Hangup()
 exten => h,1,deadagi,fax.php // Run sfftobmp and mail it.
 

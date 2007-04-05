@@ -631,7 +631,7 @@ static unsigned ListenOnController(unsigned long CIPmask, unsigned controller)
 			error = LISTEN_CONF_INFO(&CMSG);
 			break;
 		}
-		usleep(20000);
+		usleep(100000);
 		waitcount--;
 	}
 	if (!waitcount)
@@ -2400,7 +2400,8 @@ static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	int res = 0;
-	char *filename, *stationid, *headline;
+	int keepbadfax = 0;
+	char *filename, *stationid, *headline, *options;
 	B3_PROTO_FAXG3 b3conf;
 	char buffer[CAPI_MAX_STRING];
 
@@ -2411,12 +2412,34 @@ static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 
 	filename = strsep(&data, "|");
 	stationid = strsep(&data, "|");
-	headline = data;
+	headline = strsep(&data, "|");
+	options = data;
 
 	if (!stationid)
 		stationid = emptyid;
 	if (!headline)
 		headline = emptyid;
+	if (!options)
+		options = emptyid;
+
+	cc_verbose(3, 1, VERBOSE_PREFIX_3 "capi receivefax: '%s' '%s' '%s' '%s'\n",
+		filename, stationid, headline, options);
+
+	/* parse the options */
+	while ((options) && (*options)) {
+		switch (*options) {
+		case 'k':	/* keepbadfax */
+			cc_verbose(3, 1,
+				VERBOSE_PREFIX_3 "capi receivefax: if fax is bad, "
+				"file won't be deleted.\n");
+			keepbadfax = 1;
+			break;
+		default:
+			cc_log(LOG_WARNING, "Unknown option '%c' for receivefax.\n",
+				*options);
+		}
+		options++;
+	}
 
 	capi_wait_for_answered(i);
 
@@ -2476,7 +2499,11 @@ static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 		cc_verbose(2, 0,
 			VERBOSE_PREFIX_1 "capi receivefax: fax receive failed reason=0x%04x reasonB3=0x%04x\n",
 				i->reason, i->reasonb3);
-		unlink(filename);
+		if (!keepbadfax) {
+			cc_verbose(3, 1,
+				VERBOSE_PREFIX_3 "capi receivefax: removing fax file.\n");
+			unlink(filename);
+		}
 	} else {
 		cc_verbose(2, 0,
 			VERBOSE_PREFIX_1 "capi receivefax: fax receive successful.\n");
@@ -2511,6 +2538,9 @@ static int pbx_capi_send_fax(struct ast_channel *c, char *data)
 		stationid = emptyid;
 	if (!headline)
 		headline = emptyid;
+
+	cc_verbose(3, 1, VERBOSE_PREFIX_3 "capi sendfax: '%s' '%s' '%s'\n",
+		filename, stationid, headline);
 
 	capi_wait_for_answered(i);
 
@@ -4857,8 +4887,8 @@ static struct capicommands_s {
 	{ "holdtype",     pbx_capi_holdtype,        1 },
 	{ "retrieve",     pbx_capi_retrieve,        0 },
 	{ "ect",          pbx_capi_ect,             1 },
-	{ "3pty_begin",	  pbx_capi_3pty_begin,	    1 },
- 	{ "qsig_ct",	  pbx_capi_qsig_ct,	    1 },
+	{ "3pty_begin",   pbx_capi_3pty_begin,      1 },
+	{ "qsig_ct",      pbx_capi_qsig_ct,         1 },
 	{ NULL, NULL, 0 }
 };
 
