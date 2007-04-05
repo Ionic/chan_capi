@@ -605,13 +605,51 @@ static MESSAGE_EXCHANGE_ERROR capidev_check_wait_get_cmsg(_cmsg *CMSG)
 }
 
 /*
+ * send Listen for supplementary to specified controller
+ */
+static void ListenOnSupplementary(unsigned controller)
+{
+	_cmsg	CMSG;
+	char	fac[8];
+	MESSAGE_EXCHANGE_ERROR error;
+	int waitcount = 50;
+
+	fac[0] = 7;	/* len */
+	fac[1] = 0x01;	/* listen */
+	fac[2] = 0x00;
+	fac[3] = 4;	/* len / sservice specific parameter , cstruct */
+	write_capi_dword(&(fac[4]), 0x0000079f);
+
+	FACILITY_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
+	FACILITY_REQ_CONTROLLER(&CMSG) = controller;
+	FACILITY_REQ_FACILITYSELECTOR(&CMSG) = FACILITYSELECTOR_SUPPLEMENTARY;
+	FACILITY_REQ_FACILITYREQUESTPARAMETER(&CMSG) = (_cstruct)&fac;
+
+	error = _capi_put_cmsg(&CMSG);
+
+	while (waitcount) {
+		error = capidev_check_wait_get_cmsg(&CMSG);
+
+		if (IS_FACILITY_CONF(&CMSG)) {
+			break;
+		}
+		usleep(30000);
+		waitcount--;
+	}
+	if (!waitcount) {
+		cc_log(LOG_ERROR,"Unable to supplementary-listen on contr%d (error=0x%x)\n",
+			controller, error);
+	}
+}
+
+/*
  * send Listen to specified controller
  */
 static unsigned ListenOnController(unsigned long CIPmask, unsigned controller)
 {
 	MESSAGE_EXCHANGE_ERROR error;
 	_cmsg CMSG;
-	int waitcount = 100;
+	int waitcount = 50;
 
 	LISTEN_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), controller);
 
@@ -629,9 +667,10 @@ static unsigned ListenOnController(unsigned long CIPmask, unsigned controller)
 
 		if (IS_LISTEN_CONF(&CMSG)) {
 			error = LISTEN_CONF_INFO(&CMSG);
+			ListenOnSupplementary(controller);
 			break;
 		}
-		usleep(100000);
+		usleep(30000);
 		waitcount--;
 	}
 	if (!waitcount)
