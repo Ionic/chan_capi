@@ -963,7 +963,7 @@ static void update_channel_name(struct capi_pvt *i)
 	char name[AST_CHANNEL_NAME];
 
 	snprintf(name, sizeof(name) - 1, "CAPI/%s/%s-%x",
-		i->name, i->dnid, capi_counter++);
+		i->vname, i->dnid, capi_counter++);
 	ast_change_name(i->owner, name);
 	cc_verbose(3, 0, VERBOSE_PREFIX_3 "%s: Updated channel name: %s\n",
 			i->vname, name);
@@ -2139,7 +2139,7 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 
 #ifdef CC_AST_HAS_EXT_CHAN_ALLOC
 	tmp = ast_channel_alloc(0, state, i->cid, NULL,
-		"CAPI/%s/%s-%x", i->name, i->dnid, capi_counter++);
+		"CAPI/%s/%s-%x", i->vname, i->dnid, capi_counter++);
 #else
 	tmp = ast_channel_alloc(0);
 #endif
@@ -2152,10 +2152,10 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 #ifndef CC_AST_HAS_EXT_CHAN_ALLOC
 #ifdef CC_AST_HAS_STRINGFIELD_IN_CHANNEL
 	ast_string_field_build(tmp, name, "CAPI/%s/%s-%x",
-		i->name, i->dnid, capi_counter++);
+		i->vname, i->dnid, capi_counter++);
 #else
 	snprintf(tmp->name, sizeof(tmp->name) - 1, "CAPI/%s/%s-%x",
-		i->name, i->dnid, capi_counter++);
+		i->vname, i->dnid, capi_counter++);
 #endif
 #endif
 #ifndef CC_AST_HAS_VERSION_1_4
