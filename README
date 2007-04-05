@@ -128,7 +128,7 @@ Call Deflection:
 Fax receive:
     Receive a fax using CAPI.
         Example:
-        exten => s,1,capicommand(receivefax|/tmp/${UNIQUEID}|+49 6137 555123|Asterisk|<options>)
+        exten => s,1,capicommand(receivefax|/tmp/${UNIQUEID}|+49 6137 555123|Asterisk|k)
 	(more see below)
 
 Fax send:
