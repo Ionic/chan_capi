@@ -3065,6 +3065,7 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 	_cmsg CMSG2;
 	struct ast_frame fr = { AST_FRAME_NULL, };
 	char *p = NULL;
+	char *p2 = NULL;
 	int val = 0;
 
 	INFO_RESP_HEADER(&CMSG2, capi_ApplID, HEADER_MSGNUM(CMSG), PLCI);
@@ -3154,6 +3155,25 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 				free(i->owner->cid.cid_rdnis);
 			}
 			i->owner->cid.cid_rdnis = strdup(p);
+		}
+		break;
+	case 0x0076:	/* Redirection Number */
+		p = capi_number(INFO_IND_INFOELEMENT(CMSG), 2);
+		p2 = emptyid;
+		if (INFO_IND_INFOELEMENT(CMSG)[0] > 1) {
+			val = INFO_IND_INFOELEMENT(CMSG)[1] & 0x70;
+			if (val == CAPI_ETSI_NPLAN_NATIONAL) {
+				p2 = capi_national_prefix;
+			} else if (val == CAPI_ETSI_NPLAN_INTERNAT) {
+				p2 = capi_international_prefix;
+			}
+		}
+		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element REDIRECTION NUMBER '(%s)%s'\n",
+			i->vname, p2, p);
+		if (i->owner) {
+			char numberbuf[64];
+			snprintf(numberbuf, sizeof(numberbuf) - 1, "%s%s", p2, p);
+			pbx_builtin_setvar_helper(i->owner, "REDIRECTIONNUMBER", numberbuf);
 		}
 		break;
 	case 0x00a1:	/* Sending Complete */

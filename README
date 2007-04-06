@@ -393,5 +393,9 @@ REDIRECTINGNUMBER
 REDIRECTREASON
     If the incoming call was redirected to you, this variable is set
     with the reason value.
- 
+
+REDIRECTIONNUMBER
+    If an outgoing call is redirected, this variable may be set to the
+    new destination.
+
 
