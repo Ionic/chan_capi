@@ -5712,11 +5712,8 @@ static const struct ast_channel_tech capi_tech = {
 static int cc_register_capi(unsigned blocksize, unsigned connections)
 {
 	u_int16_t error = 0;
+	unsigned capi_ApplID_old = capi_ApplID;
 
-	if (capi_ApplID != CAPI_APPLID_UNUSED) {
-		if (capi20_release(capi_ApplID) != 0)
-			cc_log(LOG_WARNING,"Unable to unregister from CAPI!\n");
-	}
 	cc_verbose(3, 0, VERBOSE_PREFIX_3 "Registering at CAPI "
 		   "(blocksize=%d maxlogicalchannels=%d)\n", blocksize, connections);
 
@@ -5727,6 +5724,10 @@ static int cc_register_capi(unsigned blocksize, unsigned connections)
 	error = capi20_register(connections, CAPI_MAX_B3_BLOCKS, 
 				blocksize, &capi_ApplID);
 #endif
+	if (capi_ApplID_old != CAPI_APPLID_UNUSED) {
+		if (capi20_release(capi_ApplID_old) != 0)
+			cc_log(LOG_WARNING,"Unable to unregister from CAPI!\n");
+	}
 	if (error != 0) {
 		capi_ApplID = CAPI_APPLID_UNUSED;
 		cc_log(LOG_NOTICE,"unable to register application at CAPI!\n");
