@@ -222,6 +222,7 @@ static int channel_task;
 #define CAPI_CHANNEL_TASK_HANGUP           1
 #define CAPI_CHANNEL_TASK_SOFTHANGUP       2
 #define CAPI_CHANNEL_TASK_PICKUP           3
+#define CAPI_CHANNEL_TASK_GOTOFAX          4
 
 static char capi_national_prefix[AST_MAX_EXTENSION];
 static char capi_international_prefix[AST_MAX_EXTENSION];
@@ -2680,11 +2681,8 @@ static void capi_handle_dtmf_fax(struct capi_pvt *i)
 	cc_verbose(2, 0, VERBOSE_PREFIX_3 "%s: Redirecting %s to fax extension\n",
 		i->vname, c->name);
 			
-	/* Save the DID/DNIS when we transfer the fax call to a "fax" extension */
-	pbx_builtin_setvar_helper(c, "FAXEXTEN", c->exten);
-	
-	if (ast_async_goto(c, c->context, "fax", 1))
-		cc_log(LOG_WARNING, "Failed to async goto '%s' into fax of '%s'\n", c->name, c->context);
+	capi_channel_task(c, CAPI_CHANNEL_TASK_GOTOFAX);
+
 	return;
 }
 
@@ -5174,6 +5172,16 @@ static void capi_do_channel_task(void)
 				chan_for_task->name);
 		}
 		ast_hangup(chan_for_task);
+		break;
+	case CAPI_CHANNEL_TASK_GOTOFAX:
+		/* deferred (out of lock) async goto fax extension */
+		/* Save the DID/DNIS when we transfer the fax call to a "fax" extension */
+		pbx_builtin_setvar_helper(chan_for_task, "FAXEXTEN", chan_for_task->exten);
+	
+		if (ast_async_goto(chan_for_task, chan_for_task->context, "fax", 1)) {
+			cc_log(LOG_WARNING, "Failed to async goto '%s' into fax of '%s'\n",
+				chan_for_task->name, chan_for_task->context);
+		}
 		break;
 	default:
 		/* nothing to do */
