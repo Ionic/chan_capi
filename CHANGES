@@ -1,7 +1,8 @@
 CHANGES
 =======
 
-HEAD
+
+chan_capi-1.0.1
 ------------------
 - added qsig caller-name patch by Mario Goegel
 - recognise asterisk 1.4.1
@@ -11,9 +12,12 @@ HEAD
 - added 'k' option to capi receivefax command for not deleting bad faxes
 - added b-channel number to channel name for better identification
 - added variable setting REDIRECTIONNUMBER on outgoing call
+- fixed deadlock with ast_async_goto on fax tone detection
+- listen to CAPI supplementary information
 QSIG:
  - added support for different qsig variants
  - added support for rerouting informations on incoming calls
+ - added implementation of Simple Call Transfer
 
 chan_capi-1.0.0
 ------------------
