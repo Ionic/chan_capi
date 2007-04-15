@@ -231,6 +231,22 @@ struct cc_capi_gains {
 #define CAPI_WAITEVENT_B3_DOWN        0x00020000
 #define CAPI_WAITEVENT_ANSWER_FINISH  0x00030000
 
+/* Private qsig data for capi device */
+struct cc_qsig_data {
+	int calltransfer_active;
+	int calltransfer;
+	int calltransfer_onring;
+	unsigned int callmark;
+	
+	/* Path Replacement */
+	char *pr_propose_cid;	/* Call identity */
+	char *pr_propose_pn;	/* Party Number */
+	
+	/* Partner Channel - needed for many features */
+	struct capi_pvt *partner_ch;
+	unsigned int partner_plci;
+};
+
 /* ! Private data for a capi device */
 struct capi_pvt {
 	cc_mutex_t lock;
@@ -378,7 +394,8 @@ struct capi_pvt {
 
 	/* Q.SIG features */
 	int qsigfeat;
-
+	struct cc_qsig_data qsig_data;
+	
 	/*! Next channel in list */
 	struct capi_pvt *next;
 };

@@ -233,16 +233,16 @@ void cc_qsig_op_ecma_isdn_leginfo2(struct cc_qsig_invokedata *invoke, struct cap
 	}
 
 	snprintf(tempstr, 5, "%i", divReason);
-	pbx_builtin_setvar_helper(i->owner, "QSIG_LI2_DIVREASON", tempstr);
+	pbx_builtin_setvar_helper(i->owner, "_QSIG_LI2_DIVREASON", tempstr);
 	snprintf(tempstr, 5, "%i", orgDivReason);
-	pbx_builtin_setvar_helper(i->owner, "QSIG_LI2_ODIVREASON", tempstr);
+	pbx_builtin_setvar_helper(i->owner, "_QSIG_LI2_ODIVREASON", tempstr);
 	snprintf(tempstr, 5, "%i", divCount);
-	pbx_builtin_setvar_helper(i->owner, "QSIG_LI2_DIVCOUNT", tempstr);
+	pbx_builtin_setvar_helper(i->owner, "_QSIG_LI2_DIVCOUNT", tempstr);
 	
-	pbx_builtin_setvar_helper(i->owner, "QSIG_LI2_DIVNUM", divertNum);
-	pbx_builtin_setvar_helper(i->owner, "QSIG_LI2_ODIVNUM", origCalledNum);
-	pbx_builtin_setvar_helper(i->owner, "QSIG_LI2_DIVNAME", divertName);
-	pbx_builtin_setvar_helper(i->owner, "QSIG_LI2_ODIVNAME", origCalledName);
+	pbx_builtin_setvar_helper(i->owner, "_QSIG_LI2_DIVNUM", divertNum);
+	pbx_builtin_setvar_helper(i->owner, "_QSIG_LI2_ODIVNUM", origCalledNum);
+	pbx_builtin_setvar_helper(i->owner, "_QSIG_LI2_DIVNAME", divertName);
+	pbx_builtin_setvar_helper(i->owner, "_QSIG_LI2_ODIVNAME", origCalledName);
 
 	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * QSIG_LEG_INFO2: %i(%i), %ix %s->%s, %s->%s\n", divReason, orgDivReason, divCount, origCalledNum, divertNum, origCalledName, divertName);
 	
@@ -252,9 +252,92 @@ void cc_qsig_op_ecma_isdn_leginfo2(struct cc_qsig_invokedata *invoke, struct cap
 
 
 /* 
- * Encode Operation: 1.3.12.9.99		ECMA/ISDN/SIMPLECALLTRANSFER
+ * Encode Operation: 1.3.12.9.12		ECMA/ISDN/CALLTRANSFER
  * 
- * This function encodes the simple call transfer facility
+ * This function encodes the call transfer facility
+ *
+ * We create an invoke struct with the complete encoded invoke.
+ *
+ * parameters
+ *	buf 	is pointer to facility array, not used now
+ *	idx	current idx in facility array, not used now
+ *	invoke	struct, which contains encoded data for facility
+ *	i	is pointer to capi channel
+ *	param	is parameter from capicommand
+ *	info	this facility is part of 2, 0 is facility 1, 1 is facility 2
+ * returns
+ * 	always 0
+ */
+void cc_qsig_encode_ecma_calltransfer(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke, struct capi_pvt *i, char *param, int info)
+{
+	const unsigned char oid[] = {0x2b,0x0c,0x09,0xc};	/* 1.3.12.9.12 */
+	char *cid, *ccanswer;
+	int icanswer = 0;
+	int cidlen = 0;
+	int seqlen = 13;
+	char c[255];
+	int ix = 0;
+
+	if (info) {
+		cid = strsep(&param, "|");
+		cidlen = strlen(cid);
+		if (cidlen > 20)	/* HACK: stop action here, maybe we have invalid data */
+			cidlen = 20;
+	} else {
+		char *tmp = strsep(&param, "|");
+		tmp = NULL;
+		cid = strsep(&param, "|");
+		cidlen = strlen(cid);
+		if (cidlen > 20)	/* HACK: stop action here, maybe we have invalid data */
+			cidlen = 20;
+		
+		ccanswer = strsep(&param, "|");
+		if (ccanswer[0])
+			icanswer = ccanswer[0] - 0x30;
+	}
+	
+	seqlen += cidlen;
+	
+	
+	c[ix++] = ASN1_SEQUENCE | ASN1_TF_CONSTRUCTED;	/* start of SEQUENCE */
+	c[ix++] = seqlen;
+		
+	c[ix++] = ASN1_ENUMERATED;					/* End Designation */
+	c[ix++] = 1; /* length */
+	c[ix++] = info;
+
+	c[ix++] = ASN1_TC_CONTEXTSPEC | ASN1_TF_CONSTRUCTED;	/* val 2 - Source Caller ID struct */
+	c[ix++] = 5 + cidlen;
+	c[ix++] = ASN1_TC_CONTEXTSPEC;				/* CallerID */
+	c[ix++] = cidlen;
+	memcpy(&c[ix], cid, cidlen);
+	ix += cidlen;
+	c[ix++] = ASN1_ENUMERATED;					/* Screening Indicator */
+	c[ix++] = 1; /* length */
+	c[ix++] = 1; /* 01 = userProvidedVerifiedAndPassed    ...we hope so */
+	
+	c[ix++] = ASN1_ENUMERATED;			/* val 3 - wait for connect ? */
+	c[ix++] = 1;
+	c[ix++] = icanswer;
+	
+					/* end of SEQUENCE */
+	/* there are optional data possible here */
+	
+	invoke->id = 12;
+	invoke->descr_type = ASN1_OBJECTIDENTIFIER;
+	invoke->oid_len = sizeof(oid);
+	memcpy(invoke->oid_bin, oid, sizeof(oid));
+	
+	invoke->datalen = ix;
+	memcpy(invoke->data, c, ix);
+	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * QSIG_CT: %i->%s\n", info, cid);
+	
+}
+
+/* 
+ * Encode Operation: 1.3.12.9.99		ECMA/ISDN/SINGLESTEPCALLTRANSFER
+ * 
+ * This function encodes the single step call transfer facility
  *
  * We create an invoke struct with the complete encoded invoke.
  *
@@ -311,7 +394,7 @@ void cc_qsig_encode_ecma_sscalltransfer(unsigned char * buf, unsigned int *idx, 
 	c[ix++] = 1;
 	c[ix++] = 0;
 	
-					/* end of SEQUENCE */
+	/* end of SEQUENCE */
 	/* there are optional data possible here */
 	
 	invoke->id = 99;
@@ -321,6 +404,101 @@ void cc_qsig_encode_ecma_sscalltransfer(unsigned char * buf, unsigned int *idx, 
 	
 	invoke->datalen = ix;
 	memcpy(invoke->data, c, ix);
-	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * QSIG_CT: %s->%s\n", cidsrc, ciddst);
+	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * QSIG_SSCT: %s->%s\n", cidsrc, ciddst);
 	
+}
+
+/* 
+ * Handle Operation: 1.3.12.9.19		ECMA/ISDN/PATH REPLACEMENT PROPOSE
+ * 
+ * This function decodes the PATH REPLACEMENT PROPOSE facility
+ * The datas will be copied in the some capi_pvt channel variables 
+ *
+ * parameters
+ *	invoke	struct, which contains encoded data from facility
+ *	i	is pointer to capi channel
+ * returns
+ * 	nothing
+ */
+void cc_qsig_op_ecma_isdn_prpropose(struct cc_qsig_invokedata *invoke, struct capi_pvt *i)
+{
+	
+	unsigned int datalength;
+	unsigned int seqlength = 0;
+	int myidx = 0;
+	/* TODO: write more code */
+	
+	char callid[4+1];
+	char reroutingnr[ASN197ADE_NUMDIGITS_STRSIZE+1];
+	int temp = 0;
+	
+	callid[0] = 0;
+	reroutingnr[0] = 0;
+	
+	cc_verbose(1, 1, VERBOSE_PREFIX_4 "Handling QSIG PATH REPLACEMENT PROPOSE (id# %#x)\n", invoke->id);
+
+	if (invoke->data[myidx++] != (ASN1_SEQUENCE | ASN1_TC_UNIVERSAL | ASN1_TF_CONSTRUCTED)) { /* 0x30 */
+		/* We do not handle this, because it should start with an sequence tag */
+		cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * not Handling QSIG REPLACEMENT PROPOSE - not a sequence\n");
+		return;
+	}
+	
+	/* This facility is encoded as SEQUENCE */
+	seqlength = invoke->data[myidx++];
+	datalength = invoke->datalen;
+	if (datalength < (seqlength+1)) {
+		cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * not Handling QSIG REPLACEMENT PROPOSE - buffer error\n");
+		return;
+	}
+	
+	if (invoke->data[myidx++] == ASN1_NUMERICSTRING) {
+		int strsize;
+		strsize = cc_qsig_asn1_get_string((unsigned char*)&callid, sizeof(callid), &invoke->data[myidx]);
+		myidx += strsize +1;
+	} else {
+		cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * not Handling QSIG REPLACEMENT PROPOSE - NUMERICSTRING expected\n");
+		return;
+	}
+	
+ 	if (invoke->data[myidx++] == ASN1_TC_CONTEXTSPEC)
+		temp = cc_qsig_asn1_get_string((unsigned char*)&reroutingnr, sizeof(reroutingnr), &invoke->data[myidx]);
+	
+	if (temp) {
+		myidx += temp;
+	} else {
+		cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * not Handling QSIG REPLACEMENT PROPOSE - partyNumber expected (%i)\n", myidx);
+		return;
+	}
+	
+
+	i->qsig_data.pr_propose_cid  = strdup(callid);
+	i->qsig_data.pr_propose_pn = strdup(reroutingnr);
+	
+	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * QSIG_PATHREPLACEMENT_PROPOSE Call identity: %s, Party number: %s (%i)\n", callid, reroutingnr, temp);
+	
+	return;
+}
+
+/* 
+ * Encode Operation: 1.3.12.9.19		ECMA/ISDN/PATH REPLACEMENT PROPOSE
+ * 
+ * This function encodes the path replacement propose
+ *
+ * We create an invoke struct with the complete encoded invoke.
+ *
+ * parameters
+ *	buf 	is pointer to facility array, not used now
+ *	idx	current idx in facility array, not used now
+ *	invoke	struct, which contains encoded data for facility
+ *	i	is pointer to capi channel
+ *	param	is parameter from capicommand
+ * returns
+ * 	always 0
+ */
+void cc_qsig_encode_ecma_prpropose(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke, struct capi_pvt *i, char *param)
+{
+	/* TODO: write code */
+	const unsigned char oid[] = {0x2b,0x0c,0x09,0x13};	/* 1.3.12.9.99 */
+	
+	return;
 }
