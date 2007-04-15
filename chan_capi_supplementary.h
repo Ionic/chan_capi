@@ -17,6 +17,7 @@
 /*
  * prototypes
  */
+extern void ListenOnSupplementary(unsigned controller);
 extern void handle_facility_indication_supplementary(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i);
 
 #endif

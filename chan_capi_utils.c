@@ -15,6 +15,136 @@
 #include "chan_capi20.h"
 #include "chan_capi.h"
 #include "chan_capi_utils.h"
+#include "chan_capi_supplementary.h"
+
+int capidebug = 0;
+char *emptyid = "\0";
+
+AST_MUTEX_DEFINE_STATIC(verbose_lock);
+AST_MUTEX_DEFINE_STATIC(messagenumber_lock);
+AST_MUTEX_DEFINE_STATIC(capi_put_lock);
+
+static _cword capi_MessageNumber;
+
+/*
+ * helper for <pbx>_verbose with different verbose settings
+ */
+void cc_verbose(int o_v, int c_d, char *text, ...)
+{
+	char line[4096];
+	va_list ap;
+
+	va_start(ap, text);
+	vsnprintf(line, sizeof(line), text, ap);
+	va_end(ap);
+
+	if ((o_v == 0) || (option_verbose > o_v)) {
+		if ((!c_d) || ((c_d) && (capidebug))) {	
+			cc_mutex_lock(&verbose_lock);
+			cc_pbx_verbose(line);
+			cc_mutex_unlock(&verbose_lock);	
+		}
+	}
+}
+
+/*
+ * get a new capi message number automically
+ */
+_cword get_capi_MessageNumber(void)
+{
+	_cword mn;
+
+	cc_mutex_lock(&messagenumber_lock);
+
+	capi_MessageNumber++;
+	if (capi_MessageNumber == 0) {
+	    /* avoid zero */
+	    capi_MessageNumber = 1;
+	}
+
+	mn = capi_MessageNumber;
+
+	cc_mutex_unlock(&messagenumber_lock);
+
+	return(mn);
+}
+
+/*
+ * write a capi message to capi device
+ */
+MESSAGE_EXCHANGE_ERROR _capi_put_cmsg(_cmsg *CMSG)
+{
+	MESSAGE_EXCHANGE_ERROR error;
+	
+	if (cc_mutex_lock(&capi_put_lock)) {
+		cc_log(LOG_WARNING, "Unable to lock capi put!\n");
+		return -1;
+	} 
+	
+	error = capi20_put_cmsg(CMSG);
+	
+	if (cc_mutex_unlock(&capi_put_lock)) {
+		cc_log(LOG_WARNING, "Unable to unlock capi put!\n");
+		return -1;
+	}
+
+	if (error) {
+		cc_log(LOG_ERROR, "CAPI error sending %s (NCCI=%#x) (error=%#x %s)\n",
+			capi_cmsg2str(CMSG), (unsigned int)HEADER_CID(CMSG),
+			error, capi_info_string((unsigned int)error));
+	} else {
+		unsigned short wCmd = HEADER_CMD(CMSG);
+		if ((wCmd == CAPI_P_REQ(DATA_B3)) ||
+		    (wCmd == CAPI_P_RESP(DATA_B3))) {
+			cc_verbose(7, 1, "%s\n", capi_cmsg2str(CMSG));
+		} else {
+			cc_verbose(4, 1, "%s\n", capi_cmsg2str(CMSG));
+		}
+	}
+
+	return error;
+}
+
+/*
+ * wait some time for a new capi message
+ */
+MESSAGE_EXCHANGE_ERROR capidev_check_wait_get_cmsg(_cmsg *CMSG)
+{
+	MESSAGE_EXCHANGE_ERROR Info;
+	struct timeval tv;
+
+ repeat:
+	Info = capi_get_cmsg(CMSG, capi_ApplID);
+
+#if (CAPI_OS_HINT == 1) || (CAPI_OS_HINT == 2)
+	/*
+	 * For BSD allow controller 0:
+	 */
+	if ((HEADER_CID(CMSG) & 0xFF) == 0) {
+		HEADER_CID(CMSG) += capi_num_controllers;
+ 	}
+#endif
+
+	/* if queue is empty */
+	if (Info == 0x1104) {
+		/* try waiting a maximum of 0.100 seconds for a message */
+		tv.tv_sec = 0;
+		tv.tv_usec = 10000;
+		
+		Info = capi20_waitformessage(capi_ApplID, &tv);
+
+		if (Info == 0x0000)
+			goto repeat;
+	}
+	
+	if ((Info != 0x0000) && (Info != 0x1104)) {
+		if (capidebug) {
+			cc_log(LOG_DEBUG, "Error waiting for cmsg... INFO = %#x\n", Info);
+		}
+	}
+    
+	return Info;
+}
 
 /*
  * decode capi 2.0 info word
@@ -372,6 +502,118 @@ void show_capi_info(struct capi_pvt *i, _cword info)
 	
 	cc_verbose(3, 0, VERBOSE_PREFIX_4 "%s: CAPI INFO 0x%04x: %s\n",
 		name, info, p);
+	return;
+}
+
+/*
+ * send Listen to specified controller
+ */
+unsigned ListenOnController(unsigned long CIPmask, unsigned controller)
+{
+	MESSAGE_EXCHANGE_ERROR error;
+	_cmsg CMSG;
+	int waitcount = 50;
+
+	LISTEN_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), controller);
+
+	LISTEN_REQ_INFOMASK(&CMSG) = 0xffff; /* lots of info ;) + early B3 connect */
+		/* 0x00ff if no early B3 should be done */
+		
+	LISTEN_REQ_CIPMASK(&CMSG) = CIPmask;
+	error = _capi_put_cmsg(&CMSG);
+
+	if (error)
+		goto done;
+
+	while (waitcount) {
+		error = capidev_check_wait_get_cmsg(&CMSG);
+
+		if (IS_LISTEN_CONF(&CMSG)) {
+			error = LISTEN_CONF_INFO(&CMSG);
+			ListenOnSupplementary(controller);
+			break;
+		}
+		usleep(30000);
+		waitcount--;
+	}
+	if (!waitcount)
+		error = 0x100F;
+
+ done:
+	return error;
+}
+
+/*
+ * convert a number
+ */
+char *capi_number_func(unsigned char *data, unsigned int strip, char *buf)
+{
+	unsigned int len;
+
+	if (data[0] == 0xff) {
+		len = read_capi_word(&data[1]);
+		data += 2;
+	} else {
+		len = data[0];
+		data += 1;
+	}
+	if (len > (AST_MAX_EXTENSION - 1))
+		len = (AST_MAX_EXTENSION - 1);
+	
+	/* convert a capi struct to a \0 terminated string */
+	if ((!len) || (len < strip))
+		return NULL;
+		
+	len = len - strip;
+	data += strip;
+
+	memcpy(buf, data, len);
+	buf[len] = '\0';
+	
+	return buf;
+}
+
+/*
+ * parse the dialstring
+ */
+void parse_dialstring(char *buffer, char **interface, char **dest, char **param, char **ocid)
+{
+	int cp = 0;
+	char *buffer_p = buffer;
+	char *oc;
+
+	/* interface is the first part of the string */
+	*interface = buffer;
+
+	*dest = emptyid;
+	*param = emptyid;
+	*ocid = NULL;
+
+	while (*buffer_p) {
+		if (*buffer_p == '/') {
+			*buffer_p = 0;
+			buffer_p++;
+			if (cp == 0) {
+				*dest = buffer_p;
+				cp++;
+			} else if (cp == 1) {
+				*param = buffer_p;
+				cp++;
+			} else {
+				cc_log(LOG_WARNING, "Too many parts in dialstring '%s'\n",
+					buffer);
+			}
+			continue;
+		}
+		buffer_p++;
+	}
+	if ((oc = strchr(*dest, ':')) != NULL) {
+		*ocid = *dest;
+		*oc = '\0';
+		*dest = oc + 1;
+	}
+	cc_verbose(3, 1, VERBOSE_PREFIX_4 "parsed dialstring: '%s' '%s' '%s' '%s'\n",
+		*interface, (*ocid) ? *ocid : "NULL", *dest, *param);
 	return;
 }
 

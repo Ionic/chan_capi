@@ -25,6 +25,7 @@
 #include <asterisk/options.h>
 #include "chan_capi20.h"
 #include "chan_capi.h"
+#include "chan_capi_utils.h"
 #include "chan_capi_qsig.h"
 #include "chan_capi_qsig_asn197no.h"
 

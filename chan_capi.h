@@ -558,9 +558,6 @@ struct cc_capi_controller {
  * prototypes
  */
 extern unsigned capi_ApplID;
-extern MESSAGE_EXCHANGE_ERROR _capi_put_cmsg(_cmsg *CMSG);
-extern _cword get_capi_MessageNumber(void);
-extern void cc_verbose(int o_v, int c_d, char *text, ...);
 extern void cc_start_b3(struct capi_pvt *i);
 
 #endif
