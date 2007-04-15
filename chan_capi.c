@@ -1,8 +1,7 @@
 /*
  * (CAPI*)
  *
- * An implementation of Common ISDN API 2.0 for
- * Asterisk / OpenPBX.org
+ * An implementation of Common ISDN API 2.0 for Asterisk
  *
  * Copyright (C) 2005-2007 Cytronics & Melware
  *
@@ -16,11 +15,6 @@
  * This program is free software and may be modified and 
  * distributed under the terms of the GNU Public License.
  */
-#ifdef PBX_IS_OPBX
-#ifdef HAVE_CONFIG_H
-#include "confdefs.h"
-#endif
-#endif
 
 #include <sys/time.h>
 #include <sys/signal.h>
@@ -33,58 +27,6 @@
 #include <fcntl.h>
 #include <sys/types.h>
 
-#ifdef PBX_IS_OPBX
-#include "openpbx.h"
-
-OPENPBX_FILE_VERSION("$HeadURL$", "$Revision$")
-
-#include "openpbx/lock.h"
-#include "openpbx/frame.h" 
-#include "openpbx/channel.h"
-#include "openpbx/logger.h"
-#include "openpbx/module.h"
-#include "openpbx/pbx.h"
-#include "openpbx/config.h"
-#include "openpbx/options.h"
-#include "openpbx/features.h"
-#include "openpbx/utils.h"
-#include "openpbx/cli.h"
-#include "openpbx/rtp.h"
-#include "openpbx/causes.h"
-#include "openpbx/strings.h"
-#include "openpbx/devicestate.h"
-#include "openpbx/dsp.h"
-#include "openpbx/xlaw.h"
-#include "openpbx/chan_capi20.h"
-#include "openpbx/chan_capi.h"
-#include "openpbx/chan_capi_rtp.h"
-#else
-#include "config.h"
-
-#ifdef CC_AST_HAS_VERSION_1_4
-#include <asterisk.h>
-#endif
-
-#include <asterisk/lock.h>
-#include <asterisk/frame.h> 
-#include <asterisk/channel.h>
-#include <asterisk/logger.h>
-#include <asterisk/module.h>
-#include <asterisk/pbx.h>
-#include <asterisk/config.h>
-#include <asterisk/options.h>
-#include <asterisk/features.h>
-#include <asterisk/utils.h>
-#include <asterisk/cli.h>
-#include <asterisk/rtp.h>
-#include <asterisk/causes.h>
-#include <asterisk/strings.h>
-#include <asterisk/dsp.h>
-#include <asterisk/devicestate.h>
-#ifdef CC_AST_HAS_VERSION_1_4
-#include "asterisk/abstract_jb.h"
-#include "asterisk/musiconhold.h"
-#endif
 #include "xlaw.h"
 #include "chan_capi20.h"
 #include "chan_capi.h"
@@ -92,14 +34,11 @@ OPENPBX_FILE_VERSION("$HeadURL$", "$Revision$")
 #include "chan_capi_qsig.h"
 #include "chan_capi_qsig_asn197ade.h"
 #include "chan_capi_qsig_asn197no.h"
-#endif
+#include "chan_capi_utils.h"
+#include "chan_capi_supplementary.h"
 
-#ifdef PBX_IS_OPBX
-#define CC_VERSION "cm-opbx-1.0"
-#else
 /* #define CC_VERSION "x.y.z" */
 #define CC_VERSION "$Revision$"
-#endif
 
 /*
  * personal stuff
@@ -115,11 +54,7 @@ static const struct ast_channel_tech capi_tech;
 #ifdef CC_AST_HAS_VERSION_1_4
 #define AST_MODULE "chan_capi"
 #else
-#ifdef PBX_IS_OPBX
-static char *ccdesc = "Common ISDN API for OpenPBX";
-#else
 static char *ccdesc = "Common ISDN API for Asterisk";
-#endif
 #endif
 
 static char *commandtdesc = "CAPI command interface.\n"
@@ -253,16 +188,6 @@ static int pbx_capi_indicate(struct ast_channel *c, int condition, const void *d
 static int pbx_capi_indicate(struct ast_channel *c, int condition);
 #endif
 
-/* external prototypes */
-extern char *capi_info_string(unsigned int info);
-
-/* */
-#define return_on_no_interface(x)                                       \
-	if (!i) {                                                       \
-		cc_verbose(4, 1, "CAPI: %s no interface for PLCI=%#x\n", x, PLCI);   \
-		return;                                                 \
-	}
-
 /*
  * helper for <pbx>_verbose with different verbose settings
  */
@@ -372,32 +297,6 @@ static const char * capi_command_to_string(unsigned short wCmd)
 
  error:
 	return "UNDEFINED";
-}
-
-/*
- * show the text for a CAPI message info value
- */
-static void show_capi_info(struct capi_pvt *i, _cword info)
-{
-	char *p;
-	char *name = "?";
-	
-	if (info == 0x0000) {
-		/* no error, do nothing */
-		return;
-	}
-
-	if (!(p = capi_info_string((unsigned int)info))) {
-		/* message not available */
-		return;
-	}
-
-	if (i)
-		name = i->vname;
-	
-	cc_verbose(3, 0, VERBOSE_PREFIX_4 "%s: CAPI INFO 0x%04x: %s\n",
-		name, info, p);
-	return;
 }
 
 /*
@@ -1259,7 +1158,7 @@ static void cc_disconnect_b3(struct capi_pvt *i, int wait)
 /*
  * send CONNECT_B3_REQ
  */
-static void cc_start_b3(struct capi_pvt *i)
+void cc_start_b3(struct capi_pvt *i)
 {
 	_cmsg CMSG;
 
@@ -3311,95 +3210,6 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 		break;
 	}
 	return;
-}
-
-/*
- * CAPI FACILITY_IND supplementary services 
- */
-static void handle_facility_indication_supplementary(
-	_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
-{
-	_cword function;
-	_cword infoword = 0xffff;
-	unsigned char length;
-
-	function = read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[1]);
-	length = FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[3];
-
-	if (length >= 2) {
-		infoword = read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]);
-	}
-
-	/* first check functions without interface needed */
-	switch (function) {
-	case 0x800d: /* CCBS erase call linkage ID */
-		cc_verbose(1, 1, VERBOSE_PREFIX_3 "contr%d: PLCI=%#x CCBS/CCNR erase id=0x%04x\n",
-			PLCI & 0xff, PLCI, infoword);
-		break;
-	}
-
-	return_on_no_interface("FACILITY_IND SUPPLEMENTARY");
-
-	/* now functions bound to interface */
-	switch (function) {
-	case 0x0002: /* HOLD */
-		if (infoword != 0) {
-			/* reason != 0x0000 == problem */
-			i->onholdPLCI = 0;
-			cc_log(LOG_WARNING, "%s: unable to put PLCI=%#x onhold, REASON = 0x%04x, maybe you need to subscribe for this...\n",
-				i->vname, PLCI, infoword);
-			show_capi_info(i, infoword);
-		} else {
-			/* reason = 0x0000 == call on hold */
-			i->state = CAPI_STATE_ONHOLD;
-			cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: PLCI=%#x put onhold\n",
-				i->vname, PLCI);
-		}
-		break;
-	case 0x0003: /* RETRIEVE */
-		if (infoword != 0) {
-			cc_log(LOG_WARNING, "%s: unable to retrieve PLCI=%#x, REASON = 0x%04x\n",
-				i->vname, PLCI, infoword);
-			show_capi_info(i, infoword);
-		} else {
-			i->state = CAPI_STATE_CONNECTED;
-			i->PLCI = i->onholdPLCI;
-			i->onholdPLCI = 0;
-			cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: PLCI=%#x retrieved\n",
-				i->vname, PLCI);
-			cc_start_b3(i);
-		}
-		break;
-	case 0x0006:	/* ECT */
-		cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: PLCI=%#x ECT  Reason=0x%04x\n",
-			i->vname, PLCI, infoword);
-		show_capi_info(i, infoword);
-		break;
-	case 0x0007: /* 3PTY begin */
-		cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: PLCI=%#x 3PTY begin Reason=0x%04x\n",
-			i->vname, PLCI, infoword);
-		show_capi_info(i, infoword);
-		break;
-	case 0x0008: /* 3PTY end */
-		cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: PLCI=%#x 3PTY end Reason=0x%04x\n",
-			i->vname, PLCI, infoword);
-		show_capi_info(i, infoword);
-		break;
-	case 0x8013: /* CCBS info retain */
-		cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: PLCI=%#x CCBS unique id=0x%04x\n",
-			i->vname, PLCI, infoword);
-		break;
-	case 0x8015: /* CCNR info retain */
-		cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: PLCI=%#x CCNR unique id=0x%04x\n",
-			i->vname, PLCI, infoword);
-		break;
-	case 0x800d: /* CCBS erase call linkage ID */
-		/* handled above */
-		break;
-	default:
-		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: unhandled FACILITY_IND supplementary function %04x\n",
-			i->vname, function);
-	}
 }
 
 /*
@@ -6498,10 +6308,8 @@ char *description()
 	return ccdesc;
 }
 
-#ifndef PBX_IS_OPBX
 char *key()
 {
 	return ASTERISK_GPL_KEY;
 }
-#endif
 #endif /* CC_AST_HAS_VERSION_1_4 */

@@ -1,8 +1,7 @@
 /*
  * (CAPI*)
  *
- * An implementation of Common ISDN API 2.0 for
- * Asterisk / OpenPBX.org
+ * An implementation of Common ISDN API 2.0 for Asterisk
  *
  * Copyright (C) 2006-2007 Cytronics & Melware
  *
@@ -11,11 +10,6 @@
  * This program is free software and may be modified and 
  * distributed under the terms of the GNU Public License.
  */
-#ifdef PBX_IS_OPBX
-#ifdef HAVE_CONFIG_H
-#include "confdefs.h"
-#endif
-#endif
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -27,41 +21,9 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
-#ifdef PBX_IS_OPBX
-#include "openpbx/lock.h"
-#include "openpbx/frame.h"
-#include "openpbx/channel.h"
-#include "openpbx/logger.h"
-#include "openpbx/module.h"
-#include "openpbx/pbx.h"
-#include "openpbx/config.h"
-#include "openpbx/options.h"
-#include "openpbx/features.h"
-#include "openpbx/utils.h"
-#include "openpbx/rtp.h"
-#include "openpbx/strings.h"
-#include "openpbx/chan_capi20.h"
-#include "openpbx/chan_capi.h"
-#include "openpbx/chan_capi_rtp.h"
-#else
-#include "config.h"
-
-#include <asterisk/lock.h>
-#include <asterisk/frame.h>
-#include <asterisk/channel.h>
-#include <asterisk/logger.h>
-#include <asterisk/module.h>
-#include <asterisk/pbx.h>
-#include <asterisk/config.h>
-#include <asterisk/options.h>
-#include <asterisk/features.h>
-#include <asterisk/utils.h>
-#include <asterisk/rtp.h>
-#include <asterisk/strings.h>
 #include "chan_capi20.h"
 #include "chan_capi.h"
 #include "chan_capi_rtp.h"
-#endif
 
 /* RTP settings / NCPI RTP struct */
 

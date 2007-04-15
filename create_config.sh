@@ -5,7 +5,7 @@
 # Script to create config.h for compatibility with
 # different asterisk versions.
 #
-# (C) 2005 Cytronics & Melware
+# (C) 2005-2007 Cytronics & Melware
 # Armin Schindler <armin@melware.de>
 #
 

@@ -1,8 +1,7 @@
 /*
  * (CAPI*)
  *
- * An implementation of Common ISDN API 2.0 for
- * Asterisk / OpenPBX.org
+ * An implementation of Common ISDN API 2.0 for Asterisk
  *
  * Copyright (C) 2005-2007 Cytronics & Melware
  *
@@ -16,6 +15,33 @@
  * This program is free software and may be modified and 
  * distributed under the terms of the GNU Public License.
  */
+
+#include "config.h"
+
+#ifdef CC_AST_HAS_VERSION_1_4
+#include <asterisk.h>
+#endif
+
+#include <asterisk/lock.h>
+#include <asterisk/frame.h>
+#include <asterisk/channel.h>
+#include <asterisk/logger.h>
+#include <asterisk/module.h>
+#include <asterisk/pbx.h>
+#include <asterisk/config.h>
+#include <asterisk/options.h>
+#include <asterisk/features.h>
+#include <asterisk/utils.h>
+#include <asterisk/cli.h>
+#include <asterisk/rtp.h>
+#include <asterisk/causes.h>
+#include <asterisk/strings.h>
+#include <asterisk/dsp.h>
+#include <asterisk/devicestate.h>
+#ifdef CC_AST_HAS_VERSION_1_4
+#include "asterisk/abstract_jb.h"
+#include "asterisk/musiconhold.h"
+#endif
  
 #ifndef _PBX_CAPI_H
 #define _PBX_CAPI_H
@@ -101,13 +127,12 @@ static inline unsigned int read_capi_dword(void *m)
 
 #endif /* PBX_IS_OPBX */
 
-/*
- * prototypes
- */
-extern unsigned capi_ApplID;
-extern MESSAGE_EXCHANGE_ERROR _capi_put_cmsg(_cmsg *CMSG);
-extern _cword get_capi_MessageNumber(void);
-extern void cc_verbose(int o_v, int c_d, char *text, ...);
+/* */
+#define return_on_no_interface(x)                                       \
+	if (!i) {                                                       \
+		cc_verbose(4, 1, "CAPI: %s no interface for PLCI=%#x\n", x, PLCI);   \
+		return;                                                 \
+	}
 
 /*
  * B protocol settings
@@ -528,5 +553,14 @@ struct cc_capi_controller {
 #define PRI_TRANS_CAP_3K1AUDIO                  0x10
 #define PRI_TRANS_CAP_DIGITAL_W_TONES           0x11
 #define PRI_TRANS_CAP_VIDEO                     0x18
+
+/*
+ * prototypes
+ */
+extern unsigned capi_ApplID;
+extern MESSAGE_EXCHANGE_ERROR _capi_put_cmsg(_cmsg *CMSG);
+extern _cword get_capi_MessageNumber(void);
+extern void cc_verbose(int o_v, int c_d, char *text, ...);
+extern void cc_start_b3(struct capi_pvt *i);
 
 #endif

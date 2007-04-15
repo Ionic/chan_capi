@@ -1,4 +1,20 @@
+/*
+ * (CAPI*)
+ *
+ * An implementation of Common ISDN API 2.0 for Asterisk
+ *
+ * Copyright (C) 2006-2007 Cytronics & Melware
+ *
+ * Armin Schindler <armin@melware.de>
+ * 
+ * This program is free software and may be modified and 
+ * distributed under the terms of the GNU Public License.
+ */
+ 
 #include <stdio.h>
+#include "chan_capi20.h"
+#include "chan_capi.h"
+#include "chan_capi_utils.h"
 
 /*
  * decode capi 2.0 info word
@@ -331,5 +347,31 @@ char *capi_info_string(unsigned int info)
 	default:
 		return NULL;
 	}
+}
+
+/*
+ * show the text for a CAPI message info value
+ */
+void show_capi_info(struct capi_pvt *i, _cword info)
+{
+	char *p;
+	char *name = "?";
+	
+	if (info == 0x0000) {
+		/* no error, do nothing */
+		return;
+	}
+
+	if (!(p = capi_info_string((unsigned int)info))) {
+		/* message not available */
+		return;
+	}
+
+	if (i)
+		name = i->vname;
+	
+	cc_verbose(3, 0, VERBOSE_PREFIX_4 "%s: CAPI INFO 0x%04x: %s\n",
+		name, info, p);
+	return;
 }
 
