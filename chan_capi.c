@@ -3314,128 +3314,176 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 }
 
 /*
+ * CAPI FACILITY_IND supplementary services 
+ */
+static void handle_facility_indication_supplementary(
+	_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
+{
+	_cword function;
+	_cword infoword = 0xffff;
+	unsigned char length;
+
+	function = read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[1]);
+	length = FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[3];
+
+	if (length >= 2) {
+		infoword = read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]);
+	}
+
+	/* first check functions without interface needed */
+	switch (function) {
+	case 0x800d: /* CCBS erase call linkage ID */
+		cc_verbose(1, 1, VERBOSE_PREFIX_3 "contr%d: PLCI=%#x CCBS/CCNR erase id=0x%04x\n",
+			PLCI & 0xff, PLCI, infoword);
+		break;
+	}
+
+	return_on_no_interface("FACILITY_IND SUPPLEMENTARY");
+
+	/* now functions bound to interface */
+	switch (function) {
+	case 0x0002: /* HOLD */
+		if (infoword != 0) {
+			/* reason != 0x0000 == problem */
+			i->onholdPLCI = 0;
+			cc_log(LOG_WARNING, "%s: unable to put PLCI=%#x onhold, REASON = 0x%04x, maybe you need to subscribe for this...\n",
+				i->vname, PLCI, infoword);
+			show_capi_info(i, infoword);
+		} else {
+			/* reason = 0x0000 == call on hold */
+			i->state = CAPI_STATE_ONHOLD;
+			cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: PLCI=%#x put onhold\n",
+				i->vname, PLCI);
+		}
+		break;
+	case 0x0003: /* RETRIEVE */
+		if (infoword != 0) {
+			cc_log(LOG_WARNING, "%s: unable to retrieve PLCI=%#x, REASON = 0x%04x\n",
+				i->vname, PLCI, infoword);
+			show_capi_info(i, infoword);
+		} else {
+			i->state = CAPI_STATE_CONNECTED;
+			i->PLCI = i->onholdPLCI;
+			i->onholdPLCI = 0;
+			cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: PLCI=%#x retrieved\n",
+				i->vname, PLCI);
+			cc_start_b3(i);
+		}
+		break;
+	case 0x0006:	/* ECT */
+		cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: PLCI=%#x ECT  Reason=0x%04x\n",
+			i->vname, PLCI, infoword);
+		show_capi_info(i, infoword);
+		break;
+	case 0x0007: /* 3PTY begin */
+		cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: PLCI=%#x 3PTY begin Reason=0x%04x\n",
+			i->vname, PLCI, infoword);
+		show_capi_info(i, infoword);
+		break;
+	case 0x0008: /* 3PTY end */
+		cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: PLCI=%#x 3PTY end Reason=0x%04x\n",
+			i->vname, PLCI, infoword);
+		show_capi_info(i, infoword);
+		break;
+	case 0x8013: /* CCBS info retain */
+		cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: PLCI=%#x CCBS unique id=0x%04x\n",
+			i->vname, PLCI, infoword);
+		break;
+	case 0x8015: /* CCNR info retain */
+		cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: PLCI=%#x CCNR unique id=0x%04x\n",
+			i->vname, PLCI, infoword);
+		break;
+	case 0x800d: /* CCBS erase call linkage ID */
+		/* handled above */
+		break;
+	default:
+		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: unhandled FACILITY_IND supplementary function %04x\n",
+			i->vname, function);
+	}
+}
+
+/*
+ * CAPI FACILITY_IND line interconnect
+ */
+static void handle_facility_indication_line_interconnect(
+	_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
+{
+	if ((FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[1] == 0x01) &&
+	    (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[2] == 0x00)) {
+		cc_verbose(3, 0, VERBOSE_PREFIX_3 "%s: Line Interconnect activated\n",
+			i->vname);
+	}
+	if ((FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[1] == 0x02) &&
+	    (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[2] == 0x00) &&
+	    (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[0] > 8)) {
+		show_capi_info(i, read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[8]));
+	}
+}
+
+/*
+ * CAPI FACILITY_IND dtmf received 
+ */
+static void handle_facility_indication_dtmf(
+	_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
+{
+	struct ast_frame fr = { AST_FRAME_NULL, };
+	char dtmf;
+	unsigned dtmflen = 0;
+	unsigned dtmfpos = 0;
+
+	if (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[0] != (0xff)) {
+		dtmflen = FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[0];
+		FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG) += 1;
+	} else {
+		dtmflen = read_capi_word(FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG) + 1);
+		FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG) += 3;
+	}
+	while (dtmflen) {
+		dtmf = (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG))[dtmfpos];
+		cc_verbose(1, 1, VERBOSE_PREFIX_4 "%s: c_dtmf = %c\n",
+			i->vname, dtmf);
+		if ((!(i->ntmode)) || (i->state == CAPI_STATE_CONNECTED)) {
+			if ((dtmf == 'X') || (dtmf == 'Y')) {
+				capi_handle_dtmf_fax(i);
+			} else {
+				fr.frametype = AST_FRAME_DTMF;
+				fr.subclass = dtmf;
+				local_queue_frame(i, &fr);
+			}
+		}
+		dtmflen--;
+		dtmfpos++;
+	} 
+}
+
+/*
  * CAPI FACILITY_IND
  */
 static void capidev_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
 {
 	_cmsg CMSG2;
-	struct ast_frame fr = { AST_FRAME_NULL, };
-	char dtmf;
-	unsigned dtmflen;
-	unsigned dtmfpos = 0;
 
 	FACILITY_RESP_HEADER(&CMSG2, capi_ApplID, HEADER_MSGNUM(CMSG), PLCI);
 	FACILITY_RESP_FACILITYSELECTOR(&CMSG2) = FACILITY_IND_FACILITYSELECTOR(CMSG);
 	FACILITY_RESP_FACILITYRESPONSEPARAMETERS(&CMSG2) = FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG);
 	_capi_put_cmsg(&CMSG2);
 	
-	return_on_no_interface("FACILITY_IND");
-
-	if (FACILITY_IND_FACILITYSELECTOR(CMSG) == FACILITYSELECTOR_LINE_INTERCONNECT) {
-		/* line interconnect */
-		if ((FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[1] == 0x01) &&
-		    (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[2] == 0x00)) {
-			cc_verbose(3, 0, VERBOSE_PREFIX_3 "%s: Line Interconnect activated\n",
-				i->vname);
-		}
-		if ((FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[1] == 0x02) &&
-		    (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[2] == 0x00) &&
-		    (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[0] > 8)) {
-			show_capi_info(i, read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[8]));
-		}
+	switch (FACILITY_IND_FACILITYSELECTOR(CMSG)) {
+	case FACILITYSELECTOR_LINE_INTERCONNECT:
+		return_on_no_interface("FACILITY_IND LI");
+		handle_facility_indication_line_interconnect(CMSG, PLCI, NCCI, i);
+		break;
+	case FACILITYSELECTOR_DTMF:
+		return_on_no_interface("FACILITY_IND DTMF");
+		handle_facility_indication_dtmf(CMSG, PLCI, NCCI, i);
+		break;
+	case FACILITYSELECTOR_SUPPLEMENTARY:
+		handle_facility_indication_supplementary(CMSG, PLCI, NCCI, i);
+		break;
+	default:
+		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: unhandled FACILITY_IND selector %d\n",
+			(i) ? i->vname:"???", FACILITY_IND_FACILITYSELECTOR(CMSG));
 	}
-	
-	if (FACILITY_IND_FACILITYSELECTOR(CMSG) == FACILITYSELECTOR_DTMF) {
-		/* DTMF received */
-		if (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[0] != (0xff)) {
-			dtmflen = FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[0];
-			FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG) += 1;
-		} else {
-			dtmflen = read_capi_word(FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG) + 1);
-			FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG) += 3;
-		}
-		while (dtmflen) {
-			dtmf = (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG))[dtmfpos];
-			cc_verbose(1, 1, VERBOSE_PREFIX_4 "%s: c_dtmf = %c\n",
-				i->vname, dtmf);
-			if ((!(i->ntmode)) || (i->state == CAPI_STATE_CONNECTED)) {
-				if ((dtmf == 'X') || (dtmf == 'Y')) {
-					capi_handle_dtmf_fax(i);
-				} else {
-					fr.frametype = AST_FRAME_DTMF;
-					fr.subclass = dtmf;
-					local_queue_frame(i, &fr);
-				}
-			}
-			dtmflen--;
-			dtmfpos++;
-		} 
-	}
-	
-	if (FACILITY_IND_FACILITYSELECTOR(CMSG) == FACILITYSELECTOR_SUPPLEMENTARY) {
-		/* supplementary sservices */
-		/* ECT */
-		if ( (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[1] == 0x6) &&
-		     (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[3] == 0x2) ) {
-			cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: PLCI=%#x ECT  Reason=0x%02x%02x\n",
-				i->vname, PLCI,
-				FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[5],
-				FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]);
-			show_capi_info(i, read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]));
-		}
-
-		/* 3PTY */
-		if ( (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[1] == 0x7) &&
-		     (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[3] == 0x2) ) {
-			cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: PLCI=%#x 3PTY  Reason=0x%02x%02x\n",
-				i->vname, PLCI,
-				FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[5],
-				FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]);
-			show_capi_info(i, read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]));
-		}
-
-		/* RETRIEVE */
-		if ( (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[1] == 0x3) &&
-		     (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[3] == 0x2) ) {
-			if ((FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[5] != 0) || 
-			    (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4] != 0)) { 
-				cc_log(LOG_WARNING, "%s: unable to retrieve PLCI=%#x, REASON = 0x%02x%02x\n",
-					i->vname, PLCI,
-					FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[5],
-					FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]);
-				show_capi_info(i, read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]));
-			} else {
-				/* reason != 0x0000 == problem */
-				i->state = CAPI_STATE_CONNECTED;
-				i->PLCI = i->onholdPLCI;
-				i->onholdPLCI = 0;
-				cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: PLCI=%#x retrieved\n",
-					i->vname, PLCI);
-				cc_start_b3(i);
-			}
-		}
-		
-		/* HOLD */
-		if ( (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[1] == 0x2) &&
-		     (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[3] == 0x2) ) {
-			if ((FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[5] != 0) || 
-			    (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4] != 0)) { 
-				/* reason != 0x0000 == problem */
-				i->onholdPLCI = 0;
-				cc_log(LOG_WARNING, "%s: unable to put PLCI=%#x onhold, REASON = 0x%02x%02x, maybe you need to subscribe for this...\n",
-					i->vname, PLCI,
-					FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[5],
-					FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]);
-				show_capi_info(i, read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4]));
-			} else {
-				/* reason = 0x0000 == call on hold */
-				i->state = CAPI_STATE_ONHOLD;
-				cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: PLCI=%#x put onhold\n",
-					i->vname, PLCI);
-			}
-		}
-	}
-	return;
 }
 
 /*
