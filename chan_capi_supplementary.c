@@ -20,6 +20,53 @@
 #include "chan_capi_supplementary.h"
 #include "chan_capi_utils.h"
 
+#define CCBSNR_MAX_LIST_ENTRIES 32
+static struct ccbsnr_s ccbsnr_list[CCBSNR_MAX_LIST_ENTRIES];
+
+/*
+ * a new CCBS/CCNR id was received
+ */
+static void new_ccbsnr_id(ccbsnrtype_t type, unsigned int plci,
+	_cword id, struct capi_pvt *i)
+{
+	int a;
+	char buffer[CAPI_MAX_STRING];
+
+	for (a = 0; a < CCBSNR_MAX_LIST_ENTRIES; a++) {
+		if (ccbsnr_list[a].type == CCBSNR_TYPE_NULL) {
+			ccbsnr_list[a].type = type;
+			ccbsnr_list[a].id = id;
+			ccbsnr_list[a].plci = plci;
+			ccbsnr_list[a].state = CCBSNR_AVAILABLE;
+
+			if (i->peer) {
+				snprintf(buffer, CAPI_MAX_STRING-1, "%d", (id | ((plci & 0xff) << 16)));
+				pbx_builtin_setvar_helper(i->peer, "CCLINKAGEID", buffer);
+			}
+			break;
+		}
+	}
+	if (a == CCBSNR_MAX_LIST_ENTRIES) {
+		cc_log(LOG_ERROR, "No free entry for new CCBS/CCNR ID\n");
+	}
+}
+
+/*
+ * a CCBS/CCNR id was removed 
+ */
+static void del_ccbsnr_id(unsigned int plci, _cword id)
+{
+	int a;
+
+	for (a = 0; a < CCBSNR_MAX_LIST_ENTRIES; a++) {
+		if (((ccbsnr_list[a].plci & 0xff) == (plci & 0xff)) &&
+		   (ccbsnr_list[a].id == id)) {
+			ccbsnr_list[a].type = CCBSNR_TYPE_NULL;
+			ccbsnr_list[a].state = 0;
+			break;
+		}
+	}
+}
 
 /*
  * send Listen for supplementary to specified controller
@@ -81,6 +128,7 @@ void handle_facility_indication_supplementary(
 	case 0x800d: /* CCBS erase call linkage ID */
 		cc_verbose(1, 1, VERBOSE_PREFIX_3 "contr%d: PLCI=%#x CCBS/CCNR erase id=0x%04x\n",
 			PLCI & 0xff, PLCI, infoword);
+		del_ccbsnr_id(PLCI, infoword);
 		break;
 	}
 
@@ -134,10 +182,12 @@ void handle_facility_indication_supplementary(
 	case 0x8013: /* CCBS info retain */
 		cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: PLCI=%#x CCBS unique id=0x%04x\n",
 			i->vname, PLCI, infoword);
+		new_ccbsnr_id(CCBSNR_TYPE_CCBS, PLCI, infoword, i);
 		break;
 	case 0x8015: /* CCNR info retain */
 		cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: PLCI=%#x CCNR unique id=0x%04x\n",
 			i->vname, PLCI, infoword);
+		new_ccbsnr_id(CCBSNR_TYPE_CCNR, PLCI, infoword, i);
 		break;
 	case 0x800d: /* CCBS erase call linkage ID */
 		/* handled above */

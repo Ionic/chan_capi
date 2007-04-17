@@ -20,4 +20,22 @@
 extern void ListenOnSupplementary(unsigned controller);
 extern void handle_facility_indication_supplementary(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i);
 
+typedef enum {
+	CCBSNR_TYPE_NULL = 0,
+	CCBSNR_TYPE_CCBS,
+	CCBSNR_TYPE_CCNR
+} ccbsnrtype_t;
+
+#define CCBSNR_AVAILABLE  1
+
+struct ccbsnr_s {
+	ccbsnrtype_t type;
+	_cword id;
+	unsigned int plci;
+	unsigned int state;
+	char context[AST_MAX_CONTEXT];
+	char exten[AST_MAX_EXTENSION];
+	int priority;
+};
+
 #endif

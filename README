@@ -202,6 +202,11 @@ ECT:
         exten => s,1,capicommand(hold)
         exten => s,2,Dial(CAPI/contr1/1234,,M(capi3pty))
 
+Peer link creation:
+    Create a reference for chan-capi to know who is the calling channel on Dial().
+    This is needed if you want to use CCBS/CCNR afterwards.
+        Example:
+        exten => s,1,capicommand(peerlink)
 
 Using CLIR
 ==========
@@ -362,7 +367,10 @@ CALLINGSUBADDRESS
 
 CALLEDSUBADDRESS
     If set on dial(), the called subaddress will be set to the content.
- 
+
+CCLINKAGEID
+    If a Call-Linkage-Id is received for CCBS/CCNR, this variable contains this Id.
+
 CONNECTEDNUMBER
     Can be set before answering and if set, the content is used for
     IE 'Connected Number' on answering.

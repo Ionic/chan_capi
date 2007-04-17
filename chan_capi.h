@@ -291,6 +291,9 @@ struct capi_pvt {
 	/*! Channel we belong to, possibly NULL */
 	struct ast_channel *owner;		
 	
+	/*! Channel who called us, possibly NULL */
+	struct ast_channel *peer;		
+	
 	/* capi message number */
 	_cword MessageNumber;	
 	unsigned int NCCI;

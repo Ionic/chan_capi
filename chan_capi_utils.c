@@ -12,6 +12,7 @@
  */
  
 #include <stdio.h>
+#include <stdlib.h>
 #include "chan_capi20.h"
 #include "chan_capi.h"
 #include "chan_capi_utils.h"
@@ -25,6 +26,9 @@ AST_MUTEX_DEFINE_STATIC(messagenumber_lock);
 AST_MUTEX_DEFINE_STATIC(capi_put_lock);
 
 static _cword capi_MessageNumber;
+
+#define CAPI_MAX_PEERLINKCHANNELS  32
+static struct ast_channel *peerlinkchannel[CAPI_MAX_PEERLINKCHANNELS];
 
 /*
  * helper for <pbx>_verbose with different verbose settings
@@ -615,5 +619,43 @@ void parse_dialstring(char *buffer, char **interface, char **dest, char **param,
 	cc_verbose(3, 1, VERBOSE_PREFIX_4 "parsed dialstring: '%s' '%s' '%s' '%s'\n",
 		*interface, (*ocid) ? *ocid : "NULL", *dest, *param);
 	return;
+}
+
+/*
+ * Add a new peer link id
+ */
+int cc_add_peer_link_id(struct ast_channel *c)
+{
+	int a;
+
+	for (a = 0; a < CAPI_MAX_PEERLINKCHANNELS; a++) {
+		if (peerlinkchannel[a] == NULL) {
+			peerlinkchannel[a] = c;
+			break;
+		}
+	}
+	if (a == CAPI_MAX_PEERLINKCHANNELS) {
+		return -1;
+	}
+	return a;
+}
+
+/*
+ * Get and remove peer link id
+ */
+struct ast_channel *cc_get_peer_link_id(const char *p)
+{
+	int id = -1;
+	struct ast_channel *chan = NULL;
+
+	if (p) {
+		id = (int)strtoul(p, NULL, 0);
+	}
+
+	if ((id >= 0) && (id < CAPI_MAX_PEERLINKCHANNELS)) {
+		chan = peerlinkchannel[id];
+		peerlinkchannel[id] = NULL;
+	}
+	return chan;
 }
 

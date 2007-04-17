@@ -1210,6 +1210,8 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 		dsa = calledsubaddress;
 	}
 
+	i->peer = cc_get_peer_link_id(pbx_builtin_getvar_helper(c, "CAPIPEERLINKID"));
+
 	i->MessageNumber = get_capi_MessageNumber();
 	CONNECT_REQ_HEADER(&CMSG, capi_ApplID, i->MessageNumber, i->controller);
 	CONNECT_REQ_CONTROLLER(&CMSG) = i->controller;
@@ -4051,6 +4053,24 @@ static int pbx_capi_call_deflect(struct ast_channel *c, char *param)
 }
 
 /*
+ * store the peer for future actions 
+ */
+static int pbx_capi_peer_link(struct ast_channel *c, char *param)
+{
+	char buffer[32];
+	int id;
+
+	id = cc_add_peer_link_id(c);
+
+	if (id >= 0) {
+		snprintf(buffer, sizeof(buffer) - 1, "%d", id);
+		pbx_builtin_setvar_helper(c, "_CAPIPEERLINKID", buffer);
+	}
+
+	return 0;
+}
+
+/*
  * retrieve a hold on call
  */
 static int pbx_capi_retrieve(struct ast_channel *c, char *param)
@@ -4621,6 +4641,7 @@ static struct capicommands_s {
 	int (*cmd)(struct ast_channel *, char *);
 	int capionly;
 } capicommands[] = {
+	{ "peerlink",     pbx_capi_peer_link,       0 },
 	{ "progress",     pbx_capi_signal_progress, 1 },
 	{ "deflect",      pbx_capi_call_deflect,    1 },
 	{ "receivefax",   pbx_capi_receive_fax,     1 },
@@ -4634,7 +4655,7 @@ static struct capicommands_s {
 	{ "ect",          pbx_capi_ect,             1 },
 	{ "3pty_begin",	  pbx_capi_3pty_begin,	    1 },
  	{ "qsig_ssct",	  pbx_capi_qsig_ssct,	    1 },
-  	{ "qsig_ct",	  pbx_capi_qsig_ct,	    1 },
+  	{ "qsig_ct",      pbx_capi_qsig_ct,         1 },
    	{ "qsig_callmark",pbx_capi_qsig_callmark,   1 },
 	{ "qsig_getplci", pbx_capi_qsig_getplci,    1 },
   	{ NULL, NULL, 0 }
