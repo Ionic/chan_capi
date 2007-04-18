@@ -809,3 +809,113 @@ unsigned int cc_qsig_do_facility(unsigned char *fac, struct  ast_channel *c, cha
 	
 	return 0;
 }
+
+/*
+ * Initiate a QSIG Call Transfer
+ */
+int pbx_capi_qsig_getplci(struct ast_channel *c, char *param)
+{
+	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+	char buffer[10];
+
+	snprintf(buffer, sizeof(buffer)-1, "%d", i->PLCI);
+	cc_verbose(4, 1, VERBOSE_PREFIX_4 "QSIG_GETPLCI: %s\n", buffer);
+	pbx_builtin_setvar_helper(c, "QSIG_PLCI", buffer);
+	
+	return 0;
+}
+
+/*
+ * Initiate a QSIG Single Step Call Transfer
+ */
+int pbx_capi_qsig_ssct(struct ast_channel *c, char *param)
+{
+	unsigned char fac[CAPI_MAX_FACILITYDATAARRAY_SIZE];
+	_cmsg		CMSG;
+	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+
+	if (!param) { /* no data implies no Calling Number and Destination Number */
+		cc_log(LOG_WARNING, "capi qsig_ssct requires source number and destination number\n");
+		return -1;
+	}
+
+	cc_qsig_do_facility(fac, c, param, 99, 0);
+	
+	INFO_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(),0);
+	INFO_REQ_PLCI(&CMSG) = i->PLCI;
+	INFO_REQ_FACILITYDATAARRAY(&CMSG) = fac;
+		
+	_capi_put_cmsg(&CMSG);
+
+	return 0;
+}
+
+/*
+ * Initiate a QSIG Call Transfer
+ */
+int pbx_capi_qsig_ct(struct ast_channel *c, char *param)
+{
+	unsigned char fac[CAPI_MAX_FACILITYDATAARRAY_SIZE];
+	_cmsg		CMSG;
+	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+	struct capi_pvt *ii = NULL;
+	unsigned int callmark;
+	char *marker;
+
+	if (!param) { /* no data implies no Calling Number and Destination Number */
+		cc_log(LOG_WARNING, "capi qsig_ct requires call marker, source number, destination number and await_connect info\n");
+		return -1;
+	}
+
+	marker = strsep(&param, "|");
+	
+	callmark = atoi(marker);
+	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * QSIG_CT: using call marker %i(%s)\n", callmark, marker);
+	
+	for (ii = iflist; ii; ii = ii->next) {
+		if (ii->qsig_data.callmark == callmark)
+			break;
+	}
+	
+	if (!ii) {
+		cc_log(LOG_WARNING, "capi qsig_ct call marker not found!\n");
+		return -1;
+	}
+	
+	cc_qsig_do_facility(fac, c, param, 12, 0);
+	
+	INFO_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(),0);
+	INFO_REQ_PLCI(&CMSG) = ii->PLCI;
+	INFO_REQ_FACILITYDATAARRAY(&CMSG) = fac;
+		
+	_capi_put_cmsg(&CMSG);
+	
+	cc_qsig_do_facility(fac, c, param, 12, 1);
+	
+	INFO_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(),0);
+	INFO_REQ_PLCI(&CMSG) = i->PLCI;
+	INFO_REQ_FACILITYDATAARRAY(&CMSG) = fac;
+		
+	_capi_put_cmsg(&CMSG);
+
+	return 0;
+}
+
+/*
+ * Initiate a QSIG Call Transfer
+ */
+int pbx_capi_qsig_callmark(struct ast_channel *c, char *param)
+{
+	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+
+	if (!param) { /* no data implies no Calling Number and Destination Number */
+		cc_log(LOG_WARNING, "capi qsig_callmark requires an call identifier\n");
+		return -1;
+	}
+
+	i->qsig_data.callmark = atoi(param);
+
+	return 0;
+}
+
+

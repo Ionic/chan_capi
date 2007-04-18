@@ -561,6 +561,7 @@ struct cc_capi_controller {
  * prototypes
  */
 extern unsigned capi_ApplID;
+extern struct capi_pvt *iflist;
 extern void cc_start_b3(struct capi_pvt *i);
 
 #endif

@@ -14,12 +14,6 @@
 #ifndef _PBX_CAPI_SUPP_H
 #define _PBX_CAPI_SUPP_H
 
-/*
- * prototypes
- */
-extern void ListenOnSupplementary(unsigned controller);
-extern void handle_facility_indication_supplementary(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i);
-
 typedef enum {
 	CCBSNR_TYPE_NULL = 0,
 	CCBSNR_TYPE_CCBS,
@@ -37,5 +31,12 @@ struct ccbsnr_s {
 	char exten[AST_MAX_EXTENSION];
 	int priority;
 };
+
+/*
+ * prototypes
+ */
+extern void ListenOnSupplementary(unsigned controller);
+extern void handle_facility_indication_supplementary(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i);
+extern int pbx_capi_ccbs(struct ast_channel *c, char *data);
 
 #endif

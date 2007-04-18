@@ -649,7 +649,7 @@ struct ast_channel *cc_get_peer_link_id(const char *p)
 	struct ast_channel *chan = NULL;
 
 	if (p) {
-		id = (int)strtoul(p, NULL, 0);
+		id = (int)strtol(p, NULL, 0);
 	}
 
 	if ((id >= 0) && (id < CAPI_MAX_PEERLINKCHANNELS)) {

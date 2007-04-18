@@ -198,3 +198,34 @@ void handle_facility_indication_supplementary(
 	}
 }
 
+/*
+ * capicommand 'ccbs'
+ */
+int pbx_capi_ccbs(struct ast_channel *c, char *data)
+{
+	char *slinkageid, *context, *exten, *priority;
+	unsigned int linkid = 0;
+	char *result = "ERROR";
+
+	slinkageid = strsep(&data, "|");
+	context = strsep(&data, "|");
+	exten = strsep(&data, "|");
+	priority = data;
+
+	if (slinkageid) {
+		linkid = (unsigned int)strtoul(slinkageid, NULL, 0);
+	}
+
+	if ((!context) || (!exten) || (!priority)) {
+		cc_log(LOG_WARNING, "capi ccbs requires <context>|<exten>|<priority>\n");
+		return -1;
+	}
+
+	cc_verbose(3, 1, VERBOSE_PREFIX_3 "capi ccbs: '%d' '%s' '%s' '%s'\n",
+		linkid, context, exten, priority);
+
+	pbx_builtin_setvar_helper(c, "CCBSSTATUS", result);
+
+	return 0;
+}
+

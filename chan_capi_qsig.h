@@ -163,6 +163,11 @@ extern unsigned int cc_qsig_handle_invokeoperation(int invokeident, struct cc_qs
 
 extern unsigned int cc_qsig_do_facility(unsigned char *fac, struct  ast_channel *c, char *param, unsigned int factype, int info1);
 
+extern int pbx_capi_qsig_getplci(struct ast_channel *c, char *param);
+extern int pbx_capi_qsig_ssct(struct ast_channel *c, char *param);
+extern int pbx_capi_qsig_ct(struct ast_channel *c, char *param);
+extern int pbx_capi_qsig_callmark(struct ast_channel *c, char *param);
+
 /*
  *** ECMA QSIG Functions 
  */
