@@ -1817,6 +1817,9 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 
 #ifdef CC_AST_HAS_EXT_CHAN_ALLOC
 	tmp = ast_channel_alloc(0, state, i->cid, NULL,
+#ifdef CC_AST_HAS_EXT2_CHAN_ALLOC
+		i->accountcode, i->dnid, i->context, i->amaflags,
+#endif
 		"CAPI/%s/%s-%x", i->vname, i->dnid, capi_counter++);
 #else
 	tmp = ast_channel_alloc(0);
@@ -1908,7 +1911,6 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 		ast_getformatname_multiple(alloca(80), 80,
 		tmp->nativeformats),
 		(i->rtp) ? " (RTP)" : "");
-	cc_copy_string(tmp->context, i->context, sizeof(tmp->context));
 
 	if (!ast_strlen_zero(i->cid)) {
 		if (tmp->cid.cid_num) {
@@ -1923,9 +1925,12 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 		tmp->cid.cid_dnid = strdup(i->dnid);
 	}
 	tmp->cid.cid_ton = i->cid_ton;
+
+#ifndef CC_AST_HAS_EXT2_CHAN_ALLOC
 	if (i->amaflags)
 		tmp->amaflags = i->amaflags;
 	
+	cc_copy_string(tmp->context, i->context, sizeof(tmp->context));
 	cc_copy_string(tmp->exten, i->dnid, sizeof(tmp->exten));
 #ifdef CC_AST_HAS_STRINGFIELD_IN_CHANNEL
 	ast_string_field_set(tmp, accountcode, i->accountcode);
@@ -1934,6 +1939,14 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 	cc_copy_string(tmp->accountcode, i->accountcode, sizeof(tmp->accountcode));
 	cc_copy_string(tmp->language, i->language, sizeof(tmp->language));
 #endif
+#endif
+
+#ifdef CC_AST_HAS_STRINGFIELD_IN_CHANNEL
+	ast_string_field_set(tmp, language, i->language);
+#else
+	cc_copy_string(tmp->language, i->language, sizeof(tmp->language));
+#endif
+
 	i->owner = tmp;
 
 #ifdef CC_AST_HAS_VERSION_1_4
