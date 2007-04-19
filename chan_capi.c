@@ -903,7 +903,8 @@ static void interface_cleanup(struct capi_pvt *i)
 			free(i->qsig_data.pr_propose_pn);
 		
 	}
-	
+
+	i->peer = NULL;	
 	i->owner = NULL;
 	return;
 }
