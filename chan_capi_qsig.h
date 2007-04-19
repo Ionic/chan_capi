@@ -168,6 +168,8 @@ extern int pbx_capi_qsig_ssct(struct ast_channel *c, char *param);
 extern int pbx_capi_qsig_ct(struct ast_channel *c, char *param);
 extern int pbx_capi_qsig_callmark(struct ast_channel *c, char *param);
 
+extern void interface_cleanup_qsig(struct capi_pvt *i);
+
 /*
  *** ECMA QSIG Functions 
  */

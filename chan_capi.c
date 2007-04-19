@@ -891,18 +891,7 @@ static void interface_cleanup(struct capi_pvt *i)
 		i->rtp = NULL;
 	}
 
-	/* some QSIG stuff */
-	if (i->qsigfeat) {
-		i->qsig_data.callmark = 0;
-		i->qsig_data.partner_ch = NULL;
-		i->qsig_data.calltransfer_active = 0;
-		i->qsig_data.calltransfer_onring = 0;
-		if (i->qsig_data.pr_propose_cid)
-			free(i->qsig_data.pr_propose_cid);
-		if (i->qsig_data.pr_propose_pn)
-			free(i->qsig_data.pr_propose_pn);
-		
-	}
+	interface_cleanup_qsig(i);
 
 	i->peer = NULL;	
 	i->owner = NULL;
