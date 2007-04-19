@@ -2303,46 +2303,6 @@ static void capi_handle_dtmf_fax(struct capi_pvt *i)
 }
 
 /*
- * find the interface (pvt) the PLCI belongs to
- */
-static struct capi_pvt *find_interface_by_plci(unsigned int plci)
-{
-	struct capi_pvt *i;
-
-	if (plci == 0)
-		return NULL;
-
-	cc_mutex_lock(&iflock);
-	for (i = iflist; i; i = i->next) {
-		if (i->PLCI == plci)
-			break;
-	}
-	cc_mutex_unlock(&iflock);
-
-	return i;
-}
-
-/*
- * find the interface (pvt) the messagenumber belongs to
- */
-static struct capi_pvt *find_interface_by_msgnum(unsigned short msgnum)
-{
-	struct capi_pvt *i;
-
-	if (msgnum == 0x0000)
-		return NULL;
-
-	cc_mutex_lock(&iflock);
-	for (i = iflist; i; i = i->next) {
-		    if ((i->PLCI == 0) && (i->MessageNumber == msgnum))
-			break;
-	}
-	cc_mutex_unlock(&iflock);
-
-	return i;
-}
-
-/*
  * see if did matches
  */
 static int search_did(struct ast_channel *c)

@@ -958,25 +958,6 @@ void interface_cleanup_qsig(struct capi_pvt *i)
 }
 
 /*
- * find the interface (pvt) the PLCI belongs to
- */
-static struct capi_pvt *find_interface_by_plci(unsigned int plci)
-{
-	struct capi_pvt *i;
-
-	if (plci == 0)
-		return NULL;
-
-	for (i = iflist; i; i = i->next) {
-		if (i->PLCI == plci)
-			break;
-	}
-
-	return i;
-}
-
-
-/*
  *  CAPI INFO_IND (QSIG part)
  */
 void pbx_capi_qsig_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)

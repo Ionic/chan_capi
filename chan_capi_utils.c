@@ -76,7 +76,43 @@ _cword get_capi_MessageNumber(void)
 }
 
 /*
- *
+ * find the interface (pvt) the PLCI belongs to
+ */
+struct capi_pvt *find_interface_by_plci(unsigned int plci)
+{
+	struct capi_pvt *i;
+
+	if (plci == 0)
+		return NULL;
+
+	for (i = iflist; i; i = i->next) {
+		if (i->PLCI == plci)
+			break;
+	}
+
+	return i;
+}
+
+/*
+ * find the interface (pvt) the messagenumber belongs to
+ */
+struct capi_pvt *find_interface_by_msgnum(unsigned short msgnum)
+{
+	struct capi_pvt *i;
+
+	if (msgnum == 0x0000)
+		return NULL;
+
+	for (i = iflist; i; i = i->next) {
+		    if ((i->PLCI == 0) && (i->MessageNumber == msgnum))
+			break;
+	}
+
+	return i;
+}
+
+/*
+ * log verbose a capi message
  */
 static void log_capi_message(MESSAGE_EXCHANGE_ERROR err, _cmsg *CMSG)
 {

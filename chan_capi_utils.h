@@ -22,6 +22,8 @@ extern char *emptyid;
 
 extern void cc_verbose(int o_v, int c_d, char *text, ...);
 extern _cword get_capi_MessageNumber(void);
+extern struct capi_pvt *find_interface_by_msgnum(unsigned short msgnum);
+extern struct capi_pvt *find_interface_by_plci(unsigned int plci);
 extern MESSAGE_EXCHANGE_ERROR _capi_put_cmsg(_cmsg *CMSG);
 extern MESSAGE_EXCHANGE_ERROR capidev_check_wait_get_cmsg(_cmsg *CMSG);
 extern char *capi_info_string(unsigned int info);
