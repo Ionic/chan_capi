@@ -513,8 +513,6 @@ static void capi_channel_task(struct ast_channel *c, int task)
 static void capi_echo_canceller(struct ast_channel *c, int function)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
-	_cmsg CMSG;
-	char buf[10];
 	int ecAvail = 0;
 
 	if ((i->isdnstate & CAPI_ISDN_STATE_DISCONNECT))
@@ -552,28 +550,20 @@ static void capi_echo_canceller(struct ast_channel *c, int function)
 	cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: Setting up echo canceller (PLCI=%#x, function=%d, options=%d, tail=%d)\n",
 			i->vname, i->PLCI, function, i->ecOption, i->ecTail);
 
-	FACILITY_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
-	FACILITY_REQ_PLCI(&CMSG) = i->PLCI;
-	FACILITY_REQ_FACILITYSELECTOR(&CMSG) = i->ecSelector;
-
-	memset(buf, 0, sizeof(buf));
-        buf[0] = 9; /* msg size */
-        write_capi_word(&buf[1], function);
 	if (function == EC_FUNCTION_ENABLE) {
-		buf[3] = 6; /* echo cancel param struct size */
-	        write_capi_word(&buf[4], i->ecOption); /* bit field - ignore echo canceller disable tone */
-		write_capi_word(&buf[6], i->ecTail);   /* Tail length, ms */
-		/* buf 8 and 9 are "pre-delay lenght ms" */
 		i->isdnstate |= CAPI_ISDN_STATE_EC;
 	} else {
 		i->isdnstate &= ~CAPI_ISDN_STATE_EC;
 	}
 
-	FACILITY_REQ_FACILITYREQUESTPARAMETER(&CMSG) = (_cstruct)buf;
-        
-	if (_capi_put_cmsg(&CMSG) != 0) {
-		return;
-	}
+	capi_sendf(CAPI_FACILITY_REQ, i->PLCI, get_capi_MessageNumber(),
+		"w(w(www))",
+		i->ecSelector,
+		function,
+		i->ecOption,  /* bit field - ignore echo canceller disable tone */
+		i->ecTail,    /* Tail length, ms */
+		0
+	);
 
 	return;
 }
@@ -585,8 +575,6 @@ static int capi_detect_dtmf(struct ast_channel *c, int flag)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	MESSAGE_EXCHANGE_ERROR error;
-	_cmsg CMSG;
-	char buf[9];
 
 	if ((i->isdnstate & CAPI_ISDN_STATE_DISCONNECT))
 		return 0;
@@ -609,23 +597,18 @@ static int capi_detect_dtmf(struct ast_channel *c, int flag)
 	if ((capi_controllers[i->controller]->dtmf != 1) || (i->doDTMF != 0))
 		return 0;
 	
-	memset(buf, 0, sizeof(buf));
 	cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: Setting up DTMF detector (PLCI=%#x, flag=%d)\n",
 		i->vname, i->PLCI, flag);
-	FACILITY_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
-	FACILITY_REQ_PLCI(&CMSG) = i->PLCI;
-	FACILITY_REQ_FACILITYSELECTOR(&CMSG) = FACILITYSELECTOR_DTMF;
-	buf[0] = 8; /* msg length */
-	if (flag == 1) {
-		write_capi_word(&buf[1], 1); /* start DTMF listen */
-	} else {
-		write_capi_word(&buf[1], 2); /* stop DTMF listen */
-	}
-	write_capi_word(&buf[3], CAPI_DTMF_DURATION);
-	write_capi_word(&buf[5], CAPI_DTMF_DURATION);
-	FACILITY_REQ_FACILITYREQUESTPARAMETER(&CMSG) = (_cstruct)buf;
-        
-	if ((error = _capi_put_cmsg(&CMSG)) != 0) {
+
+	error = capi_sendf(CAPI_FACILITY_REQ, i->PLCI, get_capi_MessageNumber(),
+		"w(www()())",
+		FACILITYSELECTOR_DTMF,
+		(flag == 1) ? 1:2,  /* start/stop DTMF listen */
+		CAPI_DTMF_DURATION,
+		CAPI_DTMF_DURATION
+	);
+
+	if (error != 0) {
 		return error;
 	}
 	if (flag == 1) {
@@ -761,8 +744,6 @@ static int pbx_capi_send_digit(struct ast_channel *c, char digit)
 #endif
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
-	_cmsg CMSG;
-	char buf[10];
 	char did[2];
 	int ret = 0;
     
@@ -770,8 +751,6 @@ static int pbx_capi_send_digit(struct ast_channel *c, char digit)
 		cc_log(LOG_ERROR, "No interface!\n");
 		return -1;
 	}
-
-	memset(buf, 0, sizeof(buf));
 
 	cc_mutex_lock(&i->lock);
 
@@ -800,20 +779,16 @@ static int pbx_capi_send_digit(struct ast_channel *c, char digit)
 			cc_mutex_unlock(&i->lock);
 			return -1;
 		}
+		ret = capi_sendf(CAPI_FACILITY_REQ, i->NCCI, get_capi_MessageNumber(),
+			"w(www(b)())",
+			FACILITYSELECTOR_DTMF,
+			3,	/* send DTMF digit */
+			CAPI_DTMF_DURATION,	/* XXX: duration comes from asterisk in 1.4 */
+			CAPI_DTMF_DURATION,
+			digit
+		);
 		
-		FACILITY_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
-		FACILITY_REQ_PLCI(&CMSG) = i->NCCI;
-	        FACILITY_REQ_FACILITYSELECTOR(&CMSG) = FACILITYSELECTOR_DTMF;
-        	buf[0] = 8;
-	        write_capi_word(&buf[1], 3); /* send DTMF digit */
-		/* XXX: duration comes from asterisk in 1.4 */
-	        write_capi_word(&buf[3], CAPI_DTMF_DURATION);
-	        write_capi_word(&buf[5], CAPI_DTMF_DURATION);
-	        buf[7] = 1;
-		buf[8] = digit;
-		FACILITY_REQ_FACILITYREQUESTPARAMETER(&CMSG) = (_cstruct)buf;
-        
-		if ((ret = _capi_put_cmsg(&CMSG)) == 0) {
+		if (ret == 0) {
 			cc_verbose(3, 0, VERBOSE_PREFIX_4 "%s: sent dtmf '%c'\n",
 				i->vname, digit);
 		}

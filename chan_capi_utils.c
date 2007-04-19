@@ -7,6 +7,8 @@
  *
  * Armin Schindler <armin@melware.de>
  * 
+ * capi_sendf() by Eicon Networks / Dialogic
+ *
  * This program is free software and may be modified and 
  * distributed under the terms of the GNU Public License.
  */
@@ -74,6 +76,28 @@ _cword get_capi_MessageNumber(void)
 }
 
 /*
+ *
+ */
+static void log_capi_message(MESSAGE_EXCHANGE_ERROR err, _cmsg *CMSG)
+{
+	unsigned short wCmd;
+
+	if (err) {
+		cc_log(LOG_ERROR, "CAPI error sending %s (NCCI=%#x) (error=%#x %s)\n",
+			capi_cmsg2str(CMSG), (unsigned int)HEADER_CID(CMSG),
+			err, capi_info_string((unsigned int)err));
+	} else {
+		wCmd = HEADER_CMD(CMSG);
+		if ((wCmd == CAPI_P_REQ(DATA_B3)) ||
+		    (wCmd == CAPI_P_RESP(DATA_B3))) {
+			cc_verbose(7, 1, "%s\n", capi_cmsg2str(CMSG));
+		} else {
+			cc_verbose(4, 1, "%s\n", capi_cmsg2str(CMSG));
+		}
+	}
+}
+
+/*
  * write a capi message to capi device
  */
 MESSAGE_EXCHANGE_ERROR _capi_put_cmsg(_cmsg *CMSG)
@@ -84,27 +108,42 @@ MESSAGE_EXCHANGE_ERROR _capi_put_cmsg(_cmsg *CMSG)
 		cc_log(LOG_WARNING, "Unable to lock capi put!\n");
 		return -1;
 	} 
-	
-	error = capi20_put_cmsg(CMSG);
+
+	error = capi_put_cmsg(CMSG);
 	
 	if (cc_mutex_unlock(&capi_put_lock)) {
 		cc_log(LOG_WARNING, "Unable to unlock capi put!\n");
 		return -1;
 	}
 
-	if (error) {
-		cc_log(LOG_ERROR, "CAPI error sending %s (NCCI=%#x) (error=%#x %s)\n",
-			capi_cmsg2str(CMSG), (unsigned int)HEADER_CID(CMSG),
-			error, capi_info_string((unsigned int)error));
-	} else {
-		unsigned short wCmd = HEADER_CMD(CMSG);
-		if ((wCmd == CAPI_P_REQ(DATA_B3)) ||
-		    (wCmd == CAPI_P_RESP(DATA_B3))) {
-			cc_verbose(7, 1, "%s\n", capi_cmsg2str(CMSG));
-		} else {
-			cc_verbose(4, 1, "%s\n", capi_cmsg2str(CMSG));
-		}
+	log_capi_message(error, CMSG);
+
+	return error;
+}
+
+/*
+ * write a capi message to capi device
+ */
+MESSAGE_EXCHANGE_ERROR _capi_put_msg(unsigned char *msg)
+{
+	MESSAGE_EXCHANGE_ERROR error;
+	_cmsg CMSG;
+	
+	if (cc_mutex_lock(&capi_put_lock)) {
+		cc_log(LOG_WARNING, "Unable to lock capi put!\n");
+		return -1;
+	} 
+
+	capi_message2cmsg(&CMSG, msg);
+
+	error = capi20_put_message(CMSG.ApplId, msg);
+	
+	if (cc_mutex_unlock(&capi_put_lock)) {
+		cc_log(LOG_WARNING, "Unable to unlock capi put!\n");
+		return -1;
 	}
+
+	log_capi_message(error, &CMSG);
 
 	return error;
 }
@@ -148,6 +187,109 @@ MESSAGE_EXCHANGE_ERROR capidev_check_wait_get_cmsg(_cmsg *CMSG)
 	}
     
 	return Info;
+}
+
+/*
+ * Eicon's capi_sendf() function to create capi messages easily
+ * and send this message.
+ * Copyright by Eicon Networks / Dialogic
+ */
+MESSAGE_EXCHANGE_ERROR capi_sendf(
+	_cword command, _cdword Id, _cword Number, char * format, ...)
+{
+	MESSAGE_EXCHANGE_ERROR ret;
+	int i, j;
+	unsigned int d;
+	unsigned char *p, *p_length;
+	unsigned char *string;
+	va_list ap;
+	capi_prestruct_t *s;
+	unsigned char msg[2048];
+
+	write_capi_word(&msg[2], capi_ApplID);
+	write_capi_word(&msg[4], command);
+	write_capi_word(&msg[6], Number);
+	write_capi_dword(&msg[8], Id);
+
+	p = &msg[12];
+	p_length = 0;
+
+	va_start(ap, format);
+	for (i = 0; format[i]; i++) {
+		if (((p - (&msg[0])) + 12) >= sizeof(msg)) {
+			cc_log(LOG_ERROR, "capi_sendf: message too big (%d)\n",
+				(p - (&msg[0])));
+			return 0x1004;
+		}
+		switch(format[i]) {
+		case 'b': /* byte */
+			d = (unsigned char)va_arg(ap, unsigned int);
+			*(p++) = (unsigned char) d;
+			break;
+		case 'w': /* word (2 bytes) */
+			d = (unsigned short)va_arg(ap, unsigned int);
+			*(p++) = (unsigned char) d;
+			*(p++) = (unsigned char)(d >> 8);
+			break;
+		case 'd': /* double word (4 bytes) */
+			d = va_arg(ap, unsigned int);
+			*(p++) = (unsigned char) d;
+			*(p++) = (unsigned char)(d >> 8);
+			*(p++) = (unsigned char)(d >> 16);
+			*(p++) = (unsigned char)(d >> 24);
+			break;
+		case 's': /* struct, length is the first byte */
+			string = va_arg(ap, unsigned char *);
+			for (j = 0; j <= string[0]; j++)
+				*(p++) = string[j];
+			break;
+		case 'a': /* ascii string, NULL terminated string */
+			string = va_arg(ap, unsigned char *);
+			for (j = 0; string[j] != '\0'; j++)
+				*(++p) = string[j];
+			*((p++)-j) = (unsigned char) j;
+			break;
+		case 'c': /* predefined capi_prestruct_t */
+			s = va_arg(ap, capi_prestruct_t *);
+			if (s->wLen < 0xff) {
+				*(p++) = (unsigned char)(s->wLen);
+			} else	{
+				*(p++) = 0xff;
+				*(p++) = (unsigned char)(s->wLen);
+				*(p++) = (unsigned char)(s->wLen >> 8);
+			}
+			for (j = 0; j < s->wLen; j++)
+				*(p++) = s->info[j];
+			break;
+		case '(': /* begin of a structure */
+			*p = (p_length) ? p - p_length : 0;
+			p_length = p++;
+			break;
+		case ')': /* end of structure */
+			if (p_length) {
+				j = *p_length;
+				*p_length = (unsigned char)((p - p_length) - 1);
+				p_length = (j != 0) ? p_length - j : 0;
+			} else {
+				cc_log(LOG_ERROR, "capi_sendf: inconsistent format \"%s\"\n",
+					format);
+			}
+			break;
+		default:
+			cc_log(LOG_ERROR, "capi_sendf: unknown format \"%s\"\n",
+				format);
+		}
+	}
+	va_end(ap);
+
+	if (p_length) {
+		cc_log(LOG_ERROR, "capi_sendf: inconsistent format \"%s\"\n", format);
+	}
+	write_capi_word(&msg[0], (unsigned short)(p - (&msg[0])));
+
+	ret = _capi_put_msg(&msg[0]);
+
+	return (ret);
 }
 
 /*

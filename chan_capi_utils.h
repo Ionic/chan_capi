@@ -35,4 +35,17 @@ extern struct ast_channel *cc_get_peer_link_id(const char *p);
 #define capi_number(data, strip) \
   capi_number_func(data, strip, alloca(AST_MAX_EXTENSION))
 
+typedef struct capi_prestruct_s {
+	unsigned short wLen;
+	unsigned char *info;
+} capi_prestruct_t;
+
+/*
+ * Eicon's capi_sendf() function to create capi messages easily
+ * and send this message.
+ * Copyright by Eicon Networks / Dialogic
+ */
+extern MESSAGE_EXCHANGE_ERROR capi_sendf(
+	    _cword command, _cdword Id, _cword Number, char * format, ...);
+
 #endif
