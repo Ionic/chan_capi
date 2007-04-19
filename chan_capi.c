@@ -2731,10 +2731,6 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 	case 0x001c:	/*  Facility Q.932 */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element FACILITY\n",
 			i->vname);
-		if (i->qsigfeat) { /* chances are high, that we got an QSIG Facility */
-			unsigned int qsiginvoke;
-  			qsiginvoke = cc_qsig_handle_capi_facilityind( (unsigned char*) INFO_IND_INFOELEMENT(CMSG), i);
-		}
 		break;
 	case 0x001e:	/* Progress Indicator */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element PI %02x %02x\n",
@@ -2842,9 +2838,6 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 		if (i->owner)
 			ast_setstate(i->owner, AST_STATE_RINGING);
 		
-		if (i->qsigfeat) {
-			/* TODO: some checks, if there's any work here */
-		}
 		break;
 	case 0x8002:	/* CALL PROCEEDING */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element CALL PROCEEDING\n",
@@ -2936,6 +2929,10 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 			i->vname, INFO_IND_INFONUMBER(CMSG), PLCI);
 		break;
 	}
+	
+	/* QSIG worker - is only executed, if QSIG is enabled */
+	pbx_capi_qsig_handle_info_indication(CMSG, PLCI, NCCI, i);
+	
 	return;
 }
 

@@ -183,8 +183,9 @@ int cc_qsig_build_facility_struct(unsigned char * buf, unsigned int *idx, int ap
 /*
  * Add invoke to buf
  */
-int cc_qsig_add_invoke(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke)
+int cc_qsig_add_invoke(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke, struct capi_pvt *i)
 {
+	unsigned char oid1[] = {0x2b,0x0c,0x09,0x00};
 	int myidx = *idx;
 	int invlenidx;
 	int result;
@@ -199,6 +200,26 @@ int cc_qsig_add_invoke(unsigned char * buf, unsigned int *idx, struct cc_qsig_in
 		return -1;
 	}
 	
+	if (invoke->descr_type == -1) {
+		switch (i->qsigfeat) {
+			case QSIG_TYPE_ALCATEL_ECMA:
+				invoke->descr_type = ASN1_OBJECTIDENTIFIER;
+				/* Set ECMA/ETSI OID */
+				oid1[3] = (unsigned char)invoke->type;
+				invoke->oid_len = sizeof(oid1);
+				memcpy(invoke->oid_bin, oid1, sizeof(oid1));
+				break;
+			case QSIG_TYPE_HICOM_ECMAV2:
+				invoke->descr_type = ASN1_INTEGER;
+				/* Leave type as it is */
+				break;
+			default: 
+				/* INVOKE is not encoded */
+				break;
+		}
+	}
+		
+		
 	switch (invoke->descr_type) {
 		case ASN1_INTEGER:
 			result = cc_qsig_asn1_add_integer(buf, &myidx, invoke->type);
@@ -769,7 +790,7 @@ unsigned int cc_qsig_add_call_setup_data(unsigned char *data, struct capi_pvt *i
 /*mg:remember me	switch (i->doqsig) {*/
 	cc_qsig_build_facility_struct(data, &dataidx, APDUINTERPRETATION_IGNORE, &nfe);
 	cc_qsig_encode_ecma_name_invoke(data, &dataidx, &invoke, i, 0);
-	cc_qsig_add_invoke(data, &dataidx, &invoke);
+	cc_qsig_add_invoke(data, &dataidx, &invoke, i);
 	
 	if (add_externalinfo) {
 		/* add PROGRESS INDICATOR for external calls*/
@@ -796,12 +817,12 @@ unsigned int cc_qsig_do_facility(unsigned char *fac, struct  ast_channel *c, cha
 	switch (factype) {
 		case 12: /* ECMA-178 callTransfer */
 			cc_qsig_encode_ecma_calltransfer(fac, &facidx, &invoke, i, param, info1);
-			cc_qsig_add_invoke(fac, &facidx, &invoke);
+			cc_qsig_add_invoke(fac, &facidx, &invoke, i);
 			
 			break;
 		case 99: /* ECMA-300 simpleCallTransfer */
 			cc_qsig_encode_ecma_sscalltransfer(fac, &facidx, &invoke, i, param);
-			cc_qsig_add_invoke(fac, &facidx, &invoke);
+			cc_qsig_add_invoke(fac, &facidx, &invoke, i);
 			break;
 		default:
 			break;
@@ -936,3 +957,124 @@ void interface_cleanup_qsig(struct capi_pvt *i)
 	}
 }
 
+/*
+ * find the interface (pvt) the PLCI belongs to
+ */
+static struct capi_pvt *find_interface_by_plci(unsigned int plci)
+{
+	struct capi_pvt *i;
+
+	if (plci == 0)
+		return NULL;
+
+	for (i = iflist; i; i = i->next) {
+		if (i->PLCI == plci)
+			break;
+	}
+
+	return i;
+}
+
+
+/*
+ *  CAPI INFO_IND (QSIG part)
+ */
+void pbx_capi_qsig_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
+{
+	if (!i->qsigfeat)	/* Run only, if QSIG enabled */
+		return;
+	
+	switch(INFO_IND_INFONUMBER(CMSG)) {
+		case 0x0008:	/* Cause */
+			break;
+		case 0x0014:	/* Call State */
+			break;
+		case 0x0018:	/* Channel Identification */
+			break;
+		case 0x001c:	/*  Facility Q.932 */
+			{
+				unsigned int qsiginvoke;
+				qsiginvoke = cc_qsig_handle_capi_facilityind( (unsigned char*) INFO_IND_INFOELEMENT(CMSG), i);
+			}
+			break;
+		case 0x001e:	/* Progress Indicator */
+			break;
+		case 0x0027:	/*  Notification Indicator */
+			break;
+		case 0x0028:	/* DSP */
+			break;
+		case 0x0029:	/* Date/Time */
+			break;
+		case 0x0070:	/* Called Party Number */
+			break;
+		case 0x0074:	/* Redirecting Number */
+			break;
+		case 0x0076:	/* Redirection Number */
+			break;
+		case 0x00a1:	/* Sending Complete */
+			break;
+		case 0x4000:	/* CHARGE in UNITS */
+			break;
+		case 0x4001:	/* CHARGE in CURRENCY */
+			break;
+		case 0x8001:	/* ALERTING */
+			/* TODO: some checks, if there's any work here */
+			if (i->qsig_data.calltransfer_onring) {
+				unsigned char fac[CAPI_MAX_FACILITYDATAARRAY_SIZE];
+				struct capi_pvt *ii = find_interface_by_plci(i->qsig_data.partner_plci);
+
+				_cmsg		CMSG3;
+
+				i->qsig_data.calltransfer_onring = 0;
+
+				if (ii) {
+					cc_qsig_do_facility(fac, ii->owner, NULL, 12, 0);
+
+					INFO_REQ_HEADER(&CMSG3, capi_ApplID, get_capi_MessageNumber(),0);
+					INFO_REQ_PLCI(&CMSG3) = ii->PLCI;
+					INFO_REQ_FACILITYDATAARRAY(&CMSG3) = fac;
+					_capi_put_cmsg(&CMSG3);
+
+					cc_qsig_do_facility(fac, i->owner, NULL, 12, 1);
+		
+					INFO_REQ_HEADER(&CMSG3, capi_ApplID, get_capi_MessageNumber(),0);
+					INFO_REQ_PLCI(&CMSG3) = i->PLCI;
+					INFO_REQ_FACILITYDATAARRAY(&CMSG3) = fac;
+					_capi_put_cmsg(&CMSG3);
+				} else {
+					cc_log(LOG_WARNING, "Call Transfer failed - second channel not found (PLCI %#x)!\n", i->qsig_data.partner_plci);
+				}
+			}
+			break;
+		case 0x8002:	/* CALL PROCEEDING */
+			break;
+		case 0x8003:	/* PROGRESS */
+			break;
+		case 0x8005:	/* SETUP */
+			break;
+		case 0x8007:	/* CONNECT */
+			break;
+		case 0x800d:	/* SETUP ACK */
+			break;
+		case 0x800f:	/* CONNECT ACK */
+			break;
+		case 0x8045:	/* DISCONNECT */
+			break;
+		case 0x804d:	/* RELEASE */
+			break;
+		case 0x805a:	/* RELEASE COMPLETE */
+			break;
+		case 0x8062:	/* FACILITY */
+			break;
+		case 0x806e:	/* NOTIFY */
+			break;
+		case 0x807b:	/* INFORMATION */
+			break;
+		case 0x807d:	/* STATUS */
+			break;
+		default:
+			break;
+	}
+	return;
+
+}

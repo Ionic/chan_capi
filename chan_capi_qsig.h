@@ -140,7 +140,7 @@ struct cc_qsig_nfe {
  */
 
 extern int cc_qsig_build_facility_struct(unsigned char * buf, unsigned int *idx, int apdu_interpr, struct cc_qsig_nfe *nfe);
-extern int cc_qsig_add_invoke(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke);
+extern int cc_qsig_add_invoke(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke, struct capi_pvt *i);
 
 extern unsigned int cc_qsig_asn1_get_string(unsigned char *buf, int buflen, unsigned char *data);
 extern unsigned int cc_qsig_asn1_get_integer(unsigned char *data, int *idx);
@@ -169,6 +169,7 @@ extern int pbx_capi_qsig_ct(struct ast_channel *c, char *param);
 extern int pbx_capi_qsig_callmark(struct ast_channel *c, char *param);
 
 extern void interface_cleanup_qsig(struct capi_pvt *i);
+extern void pbx_capi_qsig_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i);
 
 /*
  *** ECMA QSIG Functions 

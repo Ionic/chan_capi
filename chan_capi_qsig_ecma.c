@@ -80,8 +80,6 @@ void cc_qsig_op_ecma_isdn_namepres(struct cc_qsig_invokedata *invoke, struct cap
  */
 int cc_qsig_encode_ecma_name_invoke(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke, struct capi_pvt *i, int nametype)
 {
-	const unsigned char oid[] = {0x2b,0x0c,0x09,0x00};	/* 1.3.12.9.0 */
-	int oid_len = sizeof(oid);
 	unsigned char namebuf[51];
 	unsigned char data[255];
 	int dataidx = 0;
@@ -106,13 +104,12 @@ int cc_qsig_encode_ecma_name_invoke(unsigned char * buf, unsigned int *idx, stru
 	}
 	
 	invoke->id = 1;
-	invoke->descr_type = ASN1_OBJECTIDENTIFIER;
-	invoke->oid_len = oid_len;
-	memcpy(invoke->oid_bin, oid, oid_len);
+  	invoke->descr_type = -1;	/* Let others do the work: qsig_add_invoke */
+	invoke->type = 0;	/* Invoke Operation Number, if OID it's the last byte*/
 	
 	/* HACK: */
 	if (nametype)
-		invoke->oid_bin[3] = 2;
+		invoke->type = 2;
 	
 	if (namelen>0) {
 		data[dataidx++] = 0x80;	/* We send only simple Name, Namepresentation allowed */
@@ -127,8 +124,7 @@ int cc_qsig_encode_ecma_name_invoke(unsigned char * buf, unsigned int *idx, stru
 	invoke->datalen = dataidx;
 	memcpy(invoke->data, data, dataidx);
 	
-/*	qsig_add_invoke(buf, idx, invoke); */
-			
+		
 	return 0;
 }
 
@@ -270,7 +266,6 @@ void cc_qsig_op_ecma_isdn_leginfo2(struct cc_qsig_invokedata *invoke, struct cap
  */
 void cc_qsig_encode_ecma_calltransfer(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke, struct capi_pvt *i, char *param, int info)
 {
-	const unsigned char oid[] = {0x2b,0x0c,0x09,0xc};	/* 1.3.12.9.12 */
 	char *cid, *ccanswer;
 	int icanswer = 0;
 	int cidlen = 0;
@@ -278,22 +273,30 @@ void cc_qsig_encode_ecma_calltransfer(unsigned char * buf, unsigned int *idx, st
 	char c[255];
 	int ix = 0;
 
-	if (info) {
-		cid = strsep(&param, "|");
-		cidlen = strlen(cid);
-		if (cidlen > 20)	/* HACK: stop action here, maybe we have invalid data */
-			cidlen = 20;
+	if (param) { /* got Call Transfer Parameters */
+		if (info) {
+			cid = strsep(&param, "|");
+			cidlen = strlen(cid);
+			if (cidlen > 20)	/* HACK: stop action here, maybe we have invalid data */
+				cidlen = 20;
+		} else {
+			char *tmp = strsep(&param, "|");
+			tmp = NULL;
+			cid = strsep(&param, "|");
+			cidlen = strlen(cid);
+			if (cidlen > 20)	/* HACK: stop action here, maybe we have invalid data */
+				cidlen = 20;
+			
+			ccanswer = strsep(&param, "|");
+			if (ccanswer[0])
+				icanswer = ccanswer[0] - 0x30;
+		}
 	} else {
-		char *tmp = strsep(&param, "|");
-		tmp = NULL;
-		cid = strsep(&param, "|");
+		cid = strdup(i->owner->cid.cid_num);
 		cidlen = strlen(cid);
-		if (cidlen > 20)	/* HACK: stop action here, maybe we have invalid data */
-			cidlen = 20;
 		
-		ccanswer = strsep(&param, "|");
-		if (ccanswer[0])
-			icanswer = ccanswer[0] - 0x30;
+		if (!info)
+			icanswer = i->qsig_data.calltransfer_onring % 1;
 	}
 	
 	seqlen += cidlen;
@@ -324,15 +327,18 @@ void cc_qsig_encode_ecma_calltransfer(unsigned char * buf, unsigned int *idx, st
 	/* there are optional data possible here */
 	
 	invoke->id = 12;
-	invoke->descr_type = ASN1_OBJECTIDENTIFIER;
-	invoke->oid_len = sizeof(oid);
-	memcpy(invoke->oid_bin, oid, sizeof(oid));
+	invoke->descr_type = -1;
+	invoke->type = 12;	/* Invoke Operation Code */
 	
 	invoke->datalen = ix;
 	memcpy(invoke->data, c, ix);
 	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * QSIG_CT: %i->%s\n", info, cid);
 	
+	if (cid)
+		free(cid);
+	
 }
+
 
 /* 
  * Encode Operation: 1.3.12.9.99		ECMA/ISDN/SINGLESTEPCALLTRANSFER
@@ -352,7 +358,6 @@ void cc_qsig_encode_ecma_calltransfer(unsigned char * buf, unsigned int *idx, st
  */
 void cc_qsig_encode_ecma_sscalltransfer(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke, struct capi_pvt *i, char *param)
 {
-	const unsigned char oid[] = {0x2b,0x0c,0x09,0x63};	/* 1.3.12.9.99 */
 	char *cidsrc, *ciddst;
 	int srclen, dstlen;
 	int seqlen = 12;
@@ -398,10 +403,9 @@ void cc_qsig_encode_ecma_sscalltransfer(unsigned char * buf, unsigned int *idx, 
 	/* there are optional data possible here */
 	
 	invoke->id = 99;
-	invoke->descr_type = ASN1_OBJECTIDENTIFIER;
-	invoke->oid_len = sizeof(oid);
-	memcpy(invoke->oid_bin, oid, sizeof(oid));
-	
+	invoke->descr_type = -1;
+	invoke->type = 99;
+
 	invoke->datalen = ix;
 	memcpy(invoke->data, c, ix);
 	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * QSIG_SSCT: %s->%s\n", cidsrc, ciddst);
@@ -498,7 +502,7 @@ void cc_qsig_op_ecma_isdn_prpropose(struct cc_qsig_invokedata *invoke, struct ca
 void cc_qsig_encode_ecma_prpropose(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke, struct capi_pvt *i, char *param)
 {
 	/* TODO: write code */
-	const unsigned char oid[] = {0x2b,0x0c,0x09,0x13};	/* 1.3.12.9.99 */
+// 	int invokeop = 19;
 	
 	return;
 }
