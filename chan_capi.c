@@ -4001,16 +4001,21 @@ static int pbx_capi_retrieve(struct ast_channel *c, char *param)
 		return -1;
 	}
 
-	capi_sendf(i, 0, CAPI_FACILITY_REQ, plci, get_capi_MessageNumber(),
+	cc_mutex_lock(&i->lock);
+
+	capi_sendf(i, 1, CAPI_FACILITY_REQ, plci, get_capi_MessageNumber(),
 		"w(w())",
 		FACILITYSELECTOR_SUPPLEMENTARY,
 		0x0003  /* retrieve */
 	);
+	
+	i->isdnstate &= ~CAPI_ISDN_STATE_HOLD;
+
+	cc_mutex_unlock(&i->lock);
 
 	cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: sent RETRIEVE for PLCI=%#x\n",
 		i->vname, plci);
 
-	i->isdnstate &= ~CAPI_ISDN_STATE_HOLD;
 	pbx_builtin_setvar_helper(i->owner, "_CALLERHOLDID", NULL);
 
 	return 0;
@@ -4124,17 +4129,21 @@ static int pbx_capi_hold(struct ast_channel *c, char *param)
 		return 0;
 	}
 
-	capi_sendf(i, 0, CAPI_FACILITY_REQ, i->PLCI, get_capi_MessageNumber(),
+	cc_mutex_lock(&i->lock);
+
+	capi_sendf(i, 1, CAPI_FACILITY_REQ, i->PLCI, get_capi_MessageNumber(),
 		"w(w())",
 		FACILITYSELECTOR_SUPPLEMENTARY,
 		0x0002  /* hold */
 	);
 
-	cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: sent HOLD for PLCI=%#x\n",
-		i->vname, i->PLCI);
-
 	i->onholdPLCI = i->PLCI;
 	i->isdnstate |= CAPI_ISDN_STATE_HOLD;
+
+	cc_mutex_unlock(&i->lock);
+
+	cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: sent HOLD for PLCI=%#x\n",
+		i->vname, i->PLCI);
 
 	snprintf(buffer, sizeof(buffer) - 1, "%d", i->PLCI);
 	if (param) {
