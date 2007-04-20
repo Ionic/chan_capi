@@ -112,6 +112,33 @@ struct capi_pvt *find_interface_by_msgnum(unsigned short msgnum)
 }
 
 /*
+ * wait for a specific message
+ */
+MESSAGE_EXCHANGE_ERROR capi_wait_conf(struct capi_pvt *i, unsigned short wCmd)
+{
+	MESSAGE_EXCHANGE_ERROR error = 0;
+	struct timespec abstime;
+	unsigned char command, subcommand;
+
+	subcommand = wCmd & 0xff;
+	command = (wCmd & 0xff00) >> 8;
+	i->waitevent = (unsigned int)wCmd;
+	abstime.tv_sec = time(NULL) + 2;
+	abstime.tv_nsec = 0;
+	cc_verbose(4, 1, "%s: wait for %s (0x%x)\n",
+		i->vname, capi_cmd2str(command, subcommand), i->waitevent);
+	if (ast_cond_timedwait(&i->event_trigger, &i->lock, &abstime) != 0) {
+		error = -1;
+		cc_log(LOG_WARNING, "%s: timed out waiting for %s\n",
+			i->vname, capi_cmd2str(command, subcommand));
+	} else {
+		cc_verbose(4, 1, "%s: cond signal received for %s\n",
+			i->vname, capi_cmd2str(command, subcommand));
+	}
+	return error;
+}
+
+/*
  * log verbose a capi message
  */
 static void log_capi_message(MESSAGE_EXCHANGE_ERROR err, _cmsg *CMSG)
@@ -226,11 +253,29 @@ MESSAGE_EXCHANGE_ERROR capidev_check_wait_get_cmsg(_cmsg *CMSG)
 }
 
 /*
+ * write a capi cmessage and wait for CONF
+ * i->lock must be held
+ */
+MESSAGE_EXCHANGE_ERROR _capi_put_cmsg_wait_conf(struct capi_pvt *i, _cmsg *CMSG)
+{
+	MESSAGE_EXCHANGE_ERROR error;
+
+	error = _capi_put_cmsg(CMSG);
+
+	if (!(error)) {
+		unsigned short wCmd = CAPICMD(CMSG->Command, CAPI_CONF);
+		error = capi_wait_conf(i, wCmd);
+	}
+	return error;
+}
+
+/*
  * Eicon's capi_sendf() function to create capi messages easily
  * and send this message.
  * Copyright by Eicon Networks / Dialogic
  */
 MESSAGE_EXCHANGE_ERROR capi_sendf(
+	struct capi_pvt *capii, int waitconf,
 	_cword command, _cdword Id, _cword Number, char * format, ...)
 {
 	MESSAGE_EXCHANGE_ERROR ret;
@@ -324,6 +369,9 @@ MESSAGE_EXCHANGE_ERROR capi_sendf(
 	write_capi_word(&msg[0], (unsigned short)(p - (&msg[0])));
 
 	ret = _capi_put_msg(&msg[0]);
+	if ((!(ret)) && (waitconf)) {
+		ret = capi_wait_conf(capii, (command & 0xff00) | CAPI_CONF);
+	}
 
 	return (ret);
 }

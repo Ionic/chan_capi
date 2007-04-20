@@ -24,8 +24,10 @@ extern void cc_verbose(int o_v, int c_d, char *text, ...);
 extern _cword get_capi_MessageNumber(void);
 extern struct capi_pvt *find_interface_by_msgnum(unsigned short msgnum);
 extern struct capi_pvt *find_interface_by_plci(unsigned int plci);
+extern MESSAGE_EXCHANGE_ERROR capi_wait_conf(struct capi_pvt *i, unsigned short wCmd);
 extern MESSAGE_EXCHANGE_ERROR _capi_put_cmsg(_cmsg *CMSG);
 extern MESSAGE_EXCHANGE_ERROR capidev_check_wait_get_cmsg(_cmsg *CMSG);
+extern MESSAGE_EXCHANGE_ERROR _capi_put_cmsg_wait_conf(struct capi_pvt *i, _cmsg *CMSG);
 extern char *capi_info_string(unsigned int info);
 extern void show_capi_info(struct capi_pvt *i, _cword info);
 extern unsigned ListenOnController(unsigned long CIPmask, unsigned controller);
@@ -48,6 +50,7 @@ typedef struct capi_prestruct_s {
  * Copyright by Eicon Networks / Dialogic
  */
 extern MESSAGE_EXCHANGE_ERROR capi_sendf(
-	    _cword command, _cdword Id, _cword Number, char * format, ...);
+	struct capi_pvt *capii, int waitconf,
+    _cword command, _cdword Id, _cword Number, char * format, ...);
 
 #endif
