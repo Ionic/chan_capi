@@ -3553,10 +3553,15 @@ static void capidev_handle_facility_confirmation(_cmsg *CMSG, unsigned int PLCI,
 {
 	int selector;
 
+	selector = FACILITY_CONF_FACILITYSELECTOR(CMSG);
+
+	if (selector == FACILITYSELECTOR_SUPPLEMENTARY) {
+		handle_facility_confirmation_supplementary(CMSG, PLCI, NCCI, i);
+		return;
+	}
+	
 	if (i == NULL)
 		return;
-
-	selector = FACILITY_CONF_FACILITYSELECTOR(CMSG);
 
 	if (selector == FACILITYSELECTOR_DTMF) {
 		cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: DTMF conf(PLCI=%#x)\n",
@@ -3574,17 +3579,6 @@ static void capidev_handle_facility_confirmation(_cmsg *CMSG, unsigned int PLCI,
 				i->vname, PLCI);
 		} else {
 			cc_verbose(3, 0, VERBOSE_PREFIX_3 "%s: Echo canceller successfully set up (PLCI=%#x)\n",
-				i->vname, PLCI);
-		}
-		return;
-	}
-	if (selector == FACILITYSELECTOR_SUPPLEMENTARY) {
-		/* HOLD */
-		if ((FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[1] == 0x2) &&
-		    (FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[2] == 0x0) &&
-		    ((FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[4] != 0x0) ||
-		     (FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[5] != 0x0))) {
-			cc_verbose(2, 0, VERBOSE_PREFIX_3 "%s: Call on hold (PLCI=%#x)\n",
 				i->vname, PLCI);
 		}
 		return;
