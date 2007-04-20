@@ -558,6 +558,7 @@ unsigned int cc_qsig_handle_invokeoperation(int invokeident, struct cc_qsig_invo
  */
 unsigned int cc_qsig_handle_capiind(unsigned char *data, struct capi_pvt *i)
 {
+	int faclen0 = 0;
 	int faclen = 0;
 	int facidx = 2;
 	int action_unkn_apdu;		/* What to do with unknown Invoke-APDUs (0=Ignore, 1=clear call, 2=reject APDU) */
@@ -568,51 +569,64 @@ unsigned int cc_qsig_handle_capiind(unsigned char *data, struct capi_pvt *i)
 	int invoketmp1;
 	
 	
-	if (data) {
-		faclen=data[facidx-2];
-/*					cc_verbose(1, 1, VERBOSE_PREFIX_3 "CONNECT_IND (Got Facility IE, Length=%#x)\n", faclen); */
-		facidx++;
-		while (facidx < faclen) {
-			cc_verbose(1, 1, VERBOSE_PREFIX_3 "Checking Facility at index %i\n", facidx);
-			switch (i->qsigfeat) {
-				case QSIG_TYPE_ALCATEL_ECMA:
-					if (cc_qsig_check_facility(data, &facidx, &action_unkn_apdu, Q932_PROTOCOL_ROSE)) {
-	/*						cc_verbose(1, 1, VERBOSE_PREFIX_3 "CONNECT_IND ROSE Supplementary Services (APDU Interpretation:  %i)\n", action_unkn_apdu); */
-						while ((facidx-1)<faclen) {
-							cc_verbose(1, 1, VERBOSE_PREFIX_3 "Checking INVOKE at index %i\n", facidx);
-							invoke_len=cc_qsig_check_invoke(data, &facidx);
-							if (invoke_len>0) {
-								if (cc_qsig_get_invokeid(data, &facidx, &invoke)==0) {
-									invoketmp1=cc_qsig_fill_invokestruct(data, &facidx, &invoke, action_unkn_apdu);
-									invoke_op=cc_qsig_identifyinvoke(&invoke, i->qsigfeat);
-									cc_qsig_handle_invokeoperation(invoke_op, &invoke, i);
-								}
-							} else {
-									/* Not an Invoke */
+	if (!data) {
+		return 0;
+	}
+
+	faclen0 = data[facidx-2];	/* Length of facility array - there may be more facilities encoded in this struct */
+	faclen = data[facidx++];
+	faclen += facidx;
+// 	facidx++;
+	while (facidx < faclen0) {
+		cc_verbose(1, 1, VERBOSE_PREFIX_3 "Checking Facility at index %i\n", facidx);
+		switch (i->qsigfeat) {
+			case QSIG_TYPE_ALCATEL_ECMA:
+				if (cc_qsig_check_facility(data, &facidx, &action_unkn_apdu, Q932_PROTOCOL_ROSE)) {
+					while (facidx < faclen) {
+						cc_verbose(1, 1, VERBOSE_PREFIX_3 "Checking INVOKE at index %i\n", facidx);
+						invoke_len=cc_qsig_check_invoke(data, &facidx);
+						if (invoke_len>0) {
+							if (cc_qsig_get_invokeid(data, &facidx, &invoke)==0) {
+								invoketmp1=cc_qsig_fill_invokestruct(data, &facidx, &invoke, action_unkn_apdu);
+								invoke_op=cc_qsig_identifyinvoke(&invoke, i->qsigfeat);
+								cc_qsig_handle_invokeoperation(invoke_op, &invoke, i);
 							}
-						}
-					}
-					break;
-				case QSIG_TYPE_HICOM_ECMAV2:
-					if (cc_qsig_check_facility(data, &facidx, &action_unkn_apdu, Q932_PROTOCOL_EXTENSIONS)) {
-						/*						cc_verbose(1, 1, VERBOSE_PREFIX_3 "CONNECT_IND ROSE Supplementary Services (APDU Interpretation:  %i)\n", action_unkn_apdu); */
-						while ((facidx-1)<faclen) {
-							invoke_len=cc_qsig_check_invoke(data, &facidx);
-							if (invoke_len>0) {
-								if (cc_qsig_get_invokeid(data, &facidx, &invoke)==0) {
-									invoketmp1=cc_qsig_fill_invokestruct(data, &facidx, &invoke, action_unkn_apdu);
-									invoke_op=cc_qsig_identifyinvoke(&invoke, i->qsigfeat);
-									cc_qsig_handle_invokeoperation(invoke_op, &invoke, i);
-								}
-							} else {
+						} else {
 								/* Not an Invoke */
-							}
 						}
 					}
-					break;
-				default:
-					cc_verbose(1, 1, VERBOSE_PREFIX_3 "Unknown QSIG protocol configured (%i)\n", i->qsigfeat);
-					break;
+				}
+				break;
+			case QSIG_TYPE_HICOM_ECMAV2:
+				if (cc_qsig_check_facility(data, &facidx, &action_unkn_apdu, Q932_PROTOCOL_EXTENSIONS)) {
+					while (facidx < faclen) {
+						invoke_len=cc_qsig_check_invoke(data, &facidx);
+						if (invoke_len>0) {
+							if (cc_qsig_get_invokeid(data, &facidx, &invoke)==0) {
+								invoketmp1=cc_qsig_fill_invokestruct(data, &facidx, &invoke, action_unkn_apdu);
+								invoke_op=cc_qsig_identifyinvoke(&invoke, i->qsigfeat);
+								cc_qsig_handle_invokeoperation(invoke_op, &invoke, i);
+							}
+						} else {
+							/* Not an Invoke */
+						}
+					}
+				}
+				break;
+			default:
+				cc_verbose(1, 1, VERBOSE_PREFIX_3 "Unknown QSIG protocol configured (%i)\n", i->qsigfeat);
+				break;
+		}
+		
+		if (facidx < faclen0) {	/* there may follow a new facility */
+			if (data[facidx] == 0x1c) {
+				cc_verbose(1, 1, VERBOSE_PREFIX_3 "Found another facility at index %i\n", facidx);
+				facidx++;
+				faclen = data[facidx++];
+				faclen += facidx;
+			} else {
+				cc_verbose(1, 1, VERBOSE_PREFIX_3 "More data found in facility at index %i, but this is not an facility (%#x)\n", facidx, data[facidx]);
+				facidx++; /* don't start an endlessloop */
 			}
 		}
 	}
