@@ -142,6 +142,8 @@ static void del_ccbsnr_ref(unsigned int plci, _cword ref)
 			ccbsnr_list[a].id = 0;
 			ccbsnr_list[a].state = 0;
 			ccbsnr_list[a].handle = 0;
+			ccbsnr_list[a].rbref = 0;
+			ccbsnr_list[a].plci = 0;
 			ccbsnr_list[a].type = CCBSNR_TYPE_NULL;
 			cc_verbose(1, 1, VERBOSE_PREFIX_3 "CAPI: PLCI=%#x CCBS/CCNR deactivated "
 				"ref=0x%04x\n",	plci, ref);
@@ -167,6 +169,8 @@ static void del_ccbsnr_id(unsigned int plci, _cword id)
 			    (ccbsnr_list[a].rbref == 0)) {
 				ccbsnr_list[a].state = 0;
 				ccbsnr_list[a].handle = 0;
+				ccbsnr_list[a].rbref = 0;
+				ccbsnr_list[a].plci = 0;
 				ccbsnr_list[a].type = CCBSNR_TYPE_NULL;
 			}
 			cc_verbose(1, 1, VERBOSE_PREFIX_3 "CAPI: PLCI=%#x CCBS/CCNR deleted id=0x%04x "
