@@ -14,18 +14,15 @@
 #ifndef _PBX_CAPI_SUPP_H
 #define _PBX_CAPI_SUPP_H
 
-typedef enum {
-	CCBSNR_TYPE_NULL = 0,
-	CCBSNR_TYPE_CCBS,
-	CCBSNR_TYPE_CCNR
-} ccbsnrtype_t;
+#define CCBSNR_TYPE_CCBS 1
+#define CCBSNR_TYPE_CCNR 2
 
 #define CCBSNR_AVAILABLE  1
 #define CCBSNR_REQUESTED  2
 #define CCBSNR_ACTIVATED  3
 
 struct ccbsnr_s {
-	ccbsnrtype_t type;
+	char type;
 	_cword id;
 	unsigned int plci;
 	unsigned int state;
