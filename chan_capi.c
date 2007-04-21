@@ -2819,7 +2819,7 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 /*
  * CAPI FACILITY_IND line interconnect
  */
-static void handle_facility_indication_line_interconnect(
+static int handle_facility_indication_line_interconnect(
 	_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
 {
 	if ((FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[1] == 0x01) &&
@@ -2832,12 +2832,13 @@ static void handle_facility_indication_line_interconnect(
 	    (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[0] > 8)) {
 		show_capi_info(i, read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[8]));
 	}
+	return 0;
 }
 
 /*
  * CAPI FACILITY_IND dtmf received 
  */
-static void handle_facility_indication_dtmf(
+static int handle_facility_indication_dtmf(
 	_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
 {
 	struct ast_frame fr = { AST_FRAME_NULL, };
@@ -2867,7 +2868,8 @@ static void handle_facility_indication_dtmf(
 		}
 		dtmflen--;
 		dtmfpos++;
-	} 
+	}
+	return 0;
 }
 
 /*
@@ -2876,27 +2878,30 @@ static void handle_facility_indication_dtmf(
 static void capidev_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
 {
 	_cmsg CMSG2;
+	int resp_done = 0;
 
-	FACILITY_RESP_HEADER(&CMSG2, capi_ApplID, HEADER_MSGNUM(CMSG), PLCI);
-	FACILITY_RESP_FACILITYSELECTOR(&CMSG2) = FACILITY_IND_FACILITYSELECTOR(CMSG);
-	FACILITY_RESP_FACILITYRESPONSEPARAMETERS(&CMSG2) = FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG);
-	_capi_put_cmsg(&CMSG2);
-	
 	switch (FACILITY_IND_FACILITYSELECTOR(CMSG)) {
 	case FACILITYSELECTOR_LINE_INTERCONNECT:
 		return_on_no_interface("FACILITY_IND LI");
-		handle_facility_indication_line_interconnect(CMSG, PLCI, NCCI, i);
+		resp_done = handle_facility_indication_line_interconnect(CMSG, PLCI, NCCI, i);
 		break;
 	case FACILITYSELECTOR_DTMF:
 		return_on_no_interface("FACILITY_IND DTMF");
-		handle_facility_indication_dtmf(CMSG, PLCI, NCCI, i);
+		resp_done = handle_facility_indication_dtmf(CMSG, PLCI, NCCI, i);
 		break;
 	case FACILITYSELECTOR_SUPPLEMENTARY:
-		handle_facility_indication_supplementary(CMSG, PLCI, NCCI, i);
+		resp_done = handle_facility_indication_supplementary(CMSG, PLCI, NCCI, i);
 		break;
 	default:
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: unhandled FACILITY_IND selector %d\n",
 			(i) ? i->vname:"???", FACILITY_IND_FACILITYSELECTOR(CMSG));
+	}
+
+	if (!resp_done) {
+		FACILITY_RESP_HEADER(&CMSG2, capi_ApplID, HEADER_MSGNUM(CMSG), PLCI);
+		FACILITY_RESP_FACILITYSELECTOR(&CMSG2) = FACILITY_IND_FACILITYSELECTOR(CMSG);
+		FACILITY_RESP_FACILITYRESPONSEPARAMETERS(&CMSG2) = FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG);
+		_capi_put_cmsg(&CMSG2);
 	}
 }
 
@@ -4385,6 +4390,7 @@ static struct capicommands_s {
 	{ "ect",          pbx_capi_ect,             1 },
 	{ "3pty_begin",   pbx_capi_3pty_begin,      1 },
 	{ "ccbs",         pbx_capi_ccbs,            0 },
+	{ "ccpartybusy",  pbx_capi_ccpartybusy,     0 },
  	{ "qsig_ssct",	  pbx_capi_qsig_ssct,	    1 },
   	{ "qsig_ct",      pbx_capi_qsig_ct,         1 },
    	{ "qsig_callmark",pbx_capi_qsig_callmark,   1 },

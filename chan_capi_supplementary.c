@@ -20,8 +20,7 @@
 #include "chan_capi_supplementary.h"
 #include "chan_capi_utils.h"
 
-#define CCBSNR_MAX_LIST_ENTRIES 32
-static struct ccbsnr_s ccbsnr_list[CCBSNR_MAX_LIST_ENTRIES];
+static struct ccbsnr_s *ccbsnr_list = NULL;
 AST_MUTEX_DEFINE_STATIC(ccbsnr_lock);
 
 /*
@@ -30,32 +29,83 @@ AST_MUTEX_DEFINE_STATIC(ccbsnr_lock);
 static void new_ccbsnr_id(ccbsnrtype_t type, unsigned int plci,
 	_cword id, struct capi_pvt *i)
 {
-	int a;
 	char buffer[CAPI_MAX_STRING];
+	struct ccbsnr_s *ccbsnr;
+
+	ccbsnr = malloc(sizeof(struct ccbsnr_s));
+	if (ccbsnr == NULL) {
+		cc_log(LOG_ERROR, "Unable to allocate CCBS/CCNR struct.\n");
+		return;
+	}
+	memset(ccbsnr, 0, sizeof(struct ccbsnr_s));
+
+    ccbsnr->type = type;
+    ccbsnr->id = id;
+    ccbsnr->plci = plci;
+    ccbsnr->state = CCBSNR_AVAILABLE;
+    ccbsnr->handle = (id | ((plci & 0xff) << 16));
+
+	if (i->peer) {
+		snprintf(buffer, CAPI_MAX_STRING-1, "%u", ccbsnr->handle);
+		pbx_builtin_setvar_helper(i->peer, "CCLINKAGEID", buffer);
+	} else {
+		cc_log(LOG_NOTICE, "No peerlink found to set CCBS/CCNR linkage ID.\n");
+	}
 
 	cc_mutex_lock(&ccbsnr_lock);
-	for (a = 0; a < CCBSNR_MAX_LIST_ENTRIES; a++) {
-		if (ccbsnr_list[a].type == CCBSNR_TYPE_NULL) {
-			ccbsnr_list[a].type = type;
-			ccbsnr_list[a].id = id;
-			ccbsnr_list[a].plci = plci;
-			ccbsnr_list[a].state = CCBSNR_AVAILABLE;
-			ccbsnr_list[a].handle = (id | ((plci & 0xff) << 16));
+	ccbsnr->next = ccbsnr_list;
+	ccbsnr_list = ccbsnr;
+	cc_mutex_unlock(&ccbsnr_lock);
 
-			if (i->peer) {
-				snprintf(buffer, CAPI_MAX_STRING-1, "%u", ccbsnr_list[a].handle);
-				pbx_builtin_setvar_helper(i->peer, "CCLINKAGEID", buffer);
+	cc_verbose(1, 1, VERBOSE_PREFIX_3
+		"%s: PLCI=%#x CCBS/CCNR new id=0x%04x handle=%d\n",
+		i->vname, plci, id, ccbsnr->handle);
+}
+
+/*
+ * return the pointer to ccbsnr structure by handle
+ */
+static struct ccbsnr_s *get_ccbsnr_link(unsigned int handle, unsigned int *state)
+{
+	struct ccbsnr_s *ret;
+	
+	cc_mutex_lock(&ccbsnr_lock);
+	ret = ccbsnr_list;
+	while (ret) {
+		if (ret->handle == handle) {
+			if (state) {
+				*state = ret->state;
 			}
-			cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: PLCI=%#x CCBS/CCNR new id=0x%04x handle=%d\n",
-				i->vname, plci, id, ccbsnr_list[a].handle);
 			break;
 		}
+		ret = ret->next;
 	}
 	cc_mutex_unlock(&ccbsnr_lock);
+
+	return ret;
+}
+
+/*
+ * return the pointer to ccbsnr structure by ref
+ */
+static struct ccbsnr_s *get_ccbsnr_linkref(_cword ref, char *busy)
+{
+	struct ccbsnr_s *ret;
 	
-	if (a == CCBSNR_MAX_LIST_ENTRIES) {
-		cc_log(LOG_ERROR, "No free entry for new CCBS/CCNR ID\n");
+	cc_mutex_lock(&ccbsnr_lock);
+	ret = ccbsnr_list;
+	while (ret) {
+		if (ret->rbref == ref) {
+			if (busy) {
+				*busy = ret->partybusy;
+			}
+			break;
+		}
+		ret = ret->next;
 	}
+	cc_mutex_unlock(&ccbsnr_lock);
+
+	return ret;
 }
 
 /*
@@ -64,35 +114,12 @@ static void new_ccbsnr_id(ccbsnrtype_t type, unsigned int plci,
 static int ccbsnr_tell_activated(void *data)
 {
 	unsigned int handle = (unsigned int)data;
-	int a;
 	int ret = 0;
+	unsigned int state;
 
-	cc_mutex_lock(&ccbsnr_lock);
-	for (a = 0; a < CCBSNR_MAX_LIST_ENTRIES; a++) {
-		if (ccbsnr_list[a].handle == handle) {
-			if (ccbsnr_list[a].state == CCBSNR_REQUESTED) {
-				ret = 1;
-			}
-			break;
-		}
-	}
-	cc_mutex_unlock(&ccbsnr_lock);
-
-	return ret;
-}
-
-/*
- * return the pointer to ccbsnr structure
- */
-static struct ccbsnr_s *get_ccbsnr_link(unsigned int handle)
-{
-	struct ccbsnr_s *ret = NULL;
-	int a;
-	
-	for (a = 0; a < CCBSNR_MAX_LIST_ENTRIES; a++) {
-		if (ccbsnr_list[a].handle == handle) {
-			ret = &ccbsnr_list[a];
-			break;
+	if (get_ccbsnr_link(handle, &state) != NULL) {
+		if (state == CCBSNR_REQUESTED) {
+			ret = 1;
 		}
 	}
 
@@ -102,29 +129,32 @@ static struct ccbsnr_s *get_ccbsnr_link(unsigned int handle)
 /*
  * select CCBS/CCNR id
  */
-static int select_ccbsnr_id(unsigned int id, ccbsnrtype_t type,
+static unsigned int select_ccbsnr_id(unsigned int id, ccbsnrtype_t type,
 	char *context, char *exten, int priority)
 {
+	struct ccbsnr_s *ccbsnr;
 	int ret = 0;
-	int a;
 	
 	cc_mutex_lock(&ccbsnr_lock);
-	for (a = 0; a < CCBSNR_MAX_LIST_ENTRIES; a++) {
-		if (((ccbsnr_list[a].plci & 0xff) == ((id >> 16) & 0xff)) &&
-		   (ccbsnr_list[a].id == (id & 0xffff)) &&
-		   (ccbsnr_list[a].type == type) &&
-		   (ccbsnr_list[a].state == CCBSNR_AVAILABLE)) {
-			strncpy(ccbsnr_list[a].context, context, sizeof(ccbsnr_list[a].context) - 1);
-			strncpy(ccbsnr_list[a].exten, exten, sizeof(ccbsnr_list[a].exten) - 1);
-			ccbsnr_list[a].priority = priority;
-			ccbsnr_list[a].state = CCBSNR_REQUESTED;
-			ret = ccbsnr_list[a].handle;
+	ccbsnr = ccbsnr_list;
+	while (ccbsnr) {
+		if (((ccbsnr->plci & 0xff) == ((id >> 16) & 0xff)) &&
+		   (ccbsnr->id == (id & 0xffff)) &&
+		   (ccbsnr->type == type) &&
+		   (ccbsnr->state == CCBSNR_AVAILABLE)) {
+			strncpy(ccbsnr->context, context, sizeof(ccbsnr->context) - 1);
+			strncpy(ccbsnr->exten, exten, sizeof(ccbsnr->exten) - 1);
+			ccbsnr->priority = priority;
+			ccbsnr->state = CCBSNR_REQUESTED;
+			ret = ccbsnr->handle;
 			cc_verbose(1, 1, VERBOSE_PREFIX_3 "CAPI: request CCBS/NR id=0x%x handle=%d (%s,%s,%d)\n",
 				id, ret, context, exten, priority);
 			break;
 		}
+		ccbsnr = ccbsnr->next;
 	}
 	cc_mutex_unlock(&ccbsnr_lock);
+	
 	return ret;
 }
 
@@ -133,22 +163,26 @@ static int select_ccbsnr_id(unsigned int id, ccbsnrtype_t type,
  */
 static void del_ccbsnr_ref(unsigned int plci, _cword ref)
 {
-	int a;
+	struct ccbsnr_s *ccbsnr;
+	struct ccbsnr_s *tmp = NULL;
 
 	cc_mutex_lock(&ccbsnr_lock);
-	for (a = 0; a < CCBSNR_MAX_LIST_ENTRIES; a++) {
-		if (((ccbsnr_list[a].plci & 0xff) == (plci & 0xff)) &&
-		   (ccbsnr_list[a].rbref == ref)) {
-			ccbsnr_list[a].id = 0;
-			ccbsnr_list[a].state = 0;
-			ccbsnr_list[a].handle = 0;
-			ccbsnr_list[a].rbref = 0;
-			ccbsnr_list[a].plci = 0;
-			ccbsnr_list[a].type = CCBSNR_TYPE_NULL;
+	ccbsnr = ccbsnr_list;
+	while (ccbsnr) {
+		if (((ccbsnr->plci & 0xff) == (plci & 0xff)) &&
+		   (ccbsnr->rbref == ref)) {
+			if (!tmp) {
+				ccbsnr_list = ccbsnr->next;
+			} else {
+				tmp->next = ccbsnr->next;
+			}
+			free(ccbsnr);
 			cc_verbose(1, 1, VERBOSE_PREFIX_3 "CAPI: PLCI=%#x CCBS/CCNR deactivated "
 				"ref=0x%04x\n",	plci, ref);
 			break;
 		}
+		tmp = ccbsnr;
+		ccbsnr = ccbsnr->next;
 	}
 	cc_mutex_unlock(&ccbsnr_lock);
 }
@@ -158,26 +192,33 @@ static void del_ccbsnr_ref(unsigned int plci, _cword ref)
  */
 static void del_ccbsnr_id(unsigned int plci, _cword id)
 {
-	int a;
+	struct ccbsnr_s *ccbsnr;
+	struct ccbsnr_s *tmp = NULL;
 
 	cc_mutex_lock(&ccbsnr_lock);
-	for (a = 0; a < CCBSNR_MAX_LIST_ENTRIES; a++) {
-		if (((ccbsnr_list[a].plci & 0xff) == (plci & 0xff)) &&
-		   (ccbsnr_list[a].id == id)) {
-			ccbsnr_list[a].id = 0;
-			if ((ccbsnr_list[a].state == CCBSNR_AVAILABLE) ||
-			    (ccbsnr_list[a].rbref == 0)) {
-				ccbsnr_list[a].state = 0;
-				ccbsnr_list[a].handle = 0;
-				ccbsnr_list[a].rbref = 0;
-				ccbsnr_list[a].plci = 0;
-				ccbsnr_list[a].type = CCBSNR_TYPE_NULL;
-			}
+	ccbsnr = ccbsnr_list;
+	while (ccbsnr) {
+		if (((ccbsnr->plci & 0xff) == (plci & 0xff)) &&
+		    (ccbsnr->id == id)) {
 			cc_verbose(1, 1, VERBOSE_PREFIX_3 "CAPI: PLCI=%#x CCBS/CCNR deleted id=0x%04x "
 				"handle=%d status=%d\n", plci, id,
-				ccbsnr_list[a].handle, ccbsnr_list[a].state);
+				ccbsnr->handle, ccbsnr->state);
+			if ((ccbsnr->state == CCBSNR_AVAILABLE) ||
+			    (ccbsnr->rbref == 0)) {
+				if (!tmp) {
+					ccbsnr_list = ccbsnr->next;
+				} else {
+					tmp->next = ccbsnr->next;
+				}
+				free(ccbsnr);
+			} else {
+				/* just deactivate the linkage id */
+				ccbsnr->id = 0xdead;
+			}
 			break;
 		}
+		tmp = ccbsnr;
+		ccbsnr = ccbsnr->next;
 	}
 	cc_mutex_unlock(&ccbsnr_lock);
 }
@@ -216,7 +257,7 @@ void ListenOnSupplementary(unsigned controller)
 /*
  * CAPI FACILITY_IND supplementary services 
  */
-void handle_facility_indication_supplementary(
+int handle_facility_indication_supplementary(
 	_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
 {
 	_cword function;
@@ -226,6 +267,8 @@ void handle_facility_indication_supplementary(
 	_cword mode;
 	_cword rbref;
 	struct ccbsnr_s *ccbsnrlink;
+	char partybusy = 0;
+	int ret = 0;
 
 	function = read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[1]);
 	length = FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[3];
@@ -243,7 +286,7 @@ void handle_facility_indication_supplementary(
 		cc_verbose(1, 1, VERBOSE_PREFIX_3 "contr%d: PLCI=%#x CCBS request reason=0x%04x "
 			"handle=%d mode=0x%x rbref=0x%x\n",
 			PLCI & 0xff, PLCI, infoword, handle, mode, rbref);
-		if ((ccbsnrlink = get_ccbsnr_link(handle)) == NULL) {
+		if ((ccbsnrlink = get_ccbsnr_link(handle, NULL)) == NULL) {
 			cc_log(LOG_WARNING, "capi ccbs request indication without request!\n");
 			break;
 		}
@@ -258,16 +301,25 @@ void handle_facility_indication_supplementary(
 		}
 		show_capi_info(NULL, infoword);
 		break;
-	case 0x800e: /* CCBS status */
-		rbref = read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[6]);
-		cc_verbose(1, 1, VERBOSE_PREFIX_3 "contr%d: PLCI=%#x CCBS status ref=0x%04x mode=0x%x\n",
-			PLCI & 0xff, PLCI, rbref, infoword);
-		/* XXX report we are free */
-		break;
 	case 0x800d: /* CCBS erase call linkage ID */
 		cc_verbose(1, 1, VERBOSE_PREFIX_3 "contr%d: PLCI=%#x CCBS/CCNR erase id=0x%04x\n",
 			PLCI & 0xff, PLCI, infoword);
 		del_ccbsnr_id(PLCI, infoword);
+		break;
+	case 0x800e: /* CCBS status */
+		rbref = read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[6]);
+		cc_verbose(1, 1, VERBOSE_PREFIX_3 "contr%d: PLCI=%#x CCBS status ref=0x%04x mode=0x%x\n",
+			PLCI & 0xff, PLCI, rbref, infoword);
+		if (get_ccbsnr_linkref(rbref, &partybusy) == NULL) {
+			cc_log(LOG_WARNING, "capi CCBS status reference not found!\n");
+		}
+		capi_sendf(NULL, 0, CAPI_FACILITY_RESP, PLCI, HEADER_MSGNUM(CMSG),
+			"w(w(w))",
+			FACILITYSELECTOR_SUPPLEMENTARY,
+			0x800e,  /* CCBS status */
+			(partybusy) ? 0x0000 : 0x0001
+		);
+		ret = 1;
 		break;
 	case 0x800f: /* CCBS remote user free */
 		rbref = read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[6]);
@@ -292,7 +344,11 @@ void handle_facility_indication_supplementary(
 		break;
 	}
 
-	return_on_no_interface("FACILITY_IND SUPPLEMENTARY");
+	if (!i) {
+		cc_verbose(4, 1, "CAPI: FACILITY_IND SUPPLEMENTARY " 
+			"no interface for PLCI=%#x\n", PLCI);
+		return ret;
+	}
 
 	/* now functions bound to interface */
 	switch (function) {
@@ -362,6 +418,7 @@ void handle_facility_indication_supplementary(
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: unhandled FACILITY_IND supplementary function %04x\n",
 			i->vname, function);
 	}
+	return ret;
 }
 
 
@@ -402,17 +459,55 @@ void handle_facility_confirmation_supplementary(
 }
 
 /*
+ * capicommand 'ccpartybusy'
+ */
+int pbx_capi_ccpartybusy(struct ast_channel *c, char *data)
+{
+	char *slinkageid, *yesno;
+	unsigned int linkid = 0;
+	struct ccbsnr_s *ccbsnr;
+	char partybusy = 0;
+
+	slinkageid = strsep(&data, "|");
+	yesno = data;
+	
+	if (slinkageid) {
+		linkid = (unsigned int)strtoul(slinkageid, NULL, 0);
+	}
+
+	if ((yesno) && ast_true(yesno)) {
+		partybusy = 1;
+	}
+
+	cc_mutex_lock(&ccbsnr_lock);
+	ccbsnr = ccbsnr_list;
+	while (ccbsnr) {
+		if (((ccbsnr->plci & 0xff) == ((linkid >> 16) & 0xff)) &&
+		   (ccbsnr->id == (linkid & 0xffff))) {
+			ccbsnr->partybusy = partybusy;
+			cc_verbose(1, 1, VERBOSE_PREFIX_3 "CAPI: CCBS/NR id=0x%x busy set to %d\n",
+				linkid, partybusy);
+			break;
+		}
+		ccbsnr = ccbsnr->next;
+	}
+	cc_mutex_unlock(&ccbsnr_lock);
+
+	return 0;
+}
+
+/*
  * capicommand 'ccbs'
  */
 int pbx_capi_ccbs(struct ast_channel *c, char *data)
 {
 	char *slinkageid, *context, *exten, *priority;
 	unsigned int linkid = 0;
-	int handle, a;
+	unsigned int handle, a;
 	char *result = "ERROR";
 	char *goodresult = "ACTIVATED";
 	MESSAGE_EXCHANGE_ERROR error;
-	struct ccbsnr_s *ccbsnrlink;
+	unsigned int ccbsnrstate;
 
 	slinkageid = strsep(&data, "|");
 	context = strsep(&data, "|");
@@ -454,8 +549,8 @@ int pbx_capi_ccbs(struct ast_channel *c, char *data)
 				break;
 			}
 		}
-		if ((ccbsnrlink = get_ccbsnr_link(handle)) != NULL) {
-			if (ccbsnrlink->state == CCBSNR_ACTIVATED) {
+		if (get_ccbsnr_link(handle, &ccbsnrstate) != NULL) {
+			if (ccbsnrstate == CCBSNR_ACTIVATED) {
 				result = goodresult;
 			}
 		}

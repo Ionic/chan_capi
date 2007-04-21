@@ -208,6 +208,32 @@ Peer link creation:
         Example:
         exten => s,1,capicommand(peerlink)
 
+Set local party to 'busy' or 'free':
+    Set the local phone to status to 'busy' or 'free' when
+    awaiting a callback for CCBS/CCNR. If the network wants to
+    call you back for CCBS/CCNR, chan-capi normaly doesn't know
+    about the status of the extension who started the callback.
+    By default chan-capi assumes 'free', but you can change that
+    with:
+        exten => s,1,capicommand(ccpartybusy|${CCLINKAGEID}|yes)
+    or 
+        exten => s,1,capicommand(ccpartybusy|${CCLINKAGEID}|no)
+
+Call completion on subscriber busy (CCBS):
+    To receive a callback when the dialed and busy party becomes free, aka
+    call completion on subscriber busy, you can do the following:
+        Example:
+        exten => s,1,capicommand(peerlink)  ;to let chan-capi know who is the calling channel.
+        exten => s,2,Dial(CAPI/contr1/123456,60,g)  ;'g' to go-on with the dialplan on busy.
+        exten => s,3,NoOp(${CCLINKAGEID})  ;if this variable now contains a number, CCBS is possible.
+            ;here you can ask the caller if CCBS shall be activated...
+        exten => s,4,capicommand(ccbs|${CCLINKAGEID}|<context>|<exten>|<priority>)
+        exten => s,5,NoOp(${CCBSSTATUS})  ;if CCBS was successfully enabled, it is set to "ACTIVATED".
+    If the remote party becomes 'non-busy', the network initiates the callback which will be
+    sent to the provided context/exten/priority. Of course, this only happens if your local
+    phone is set to 'free' with capicommand(ccpartybusy), which is the default.
+
+
 Using CLIR
 ==========
 Use the SetCallerPres() application before you dial:
@@ -368,8 +394,15 @@ CALLINGSUBADDRESS
 CALLEDSUBADDRESS
     If set on dial(), the called subaddress will be set to the content.
 
+CCBSSTATUS
+    When using capicommand(ccbs|....), this variable is set to either "ERROR" or
+    "ACTIVATED".
+
 CCLINKAGEID
     If a Call-Linkage-Id is received for CCBS/CCNR, this variable contains this Id.
+    But you need to use capicommand(peerlink) before dialing a CAPI channel, because
+    of a design problem in Asterisk, chan-capi is not able to set channel variables
+    of the calling channel.
 
 CONNECTEDNUMBER
     Can be set before answering and if set, the content is used for

@@ -32,19 +32,22 @@ struct ccbsnr_s {
 	unsigned int handle;
 	_cword mode;
 	_cword rbref;
+	char partybusy;
 	char context[AST_MAX_CONTEXT];
 	char exten[AST_MAX_EXTENSION];
 	int priority;
+	struct ccbsnr_s *next;
 };
 
 /*
  * prototypes
  */
 extern void ListenOnSupplementary(unsigned controller);
-extern void handle_facility_indication_supplementary(
+extern int handle_facility_indication_supplementary(
 	_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i);
 extern void handle_facility_confirmation_supplementary(
 	_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i);
 extern int pbx_capi_ccbs(struct ast_channel *c, char *data);
+extern int pbx_capi_ccpartybusy(struct ast_channel *c, char *data);
 
 #endif
