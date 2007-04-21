@@ -45,6 +45,7 @@ extern int handle_facility_indication_supplementary(
 extern void handle_facility_confirmation_supplementary(
 	_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i);
 extern int pbx_capi_ccbs(struct ast_channel *c, char *data);
+extern int pbx_capi_ccbsstop(struct ast_channel *c, char *data);
 extern int pbx_capi_ccpartybusy(struct ast_channel *c, char *data);
 
 #endif

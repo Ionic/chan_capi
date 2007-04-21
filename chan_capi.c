@@ -4390,6 +4390,7 @@ static struct capicommands_s {
 	{ "ect",          pbx_capi_ect,             1 },
 	{ "3pty_begin",   pbx_capi_3pty_begin,      1 },
 	{ "ccbs",         pbx_capi_ccbs,            0 },
+	{ "ccbsstop",     pbx_capi_ccbsstop,        0 },
 	{ "ccpartybusy",  pbx_capi_ccpartybusy,     0 },
  	{ "qsig_ssct",	  pbx_capi_qsig_ssct,	    1 },
   	{ "qsig_ct",      pbx_capi_qsig_ct,         1 },

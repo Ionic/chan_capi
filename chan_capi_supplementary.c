@@ -211,6 +211,14 @@ static void del_ccbsnr_id(unsigned int plci, _cword id)
 }
 
 /*
+ * on an activated CCBS, the remote party is now free
+ */
+static void	ccbsnr_remote_user_free(_cmsg *CMSG, char type, unsigned int PLCI, _cword rbref)
+{
+	/* XXX start alerting , when answered use CCBS call */
+}
+
+/*
  * send Listen for supplementary to specified controller
  */
 void ListenOnSupplementary(unsigned controller)
@@ -273,6 +281,7 @@ int handle_facility_indication_supplementary(
 		cc_verbose(1, 1, VERBOSE_PREFIX_3 "contr%d: PLCI=%#x CCBS request reason=0x%04x "
 			"handle=%d mode=0x%x rbref=0x%x\n",
 			PLCI & 0xff, PLCI, infoword, handle, mode, rbref);
+		show_capi_info(NULL, infoword);
 		if ((ccbsnrlink = get_ccbsnr_link(0, 0, handle, 0xffff, NULL, NULL)) == NULL) {
 			cc_log(LOG_WARNING, "capi ccbs request indication without request!\n");
 			break;
@@ -286,8 +295,20 @@ int handle_facility_indication_supplementary(
 			/* error */
 			ccbsnrlink->state = CCBSNR_AVAILABLE;
 		}
-		show_capi_info(NULL, infoword);
 		break;
+	case 0x0010: /* CCBS deactivate */
+		handle = read_capi_dword(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[6]);
+		cc_verbose(1, 1, VERBOSE_PREFIX_3 "contr%d: PLCI=%#x CCBS deactivate handle=0x%x reason=0x%x\n",
+			PLCI & 0xff, PLCI, handle, infoword);
+		show_capi_info(NULL, infoword);
+		if ((ccbsnrlink = get_ccbsnr_link(0, 0, handle, 0xffff, NULL, NULL)) == NULL) {
+			cc_log(LOG_WARNING, "capi ccbs deactivate indication without request!\n");
+			break;
+		}
+		if (infoword == 0) {
+			/* success */
+			ccbsnrlink->state = CCBSNR_AVAILABLE;
+		}
 	case 0x800d: /* CCBS erase call linkage ID */
 		cc_verbose(1, 1, VERBOSE_PREFIX_3 "contr%d: PLCI=%#x CCBS/CCNR erase id=0x%04x\n",
 			PLCI & 0xff, PLCI, infoword);
@@ -312,7 +333,7 @@ int handle_facility_indication_supplementary(
 		rbref = read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[6]);
 		cc_verbose(1, 1, VERBOSE_PREFIX_3 "contr%d: PLCI=%#x CCBS status ref=0x%04x mode=0x%x\n",
 			PLCI & 0xff, PLCI, rbref, infoword);
-		/* XXX start alerting */
+		ccbsnr_remote_user_free(CMSG, CCBSNR_TYPE_CCBS, PLCI, rbref);
 		break;
 	case 0x8010: /* CCBS B-free */
 		rbref = read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[6]);
@@ -479,6 +500,59 @@ int pbx_capi_ccpartybusy(struct ast_channel *c, char *data)
 		ccbsnr = ccbsnr->next;
 	}
 	cc_mutex_unlock(&ccbsnr_lock);
+
+	return 0;
+}
+
+/*
+ * capicommand 'ccbsstop'
+ */
+int pbx_capi_ccbsstop(struct ast_channel *c, char *data)
+{
+	char *slinkageid;
+	unsigned int linkid = 0;
+	unsigned int handle = 0;
+	MESSAGE_EXCHANGE_ERROR error;
+	_cword ref = 0xdead;
+	struct ccbsnr_s *ccbsnr;
+
+	slinkageid = data;
+
+	if (slinkageid) {
+		linkid = (unsigned int)strtoul(slinkageid, NULL, 0);
+	}
+
+	cc_verbose(3, 1, VERBOSE_PREFIX_3 "capi ccbsstop: '%d'\n",
+		linkid);
+
+	cc_mutex_lock(&ccbsnr_lock);
+	ccbsnr = ccbsnr_list;
+	while (ccbsnr) {
+		if (((ccbsnr->plci & 0xff) == ((linkid >> 16) & 0xff)) &&
+		   (ccbsnr->id == (linkid & 0xffff)) &&
+		   (ccbsnr->type == CCBSNR_TYPE_CCBS) &&
+		   (ccbsnr->state == CCBSNR_ACTIVATED)) {
+			ref = ccbsnr->rbref;
+			handle = ccbsnr->handle;
+			break;
+		}
+		ccbsnr = ccbsnr->next;
+	}
+	cc_mutex_unlock(&ccbsnr_lock);
+	
+	if (ref != 0xdead) {
+	 	error = capi_sendf(NULL, 0, CAPI_FACILITY_REQ, (linkid >> 16) & 0xff,
+			get_capi_MessageNumber(),
+			"w(w(dw))",
+			FACILITYSELECTOR_SUPPLEMENTARY,
+			0x0010,  /* CCBS deactivate */
+			handle, /* handle */
+			ref /* CCBS reference */
+		);
+	} else {
+		cc_verbose(3, 1, VERBOSE_PREFIX_3, "capi ccbsstop: linkid %d not found in table.\n",
+			linkid);
+	}
 
 	return 0;
 }
