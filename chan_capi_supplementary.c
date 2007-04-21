@@ -65,37 +65,19 @@ static void new_ccbsnr_id(ccbsnrtype_t type, unsigned int plci,
 /*
  * return the pointer to ccbsnr structure by handle
  */
-static struct ccbsnr_s *get_ccbsnr_link(unsigned int handle, unsigned int *state)
+static struct ccbsnr_s *get_ccbsnr_link(unsigned int handle, _cword ref,
+	unsigned int *state, char *busy)
 {
 	struct ccbsnr_s *ret;
 	
 	cc_mutex_lock(&ccbsnr_lock);
 	ret = ccbsnr_list;
 	while (ret) {
-		if (ret->handle == handle) {
+		if (((handle) && (ret->handle == handle)) ||
+		    ((ref) && (ret->rbref == ref))) {
 			if (state) {
 				*state = ret->state;
 			}
-			break;
-		}
-		ret = ret->next;
-	}
-	cc_mutex_unlock(&ccbsnr_lock);
-
-	return ret;
-}
-
-/*
- * return the pointer to ccbsnr structure by ref
- */
-static struct ccbsnr_s *get_ccbsnr_linkref(_cword ref, char *busy)
-{
-	struct ccbsnr_s *ret;
-	
-	cc_mutex_lock(&ccbsnr_lock);
-	ret = ccbsnr_list;
-	while (ret) {
-		if (ret->rbref == ref) {
 			if (busy) {
 				*busy = ret->partybusy;
 			}
@@ -117,7 +99,7 @@ static int ccbsnr_tell_activated(void *data)
 	int ret = 0;
 	unsigned int state;
 
-	if (get_ccbsnr_link(handle, &state) != NULL) {
+	if (get_ccbsnr_link(handle, 0xffff, &state, NULL) != NULL) {
 		if (state == CCBSNR_REQUESTED) {
 			ret = 1;
 		}
@@ -286,7 +268,7 @@ int handle_facility_indication_supplementary(
 		cc_verbose(1, 1, VERBOSE_PREFIX_3 "contr%d: PLCI=%#x CCBS request reason=0x%04x "
 			"handle=%d mode=0x%x rbref=0x%x\n",
 			PLCI & 0xff, PLCI, infoword, handle, mode, rbref);
-		if ((ccbsnrlink = get_ccbsnr_link(handle, NULL)) == NULL) {
+		if ((ccbsnrlink = get_ccbsnr_link(handle, 0xffff, NULL, NULL)) == NULL) {
 			cc_log(LOG_WARNING, "capi ccbs request indication without request!\n");
 			break;
 		}
@@ -310,7 +292,7 @@ int handle_facility_indication_supplementary(
 		rbref = read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[6]);
 		cc_verbose(1, 1, VERBOSE_PREFIX_3 "contr%d: PLCI=%#x CCBS status ref=0x%04x mode=0x%x\n",
 			PLCI & 0xff, PLCI, rbref, infoword);
-		if (get_ccbsnr_linkref(rbref, &partybusy) == NULL) {
+		if (get_ccbsnr_link(0, rbref, NULL, &partybusy) == NULL) {
 			cc_log(LOG_WARNING, "capi CCBS status reference not found!\n");
 		}
 		capi_sendf(NULL, 0, CAPI_FACILITY_RESP, PLCI, HEADER_MSGNUM(CMSG),
@@ -549,7 +531,7 @@ int pbx_capi_ccbs(struct ast_channel *c, char *data)
 				break;
 			}
 		}
-		if (get_ccbsnr_link(handle, &ccbsnrstate) != NULL) {
+		if (get_ccbsnr_link(handle, 0xffff, &ccbsnrstate, NULL) != NULL) {
 			if (ccbsnrstate == CCBSNR_ACTIVATED) {
 				result = goodresult;
 			}
