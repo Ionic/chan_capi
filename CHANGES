@@ -3,7 +3,9 @@ CHANGES
 
 HEAD
 ------------------
-
+- possibly fixed ECT channel hang
+- added 'x' option to capicommand(ect) to have real 'explicit call transfer'
+  (needed by some ISDN lines)
 
 
 chan_capi-1.0.1

@@ -190,6 +190,10 @@ ECT:
         exten => s,1,capicommand(hold)
         exten => s,2,Wait(1)
         exten => s,3,Dial(CAPI/contr1/1234,60,M(capiect))
+    Note: Normaly a PBX needs 'implicit call transfer', which is done by default
+    with this command. But if the line needs real 'explicit call transfer', use
+        exten => s,1,capicommand(ect|x)
+    instead.
 
 3PTY:
     Initiate a Three-Party Conference (must have one call on hold and one active call!).

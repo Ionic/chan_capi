@@ -938,8 +938,6 @@ static void capi_activehangup(struct ast_channel *c, int state)
 	if ((i->isdnstate & CAPI_ISDN_STATE_ECT)) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: activehangup ECT call\n",
 			i->vname);
-		/* we do nothing, just wait for DISCONNECT_IND */
-		return;
 	}
 
 	cc_verbose(2, 1, VERBOSE_PREFIX_3 "%s: activehangingup (cause=%d) for PLCI=%#x\n",
@@ -2474,20 +2472,13 @@ static void capidev_handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsig
 
 	i->isdnstate |= CAPI_ISDN_STATE_DISCONNECT;
 
-	if ((i->isdnstate & CAPI_ISDN_STATE_ECT)) {
-		cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s: Disconnect ECT call\n",
-			i->vname);
-		/* we do nothing, just wait for DISCONNECT_IND */
-		return;
-	}
-
-	if (PLCI == i->onholdPLCI) {
-		cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s: Disconnect onhold call\n",
+	if ((PLCI == i->onholdPLCI) || (i->isdnstate & CAPI_ISDN_STATE_ECT)) {
+		cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s: Disconnect onhold/ECT call\n",
 			i->vname);
 		/* the caller onhold hung up (or ECTed away) */
 		/* send a disconnect_req , we cannot hangup the channel here!!! */
 		DISCONNECT_REQ_HEADER(&CMSG2, capi_ApplID, get_capi_MessageNumber(), 0);
-		DISCONNECT_REQ_PLCI(&CMSG2) = i->onholdPLCI;
+		DISCONNECT_REQ_PLCI(&CMSG2) = PLCI;
 		_capi_put_cmsg(&CMSG2);
 		return;
 	}
@@ -4029,13 +4020,17 @@ static int pbx_capi_ect(struct ast_channel *c, char *param)
 	struct capi_pvt *ii = NULL;
 	const char *id;
 	unsigned int plci = 0;
+	unsigned int ectplci;
+	char *holdid;
 
 	if ((id = pbx_builtin_getvar_helper(c, "CALLERHOLDID"))) {
 		plci = (unsigned int)strtoul(id, NULL, 0);
 	}
 	
-	if (param) {
-		plci = (unsigned int)strtoul(param, NULL, 0);
+	holdid = strsep(&param, "|");
+
+	if (holdid) {
+		plci = (unsigned int)strtoul(holdid, NULL, 0);
 	}
 
 	if (!plci) {
@@ -4056,8 +4051,13 @@ static int pbx_capi_ect(struct ast_channel *c, char *param)
 		return -1;
 	}
 
+	ectplci = plci;
+	if ((param) && (*param == 'x')) {
+		ectplci = i->PLCI;
+	}
+
 	cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: using PLCI=%#x for ECT\n",
-		i->vname, plci);
+		i->vname, ectplci);
 
 	if (!(capi_controllers[i->controller]->ECT)) {
 		cc_log(LOG_WARNING, "%s: ECT for %s not supported by controller.\n",
@@ -4082,7 +4082,7 @@ static int pbx_capi_ect(struct ast_channel *c, char *param)
 	cc_mutex_lock(&ii->lock);
 
     /* implicit ECT */
-	capi_sendf(ii, 1, CAPI_FACILITY_REQ, plci, get_capi_MessageNumber(),
+	capi_sendf(ii, 1, CAPI_FACILITY_REQ, ectplci, get_capi_MessageNumber(),
 		"w(w(d))",
 		FACILITYSELECTOR_SUPPLEMENTARY,
 		0x0006,  /* ECT */
@@ -4096,7 +4096,7 @@ static int pbx_capi_ect(struct ast_channel *c, char *param)
 	cc_mutex_unlock(&ii->lock);
 
 	cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: sent ECT for PLCI=%#x to PLCI=%#x\n",
-		i->vname, plci, i->PLCI);
+		i->vname, plci, ectplci);
 
 	return 0;
 }
