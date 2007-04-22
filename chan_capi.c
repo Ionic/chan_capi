@@ -5693,6 +5693,8 @@ int unload_module(void)
 	cc_mutex_unlock(&iflock);
 	
 	ast_channel_unregister(&capi_tech);
+
+	cleanup_ccbsnr();
 	
 	return 0;
 }

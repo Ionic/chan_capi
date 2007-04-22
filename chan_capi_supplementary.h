@@ -33,6 +33,7 @@ struct ccbsnr_s {
 	char context[AST_MAX_CONTEXT];
 	char exten[AST_MAX_EXTENSION];
 	int priority;
+	time_t age;
 	struct ccbsnr_s *next;
 };
 
@@ -47,5 +48,6 @@ extern void handle_facility_confirmation_supplementary(
 extern int pbx_capi_ccbs(struct ast_channel *c, char *data);
 extern int pbx_capi_ccbsstop(struct ast_channel *c, char *data);
 extern int pbx_capi_ccpartybusy(struct ast_channel *c, char *data);
+extern void cleanup_ccbsnr(void);
 
 #endif

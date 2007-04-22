@@ -26,11 +26,15 @@ char *emptyid = "\0";
 AST_MUTEX_DEFINE_STATIC(verbose_lock);
 AST_MUTEX_DEFINE_STATIC(messagenumber_lock);
 AST_MUTEX_DEFINE_STATIC(capi_put_lock);
+AST_MUTEX_DEFINE_STATIC(peerlink_lock);
 
 static _cword capi_MessageNumber;
 
 #define CAPI_MAX_PEERLINKCHANNELS  32
-static struct ast_channel *peerlinkchannel[CAPI_MAX_PEERLINKCHANNELS];
+static struct peerlink_s {
+	struct ast_channel *channel;
+	time_t age;
+} peerlinkchannel[CAPI_MAX_PEERLINKCHANNELS];
 
 /*
  * helper for <pbx>_verbose with different verbose settings
@@ -854,12 +858,22 @@ int cc_add_peer_link_id(struct ast_channel *c)
 {
 	int a;
 
+	cc_mutex_lock(&peerlink_lock);
 	for (a = 0; a < CAPI_MAX_PEERLINKCHANNELS; a++) {
-		if (peerlinkchannel[a] == NULL) {
-			peerlinkchannel[a] = c;
+		if (peerlinkchannel[a].channel == NULL) {
+			peerlinkchannel[a].channel = c;
+			peerlinkchannel[a].age = time(NULL);
 			break;
+		} else {
+			/* remove too old entries */
+			if ((peerlinkchannel[a].age + 60) < time(NULL)) {
+				peerlinkchannel[a].channel = NULL;
+				cc_verbose(3, 1, VERBOSE_PREFIX_4 "capi: peerlink %d timeout-erase\n",
+					a);
+			}
 		}
 	}
+	cc_mutex_unlock(&peerlink_lock);
 	if (a == CAPI_MAX_PEERLINKCHANNELS) {
 		return -1;
 	}
@@ -878,10 +892,14 @@ struct ast_channel *cc_get_peer_link_id(const char *p)
 		id = (int)strtol(p, NULL, 0);
 	}
 
+	cc_mutex_lock(&peerlink_lock);
 	if ((id >= 0) && (id < CAPI_MAX_PEERLINKCHANNELS)) {
-		chan = peerlinkchannel[id];
-		peerlinkchannel[id] = NULL;
+		chan = peerlinkchannel[id].channel;
+		peerlinkchannel[id].channel = NULL;
 	}
+	cc_mutex_unlock(&peerlink_lock);
+	cc_verbose(3, 1, VERBOSE_PREFIX_4 "capi: peerlink %d allocated, peer is %s\n",
+		id, (chan)?chan->name:"unlinked");
 	return chan;
 }
 

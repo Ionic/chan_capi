@@ -24,6 +24,51 @@ static struct ccbsnr_s *ccbsnr_list = NULL;
 AST_MUTEX_DEFINE_STATIC(ccbsnr_lock);
 
 /*
+ * remove too old CCBS/CCNR entries
+ * (must be called with ccbsnr_lock held)
+ */
+static void del_old_ccbsnr(void)
+{
+	struct ccbsnr_s *ccbsnr;
+	struct ccbsnr_s *tmp = NULL;
+
+	ccbsnr = ccbsnr_list;
+	while (ccbsnr) {
+		if ((ccbsnr->age + 86400) < time(NULL)) {
+			cc_verbose(1, 1, VERBOSE_PREFIX_3 "CAPI: CCBS/CCNR handle=%d timeout.\n",
+				ccbsnr->handle);
+			if (!tmp) {
+				ccbsnr_list = ccbsnr->next;
+			} else {
+				tmp->next = ccbsnr->next;
+			}
+			free(ccbsnr);
+			break;
+		}
+		tmp = ccbsnr;
+		ccbsnr = ccbsnr->next;
+	}
+}
+
+/*
+ * cleanup CCBS/CCNR ids
+ */
+void cleanup_ccbsnr(void)
+{
+	struct ccbsnr_s *ccbsnr;
+	struct ccbsnr_s *tmp = NULL;
+
+	cc_mutex_lock(&ccbsnr_lock);
+	ccbsnr = ccbsnr_list;
+	while (ccbsnr) {
+		tmp = ccbsnr;
+		ccbsnr = ccbsnr->next;
+		free(tmp);
+	}
+	cc_mutex_unlock(&ccbsnr_lock);
+}
+
+/*
  * a new CCBS/CCNR id was received
  */
 static void new_ccbsnr_id(char type, unsigned int plci,
@@ -39,6 +84,7 @@ static void new_ccbsnr_id(char type, unsigned int plci,
 	}
 	memset(ccbsnr, 0, sizeof(struct ccbsnr_s));
 
+    ccbsnr->age = time(NULL);
     ccbsnr->type = type;
     ccbsnr->id = id;
     ccbsnr->rbref = 0xdead;
@@ -54,6 +100,7 @@ static void new_ccbsnr_id(char type, unsigned int plci,
 	}
 
 	cc_mutex_lock(&ccbsnr_lock);
+	del_old_ccbsnr();
 	ccbsnr->next = ccbsnr_list;
 	ccbsnr_list = ccbsnr;
 	cc_mutex_unlock(&ccbsnr_lock);
@@ -457,7 +504,7 @@ void handle_facility_confirmation_supplementary(
 		}
 		break;
 	case 0x000f: /* CCBS request */
-		cc_verbose(2, 0, VERBOSE_PREFIX_3 "%s: CCBS request info=0x%04x (PLCI=%#x)\n",
+		cc_verbose(2, 0, VERBOSE_PREFIX_3 "%s: CCBS request confirmation (0x%04x) (PLCI=%#x)\n",
 			name, serviceinfo, PLCI);
 		break;
 	default:
