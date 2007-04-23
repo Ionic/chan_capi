@@ -201,7 +201,7 @@ MESSAGE_EXCHANGE_ERROR _capi_put_msg(unsigned char *msg)
 		return -1;
 	} 
 
-/* 	capi_message2cmsg(&CMSG, msg); */
+	capi_message2cmsg(&CMSG, msg);
 
 	error = capi20_put_message(capi_ApplID, msg);
 	
@@ -210,7 +210,7 @@ MESSAGE_EXCHANGE_ERROR _capi_put_msg(unsigned char *msg)
 		return -1;
 	}
 
-/* 	log_capi_message(error, &CMSG); */
+	log_capi_message(error, &CMSG);
 
 	return error;
 }

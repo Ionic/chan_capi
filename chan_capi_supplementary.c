@@ -448,6 +448,7 @@ int handle_facility_indication_supplementary(
 		if (get_ccbsnr_link(CCBSNR_TYPE_CCBS, PLCI, 0, rbref, NULL, &partybusy) == NULL) {
 			cc_log(LOG_WARNING, "capi CCBS status reference not found!\n");
 		}
+#if 0
 		capi_sendf(NULL, 0, CAPI_FACILITY_RESP, PLCI, HEADER_MSGNUM(CMSG),
 			"w(w(w))",
 			FACILITYSELECTOR_SUPPLEMENTARY,
@@ -455,6 +456,7 @@ int handle_facility_indication_supplementary(
 			(partybusy) ? 0x0000 : 0x0001
 		);
 		ret = 1;
+#endif
 		break;
 	case 0x800f: /* CCBS remote user free */
 		rbref = read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[6]);
@@ -584,7 +586,7 @@ void handle_facility_confirmation_supplementary(
 		}
 		break;
 	case 0x000f: /* CCBS request */
-		cc_verbose(2, 0, VERBOSE_PREFIX_3 "%s: CCBS request confirmation (0x%04x) (PLCI=%#x)\n",
+		cc_verbose(2, 1, VERBOSE_PREFIX_3 "%s: CCBS request confirmation (0x%04x) (PLCI=%#x)\n",
 			name, serviceinfo, PLCI);
 		break;
 	default:
