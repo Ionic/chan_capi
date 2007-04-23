@@ -243,7 +243,8 @@ struct cc_capi_gains {
 #define CAPI_ISDN_STATE_EC            0x00002000
 #define CAPI_ISDN_STATE_DTMF          0x00004000
 #define CAPI_ISDN_STATE_B3_SELECT     0x00008000
-#define CAPI_ISDN_STATE_3PTY	      0x10000000
+#define CAPI_ISDN_STATE_STAYONLINE    0x00010000
+#define CAPI_ISDN_STATE_3PTY          0x10000000
 #define CAPI_ISDN_STATE_PBX_DONT      0x40000000
 #define CAPI_ISDN_STATE_PBX           0x80000000
 
@@ -288,9 +289,10 @@ struct capi_pvt {
 	char vname[CAPI_MAX_STRING];
 	unsigned char tmpbuf[CAPI_MAX_STRING];
 
+	/*! Channel who used us, possibly NULL */
+	struct ast_channel *used;		
 	/*! Channel we belong to, possibly NULL */
 	struct ast_channel *owner;		
-	
 	/*! Channel who called us, possibly NULL */
 	struct ast_channel *peer;		
 	
@@ -412,6 +414,8 @@ struct capi_pvt {
 
 	unsigned int reason;
 	unsigned int reasonb3;
+
+	time_t whentohangup;
 
 	/* RTP */
 	struct ast_rtp *rtp;

@@ -223,30 +223,27 @@ MESSAGE_EXCHANGE_ERROR capidev_check_wait_get_cmsg(_cmsg *CMSG)
 	MESSAGE_EXCHANGE_ERROR Info;
 	struct timeval tv;
 
- repeat:
-	Info = capi_get_cmsg(CMSG, capi_ApplID);
+	tv.tv_sec = 0;
+	tv.tv_usec = 500000;
 
-#if (CAPI_OS_HINT == 1) || (CAPI_OS_HINT == 2)
-	/*
-	 * For BSD allow controller 0:
-	 */
-	if ((HEADER_CID(CMSG) & 0xFF) == 0) {
-		HEADER_CID(CMSG) += capi_num_controllers;
- 	}
-#endif
+	Info = capi20_waitformessage(capi_ApplID, &tv);
 
-	/* if queue is empty */
-	if (Info == 0x1104) {
-		/* try waiting a maximum of 0.100 seconds for a message */
-		tv.tv_sec = 0;
-		tv.tv_usec = 10000;
+	if (Info == 0x0000) {
 		
-		Info = capi20_waitformessage(capi_ApplID, &tv);
+		Info = capi_get_cmsg(CMSG, capi_ApplID);
 
-		if (Info == 0x0000)
-			goto repeat;
+		if (Info == 0x0000) {
+#if (CAPI_OS_HINT == 1) || (CAPI_OS_HINT == 2)
+			/*
+			 * For BSD allow controller 0:
+			 */
+			if ((HEADER_CID(CMSG) & 0xFF) == 0) {
+				HEADER_CID(CMSG) += capi_num_controllers;
+		 	}
+#endif
+		}
 	}
-	
+
 	if ((Info != 0x0000) && (Info != 0x1104)) {
 		if (capidebug) {
 			cc_log(LOG_DEBUG, "Error waiting for cmsg... INFO = %#x\n", Info);

@@ -93,6 +93,10 @@ The Dial string
          (Useful if additional digits shall be send afterwards or together
           with 'b' to get dialtone and then send the number, e.g. if otherwise
           no progress tones are available)
+   's' : activate 'stay-online': don't disconnect CAPI connection on Hangup.
+         This is needed to give additional commands like CCBS after Hangup.
+         To really hangup the CAPI connection, use either capicommand(hangup)
+         or wait for chan-capi/network timeout (about 20 seconds).
 
   If the <interface-name> is used in dialstring, be sure the name (specified
   in capi.conf) does not start with 'contr' or 'g'.
@@ -211,6 +215,12 @@ Peer link creation:
     This is needed if you want to use CCBS/CCNR afterwards.
         Example:
         exten => s,1,capicommand(peerlink)
+
+Hangup in mode 'stay-online':
+    After hangup in 'stay-online' mode, the line isn't really disconnected
+    until timeout or command:
+        exten => s,1,capicommand(hangup)
+    This works after capicommand(peerlink) only.
 
 Set local party to 'busy' or 'free':
     Set the local phone to status to 'busy' or 'free' when

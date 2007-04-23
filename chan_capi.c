@@ -804,6 +804,8 @@ static void interface_cleanup(struct capi_pvt *i)
 	i->isdnstate = 0;
 	i->cause = 0;
 
+	i->whentohangup = 0;
+
 	i->FaxState &= ~CAPI_FAX_STATE_MASK;
 
 	i->PLCI = 0;
@@ -826,6 +828,7 @@ static void interface_cleanup(struct capi_pvt *i)
 
 	i->peer = NULL;	
 	i->owner = NULL;
+	i->used = NULL;
 	return;
 }
 
@@ -921,6 +924,23 @@ static void send_progress(struct capi_pvt *i)
 }
 
 /*
+ * send disconnect_req
+ */
+static void capi_send_disconnect(unsigned int PLCI, struct capi_pvt *i)
+{
+	_cmsg CMSG;
+
+	DISCONNECT_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
+	DISCONNECT_REQ_PLCI(&CMSG) = PLCI;
+
+	if (i) {
+		_capi_put_cmsg_wait_conf(i, &CMSG);
+	} else {
+		_capi_put_cmsg(&CMSG);
+	}
+}
+
+/*
  * hangup a line (CAPI messages)
  * (this must be called with i->lock held)
  */
@@ -952,6 +972,15 @@ static void capi_activehangup(struct ast_channel *c, int state)
 		_capi_put_cmsg(&CMSG);
 		return;
 	}
+	
+	if ((i->isdnstate & CAPI_ISDN_STATE_STAYONLINE)) {
+		/* user has requested to leave channel online for further actions
+		   like CCBS */
+		cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: disconnect deferred, stay-online mode PLCI=%#x\n",
+			i->vname, i->PLCI);
+		i->whentohangup = time(NULL) + 18; /* timeout 18 seconds */
+		return;
+	}
 
 	/* active disconnect */
 	if ((i->isdnstate & CAPI_ISDN_STATE_B3_UP)) {
@@ -965,9 +994,7 @@ static void capi_activehangup(struct ast_channel *c, int state)
 			/* CONNECT_CONF not received yet? */
 			capi_wait_conf(i, CAPI_CONNECT_CONF);
 		}
-		DISCONNECT_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
-		DISCONNECT_REQ_PLCI(&CMSG) = i->PLCI;
-		_capi_put_cmsg_wait_conf(i, &CMSG);
+		capi_send_disconnect(i->PLCI, i);
 	}
 	return;
 }
@@ -1018,9 +1045,12 @@ static int pbx_capi_hangup(struct ast_channel *c)
 		/* not disconnected yet, we must actively do it */
 		capi_activehangup(c, state);
 	}
+
+	i->owner = NULL;
+	CC_CHANNEL_PVT(c) = NULL;
+
 	cc_mutex_unlock(&i->lock);
 
-	CC_CHANNEL_PVT(c) = NULL;
 	ast_setstate(c, AST_STATE_DOWN);
 
 #ifdef CC_AST_HAS_VERSION_1_4
@@ -1090,6 +1120,11 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 			if (use_defaultcid)
 				cc_log(LOG_WARNING, "Default CID already set in '%s'\n", idest);
 			use_defaultcid = 1;
+			break;
+		case 's':	/* stay online */
+			if ((i->isdnstate & CAPI_ISDN_STATE_STAYONLINE))
+				cc_log(LOG_WARNING, "'stay-online' already set in '%s'\n", idest);
+			i->isdnstate |= CAPI_ISDN_STATE_STAYONLINE;
 			break;
 		case 'q':	/* disable QSIG */
 			cc_verbose(4, 0, VERBOSE_PREFIX_4 "%s: QSIG extensions for this call disabled\n",
@@ -1856,6 +1891,7 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 #endif
 
 	i->owner = tmp;
+	i->used = tmp;
 
 #ifdef CC_AST_HAS_VERSION_1_4
 	ast_atomic_fetchadd_int(&usecnt, 1);
@@ -1886,7 +1922,6 @@ pbx_capi_request(const char *type, int format, void *data, int *cause)
 	char buffer[CAPI_MAX_STRING];
 	ast_group_t capigroup = 0;
 	unsigned int controller = 0;
-	int notfound = 1;
 
 	cc_verbose(1, 1, VERBOSE_PREFIX_4 "data = %s format=%d\n", (char *)data, format);
 
@@ -1914,8 +1949,8 @@ pbx_capi_request(const char *type, int format, void *data, int *cause)
 
 	cc_mutex_lock(&iflock);
 	
-	for (i = iflist; (i && notfound); i = i->next) {
-		if ((i->owner) || (i->channeltype != CAPI_CHANNELTYPE_B)) {
+	for (i = iflist; i; i = i->next) {
+		if ((i->used) || (i->channeltype != CAPI_CHANNELTYPE_B)) {
 			/* if already in use or no real channel */
 			continue;
 		}
@@ -2362,11 +2397,11 @@ static void start_pbx_on_match(struct capi_pvt *i, unsigned int PLCI, _cword Mes
 		return;
 	}
 
-	switch(search_did(i->owner)) {
+	switch(search_did(c)) {
 	case 0: /* match */
 		i->isdnstate |= CAPI_ISDN_STATE_PBX;
 		ast_setstate(c, AST_STATE_RING);
-		if (ast_pbx_start(i->owner)) {
+		if (ast_pbx_start(c)) {
 			cc_log(LOG_ERROR, "%s: Unable to start pbx on channel!\n",
 				i->vname);
 			capi_channel_task(c, CAPI_CHANNEL_TASK_HANGUP); 
@@ -2468,8 +2503,6 @@ static void queue_cause_control(struct capi_pvt *i, int control)
  */
 static void capidev_handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
 {
-	_cmsg CMSG2;
-
 	i->isdnstate |= CAPI_ISDN_STATE_DISCONNECT;
 
 	if ((PLCI == i->onholdPLCI) || (i->isdnstate & CAPI_ISDN_STATE_ECT)) {
@@ -2477,9 +2510,7 @@ static void capidev_handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsig
 			i->vname);
 		/* the caller onhold hung up (or ECTed away) */
 		/* send a disconnect_req , we cannot hangup the channel here!!! */
-		DISCONNECT_REQ_HEADER(&CMSG2, capi_ApplID, get_capi_MessageNumber(), 0);
-		DISCONNECT_REQ_PLCI(&CMSG2) = PLCI;
-		_capi_put_cmsg(&CMSG2);
+		capi_send_disconnect(PLCI, NULL);
 		return;
 	}
 
@@ -2513,9 +2544,7 @@ static void capidev_handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsig
 			i->vname);
 		if (i->FaxState & CAPI_FAX_STATE_ACTIVE) {
 			/* in fax mode, we just hangup */
-			DISCONNECT_REQ_HEADER(&CMSG2, capi_ApplID, get_capi_MessageNumber(), 0);
-			DISCONNECT_REQ_PLCI(&CMSG2) = i->PLCI;
-			_capi_put_cmsg(&CMSG2);
+			capi_send_disconnect(i->PLCI, NULL);
 			return;
 		}
 		queue_cause_control(i, 0);
@@ -3262,13 +3291,14 @@ static void capidev_handle_disconnect_b3_indication(_cmsg *CMSG, unsigned int PL
 		}
 	}
 
-	if ((i->state == CAPI_STATE_DISCONNECTING) ||
-	    ((!(i->isdnstate & CAPI_ISDN_STATE_B3_SELECT)) &&
-	     (i->FaxState & CAPI_FAX_STATE_SENDMODE))) {
-		/* active disconnect */
-		DISCONNECT_REQ_HEADER(&CMSG2, capi_ApplID, get_capi_MessageNumber(), 0);
-		DISCONNECT_REQ_PLCI(&CMSG2) = PLCI;
-		_capi_put_cmsg(&CMSG2);
+	if ((i->state == CAPI_STATE_DISCONNECTING)) {
+		if (!(i->isdnstate & CAPI_ISDN_STATE_STAYONLINE)) {
+			/* active disconnect */
+			capi_send_disconnect(PLCI, NULL);
+		}
+	} else if ((!(i->isdnstate & CAPI_ISDN_STATE_B3_SELECT)) &&
+	           (i->FaxState & CAPI_FAX_STATE_SENDMODE)) {
+		capi_send_disconnect(PLCI, NULL);
 	}
 
 	capi_controllers[i->controller]->nfreebchannels++;
@@ -3421,8 +3451,8 @@ static void capidev_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, un
 	/* well...somebody is calling us. let's set up a channel */
 	cc_mutex_lock(&iflock);
 	for (i = iflist; i; i = i->next) {
-		if (i->owner) {
-			/* has already owner */
+		if (i->used) {
+			/* is already used */
 			continue;
 		}
 		if (i->controller != controller) {
@@ -4259,6 +4289,46 @@ static int pbx_capi_holdtype(struct ast_channel *c, char *param)
 }
 
 /*
+ * send the disconnect commands to capi
+ */
+static void capi_disconnect(struct capi_pvt *i)
+{
+	cc_mutex_lock(&i->lock);
+
+	i->isdnstate &= ~CAPI_ISDN_STATE_STAYONLINE;
+	if ((i->isdnstate & CAPI_ISDN_STATE_B3_UP)) {
+		cc_disconnect_b3(i, 0);
+	} else {
+		capi_send_disconnect(i->PLCI, NULL);
+	}
+	
+	cc_mutex_unlock(&i->lock);
+}
+
+/*
+ * really hangup a channel if the stay-online mode was activated
+ */
+static int pbx_capi_realhangup(struct ast_channel *c, char *param)
+{
+	struct capi_pvt *i;
+
+	cc_mutex_lock(&iflock);
+	for (i = iflist; i; i = i->next) {
+		if (i->peer == c)
+			break;
+	}
+	cc_mutex_unlock(&iflock);
+
+	if ((i) && (i->state == CAPI_STATE_DISCONNECTING)) {
+		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: capi command hangup PLCI=0x%#x.\n",
+			i->vname, i->PLCI);
+		capi_disconnect(i);
+	}
+
+	return 0;
+}
+
+/*
  * set early-B3 (progress) for incoming connections
  * (only for NT mode)
  */
@@ -4392,6 +4462,7 @@ static struct capicommands_s {
 	{ "ccbs",         pbx_capi_ccbs,            0 },
 	{ "ccbsstop",     pbx_capi_ccbsstop,        0 },
 	{ "ccpartybusy",  pbx_capi_ccpartybusy,     0 },
+	{ "hangup",       pbx_capi_realhangup,      0 },
  	{ "qsig_ssct",	  pbx_capi_qsig_ssct,	    1 },
   	{ "qsig_ct",      pbx_capi_qsig_ct,         1 },
    	{ "qsig_callmark",pbx_capi_qsig_callmark,   1 },
@@ -4642,12 +4713,34 @@ static void capi_do_channel_task(void)
 }
 
 /*
+ * check for tasks every second
+ */
+static void capidev_run_secondly(time_t now)
+{
+	struct capi_pvt *i;
+
+	/* check for channels to hangup (timeout) */
+	cc_mutex_lock(&iflock);
+	for (i = iflist; i; i = i->next) {
+		if ((i->used) && (i->whentohangup) && (i->whentohangup < now)) {
+			cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: stay-online timeout, hanging up.\n",
+				i->vname);
+			i->whentohangup = 0;
+			capi_disconnect(i);
+		}
+	}
+	cc_mutex_unlock(&iflock);
+}
+
+/*
  * module stuff, monitor...
  */
 static void *capidev_loop(void *data)
 {
 	unsigned int Info;
 	_cmsg monCMSG;
+	time_t lastcall = 0;
+	time_t newtime;
 	
 	for (/* for ever */;;) {
 		switch(Info = capidev_check_wait_get_cmsg(&monCMSG)) {
@@ -4669,6 +4762,11 @@ static void *capidev_loop(void *data)
 			/* something is wrong! */
 			break;
 		} /* switch */
+		newtime = time(NULL);
+		if (lastcall != newtime) {
+			lastcall = newtime;
+			capidev_run_secondly(newtime);
+		}
 	} /* for */
 	
 	/* never reached */
@@ -5679,8 +5777,8 @@ int unload_module(void)
 	
 	i = iflist;
 	while (i) {
-		if (i->owner)
-			cc_log(LOG_WARNING, "On unload, interface still has owner.\n");
+		if ((i->owner) || (i->used))
+			cc_log(LOG_WARNING, "On unload, interface still has owner or is used.\n");
 		if (i->smoother)
 			ast_smoother_free(i->smoother);
 		cc_mutex_destroy(&i->lock);
