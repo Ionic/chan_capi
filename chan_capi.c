@@ -1769,8 +1769,8 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 #endif
 	
 	if (tmp == NULL) {
-		cc_log(LOG_ERROR,"Unable to allocate channel!\n");
-		return(NULL);
+		cc_log(LOG_ERROR, "Unable to allocate channel!\n");
+		return NULL;
 	}
 
 #ifndef CC_AST_HAS_EXT_CHAN_ALLOC

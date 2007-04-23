@@ -201,16 +201,16 @@ MESSAGE_EXCHANGE_ERROR _capi_put_msg(unsigned char *msg)
 		return -1;
 	} 
 
-	capi_message2cmsg(&CMSG, msg);
+/* 	capi_message2cmsg(&CMSG, msg); */
 
-	error = capi20_put_message(CMSG.ApplId, msg);
+	error = capi20_put_message(capi_ApplID, msg);
 	
 	if (cc_mutex_unlock(&capi_put_lock)) {
 		cc_log(LOG_WARNING, "Unable to unlock capi put!\n");
 		return -1;
 	}
 
-	log_capi_message(error, &CMSG);
+/* 	log_capi_message(error, &CMSG); */
 
 	return error;
 }

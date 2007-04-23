@@ -233,8 +233,7 @@ static void del_ccbsnr_id(unsigned int plci, _cword id)
 		if (((ccbsnr->plci & 0xff) == (plci & 0xff)) &&
 		    (ccbsnr->id == id)) {
 			oldstate = ccbsnr->state;
-			if ((ccbsnr->state == CCBSNR_AVAILABLE) ||
-			    (ccbsnr->rbref == 0xdead)) {
+			if (ccbsnr->state == CCBSNR_AVAILABLE) {
 				if (!tmp) {
 					ccbsnr_list = ccbsnr->next;
 				} else {
@@ -262,7 +261,84 @@ static void del_ccbsnr_id(unsigned int plci, _cword id)
  */
 static void	ccbsnr_remote_user_free(_cmsg *CMSG, char type, unsigned int PLCI, _cword rbref)
 {
+	struct ast_channel *c;
+	struct ccbsnr_s *ccbsnr;
+	char handlename[CAPI_MAX_STRING];
+	int state = AST_STATE_DOWN;
+
 	/* XXX start alerting , when answered use CCBS call */
+	cc_mutex_lock(&ccbsnr_lock);
+	ccbsnr = ccbsnr_list;
+	while (ccbsnr) {
+		if ((ccbsnr->type == type) &&
+		    ((ccbsnr->plci & 0xff) == (PLCI & 0xff)) &&
+		    (ccbsnr->rbref == rbref)) {
+			break;
+		}
+		ccbsnr = ccbsnr->next;
+	}
+	cc_mutex_unlock(&ccbsnr_lock);
+
+	if (!(ccbsnr)) {
+		cc_log(LOG_ERROR, "CAPI CCBS/CCBR reference not found!\n");
+		return;
+	}
+
+	snprintf(handlename, CAPI_MAX_STRING-1, "%u", ccbsnr->handle);
+
+#ifdef CC_AST_HAS_EXT_CHAN_ALLOC
+	c = ast_channel_alloc(0, state, handlename, NULL,
+#ifdef CC_AST_HAS_EXT2_CHAN_ALLOC
+		0, ccbsnr->exten, ccbsnr->context, 0,
+#endif
+		"CCBSNR/%x", ccbsnr->handle);
+#else
+	c = ast_channel_alloc(0);
+#endif
+	
+	if (c == NULL) {
+		cc_log(LOG_ERROR, "Unable to allocate channel!\n");
+		return;
+	}
+
+#ifndef CC_AST_HAS_EXT_CHAN_ALLOC
+#ifdef CC_AST_HAS_STRINGFIELD_IN_CHANNEL
+	ast_string_field_build(c, name, "CCBSNR/%x", ccbsnr->handle);
+#else
+	snprintf(c->name, sizeof(c->name) - 1, "CCBSNR/%x",
+		ccbsnr->handle);
+#endif
+#endif
+#ifndef CC_AST_HAS_VERSION_1_4
+	c->type = "CCBS/CCNR";
+#endif
+
+	c->priority = ccbsnr->priority;
+
+	if (c->cid.cid_num) {
+		free(c->cid.cid_num);
+	}
+	c->cid.cid_num = strdup(handlename);
+	if (c->cid.cid_dnid) {
+		free(c->cid.cid_dnid);
+	}
+	c->cid.cid_dnid = strdup(ccbsnr->exten);
+
+#ifndef CC_AST_HAS_EXT2_CHAN_ALLOC
+	cc_copy_string(c->context, ccbsnr->context, sizeof(c->context));
+	cc_copy_string(c->exten, ccbsnr->exten, sizeof(c->exten));
+#endif
+
+#ifndef CC_AST_HAS_EXT_CHAN_ALLOC
+	ast_setstate(c, state);
+#endif
+
+	if (ast_pbx_start(c)) {
+		cc_log(LOG_ERROR, "capi CCBS/CCNR: Unable to start pbx!\n");
+	} else {
+		cc_verbose(2, 1, VERBOSE_PREFIX_2 "contr%d: started PBX for CCBS/CCNR callback (%s/%s/%d)\n",
+			PLCI & 0xff, ccbsnr->context, ccbsnr->exten, ccbsnr->priority);
+	}
 }
 
 /*
@@ -355,7 +431,11 @@ int handle_facility_indication_supplementary(
 		if (infoword == 0) {
 			/* success */
 			ccbsnrlink->state = CCBSNR_AVAILABLE;
+			ccbsnrlink->rbref = 0xdead;
+			ccbsnrlink->id = 0xdead;
+			ccbsnrlink->mode = 0;
 		}
+		break;
 	case 0x800d: /* CCBS erase call linkage ID */
 		cc_verbose(1, 1, VERBOSE_PREFIX_3 "contr%d: PLCI=%#x CCBS/CCNR erase id=0x%04x\n",
 			PLCI & 0xff, PLCI, infoword);
@@ -378,7 +458,7 @@ int handle_facility_indication_supplementary(
 		break;
 	case 0x800f: /* CCBS remote user free */
 		rbref = read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[6]);
-		cc_verbose(1, 1, VERBOSE_PREFIX_3 "contr%d: PLCI=%#x CCBS status ref=0x%04x mode=0x%x\n",
+		cc_verbose(1, 1, VERBOSE_PREFIX_3 "contr%d: PLCI=%#x CCBS remote user free ref=0x%04x mode=0x%x\n",
 			PLCI & 0xff, PLCI, rbref, infoword);
 		ccbsnr_remote_user_free(CMSG, CCBSNR_TYPE_CCBS, PLCI, rbref);
 		break;
