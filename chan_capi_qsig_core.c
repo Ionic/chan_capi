@@ -708,6 +708,8 @@ unsigned int cc_qsig_handle_capi_facilityind(unsigned char *data, struct capi_pv
 				break;
 			default:
 				cc_verbose(1, 1, VERBOSE_PREFIX_3 "Unknown QSIG protocol configured (%i)\n", i->qsigfeat);
+				/* kill endlessloop */
+				facidx += faclen;
 				break;
 		}
 	}
