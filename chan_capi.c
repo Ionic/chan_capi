@@ -5159,6 +5159,8 @@ static int pbxcli_capi_info(int fd, int argc, char *argv[])
 	
 	if (argc != 2)
 		return RESULT_SHOWUSAGE;
+	
+	ast_cli(fd, "%s www.chan-capi.org\n", tdesc);
 		
 	for (i = 1; i <= capi_num_controllers; i++) {
 		if (capi_controllers[i] != NULL) {

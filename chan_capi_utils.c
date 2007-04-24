@@ -893,10 +893,11 @@ struct ast_channel *cc_get_peer_link_id(const char *p)
 	if ((id >= 0) && (id < CAPI_MAX_PEERLINKCHANNELS)) {
 		chan = peerlinkchannel[id].channel;
 		peerlinkchannel[id].channel = NULL;
+	} else {
+		cc_verbose(3, 1, VERBOSE_PREFIX_4 "capi: peerlink %d allocated, peer is %s\n",
+			id, (chan)?chan->name:"unlinked");
 	}
 	cc_mutex_unlock(&peerlink_lock);
-	cc_verbose(3, 1, VERBOSE_PREFIX_4 "capi: peerlink %d allocated, peer is %s\n",
-		id, (chan)?chan->name:"unlinked");
 	return chan;
 }
 
