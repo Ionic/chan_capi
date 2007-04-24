@@ -408,7 +408,9 @@ struct capi_pvt {
 	unsigned int reason;
 	unsigned int reasonb3;
 
+	/* deferred tasks */
 	time_t whentohangup;
+	time_t whentoqueuehangup;
 
 	/* RTP */
 	struct ast_rtp *rtp;
@@ -560,5 +562,6 @@ struct cc_capi_controller {
 extern unsigned capi_ApplID;
 extern struct capi_pvt *iflist;
 extern void cc_start_b3(struct capi_pvt *i);
+extern void queue_cause_control(struct capi_pvt *i, int control);
 
 #endif

@@ -805,6 +805,7 @@ static void interface_cleanup(struct capi_pvt *i)
 	i->cause = 0;
 
 	i->whentohangup = 0;
+	i->whentoqueuehangup = 0;
 
 	i->FaxState &= ~CAPI_FAX_STATE_MASK;
 
@@ -2480,7 +2481,7 @@ static void capidev_handle_did_digits(_cmsg *CMSG, unsigned int PLCI, unsigned i
 /*
  * send control according to cause code
  */
-static void queue_cause_control(struct capi_pvt *i, int control)
+void queue_cause_control(struct capi_pvt *i, int control)
 {
 	struct ast_frame fr = { AST_FRAME_CONTROL, AST_CONTROL_HANGUP, };
 	
@@ -2518,10 +2519,17 @@ static void capidev_handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsig
 	if ((i->doB3 != CAPI_B3_ALWAYS) && (i->outgoing == 1)) {
 		cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s: Disconnect case 1\n",
 			i->vname);
-		if (i->state == CAPI_STATE_CONNECTED) 
+		if (i->state == CAPI_STATE_CONNECTED) {
 			queue_cause_control(i, 0);
-		else
-			queue_cause_control(i, 1);
+		} else {
+			if ((i->isdnstate & CAPI_ISDN_STATE_STAYONLINE)) {
+				cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: stay-online hangup frame queued.\n",
+					i->vname);
+				i->whentoqueuehangup = time(NULL) + 1;
+			} else {
+				queue_cause_control(i, 1);
+			}
+		}
 		return;
 	}
 	
@@ -4722,11 +4730,20 @@ static void capidev_run_secondly(time_t now)
 	/* check for channels to hangup (timeout) */
 	cc_mutex_lock(&iflock);
 	for (i = iflist; i; i = i->next) {
-		if ((i->used) && (i->whentohangup) && (i->whentohangup < now)) {
+		if (i->used == NULL) {
+			continue;
+		}
+		if ((i->whentohangup) && (i->whentohangup < now)) {
 			cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: stay-online timeout, hanging up.\n",
 				i->vname);
 			i->whentohangup = 0;
 			capi_disconnect(i);
+		}
+		if ((i->whentoqueuehangup) && (i->whentoqueuehangup < now)) {
+			cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: stay-online queue-hangup.\n",
+				i->vname);
+			queue_cause_control(i, 1);
+			i->whentoqueuehangup = 0;
 		}
 	}
 	cc_mutex_unlock(&iflock);

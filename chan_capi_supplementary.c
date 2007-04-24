@@ -108,6 +108,12 @@ static void new_ccbsnr_id(char type, unsigned int plci,
 	cc_verbose(1, 1, VERBOSE_PREFIX_3
 		"%s: PLCI=%#x CCBS/CCNR new id=0x%04x handle=%d\n",
 		i->vname, plci, id, ccbsnr->handle);
+
+	/* if the hangup frame was deferred, it can be done now and here */
+	if (i->whentoqueuehangup) {
+		i->whentoqueuehangup = 0;
+		queue_cause_control(i, 1);
+	}
 }
 
 /*
