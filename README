@@ -68,6 +68,7 @@ This chan_capi version includes:
 - CLI command "capi show channels" shows details on channel status.
 - Asterisk 1.4 jitterbuffer configuration.
 - some QSIG extensions (see README.qsig)
+- CCBS (call completion on busy subscriber)
 
 
 The Dial string
@@ -246,6 +247,9 @@ Call completion on subscriber busy (CCBS):
     If the remote party becomes 'non-busy', the network initiates the callback which will be
     sent to the provided context/exten/priority. Of course, this only happens if your local
     phone is set to 'free' with capicommand(ccpartybusy), which is the default.
+    In this context/exten/priority you should just setup a callfile to initiate an outgoing
+    call from your extension to
+        exten => s,1,Dial(CAPI/ccbs/${CCLINKAGEID}/)
 
 Deactivate CCBS:
     To deactivate a previously activated CCBS, use following command:

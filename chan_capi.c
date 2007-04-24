@@ -814,6 +814,7 @@ static void interface_cleanup(struct capi_pvt *i)
 	i->NCCI = 0;
 	i->onholdPLCI = 0;
 	i->doEC = i->doEC_global;
+	i->ccbsnrhandle = 0;
 
 	memset(i->cid, 0, sizeof(i->cid));
 	memset(i->dnid, 0, sizeof(i->dnid));
@@ -1143,6 +1144,48 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 		return -1;
 	}
 
+	i->peer = cc_get_peer_link_id(pbx_builtin_getvar_helper(c, "CAPIPEERLINKID"));
+	i->outgoing = 1;
+	i->isdnstate |= CAPI_ISDN_STATE_PBX;
+	i->state = CAPI_STATE_CONNECTPENDING;
+	ast_setstate(c, AST_STATE_DIALING);
+	i->MessageNumber = get_capi_MessageNumber();
+
+	/* if this is a CCBS/CCNR callback call */
+	if (i->ccbsnrhandle) {
+		_cword cip = (_cword)tcap2cip(c->transfercapability);
+		_cword rbref;
+
+		i->doOverlap = 0;
+		rbref = capi_ccbsnr_take_ref(i->ccbsnrhandle);
+
+		if ((rbref == 0xdead) ||
+		    ((capi_sendf(NULL, 0, CAPI_FACILITY_REQ, i->controller, i->MessageNumber,
+			"w(w(www(wwwsss())()()()()))",
+			FACILITYSELECTOR_SUPPLEMENTARY,
+			0x0012,  /* CCBS call */
+			rbref,   /* reference */
+			cip,     /* CIP */
+			0, /* reserved */
+			 /* B protocol */
+			b_protocol_table[i->bproto].b1protocol,
+			b_protocol_table[i->bproto].b2protocol,
+			b_protocol_table[i->bproto].b3protocol,
+			b_protocol_table[i->bproto].b1configuration,
+			b_protocol_table[i->bproto].b2configuration,
+			b_protocol_table[i->bproto].b3configuration
+			/* */ /* BC */
+			/* */ /* LLC */
+			/* */  /* HLC */
+			/* */  /* Additional Info */
+			)))) {
+			i->state = CAPI_STATE_DISCONNECTED;
+			ast_setstate(c, AST_STATE_RESERVED);
+			return 1;
+		}
+		return 0;
+	}
+
 	CLIR = c->cid.cid_pres;
 	callernplan = c->cid.cid_ton & 0x7f;
 
@@ -1166,9 +1209,6 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 		dsa = calledsubaddress;
 	}
 
-	i->peer = cc_get_peer_link_id(pbx_builtin_getvar_helper(c, "CAPIPEERLINKID"));
-
-	i->MessageNumber = get_capi_MessageNumber();
 	CONNECT_REQ_HEADER(&CMSG, capi_ApplID, i->MessageNumber, i->controller);
 	CONNECT_REQ_CONTROLLER(&CMSG) = i->controller;
 	CONNECT_REQ_CIPVALUE(&CMSG) = tcap2cip(c->transfercapability);
@@ -1228,20 +1268,11 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 		CONNECT_REQ_FACILITYDATAARRAY(&CMSG) = facilityarray;
 	}
 
-	cc_mutex_lock(&i->lock);
-
-	i->outgoing = 1;
-	i->isdnstate |= CAPI_ISDN_STATE_PBX;
-	i->state = CAPI_STATE_CONNECTPENDING;
-	ast_setstate(c, AST_STATE_DIALING);
-
 	if ((error = _capi_put_cmsg(&CMSG))) {
 		i->state = CAPI_STATE_DISCONNECTED;
 		ast_setstate(c, AST_STATE_RESERVED);
-		cc_mutex_unlock(&i->lock);
 		return error;
 	}
-	cc_mutex_unlock(&i->lock);
 
 	/* now we shall return .... the rest has to be done by handle_msg */
 	return 0;
@@ -1923,6 +1954,7 @@ pbx_capi_request(const char *type, int format, void *data, int *cause)
 	char buffer[CAPI_MAX_STRING];
 	ast_group_t capigroup = 0;
 	unsigned int controller = 0;
+	unsigned int ccbsnrhandle = 0;
 
 	cc_verbose(1, 1, VERBOSE_PREFIX_4 "data = %s format=%d\n", (char *)data, format);
 
@@ -1943,6 +1975,16 @@ pbx_capi_request(const char *type, int format, void *data, int *cause)
 		controller = atoi(interface + 5);
 		cc_verbose(1, 1, VERBOSE_PREFIX_4 "capi request controller = %d\n",
 				controller);
+	} else if (!strncmp(interface, "ccbs", 4)) {
+		ccbsnrhandle = (unsigned int)strtoul(dest, NULL, 0);
+		cc_verbose(1, 1, VERBOSE_PREFIX_4 "capi request ccbs handle = %u\n",
+				ccbsnrhandle);
+		if ((controller = capi_get_ccbsnrcontroller(ccbsnrhandle)) == 0) {
+			cc_verbose(2, 0, VERBOSE_PREFIX_3 "didn't find CCBS handle %u\n",
+				ccbsnrhandle);
+			*cause = AST_CAUSE_REQUESTED_CHAN_UNAVAIL;
+			return NULL;
+		}
 	} else {
 		cc_verbose(1, 1, VERBOSE_PREFIX_4 "capi request for interface '%s'\n",
 				interface);
@@ -1983,6 +2025,7 @@ pbx_capi_request(const char *type, int format, void *data, int *cause)
 		}
 		i->PLCI = 0;
 		i->outgoing = 1;	/* this is an outgoing line */
+		i->ccbsnrhandle = ccbsnrhandle;
 		cc_mutex_unlock(&iflock);
 		return tmp;
 	}
@@ -3583,7 +3626,7 @@ static void capidev_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, un
 /*
  * CAPI FACILITY_CONF
  */
-static void capidev_handle_facility_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
+static void capidev_handle_facility_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt **i)
 {
 	int selector;
 
@@ -3594,26 +3637,26 @@ static void capidev_handle_facility_confirmation(_cmsg *CMSG, unsigned int PLCI,
 		return;
 	}
 	
-	if (i == NULL)
+	if (*i == NULL)
 		return;
 
 	if (selector == FACILITYSELECTOR_DTMF) {
 		cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: DTMF conf(PLCI=%#x)\n",
-			i->vname, PLCI);
+			(*i)->vname, PLCI);
 		return;
 	}
-	if (selector == i->ecSelector) {
+	if (selector == (*i)->ecSelector) {
 		if (FACILITY_CONF_INFO(CMSG)) {
 			cc_verbose(2, 0, VERBOSE_PREFIX_3 "%s: Error setting up echo canceller (PLCI=%#x)\n",
-				i->vname, PLCI);
+				(*i)->vname, PLCI);
 			return;
 		}
 		if (FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[1] == EC_FUNCTION_DISABLE) {
 			cc_verbose(3, 0, VERBOSE_PREFIX_3 "%s: Echo canceller successfully disabled (PLCI=%#x)\n",
-				i->vname, PLCI);
+				(*i)->vname, PLCI);
 		} else {
 			cc_verbose(3, 0, VERBOSE_PREFIX_3 "%s: Echo canceller successfully set up (PLCI=%#x)\n",
-				i->vname, PLCI);
+				(*i)->vname, PLCI);
 		}
 		return;
 	}
@@ -3622,18 +3665,18 @@ static void capidev_handle_facility_confirmation(_cmsg *CMSG, unsigned int PLCI,
 		    (FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[2] == 0x0)) {
 			/* enable */
 			if (FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[0] > 12) {
-				show_capi_info(i, read_capi_word(&FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[12]));
+				show_capi_info(*i, read_capi_word(&FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[12]));
 			}
 		} else {
 			/* disable */
 			if (FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[0] > 12) {
-				show_capi_info(i, read_capi_word(&FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[12]));
+				show_capi_info(*i, read_capi_word(&FACILITY_CONF_FACILITYCONFIRMATIONPARAMETER(CMSG)[12]));
 			}
 		}
 		return;
 	}
 	cc_log(LOG_ERROR, "%s: unhandled FACILITY_CONF 0x%x\n",
-		i->vname, FACILITY_CONF_FACILITYSELECTOR(CMSG));
+		(*i)->vname, FACILITY_CONF_FACILITYSELECTOR(CMSG));
 }
 
 /*
@@ -3708,6 +3751,37 @@ static void capidev_post_handling(struct capi_pvt *i, _cmsg *CMSG)
 }
 
 /*
+ * handle CONNECT_CONF or FACILITY_CONF(CCBS call)
+ */
+void capidev_handle_connection_conf(struct capi_pvt **i, unsigned int PLCI,
+	unsigned short wInfo, unsigned short wMsgNum)
+{
+	struct capi_pvt *ii;
+	struct ast_frame fr = { AST_FRAME_CONTROL, AST_CONTROL_BUSY, };
+
+	if (*i) {
+		cc_log(LOG_ERROR, "CAPI: CONNECT_CONF for already "
+			"defined interface received\n");
+		return;
+	}
+	*i = find_interface_by_msgnum(wMsgNum);
+	ii = *i;
+	if ((ii == NULL) || (!ii->owner)) {
+		return;
+	}
+	cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: received CONNECT_CONF PLCI = %#x\n",
+		ii->vname, PLCI);
+	cc_mutex_lock(&ii->lock);
+	if (wInfo == 0) {
+		ii->PLCI = PLCI;
+	} else {
+		/* error in connect, so set correct state and signal busy */
+		ii->state = CAPI_STATE_DISCONNECTED;
+		local_queue_frame(ii, &fr);
+	}
+}
+
+/*
  * handle CAPI msg
  */
 static void capidev_handle_msg(_cmsg *CMSG)
@@ -3773,28 +3847,11 @@ static void capidev_handle_msg(_cmsg *CMSG)
 
 	case CAPI_P_CONF(FACILITY):
 		wInfo = FACILITY_CONF_INFO(CMSG);
-		capidev_handle_facility_confirmation(CMSG, PLCI, NCCI, i);
+		capidev_handle_facility_confirmation(CMSG, PLCI, NCCI, &i);
 		break;
 	case CAPI_P_CONF(CONNECT):
 		wInfo = CONNECT_CONF_INFO(CMSG);
-		if (i) {
-			cc_log(LOG_ERROR, "CAPI: CONNECT_CONF for already "
-				"defined interface received\n");
-			break;
-		}
-		i = find_interface_by_msgnum(wMsgNum);
-		if ((i == NULL) || (!i->owner))
-			break;
-		cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: received CONNECT_CONF PLCI = %#x\n",
-			i->vname, PLCI);
-		if (wInfo == 0) {
-			i->PLCI = PLCI;
-		} else {
-			/* error in connect, so set correct state and signal busy */
-			i->state = CAPI_STATE_DISCONNECTED;
-			struct ast_frame fr = { AST_FRAME_CONTROL, AST_CONTROL_BUSY, };
-			local_queue_frame(i, &fr);
-		}
+		capidev_handle_connection_conf(&i, PLCI, wInfo, wMsgNum);
 		break;
 	case CAPI_P_CONF(CONNECT_B3):
 		wInfo = CONNECT_B3_CONF_INFO(CMSG);

@@ -69,6 +69,28 @@ void cleanup_ccbsnr(void)
 }
 
 /*
+ * return the controller of ccbsnr handle
+ */
+unsigned int capi_get_ccbsnrcontroller(unsigned int handle)
+{
+	unsigned int contr = 0;
+	struct ccbsnr_s *ccbsnr;
+	
+	cc_mutex_lock(&ccbsnr_lock);
+	ccbsnr = ccbsnr_list;
+	while (ccbsnr) {
+		if (ccbsnr->handle == handle) {
+			contr = (ccbsnr->plci & 0xff);
+			break;
+		}
+		ccbsnr = ccbsnr->next;
+	}
+	cc_mutex_unlock(&ccbsnr_lock);
+
+	return contr;
+}
+
+/*
  * a new CCBS/CCNR id was received
  */
 static void new_ccbsnr_id(char type, unsigned int plci,
@@ -222,6 +244,34 @@ static void del_ccbsnr_ref(unsigned int plci, _cword ref)
 		ccbsnr = ccbsnr->next;
 	}
 	cc_mutex_unlock(&ccbsnr_lock);
+}
+
+/*
+ * return rbref of CCBS/CCNR and delete entry
+ */
+_cword capi_ccbsnr_take_ref(unsigned int handle)
+{
+	unsigned int plci = 0;
+	_cword rbref = 0xdead;
+	struct ccbsnr_s *ccbsnr;
+	
+	cc_mutex_lock(&ccbsnr_lock);
+	ccbsnr = ccbsnr_list;
+	while (ccbsnr) {
+		if (ccbsnr->handle == handle) {
+			plci = ccbsnr->plci;
+			rbref = ccbsnr->rbref;
+			break;
+		}
+		ccbsnr = ccbsnr->next;
+	}
+	cc_mutex_unlock(&ccbsnr_lock);
+
+	if (rbref != 0xdead) {
+		del_ccbsnr_ref(plci, rbref);
+	}
+
+	return rbref;
 }
 
 /*
@@ -567,14 +617,14 @@ int handle_facility_indication_supplementary(
  * CAPI FACILITY_CONF supplementary
  */
 void handle_facility_confirmation_supplementary(
-	_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
+	_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt **i)
 {
 	_cword function;
 	_cword serviceinfo;
 	char name[64];
 
-	if (i) {
-		strncpy(name, i->vname, sizeof(name) - 1);
+	if (*i) {
+		strncpy(name, (*i)->vname, sizeof(name) - 1);
 	} else {
 		snprintf(name, sizeof(name) - 1, "contr%d", PLCI & 0xff);
 	}
@@ -592,6 +642,11 @@ void handle_facility_confirmation_supplementary(
 	case 0x000f: /* CCBS request */
 		cc_verbose(2, 1, VERBOSE_PREFIX_3 "%s: CCBS request confirmation (0x%04x) (PLCI=%#x)\n",
 			name, serviceinfo, PLCI);
+		break;
+	case 0x0012: /* CCBS call */
+		cc_verbose(2, 1, VERBOSE_PREFIX_3 "%s: CCBS call confirmation (0x%04x) (PLCI=%#x)\n",
+			name, serviceinfo, PLCI);
+		capidev_handle_connection_conf(i, PLCI, FACILITY_CONF_INFO(CMSG), HEADER_MSGNUM(CMSG));
 		break;
 	default:
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: unhandled FACILITY_CONF supplementary function %04x\n",

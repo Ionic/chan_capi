@@ -6,6 +6,7 @@ HEAD
 - possibly fixed ECT channel hang
 - added 'x' option to capicommand(ect) to have real 'explicit call transfer'
   (needed by some ISDN lines)
+- support CCBS (call completion on busy subscriber)
 
 
 chan_capi-1.0.1

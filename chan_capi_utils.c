@@ -323,8 +323,12 @@ MESSAGE_EXCHANGE_ERROR capi_sendf(
 			break;
 		case 's': /* struct, length is the first byte */
 			string = va_arg(ap, unsigned char *);
-			for (j = 0; j <= string[0]; j++)
-				*(p++) = string[j];
+			if (string == NULL) {
+				*(p++) = 0;
+			} else {
+				for (j = 0; j <= string[0]; j++)
+					*(p++) = string[j];
+			}
 			break;
 		case 'a': /* ascii string, NULL terminated string */
 			string = va_arg(ap, unsigned char *);
@@ -894,10 +898,9 @@ struct ast_channel *cc_get_peer_link_id(const char *p)
 	if ((id >= 0) && (id < CAPI_MAX_PEERLINKCHANNELS)) {
 		chan = peerlinkchannel[id].channel;
 		peerlinkchannel[id].channel = NULL;
-	} else {
-		cc_verbose(3, 1, VERBOSE_PREFIX_4 "capi: peerlink %d allocated, peer is %s\n",
-			id, (chan)?chan->name:"unlinked");
 	}
+	cc_verbose(3, 1, VERBOSE_PREFIX_4 "capi: peerlink %d allocated, peer is %s\n",
+		id, (chan)?chan->name:"unlinked");
 	cc_mutex_unlock(&peerlink_lock);
 	return chan;
 }

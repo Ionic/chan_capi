@@ -380,6 +380,9 @@ struct capi_pvt {
 	/* Fax status */
 	unsigned int FaxState;
 
+	/* handle for CCBS/CCNR callback */
+	unsigned int ccbsnrhandle;
+
 	/* not all codecs supply frames in nice 160 byte chunks */
 	struct ast_smoother *smoother;
 
@@ -563,5 +566,7 @@ extern unsigned capi_ApplID;
 extern struct capi_pvt *iflist;
 extern void cc_start_b3(struct capi_pvt *i);
 extern void queue_cause_control(struct capi_pvt *i, int control);
+extern void capidev_handle_connection_conf(struct capi_pvt **i, unsigned int PLCI,
+    unsigned short wInfo, unsigned short wMsgNum);
 
 #endif
