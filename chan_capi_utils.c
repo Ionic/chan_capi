@@ -289,7 +289,8 @@ MESSAGE_EXCHANGE_ERROR capi_sendf(
 	unsigned char msg[2048];
 
 	write_capi_word(&msg[2], capi_ApplID);
-	write_capi_word(&msg[4], command);
+	write_capi_word(&msg[4], ((command >> 8) & 0xff));
+	write_capi_word(&msg[5], (command & 0xff));
 	write_capi_word(&msg[6], Number);
 	write_capi_dword(&msg[8], Id);
 
