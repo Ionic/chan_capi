@@ -502,7 +502,52 @@ void cc_qsig_op_ecma_isdn_prpropose(struct cc_qsig_invokedata *invoke, struct ca
 void cc_qsig_encode_ecma_prpropose(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke, struct capi_pvt *i, char *param)
 {
 	/* TODO: write code */
-// 	int invokeop = 19;
+ 	int invokeop = 4;
+	
+	char *callid, *reroutingnr;
+	int cidlen, rrnlen;
+	int seqlen = 4;
+	char c[255];
+	int ix = 0;
+
+	if (!i->qsig_data.pr_propose_cid)
+		return ;
+	
+	if (!i->qsig_data.pr_propose_pn)
+		return ;
+
+	callid = i->qsig_data.pr_propose_cid;
+	reroutingnr = i->qsig_data.pr_propose_pn;
+	
+	cidlen = strlen(callid);
+	rrnlen = strlen(reroutingnr);
+	seqlen += cidlen + rrnlen;
+	
+	
+	c[ix++] = ASN1_SEQUENCE | ASN1_TF_CONSTRUCTED;	/* start of SEQUENCE */
+	c[ix++] = seqlen;
+		
+	c[ix++] = ASN1_NUMERICSTRING;		/* val 1 - CallID */
+	c[ix++] = cidlen;
+	memcpy(&c[ix], callid, cidlen);
+	ix += cidlen;
+	
+	c[ix++] = ASN1_TC_CONTEXTSPEC;	/* val 2 - Rerouting number*/
+	c[ix++] = rrnlen;
+	memcpy(&c[ix], reroutingnr, rrnlen);
+	ix += rrnlen;
+	
+	/* end of SEQUENCE */
+	/* there are optional data possible here */
+	
+	invoke->id = invokeop;
+	invoke->descr_type = -1;
+	invoke->type = invokeop;
+
+	invoke->datalen = ix;
+	memcpy(invoke->data, c, ix);
+	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * QSIG_PATHREPLACEMENT_PROPOSE: %s,%s\n", callid, reroutingnr);
+	
 	
 	return;
 }

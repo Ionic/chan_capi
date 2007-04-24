@@ -139,7 +139,7 @@ struct cc_qsig_nfe {
  ***  QSIG Core Functions 
  */
 
-extern int cc_qsig_build_facility_struct(unsigned char * buf, unsigned int *idx, int apdu_interpr, struct cc_qsig_nfe *nfe);
+extern int cc_qsig_build_facility_struct(unsigned char * buf, unsigned int *idx, int protocolvar, int apdu_interpr, struct cc_qsig_nfe *nfe);
 extern int cc_qsig_add_invoke(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke, struct capi_pvt *i);
 
 extern unsigned int cc_qsig_asn1_get_string(unsigned char *buf, int buflen, unsigned char *data);

@@ -152,7 +152,7 @@ void cc_qsig_update_facility_length(unsigned char * buf, unsigned int idx)
 /*
  * Create Invoke Struct
  */
-int cc_qsig_build_facility_struct(unsigned char * buf, unsigned int *idx, int apdu_interpr, struct cc_qsig_nfe *nfe)
+int cc_qsig_build_facility_struct(unsigned char * buf, unsigned int *idx, int protocolvar, int apdu_interpr, struct cc_qsig_nfe *nfe)
 {
 	int myidx = *idx;	/* we start with Index 1 - Byte 0 is Length of Facilitydataarray */
 	if (!myidx)
@@ -160,7 +160,7 @@ int cc_qsig_build_facility_struct(unsigned char * buf, unsigned int *idx, int ap
 	
 	buf[myidx++] = 0x1c;
 	buf[myidx++] = 0;		/* Byte 2 length of Facilitydataarray */
-	buf[myidx++] = COMP_TYPE_DISCR_SS;	/* QSIG Facility */
+	buf[myidx++] = 0x80 | protocolvar;	/* QSIG Facility */
 	/* TODO: Outsource following struct to an separate function */
 	buf[myidx++] = COMP_TYPE_NFE;		/* Network Facility Extension */
 	buf[myidx++] = 6;				/* NFE Size hardcoded - not good */
@@ -747,6 +747,7 @@ unsigned int cc_qsig_add_call_setup_data(unsigned char *data, struct capi_pvt *i
 	struct cc_qsig_invokedata invoke;
 	struct cc_qsig_nfe nfe;
 	unsigned int dataidx = 0;
+	int protocolvar = 0;
 	
 	const unsigned char xprogress[] = {0x1e,0x02,0xa0,0x90};
 	char *p = NULL;
@@ -776,6 +777,11 @@ unsigned int cc_qsig_add_call_setup_data(unsigned char *data, struct capi_pvt *i
 							} else {
 								i->qsig_data.calltransfer = 1;
 								i->qsig_data.partner_plci = atoi(pp);
+								/* set the other channel as partner to me */
+								struct capi_pvt *ii = find_interface_by_plci(i->qsig_data.partner_plci);
+								if (ii)
+									ii->qsig_data.partner_plci = i->PLCI;
+								
 								cc_verbose(1, 1, " for plci %#x\n", i->qsig_data.partner_plci);
 							}
 							break;
@@ -787,6 +793,11 @@ unsigned int cc_qsig_add_call_setup_data(unsigned char *data, struct capi_pvt *i
 							} else {
 								i->qsig_data.calltransfer_onring = 1;
 								i->qsig_data.partner_plci = atoi(pp);
+								/* set the other channel as partner to me */
+								struct capi_pvt *ii = find_interface_by_plci(i->qsig_data.partner_plci);
+								if (ii)
+									ii->qsig_data.partner_plci = i->PLCI;
+								
 								cc_verbose(1, 1, " for plci %#x\n", i->qsig_data.partner_plci);
 							}
 							break;
@@ -803,8 +814,20 @@ unsigned int cc_qsig_add_call_setup_data(unsigned char *data, struct capi_pvt *i
 		}
 	}
 	
-/*mg:remember me	switch (i->doqsig) {*/
-	cc_qsig_build_facility_struct(data, &dataidx, APDUINTERPRETATION_IGNORE, &nfe);
+	switch (i->qsigfeat) {
+		case QSIG_TYPE_ALCATEL_ECMA:
+			protocolvar = Q932_PROTOCOL_ROSE;
+			break;
+		case QSIG_TYPE_HICOM_ECMAV2:
+			protocolvar = Q932_PROTOCOL_EXTENSIONS;
+			break;
+		default:
+			cc_log(LOG_WARNING, " Unknown QSIG variant configured.\n");
+			return 0;
+			break;
+	}
+		
+	cc_qsig_build_facility_struct(data, &dataidx, protocolvar, APDUINTERPRETATION_IGNORE, &nfe);
 	cc_qsig_encode_ecma_name_invoke(data, &dataidx, &invoke, i, 0);
 	cc_qsig_add_invoke(data, &dataidx, &invoke, i);
 	
@@ -828,9 +851,28 @@ unsigned int cc_qsig_do_facility(unsigned char *fac, struct  ast_channel *c, cha
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	/* struct capi_pvt *ii = NULL; */
 	unsigned int facidx = 0;
+	int protocolvar = 0;
 	
-	cc_qsig_build_facility_struct(fac, &facidx, APDUINTERPRETATION_REJECT, &nfe);
+	switch (i->qsigfeat) {
+		case QSIG_TYPE_ALCATEL_ECMA:
+			protocolvar = Q932_PROTOCOL_ROSE;
+			break;
+		case QSIG_TYPE_HICOM_ECMAV2:
+			protocolvar = Q932_PROTOCOL_EXTENSIONS;
+			break;
+		default:
+			cc_log(LOG_WARNING, " Unknown QSIG variant configured.\n");
+			return 0;
+			break;
+	}
+	
+	cc_qsig_build_facility_struct(fac, &facidx, protocolvar, APDUINTERPRETATION_REJECT, &nfe);
 	switch (factype) {
+		case 4: /* ECMA-xxx pathReplacementPropose */
+			cc_qsig_encode_ecma_prpropose(fac, &facidx, &invoke, i, param);
+			cc_qsig_add_invoke(fac, &facidx, &invoke, i);
+			
+			break;
 		case 12: /* ECMA-178 callTransfer */
 			cc_qsig_encode_ecma_calltransfer(fac, &facidx, &invoke, i, param, info1);
 			cc_qsig_add_invoke(fac, &facidx, &invoke, i);
@@ -848,7 +890,7 @@ unsigned int cc_qsig_do_facility(unsigned char *fac, struct  ast_channel *c, cha
 }
 
 /*
- * Initiate a QSIG Call Transfer
+ * capicommand getplci - needed for Call Transfer
  */
 int pbx_capi_qsig_getplci(struct ast_channel *c, char *param)
 {
@@ -992,6 +1034,29 @@ void pbx_capi_qsig_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsign
 			{
 				unsigned int qsiginvoke;
 				qsiginvoke = cc_qsig_handle_capi_facilityind( (unsigned char*) INFO_IND_INFOELEMENT(CMSG), i);
+/*			
+				if (i->qsig_data.pr_propose_cid && i->qsig_data.pr_propose_pn) {
+					struct capi_pvt *ii = find_interface_by_plci(i->qsig_data.partner_plci);
+								
+					if (ii) {
+						unsigned char fac[CAPI_MAX_FACILITYDATAARRAY_SIZE];
+						_cmsg		CMSG3;
+					
+						cc_qsig_do_facility(fac, i->owner, NULL, 4, 0);
+							
+						INFO_REQ_HEADER(&CMSG3, capi_ApplID, get_capi_MessageNumber(),0);
+						INFO_REQ_PLCI(&CMSG3) = ii->PLCI;
+						INFO_REQ_FACILITYDATAARRAY(&CMSG3) = fac;
+						_capi_put_cmsg(&CMSG3);
+					} else {
+						cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * QSIG_PATHREPLACEMENT_PROPOSE: no partner channel found (%#x)\n", i->qsig_data.partner_plci);
+					}
+								
+					free(i->qsig_data.pr_propose_cid);
+					free(i->qsig_data.pr_propose_pn);
+				}
+			*/
+				
 			}
 			break;
 		case 0x001e:	/* Progress Indicator */
@@ -1020,6 +1085,9 @@ void pbx_capi_qsig_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsign
 				unsigned char fac[CAPI_MAX_FACILITYDATAARRAY_SIZE];
 				struct capi_pvt *ii = find_interface_by_plci(i->qsig_data.partner_plci);
 
+				/* needed for Path Replacement */
+				ii->qsig_data.partner_plci = i->PLCI;
+				
 				_cmsg		CMSG3;
 
 				i->qsig_data.calltransfer_onring = 0;
@@ -1050,6 +1118,28 @@ void pbx_capi_qsig_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsign
 		case 0x8005:	/* SETUP */
 			break;
 		case 0x8007:	/* CONNECT */
+/*			{
+				if (i->qsig_data.pr_propose_cid && i->qsig_data.pr_propose_pn) {
+					struct capi_pvt *ii = find_interface_by_plci(i->qsig_data.partner_plci);
+							
+					if (ii) {
+						unsigned char fac[CAPI_MAX_FACILITYDATAARRAY_SIZE];
+						_cmsg		CMSG3;
+			
+						cc_qsig_do_facility(fac, i->owner, NULL, 4, 0);
+					
+						INFO_REQ_HEADER(&CMSG3, capi_ApplID, get_capi_MessageNumber(),0);
+						INFO_REQ_PLCI(&CMSG3) = ii->PLCI;
+						INFO_REQ_FACILITYDATAARRAY(&CMSG3) = fac;
+						_capi_put_cmsg(&CMSG3);
+					} else {
+						cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * QSIG_PATHREPLACEMENT_PROPOSE: no partner channel found (%#x)\n", i->qsig_data.partner_plci);
+					}
+							
+					free(i->qsig_data.pr_propose_cid);
+					free(i->qsig_data.pr_propose_pn);
+				}
+			}*/
 			break;
 		case 0x800d:	/* SETUP ACK */
 			break;
