@@ -109,11 +109,6 @@ static inline unsigned int read_capi_dword(void *m)
 #define cc_pbx_verbose(x...)      ast_verbose(x)
 #define cc_copy_string(dst, src, size)  ast_copy_string(dst, src, size)
 
-#ifdef PBX_IS_OPBX
-#define CC_CHANNEL_PVT(c) (c)->tech_pvt
-
-#else /* PBX_IS_OPBX */
-
 #ifndef AST_MUTEX_DEFINE_STATIC
 #define AST_MUTEX_DEFINE_STATIC(mutex)		\
 	static cc_mutex_t mutex = AST_MUTEX_INITIALIZER
@@ -124,8 +119,6 @@ static inline unsigned int read_capi_dword(void *m)
  */
 #define CC_CHANNEL_PVT(c) (c)->tech_pvt
 #define CC_BRIDGE_RETURN enum ast_bridge_result
-
-#endif /* PBX_IS_OPBX */
 
 /* */
 #define return_on_no_interface(x)                                       \
