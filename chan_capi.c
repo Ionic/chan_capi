@@ -36,6 +36,7 @@
 #include "chan_capi_qsig_asn197no.h"
 #include "chan_capi_utils.h"
 #include "chan_capi_supplementary.h"
+#include "chan_capi_chat.h"
 
 /* #define CC_VERSION "x.y.z" */
 #define CC_VERSION "$Revision$"
@@ -49,7 +50,6 @@ unsigned capi_ApplID = CAPI_APPLID_UNUSED;
 
 static const char tdesc[] = "Common ISDN API Driver (" CC_VERSION ")";
 static const char channeltype[] = "CAPI";
-static const struct ast_channel_tech capi_tech;
 #ifdef CC_AST_HAS_VERSION_1_4
 #define AST_MODULE "chan_capi"
 #else
@@ -1378,8 +1378,9 @@ static struct ast_frame *pbx_capi_read(struct ast_channel *c)
 	f->subclass = 0;
 
 	readsize = read(i->readerfd, f, sizeof(struct ast_frame));
-	if (readsize != sizeof(struct ast_frame)) {
-		cc_log(LOG_ERROR, "did not read a whole frame\n");
+	if ((readsize != sizeof(struct ast_frame)) && (readsize > 0)) {
+		cc_log(LOG_ERROR, "did not read a whole frame (len=%d, err=%d)\n",
+			readsize, errno);
 	}
 	
 	f->mallocd = 0;
@@ -2948,7 +2949,6 @@ static int handle_facility_indication_dtmf(
  */
 static void capidev_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
 {
-	_cmsg CMSG2;
 	int resp_done = 0;
 
 	switch (FACILITY_IND_FACILITYSELECTOR(CMSG)) {
@@ -2969,10 +2969,10 @@ static void capidev_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, u
 	}
 
 	if (!resp_done) {
-		FACILITY_RESP_HEADER(&CMSG2, capi_ApplID, HEADER_MSGNUM(CMSG), PLCI);
-		FACILITY_RESP_FACILITYSELECTOR(&CMSG2) = FACILITY_IND_FACILITYSELECTOR(CMSG);
-		FACILITY_RESP_FACILITYRESPONSEPARAMETERS(&CMSG2) = FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG);
-		_capi_put_cmsg(&CMSG2);
+		capi_sendf(NULL, 0, CAPI_FACILITY_RESP, PLCI, HEADER_MSGNUM(CMSG),
+			"w()",
+			FACILITYSELECTOR_SUPPLEMENTARY
+		);
 	}
 }
 
@@ -4527,6 +4527,7 @@ static struct capicommands_s {
 	{ "ccbs",         pbx_capi_ccbs,            0 },
 	{ "ccbsstop",     pbx_capi_ccbsstop,        0 },
 	{ "ccpartybusy",  pbx_capi_ccpartybusy,     0 },
+	{ "chat",         pbx_capi_chat,            0 },
 	{ "hangup",       pbx_capi_realhangup,      0 },
  	{ "qsig_ssct",	  pbx_capi_qsig_ssct,	    1 },
   	{ "qsig_ct",      pbx_capi_qsig_ct,         1 },
@@ -5305,7 +5306,7 @@ static struct ast_cli_entry  cli_debug =
 static struct ast_cli_entry  cli_no_debug =
 	{ { "capi", "no", "debug", NULL }, pbxcli_capi_no_debug, "Disable CAPI debugging", no_debug_usage };
 
-static const struct ast_channel_tech capi_tech = {
+const struct ast_channel_tech capi_tech = {
 	.type = channeltype,
 	.description = tdesc,
 	.capabilities = AST_FORMAT_ALAW,

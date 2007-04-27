@@ -14,29 +14,6 @@
 #ifndef _PBX_CAPI_SUPP_H
 #define _PBX_CAPI_SUPP_H
 
-#define CCBSNR_TYPE_CCBS 1
-#define CCBSNR_TYPE_CCNR 2
-
-#define CCBSNR_AVAILABLE  1
-#define CCBSNR_REQUESTED  2
-#define CCBSNR_ACTIVATED  3
-
-struct ccbsnr_s {
-	char type;
-	_cword id;
-	unsigned int plci;
-	unsigned int state;
-	unsigned int handle;
-	_cword mode;
-	_cword rbref;
-	char partybusy;
-	char context[AST_MAX_CONTEXT];
-	char exten[AST_MAX_EXTENSION];
-	int priority;
-	time_t age;
-	struct ccbsnr_s *next;
-};
-
 /*
  * prototypes
  */
