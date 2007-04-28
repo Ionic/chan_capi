@@ -569,5 +569,7 @@ extern void cc_start_b3(struct capi_pvt *i);
 extern void queue_cause_control(struct capi_pvt *i, int control);
 extern void capidev_handle_connection_conf(struct capi_pvt **i, unsigned int PLCI,
     unsigned short wInfo, unsigned short wMsgNum);
+extern void capi_wait_for_answered(struct capi_pvt *i);
+extern void capi_wait_for_b3_up(struct capi_pvt *i);
 
 #endif

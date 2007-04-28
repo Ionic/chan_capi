@@ -275,7 +275,7 @@ static const char * capi_command_to_string(unsigned short wCmd)
 /*
  * wait for B3 up
  */
-static void capi_wait_for_b3_up(struct capi_pvt *i)
+void capi_wait_for_b3_up(struct capi_pvt *i)
 {
 	struct timespec abstime;
 
@@ -300,7 +300,7 @@ static void capi_wait_for_b3_up(struct capi_pvt *i)
 /*
  * wait for finishing answering state
  */
-static void capi_wait_for_answered(struct capi_pvt *i)
+void capi_wait_for_answered(struct capi_pvt *i)
 {
 	struct timespec abstime;
 

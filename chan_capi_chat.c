@@ -207,6 +207,14 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 	cc_verbose(3, 1, VERBOSE_PREFIX_3 "capi chat: %s: roomname=%s options=%s\n",
 		c->name, roomname, options);
 
+	if (c->_state != AST_STATE_UP)
+		ast_answer(c);
+
+	if (i) {
+		capi_wait_for_answered(i);
+		capi_wait_for_b3_up(i);
+	}
+
 	room = add_chat_member(roomname, c, i);
 	if (!room) {
 		cc_log(LOG_WARNING, "Unable to open capi chat room.\n");
