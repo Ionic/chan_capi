@@ -275,9 +275,10 @@ static const char * capi_command_to_string(unsigned short wCmd)
 /*
  * wait for B3 up
  */
-void capi_wait_for_b3_up(struct capi_pvt *i)
+int capi_wait_for_b3_up(struct capi_pvt *i)
 {
 	struct timespec abstime;
+	int ret = 0;
 
 	cc_mutex_lock(&i->lock);
 	if (!(i->isdnstate & CAPI_ISDN_STATE_B3_UP)) {
@@ -292,9 +293,12 @@ void capi_wait_for_b3_up(struct capi_pvt *i)
 		} else {
 			cc_verbose(4, 1, "%s: cond signal received for b3 up.\n",
 				i->vname);
+			ret = 1;
 		}
 	}
 	cc_mutex_unlock(&i->lock);
+
+	return ret;
 }
 
 /*
@@ -456,16 +460,6 @@ static void capi_channel_task(struct ast_channel *c, int task)
  * Echo cancellation is for cards w/ integrated echo cancellation only
  * (i.e. Eicon active cards support it)
  */
-#define EC_FUNCTION_ENABLE              1
-#define EC_FUNCTION_DISABLE             2
-#define EC_FUNCTION_FREEZE              3
-#define EC_FUNCTION_RESUME              4
-#define EC_FUNCTION_RESET               5
-#define EC_OPTION_DISABLE_NEVER         0
-#define EC_OPTION_DISABLE_G165          (1<<2)
-#define EC_OPTION_DISABLE_G164_OR_G165  (1<<1 | 1<<2)
-#define EC_DEFAULT_TAIL                 0 /* maximum */
-
 static void capi_echo_canceller(struct ast_channel *c, int function)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
@@ -801,6 +795,10 @@ static void interface_cleanup(struct capi_pvt *i)
 		i->writerfd = -1;
 	}
 
+	if (capi_remove_nullif(i)) {
+		return;
+	}
+
 	i->isdnstate = 0;
 	i->cause = 0;
 
@@ -946,20 +944,22 @@ static void capi_send_disconnect(unsigned int PLCI, struct capi_pvt *i)
  * hangup a line (CAPI messages)
  * (this must be called with i->lock held)
  */
-static void capi_activehangup(struct ast_channel *c, int state)
+void capi_activehangup(struct capi_pvt *i, int state)
 {
-	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+	struct ast_channel *c = i->owner;
 	_cmsg CMSG;
 	const char *cause;
 
-	i->cause = c->hangupcause;
-	if ((cause = pbx_builtin_getvar_helper(c, "PRI_CAUSE"))) {
-		i->cause = atoi(cause);
-	}
+	if (c) {
+		i->cause = c->hangupcause;
+		if ((cause = pbx_builtin_getvar_helper(c, "PRI_CAUSE"))) {
+			i->cause = atoi(cause);
+		}
 	
-	if ((i->isdnstate & CAPI_ISDN_STATE_ECT)) {
-		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: activehangup ECT call\n",
-			i->vname);
+		if ((i->isdnstate & CAPI_ISDN_STATE_ECT)) {
+			cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: activehangup ECT call\n",
+				i->vname);
+		}
 	}
 
 	cc_verbose(2, 1, VERBOSE_PREFIX_3 "%s: activehangingup (cause=%d) for PLCI=%#x\n",
@@ -1045,7 +1045,7 @@ static int pbx_capi_hangup(struct ast_channel *c)
 		interface_cleanup(i);
 	} else {
 		/* not disconnected yet, we must actively do it */
-		capi_activehangup(c, state);
+		capi_activehangup(i, state);
 	}
 
 	i->owner = NULL;
@@ -3766,7 +3766,7 @@ void capidev_handle_connection_conf(struct capi_pvt **i, unsigned int PLCI,
 	}
 	*i = find_interface_by_msgnum(wMsgNum);
 	ii = *i;
-	if ((ii == NULL) || (!ii->owner)) {
+	if (ii == NULL) {
 		return;
 	}
 	cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: received CONNECT_CONF PLCI = %#x\n",
@@ -3777,7 +3777,9 @@ void capidev_handle_connection_conf(struct capi_pvt **i, unsigned int PLCI,
 	} else {
 		/* error in connect, so set correct state and signal busy */
 		ii->state = CAPI_STATE_DISCONNECTED;
-		local_queue_frame(ii, &fr);
+		if (ii->owner) {
+			local_queue_frame(ii, &fr);
+		}
 	}
 }
 

@@ -175,6 +175,16 @@ typedef struct fax3proto3 B3_PROTO_FAXG3;
 #define FACILITYSELECTOR_FAX_OVER_IP       0x00fd
 #define FACILITYSELECTOR_VOICE_OVER_IP     0x00fe
 
+#define EC_FUNCTION_ENABLE              1   
+#define EC_FUNCTION_DISABLE             2
+#define EC_FUNCTION_FREEZE              3   
+#define EC_FUNCTION_RESUME              4
+#define EC_FUNCTION_RESET               5   
+#define EC_OPTION_DISABLE_NEVER         0   
+#define EC_OPTION_DISABLE_G165          (1<<2)
+#define EC_OPTION_DISABLE_G164_OR_G165  (1<<1 | 1<<2)
+#define EC_DEFAULT_TAIL                 0 /* maximum */
+
 #define CC_HOLDTYPE_LOCAL               0
 #define CC_HOLDTYPE_HOLD                1
 #define CC_HOLDTYPE_NOTIFY              2
@@ -243,7 +253,7 @@ struct cc_capi_gains {
 
 #define CAPI_CHANNELTYPE_B            0
 #define CAPI_CHANNELTYPE_D            1
-#define CAPI_CHANNELTYPE_NONE         2
+#define CAPI_CHANNELTYPE_NULL         2
 
 /* the lower word is reserved for capi commands */
 #define CAPI_WAITEVENT_B3_UP          0x00010000
@@ -570,6 +580,7 @@ extern void queue_cause_control(struct capi_pvt *i, int control);
 extern void capidev_handle_connection_conf(struct capi_pvt **i, unsigned int PLCI,
     unsigned short wInfo, unsigned short wMsgNum);
 extern void capi_wait_for_answered(struct capi_pvt *i);
-extern void capi_wait_for_b3_up(struct capi_pvt *i);
+extern int capi_wait_for_b3_up(struct capi_pvt *i);
+extern void capi_activehangup(struct capi_pvt *i, int state);
 
 #endif

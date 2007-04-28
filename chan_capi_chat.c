@@ -187,16 +187,14 @@ static struct capichat_s *add_chat_member(char *roomname,
 int pbx_capi_chat(struct ast_channel *c, char *param)
 {
 	struct capi_pvt *i = NULL; 
-	char *roomname, *options;
+	char *roomname, *controller, *options;
 	struct capichat_s *room;
 	struct ast_frame *f;
-
-	if (c->tech == &capi_tech) {
-		i = CC_CHANNEL_PVT(c); 
-	} else
-		return -1;
+	int state;
+	unsigned int contr = 1;
 
 	roomname = strsep(&param, "|");
+	controller = strsep(&param, "|");
 	options = param;
 
 	if (!roomname) {
@@ -204,15 +202,30 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 		return -1;
 	}
 	
-	cc_verbose(3, 1, VERBOSE_PREFIX_3 "capi chat: %s: roomname=%s options=%s\n",
-		c->name, roomname, options);
+	cc_verbose(3, 1, VERBOSE_PREFIX_3 "capi chat: %s: roomname=%s "
+		"controller=%s options=%s\n",
+		c->name, roomname, controller, options);
+
+	if (controller) {
+		contr = (unsigned int)strtoul(controller, NULL, 0);
+	}
+
+	if (c->tech == &capi_tech) {
+		i = CC_CHANNEL_PVT(c); 
+	} else {
+		/* virtual CAPI channel */
+		i = mknullif(contr);
+		if (!i) {
+			return -1;
+		}
+	}
 
 	if (c->_state != AST_STATE_UP)
 		ast_answer(c);
 
-	if (i) {
-		capi_wait_for_answered(i);
-		capi_wait_for_b3_up(i);
+	capi_wait_for_answered(i);
+	if (!(capi_wait_for_b3_up(i))) {
+		goto out;
 	}
 
 	room = add_chat_member(roomname, c, i);
@@ -232,6 +245,15 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 	}
 
 	del_chat_member(room);
+
+out:
+	if (i->channeltype == CAPI_CHANNELTYPE_NULL) {
+		cc_mutex_lock(&i->lock);
+		state = i->state;
+		i->state = CAPI_STATE_DISCONNECTING;
+		capi_activehangup(i, state);
+		cc_mutex_unlock(&i->lock);
+	}
 
 	return 0;
 }

@@ -30,11 +30,13 @@ extern MESSAGE_EXCHANGE_ERROR capidev_check_wait_get_cmsg(_cmsg *CMSG);
 extern MESSAGE_EXCHANGE_ERROR _capi_put_cmsg_wait_conf(struct capi_pvt *i, _cmsg *CMSG);
 extern char *capi_info_string(unsigned int info);
 extern void show_capi_info(struct capi_pvt *i, _cword info);
-extern unsigned ListenOnController(unsigned long CIPmask, unsigned controller);
+extern unsigned ListenOnController(unsigned int CIPmask, unsigned controller);
 extern void parse_dialstring(char *buffer, char **interface, char **dest, char **param, char **ocid);
 extern char *capi_number_func(unsigned char *data, unsigned int strip, char *buf);
 extern int cc_add_peer_link_id(struct ast_channel *c);
 extern struct ast_channel *cc_get_peer_link_id(const char *p);
+extern int capi_remove_nullif(struct capi_pvt *i);
+extern struct capi_pvt *mknullif(unsigned int controller);
 
 #define capi_number(data, strip) \
   capi_number_func(data, strip, alloca(AST_MAX_EXTENSION))

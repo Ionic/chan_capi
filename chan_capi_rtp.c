@@ -191,7 +191,6 @@ int capi_alloc_rtp(struct capi_pvt *i)
 int capi_write_rtp(struct ast_channel *c, struct ast_frame *f)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
-	_cmsg CMSG;
 	struct sockaddr_in us;
 	int len;
 	socklen_t uslen;
@@ -244,14 +243,13 @@ int capi_write_rtp(struct ast_channel *c, struct ast_frame *f)
 			i->vname, i->NCCI, len, f->datalen, ast_getformatname(f->subclass),
 			i->timestamp);
 
-		DATA_B3_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
-		DATA_B3_REQ_NCCI(&CMSG) = i->NCCI;
-		DATA_B3_REQ_FLAGS(&CMSG) = 0;
-		DATA_B3_REQ_DATAHANDLE(&CMSG) = i->send_buffer_handle;
-		DATA_B3_REQ_DATALENGTH(&CMSG) = len;
-		DATA_B3_REQ_DATA(&CMSG) = (buf);
-
-		_capi_put_cmsg(&CMSG);
+		capi_sendf (NULL, 0, CAPI_DATA_B3_REQ, i->NCCI, get_capi_MessageNumber(),
+			"dwww",
+			buf,
+			len,
+			i->send_buffer_handle,
+			0
+		);
 	}
 
 	return 0;
@@ -315,11 +313,11 @@ void voice_over_ip_profile(struct cc_capi_controller *cp)
 	unsigned short info = 0;
 	unsigned int payload1, payload2;
 
-	FACILITY_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), 0);
-	FACILITY_REQ_CONTROLLER(&CMSG) = cp->controller;
-	FACILITY_REQ_FACILITYSELECTOR(&CMSG) = FACILITYSELECTOR_VOICE_OVER_IP;
-	FACILITY_REQ_FACILITYREQUESTPARAMETER(&CMSG) = (_cstruct)&fac;
-	_capi_put_cmsg(&CMSG);
+	capi_sendf (NULL, 0, CAPI_FACILITY_REQ, cp->controller, get_capi_MessageNumber(),
+		"ws",
+		FACILITYSELECTOR_VOICE_OVER_IP,
+		&fac
+	);
 
 	tv.tv_sec = 1;
 	tv.tv_usec = 0;

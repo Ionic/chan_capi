@@ -27,8 +27,11 @@ AST_MUTEX_DEFINE_STATIC(verbose_lock);
 AST_MUTEX_DEFINE_STATIC(messagenumber_lock);
 AST_MUTEX_DEFINE_STATIC(capi_put_lock);
 AST_MUTEX_DEFINE_STATIC(peerlink_lock);
+AST_MUTEX_DEFINE_STATIC(nullif_lock);
 
 static _cword capi_MessageNumber;
+
+static struct capi_pvt *nulliflist = NULL;
 
 #define CAPI_MAX_PEERLINKCHANNELS  32
 static struct peerlink_s {
@@ -56,6 +59,86 @@ void cc_verbose(int o_v, int c_d, char *text, ...)
 		}
 	}
 }
+
+/*
+ * hangup and remove null-interface
+ */
+int capi_remove_nullif(struct capi_pvt *i)
+{
+	struct capi_pvt *ii;
+	struct capi_pvt *tmp = NULL;
+
+	if (i->channeltype != CAPI_CHANNELTYPE_NULL) {
+		return 0;
+	}
+
+	cc_mutex_lock(&nullif_lock);
+	ii = nulliflist;
+	while (ii) {
+		if (ii == i) {
+			if (!tmp) {
+				nulliflist = ii->next;
+			} else {
+				tmp->next = ii->next;
+			}
+			free(i);
+			break;
+		}
+		tmp = ii;
+		ii = ii->next;
+	}
+	cc_mutex_unlock(&nullif_lock);
+
+	return 1;
+}
+
+/*
+ * create new null-interface
+ */
+struct capi_pvt *mknullif(unsigned int controller)
+{
+	struct capi_pvt *tmp;
+
+	tmp = malloc(sizeof(struct capi_pvt));
+	if (!tmp) {
+		return NULL;
+	}
+	memset(tmp, 0, sizeof(struct capi_pvt));
+	
+	tmp->readerfd = -1;
+	tmp->writerfd = -1;
+		
+	cc_mutex_init(&tmp->lock);
+	ast_cond_init(&tmp->event_trigger, NULL);
+	
+	snprintf(tmp->name, sizeof(tmp->name) - 1, "CAPI-NULL-PLCI");
+	snprintf(tmp->vname, sizeof(tmp->vname) - 1, "%s", tmp->name);
+
+	tmp->channeltype = CAPI_CHANNELTYPE_NULL;
+
+	tmp->controller = controller;
+	tmp->doEC = 1;
+	tmp->doEC_global = 1;
+	tmp->ecOption = EC_OPTION_DISABLE_NEVER;
+	tmp->ecTail = EC_DEFAULT_TAIL;
+	tmp->isdnmode = CAPI_ISDNMODE_MSN;
+	tmp->ecSelector = FACILITYSELECTOR_ECHO_CANCEL;
+		
+	cc_mutex_lock(&nullif_lock);
+	tmp->next = nulliflist; /* prepend */
+	nulliflist = tmp;
+	cc_mutex_unlock(&nullif_lock);
+
+	tmp->outgoing = 1;
+	tmp->state = CAPI_STATE_CONNECTPENDING;
+	tmp->MessageNumber = get_capi_MessageNumber();
+	capi_sendf (NULL, 0, CAPI_CONNECT_REQ, controller, tmp->MessageNumber,
+		"w()()()()(www()()()())()()()((wwbbb)()()())",
+		 0,       1,1,0,              3,0,0,0,0);
+
+	return tmp;
+}
+
 
 /*
  * get a new capi message number automically
@@ -91,8 +174,15 @@ struct capi_pvt *find_interface_by_plci(unsigned int plci)
 
 	for (i = iflist; i; i = i->next) {
 		if (i->PLCI == plci)
+			return i;
+	}
+
+	cc_mutex_lock(&nullif_lock);
+	for (i = nulliflist; i; i = i->next) {
+		if (i->PLCI == plci)
 			break;
 	}
+	cc_mutex_unlock(&nullif_lock);
 
 	return i;
 }
@@ -108,9 +198,16 @@ struct capi_pvt *find_interface_by_msgnum(unsigned short msgnum)
 		return NULL;
 
 	for (i = iflist; i; i = i->next) {
-		    if ((i->PLCI == 0) && (i->MessageNumber == msgnum))
+	    if ((i->PLCI == 0) && (i->MessageNumber == msgnum))
+			return i;
+	}
+
+	cc_mutex_lock(&nullif_lock);
+	for (i = nulliflist; i; i = i->next) {
+	    if ((i->PLCI == 0) && (i->MessageNumber == msgnum))
 			break;
 	}
+	cc_mutex_unlock(&nullif_lock);
 
 	return i;
 }
@@ -143,24 +240,30 @@ MESSAGE_EXCHANGE_ERROR capi_wait_conf(struct capi_pvt *i, unsigned short wCmd)
 }
 
 /*
- * log verbose a capi message
+ * log an error in sending capi message
  */
-static void log_capi_message(MESSAGE_EXCHANGE_ERROR err, _cmsg *CMSG)
+static void log_capi_error_message(MESSAGE_EXCHANGE_ERROR err, _cmsg *CMSG)
 {
-	unsigned short wCmd;
-
 	if (err) {
 		cc_log(LOG_ERROR, "CAPI error sending %s (NCCI=%#x) (error=%#x %s)\n",
 			capi_cmsg2str(CMSG), (unsigned int)HEADER_CID(CMSG),
 			err, capi_info_string((unsigned int)err));
+	}
+}
+
+/*
+ * log verbose a capi message
+ */
+static void log_capi_message(_cmsg *CMSG)
+{
+	unsigned short wCmd;
+
+	wCmd = HEADER_CMD(CMSG);
+	if ((wCmd == CAPI_P_REQ(DATA_B3)) ||
+	    (wCmd == CAPI_P_RESP(DATA_B3))) {
+		cc_verbose(7, 1, "%s\n", capi_cmsg2str(CMSG));
 	} else {
-		wCmd = HEADER_CMD(CMSG);
-		if ((wCmd == CAPI_P_REQ(DATA_B3)) ||
-		    (wCmd == CAPI_P_RESP(DATA_B3))) {
-			cc_verbose(7, 1, "%s\n", capi_cmsg2str(CMSG));
-		} else {
-			cc_verbose(4, 1, "%s\n", capi_cmsg2str(CMSG));
-		}
+		cc_verbose(4, 1, "%s\n", capi_cmsg2str(CMSG));
 	}
 }
 
@@ -177,13 +280,14 @@ MESSAGE_EXCHANGE_ERROR _capi_put_cmsg(_cmsg *CMSG)
 	} 
 
 	error = capi_put_cmsg(CMSG);
+	log_capi_message(CMSG);
 	
 	if (cc_mutex_unlock(&capi_put_lock)) {
 		cc_log(LOG_WARNING, "Unable to unlock capi put!\n");
 		return -1;
 	}
 
-	log_capi_message(error, CMSG);
+	log_capi_error_message(error, CMSG);
 
 	return error;
 }
@@ -202,6 +306,7 @@ MESSAGE_EXCHANGE_ERROR _capi_put_msg(unsigned char *msg)
 	} 
 
 	capi_message2cmsg(&CMSG, msg);
+	log_capi_message(&CMSG);
 
 	error = capi20_put_message(capi_ApplID, msg);
 	
@@ -210,7 +315,7 @@ MESSAGE_EXCHANGE_ERROR _capi_put_msg(unsigned char *msg)
 		return -1;
 	}
 
-	log_capi_message(error, &CMSG);
+	log_capi_error_message(error, &CMSG);
 
 	return error;
 }
@@ -744,19 +849,18 @@ void show_capi_info(struct capi_pvt *i, _cword info)
 /*
  * send Listen to specified controller
  */
-unsigned ListenOnController(unsigned long CIPmask, unsigned controller)
+unsigned ListenOnController(unsigned int CIPmask, unsigned controller)
 {
 	MESSAGE_EXCHANGE_ERROR error;
-	_cmsg CMSG;
 	int waitcount = 50;
+	_cmsg CMSG;
 
-	LISTEN_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(), controller);
-
-	LISTEN_REQ_INFOMASK(&CMSG) = 0xffff; /* lots of info ;) + early B3 connect */
-		/* 0x00ff if no early B3 should be done */
-		
-	LISTEN_REQ_CIPMASK(&CMSG) = CIPmask;
-	error = _capi_put_cmsg(&CMSG);
+	error = capi_sendf (NULL, 0, CAPI_LISTEN_REQ, controller, get_capi_MessageNumber(),
+		"ddd()()",
+		0x0000ffff,
+		CIPmask,
+		0
+	);
 
 	if (error)
 		goto done;
