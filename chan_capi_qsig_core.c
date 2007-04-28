@@ -910,7 +910,6 @@ int pbx_capi_qsig_getplci(struct ast_channel *c, char *param)
 int pbx_capi_qsig_ssct(struct ast_channel *c, char *param)
 {
 	unsigned char fac[CAPI_MAX_FACILITYDATAARRAY_SIZE];
-	_cmsg		CMSG;
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 
 	if (!param) { /* no data implies no Calling Number and Destination Number */
@@ -920,11 +919,10 @@ int pbx_capi_qsig_ssct(struct ast_channel *c, char *param)
 
 	cc_qsig_do_facility(fac, c, param, 99, 0);
 	
-	INFO_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(),0);
-	INFO_REQ_PLCI(&CMSG) = i->PLCI;
-	INFO_REQ_FACILITYDATAARRAY(&CMSG) = fac;
-		
-	_capi_put_cmsg(&CMSG);
+	capi_sendf(NULL, 0, CAPI_INFO_REQ, i->PLCI, get_capi_MessageNumber(),
+		"()(()()()s)",
+		fac
+	);
 
 	return 0;
 }
@@ -935,7 +933,6 @@ int pbx_capi_qsig_ssct(struct ast_channel *c, char *param)
 int pbx_capi_qsig_ct(struct ast_channel *c, char *param)
 {
 	unsigned char fac[CAPI_MAX_FACILITYDATAARRAY_SIZE];
-	_cmsg		CMSG;
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	struct capi_pvt *ii = NULL;
 	unsigned int callmark;
@@ -963,19 +960,17 @@ int pbx_capi_qsig_ct(struct ast_channel *c, char *param)
 	
 	cc_qsig_do_facility(fac, c, param, 12, 0);
 	
-	INFO_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(),0);
-	INFO_REQ_PLCI(&CMSG) = ii->PLCI;
-	INFO_REQ_FACILITYDATAARRAY(&CMSG) = fac;
-		
-	_capi_put_cmsg(&CMSG);
+	capi_sendf(NULL, 0, CAPI_INFO_REQ, ii->PLCI, get_capi_MessageNumber(),
+		"()(()()()s)",
+		fac
+	);
 	
 	cc_qsig_do_facility(fac, c, param, 12, 1);
 	
-	INFO_REQ_HEADER(&CMSG, capi_ApplID, get_capi_MessageNumber(),0);
-	INFO_REQ_PLCI(&CMSG) = i->PLCI;
-	INFO_REQ_FACILITYDATAARRAY(&CMSG) = fac;
-		
-	_capi_put_cmsg(&CMSG);
+	capi_sendf(NULL, 0, CAPI_INFO_REQ, i->PLCI, get_capi_MessageNumber(),
+		"()(()()()s)",
+		fac
+	);
 
 	return 0;
 }
@@ -1040,14 +1035,13 @@ void pbx_capi_qsig_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsign
 								
 					if (ii) {
 						unsigned char fac[CAPI_MAX_FACILITYDATAARRAY_SIZE];
-						_cmsg		CMSG3;
 					
 						cc_qsig_do_facility(fac, i->owner, NULL, 4, 0);
 							
-						INFO_REQ_HEADER(&CMSG3, capi_ApplID, get_capi_MessageNumber(),0);
-						INFO_REQ_PLCI(&CMSG3) = ii->PLCI;
-						INFO_REQ_FACILITYDATAARRAY(&CMSG3) = fac;
-						_capi_put_cmsg(&CMSG3);
+						capi_sendf(NULL, 0, CAPI_INFO_REQ, ii->PLCI, get_capi_MessageNumber(),
+							"()(()()()s)",
+							fac
+						);
 					} else {
 						cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * QSIG_PATHREPLACEMENT_PROPOSE: no partner channel found (%#x)\n", i->qsig_data.partner_plci);
 					}
@@ -1088,24 +1082,22 @@ void pbx_capi_qsig_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsign
 				/* needed for Path Replacement */
 				ii->qsig_data.partner_plci = i->PLCI;
 				
-				_cmsg		CMSG3;
-
 				i->qsig_data.calltransfer_onring = 0;
 
 				if (ii) {
 					cc_qsig_do_facility(fac, ii->owner, NULL, 12, 0);
 
-					INFO_REQ_HEADER(&CMSG3, capi_ApplID, get_capi_MessageNumber(),0);
-					INFO_REQ_PLCI(&CMSG3) = ii->PLCI;
-					INFO_REQ_FACILITYDATAARRAY(&CMSG3) = fac;
-					_capi_put_cmsg(&CMSG3);
+					capi_sendf(NULL, 0, CAPI_INFO_REQ, ii->PLCI, get_capi_MessageNumber(),
+						"()(()()()s)",
+						fac
+					);
 
 					cc_qsig_do_facility(fac, i->owner, NULL, 12, 1);
 		
-					INFO_REQ_HEADER(&CMSG3, capi_ApplID, get_capi_MessageNumber(),0);
-					INFO_REQ_PLCI(&CMSG3) = i->PLCI;
-					INFO_REQ_FACILITYDATAARRAY(&CMSG3) = fac;
-					_capi_put_cmsg(&CMSG3);
+					capi_sendf(NULL, 0, CAPI_INFO_REQ, i->PLCI, get_capi_MessageNumber(),
+						"()(()()()s)",
+						fac
+					);
 				} else {
 					cc_log(LOG_WARNING, "Call Transfer failed - second channel not found (PLCI %#x)!\n", i->qsig_data.partner_plci);
 				}
@@ -1124,14 +1116,13 @@ void pbx_capi_qsig_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsign
 							
 					if (ii) {
 						unsigned char fac[CAPI_MAX_FACILITYDATAARRAY_SIZE];
-						_cmsg		CMSG3;
 			
 						cc_qsig_do_facility(fac, i->owner, NULL, 4, 0);
 					
-						INFO_REQ_HEADER(&CMSG3, capi_ApplID, get_capi_MessageNumber(),0);
-						INFO_REQ_PLCI(&CMSG3) = ii->PLCI;
-						INFO_REQ_FACILITYDATAARRAY(&CMSG3) = fac;
-						_capi_put_cmsg(&CMSG3);
+						capi_sendf(NULL, 0, CAPI_INFO_REQ, ii->PLCI, get_capi_MessageNumber(),
+							"()(()()()s)",
+							fac
+						);
 					} else {
 						cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * QSIG_PATHREPLACEMENT_PROPOSE: no partner channel found (%#x)\n", i->qsig_data.partner_plci);
 					}

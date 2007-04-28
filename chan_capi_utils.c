@@ -270,32 +270,7 @@ static void log_capi_message(_cmsg *CMSG)
 /*
  * write a capi message to capi device
  */
-MESSAGE_EXCHANGE_ERROR _capi_put_cmsg(_cmsg *CMSG)
-{
-	MESSAGE_EXCHANGE_ERROR error;
-	
-	if (cc_mutex_lock(&capi_put_lock)) {
-		cc_log(LOG_WARNING, "Unable to lock capi put!\n");
-		return -1;
-	} 
-
-	error = capi_put_cmsg(CMSG);
-	log_capi_message(CMSG);
-	
-	if (cc_mutex_unlock(&capi_put_lock)) {
-		cc_log(LOG_WARNING, "Unable to unlock capi put!\n");
-		return -1;
-	}
-
-	log_capi_error_message(error, CMSG);
-
-	return error;
-}
-
-/*
- * write a capi message to capi device
- */
-MESSAGE_EXCHANGE_ERROR _capi_put_msg(unsigned char *msg)
+static MESSAGE_EXCHANGE_ERROR _capi_put_msg(unsigned char *msg)
 {
 	MESSAGE_EXCHANGE_ERROR error;
 	_cmsg CMSG;
@@ -356,23 +331,6 @@ MESSAGE_EXCHANGE_ERROR capidev_check_wait_get_cmsg(_cmsg *CMSG)
 	}
     
 	return Info;
-}
-
-/*
- * write a capi cmessage and wait for CONF
- * i->lock must be held
- */
-MESSAGE_EXCHANGE_ERROR _capi_put_cmsg_wait_conf(struct capi_pvt *i, _cmsg *CMSG)
-{
-	MESSAGE_EXCHANGE_ERROR error;
-
-	error = _capi_put_cmsg(CMSG);
-
-	if (!(error)) {
-		unsigned short wCmd = CAPICMD(CMSG->Command, CAPI_CONF);
-		error = capi_wait_conf(i, wCmd);
-	}
-	return error;
 }
 
 /*

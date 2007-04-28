@@ -63,11 +63,6 @@
 
 #define CAPI_MAX_FACILITYDATAARRAY_SIZE 300
 
-#ifndef CONNECT_RESP_GLOBALCONFIGURATION
-#define CC_HAVE_NO_GLOBALCONFIGURATION
-#warning If you dont update your libcapi20, some fax features are not available
-#endif
-
 /* some helper functions */
 static inline void write_capi_word(void *m, unsigned short val)
 {
