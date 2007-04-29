@@ -568,10 +568,12 @@ struct cc_capi_controller {
  * prototypes
  */
 extern const struct ast_channel_tech capi_tech;
+extern int capi_capability;
 extern unsigned capi_ApplID;
-extern struct capi_pvt *iflist;
+extern struct capi_pvt *capi_iflist;
 extern void cc_start_b3(struct capi_pvt *i);
-extern void queue_cause_control(struct capi_pvt *i, int control);
+extern unsigned char capi_tcap_is_digital(unsigned short tcap);
+extern void capi_queue_cause_control(struct capi_pvt *i, int control);
 extern void capidev_handle_connection_conf(struct capi_pvt **i, unsigned int PLCI,
     unsigned short wInfo, unsigned short wMsgNum);
 extern void capi_wait_for_answered(struct capi_pvt *i);

@@ -14,6 +14,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <errno.h>
+#include <sys/signal.h>
 
 #include "chan_capi20.h"
 #include "chan_capi.h"
@@ -27,7 +29,6 @@ struct capichat_s {
 	unsigned int number;
 	struct ast_channel *chan;
 	struct capi_pvt *i;
-	_cdword plci;
 	struct capichat_s *next;
 };
 
@@ -37,8 +38,9 @@ AST_MUTEX_DEFINE_STATIC(chat_lock);
 /*
  * update the capi mixer for the given char room
  */
-static void update_capi_mixer(int remove, unsigned int roomnumber, _cdword plci)
+static void update_capi_mixer(int remove, unsigned int roomnumber, struct capi_pvt *i)
 {
+	struct capi_pvt *ii;
 	struct capichat_s *room;
 	unsigned char p_list[360];
 	_cdword dest;
@@ -51,18 +53,22 @@ static void update_capi_mixer(int remove, unsigned int roomnumber, _cdword plci)
 	room = chat_list;
 	while (room) {
 		if ((room->number == roomnumber) &&
-		    (room->plci != plci)) {
+		    (room->i != i)) {
 			found++;
 			if (j + 9 > sizeof(p_list)) {
 				/* maybe we need to split capi messages here */
 				break;
 			}
+			ii = room->i;
 			p_list[j++] = 8;
-			p_list[j++] = (_cbyte)(room->plci);
-			p_list[j++] = (_cbyte)(room->plci >> 8);
-			p_list[j++] = (_cbyte)(room->plci >> 16);
-			p_list[j++] = (_cbyte)(room->plci >> 24);
+			p_list[j++] = (_cbyte)(ii->PLCI);
+			p_list[j++] = (_cbyte)(ii->PLCI >> 8);
+			p_list[j++] = (_cbyte)(ii->PLCI >> 16);
+			p_list[j++] = (_cbyte)(ii->PLCI >> 24);
 			dest = (remove) ? 0x00000000 : 0x00000003;
+			if (ii->channeltype == CAPI_CHANNELTYPE_NULL) {
+				dest |= 0x00000030;
+			}
 			p_list[j++] = (_cbyte)(dest);
 			p_list[j++] = (_cbyte)(dest >> 8);
 			p_list[j++] = (_cbyte)(dest >> 16);
@@ -80,14 +86,17 @@ static void update_capi_mixer(int remove, unsigned int roomnumber, _cdword plci)
 		datapath = 0x00000000;
 		if (remove) {
 			/* now we need DATA_B3 again */
-			datapath = 0x000000c0;
+			datapath = 0x0000000c;
 			if (found == 1) {
 				/* only one left, enable DATA_B3 too */
 				p_list[5] |= 0x30;
 			}
 		}
+		if (i->channeltype == CAPI_CHANNELTYPE_NULL) {
+			datapath |= 0x0000000c;
+		}
 
-		capi_sendf(NULL, 0, CAPI_FACILITY_REQ, plci, get_capi_MessageNumber(),
+		capi_sendf(NULL, 0, CAPI_FACILITY_REQ, i->PLCI, get_capi_MessageNumber(),
 			"w(w(dc))",
 			FACILITYSELECTOR_LINE_INTERCONNECT,
 			0x0001, /* CONNECT */
@@ -105,7 +114,7 @@ static void del_chat_member(struct capichat_s *room)
 	struct capichat_s *tmproom;
 	struct capichat_s *tmproom2 = NULL;
 	unsigned int roomnumber = room->number;
-	_cdword plci = room->plci;
+	struct capi_pvt *i = room->i;
 
 	cc_mutex_lock(&chat_lock);
 	tmproom = chat_list;
@@ -125,7 +134,7 @@ static void del_chat_member(struct capichat_s *room)
 	}
 	cc_mutex_unlock(&chat_lock);
 
-	update_capi_mixer(1, roomnumber, plci);
+	update_capi_mixer(1, roomnumber, i);
 }
 
 /*
@@ -149,7 +158,6 @@ static struct capichat_s *add_chat_member(char *roomname,
 	room->name[sizeof(room->name) - 1] = 0;
 	room->chan = chan;
 	room->i = i;
-	room->plci = i->PLCI;
 	
 	cc_mutex_lock(&chat_lock);
 
@@ -176,9 +184,83 @@ static struct capichat_s *add_chat_member(char *roomname,
 	cc_verbose(3, 0, VERBOSE_PREFIX_3 "%s: added new chat member to room '%s' (%d)\n",
 		i->vname, roomname, roomnumber);
 
-	update_capi_mixer(0, roomnumber, room->plci);
+	update_capi_mixer(0, roomnumber, i);
 
 	return room;
+}
+
+/*
+ * loop during chat
+ */
+static void chat_handle_events(struct ast_channel *chan, struct capi_pvt *i)
+{
+	struct ast_frame *f;
+	int ms;
+	int exception;
+	int ready_fd;
+	int waitfds[1];
+	int nfds = 0;
+	struct ast_channel *rchan;
+
+	waitfds[0] = i->readerfd;
+	if (i->channeltype == CAPI_CHANNELTYPE_NULL) {
+		nfds = 1;
+		ast_set_read_format(chan, capi_capability);
+		ast_set_write_format(chan, capi_capability);
+	}
+
+	while (1) {
+		if (ast_test_flag(chan, AST_FLAG_ZOMBIE)) {
+			cc_log(LOG_NOTICE, "%s: is zombie.\n", chan->name);
+			break;
+		}
+		if (ast_check_hangup(chan)) {
+			cc_log(LOG_NOTICE, "%s: got check_hangup.\n", chan->name);
+			break;
+		}
+		ready_fd = 0;
+		ms = 100;
+		errno = 0;
+		exception = 0;
+
+		rchan = ast_waitfor_nandfds(&chan, 1, waitfds, nfds, &exception, &ready_fd, &ms);
+
+		if (rchan) {
+			f = ast_read(chan);
+			if (!f) {
+				break;
+			}
+			if ((f->frametype == AST_FRAME_CONTROL) && (f->subclass == AST_CONTROL_HANGUP)) {
+				ast_frfree(f);
+				break;
+			}
+			if (f->frametype == AST_FRAME_VOICE) {
+				if (i->channeltype == CAPI_CHANNELTYPE_NULL) {
+					capi_write_frame(i, f);
+				}
+			}
+			ast_frfree(f);
+		} else if (ready_fd == i->readerfd) {
+			if (exception) {
+				cc_verbose(1, 0, VERBOSE_PREFIX_3 "%s: chat: exception on readerfd\n",
+					i->vname);
+				break;
+			}
+			f = capi_read_pipeframe(i);
+			if (f->frametype == AST_FRAME_VOICE) {
+				ast_write(chan, f);
+			}
+			/* ignore other nullplci frames */
+		} else {
+			if ((ready_fd < 0) && ms) { 
+				if (errno == 0 || errno == EINTR)
+					continue;
+				cc_log(LOG_WARNING, "%s: Wait failed (%s).\n",
+					chan->name, strerror(errno));
+				break;
+			}
+		}
+	}
 }
 
 /*
@@ -189,7 +271,6 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 	struct capi_pvt *i = NULL; 
 	char *roomname, *controller, *options;
 	struct capichat_s *room;
-	struct ast_frame *f;
 	int state;
 	unsigned int contr = 1;
 
@@ -214,7 +295,7 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 		i = CC_CHANNEL_PVT(c); 
 	} else {
 		/* virtual CAPI channel */
-		i = mknullif(c, contr);
+		i = capi_mknullif(c, contr);
 		if (!i) {
 			return -1;
 		}
@@ -234,15 +315,7 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 		return -1;
 	}
 
-	while (ast_waitfor(c, 500) >= 0) {
-		f = ast_read(c);
-		if (f) {
-			ast_frfree(f);
-		} else {
-			/* channel was hung up or something else happened */
-			break;
-		}
-	}
+	chat_handle_events(c, i);
 
 	del_chat_member(room);
 

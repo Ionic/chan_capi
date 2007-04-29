@@ -15,8 +15,14 @@
  
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include "xlaw.h"
 #include "chan_capi20.h"
 #include "chan_capi.h"
+#include "chan_capi_rtp.h"
 #include "chan_capi_utils.h"
 #include "chan_capi_supplementary.h"
 
@@ -51,6 +57,16 @@ void cc_verbose(int o_v, int c_d, char *text, ...)
 	vsnprintf(line, sizeof(line), text, ap);
 	va_end(ap);
 
+#if 0
+	{
+		FILE *fp;
+		if ((fp = fopen("/tmp/cclog", "a")) != NULL) {
+			fprintf(fp, "%s", line);
+			fclose(fp);
+		}
+	}
+#endif
+
 	if ((o_v == 0) || (option_verbose > o_v)) {
 		if ((!c_d) || ((c_d) && (capidebug))) {	
 			cc_mutex_lock(&verbose_lock);
@@ -83,6 +99,8 @@ int capi_remove_nullif(struct capi_pvt *i)
 			}
 			cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: removed null-interface.\n",
 				i->vname);
+			if (i->smoother)
+				ast_smoother_free(i->smoother);
 			free(i);
 			break;
 		}
@@ -97,7 +115,7 @@ int capi_remove_nullif(struct capi_pvt *i)
 /*
  * create new null-interface
  */
-struct capi_pvt *mknullif(struct ast_channel *c, unsigned int controller)
+struct capi_pvt *capi_mknullif(struct ast_channel *c, unsigned int controller)
 {
 	struct capi_pvt *tmp;
 
@@ -127,6 +145,13 @@ struct capi_pvt *mknullif(struct ast_channel *c, unsigned int controller)
 	tmp->ecTail = EC_DEFAULT_TAIL;
 	tmp->isdnmode = CAPI_ISDNMODE_MSN;
 	tmp->ecSelector = FACILITYSELECTOR_ECHO_CANCEL;
+
+	if (!(capi_create_reader_writer_pipe(tmp))) {
+		free(tmp);
+		return NULL;
+	}
+	
+	tmp->smoother = ast_smoother_new(CAPI_MAX_B3_BLOCK_SIZE);
 		
 	cc_mutex_lock(&nullif_lock);
 	tmp->next = nulliflist; /* prepend */
@@ -171,14 +196,14 @@ _cword get_capi_MessageNumber(void)
 /*
  * find the interface (pvt) the PLCI belongs to
  */
-struct capi_pvt *find_interface_by_plci(unsigned int plci)
+struct capi_pvt *capi_find_interface_by_plci(unsigned int plci)
 {
 	struct capi_pvt *i;
 
 	if (plci == 0)
 		return NULL;
 
-	for (i = iflist; i; i = i->next) {
+	for (i = capi_iflist; i; i = i->next) {
 		if (i->PLCI == plci)
 			return i;
 	}
@@ -196,14 +221,14 @@ struct capi_pvt *find_interface_by_plci(unsigned int plci)
 /*
  * find the interface (pvt) the messagenumber belongs to
  */
-struct capi_pvt *find_interface_by_msgnum(unsigned short msgnum)
+struct capi_pvt *capi_find_interface_by_msgnum(unsigned short msgnum)
 {
 	struct capi_pvt *i;
 
 	if (msgnum == 0x0000)
 		return NULL;
 
-	for (i = iflist; i; i = i->next) {
+	for (i = capi_iflist; i; i = i->next) {
 	    if ((i->PLCI == 0) && (i->MessageNumber == msgnum))
 			return i;
 	}
@@ -813,7 +838,7 @@ void show_capi_info(struct capi_pvt *i, _cword info)
 /*
  * send Listen to specified controller
  */
-unsigned ListenOnController(unsigned int CIPmask, unsigned controller)
+unsigned capi_ListenOnController(unsigned int CIPmask, unsigned controller)
 {
 	MESSAGE_EXCHANGE_ERROR error;
 	int waitcount = 50;
@@ -880,7 +905,7 @@ char *capi_number_func(unsigned char *data, unsigned int strip, char *buf)
 /*
  * parse the dialstring
  */
-void parse_dialstring(char *buffer, char **interface, char **dest, char **param, char **ocid)
+void capi_parse_dialstring(char *buffer, char **interface, char **dest, char **param, char **ocid)
 {
 	int cp = 0;
 	char *buffer_p = buffer;
@@ -971,5 +996,203 @@ struct ast_channel *cc_get_peer_link_id(const char *p)
 		id, (chan)?chan->name:"unlinked");
 	cc_mutex_unlock(&peerlink_lock);
 	return chan;
+}
+
+/*
+ * create pipe for interface connection
+ */
+int capi_create_reader_writer_pipe(struct capi_pvt *i)
+{
+	int fds[2];
+	int flags;
+
+	if (pipe(fds) != 0) {
+		cc_log(LOG_ERROR, "%s: unable to create pipe.\n",
+			i->vname);
+		return 0;
+	}
+	i->readerfd = fds[0];
+	i->writerfd = fds[1];
+	flags = fcntl(i->readerfd, F_GETFL);
+	fcntl(i->readerfd, F_SETFL, flags | O_NONBLOCK);
+	flags = fcntl(i->writerfd, F_GETFL);
+	fcntl(i->writerfd, F_SETFL, flags | O_NONBLOCK);
+
+	return 1;
+}
+
+/*
+ * read a frame from the pipe
+ */
+struct ast_frame *capi_read_pipeframe(struct capi_pvt *i)
+{
+	struct ast_frame *f;
+	int readsize;
+
+	if (i == NULL) {
+		cc_log(LOG_ERROR, "channel has no interface\n");
+		return NULL;
+	}
+	if (i->readerfd == -1) {
+		cc_log(LOG_ERROR, "no readerfd\n");
+		return NULL;
+	}
+
+	f = &i->f;
+	f->frametype = AST_FRAME_NULL;
+	f->subclass = 0;
+
+	readsize = read(i->readerfd, f, sizeof(struct ast_frame));
+	if ((readsize != sizeof(struct ast_frame)) && (readsize > 0)) {
+		cc_log(LOG_ERROR, "did not read a whole frame (len=%d, err=%d)\n",
+			readsize, errno);
+	}
+	
+	f->mallocd = 0;
+	f->data = NULL;
+
+	if ((f->frametype == AST_FRAME_CONTROL) && (f->subclass == AST_CONTROL_HANGUP)) {
+		return NULL;
+	}
+
+	if ((f->frametype == AST_FRAME_VOICE) && (f->datalen > 0)) {
+		if (f->datalen > sizeof(i->frame_data)) {
+			cc_log(LOG_ERROR, "f.datalen(%d) greater than space of frame_data(%d)\n",
+				f->datalen, sizeof(i->frame_data));
+			f->datalen = sizeof(i->frame_data);
+		}
+		readsize = read(i->readerfd, i->frame_data + AST_FRIENDLY_OFFSET, f->datalen);
+		if (readsize != f->datalen) {
+			cc_log(LOG_ERROR, "did not read whole frame data\n");
+		}
+		f->data = i->frame_data + AST_FRIENDLY_OFFSET;
+	}
+	return f;
+}
+
+/*
+ * write for a channel
+ */
+int capi_write_frame(struct capi_pvt *i, struct ast_frame *f)
+{
+	struct ast_channel *c;
+	MESSAGE_EXCHANGE_ERROR error;
+	int j = 0;
+	unsigned char *buf;
+	struct ast_frame *fsmooth;
+	int txavg=0;
+	int ret = 0;
+
+	if (!i) {
+		cc_log(LOG_ERROR, "channel has no interface\n");
+		return -1;
+	}
+	c = i->owner;
+	 
+	if ((!(i->isdnstate & CAPI_ISDN_STATE_B3_UP)) || (!i->NCCI) ||
+	    ((i->isdnstate & (CAPI_ISDN_STATE_B3_CHANGE | CAPI_ISDN_STATE_LI)))) {
+		return 0;
+	}
+
+	if ((!(i->ntmode)) && (i->state != CAPI_STATE_CONNECTED)) {
+		return 0;
+	}
+
+	if (f->frametype == AST_FRAME_NULL) {
+		return 0;
+	}
+	if (f->frametype == AST_FRAME_DTMF) {
+		cc_log(LOG_ERROR, "dtmf frame should be written\n");
+		return 0;
+	}
+	if (f->frametype != AST_FRAME_VOICE) {
+		cc_log(LOG_ERROR,"not a voice frame\n");
+		return 0;
+	}
+	if (i->FaxState & CAPI_FAX_STATE_ACTIVE) {
+		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: write on fax activity?\n",
+			i->vname);
+		return 0;
+	}
+	if ((!f->data) || (!f->datalen)) {
+		cc_log(LOG_DEBUG, "No data for FRAME_VOICE %s\n", c->name);
+		return 0;
+	}
+	if (i->isdnstate & CAPI_ISDN_STATE_RTP) {
+		if ((!(f->subclass & i->codec)) &&
+		    (f->subclass != capi_capability)) {
+			cc_log(LOG_ERROR, "don't know how to write subclass %s(%d)\n",
+				ast_getformatname(f->subclass), f->subclass);
+			return 0;
+		}
+		return capi_write_rtp(c, f);
+	}
+	if (i->B3count >= CAPI_MAX_B3_BLOCKS) {
+		cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: B3count is full, dropping packet.\n",
+			i->vname);
+		return 0;
+	}
+
+	if ((!i->smoother) || (ast_smoother_feed(i->smoother, f) != 0)) {
+		cc_log(LOG_ERROR, "%s: failed to fill smoother\n", i->vname);
+		return 0;
+	}
+
+	for (fsmooth = ast_smoother_read(i->smoother);
+	     fsmooth != NULL;
+	     fsmooth = ast_smoother_read(i->smoother)) {
+		buf = &(i->send_buffer[(i->send_buffer_handle % CAPI_MAX_B3_BLOCKS) *
+			(CAPI_MAX_B3_BLOCK_SIZE + AST_FRIENDLY_OFFSET)]);
+		i->send_buffer_handle++;
+
+		if ((i->doES == 1) && (!capi_tcap_is_digital(c->transfercapability))) {
+			for (j = 0; j < fsmooth->datalen; j++) {
+				buf[j] = capi_reversebits[ ((unsigned char *)fsmooth->data)[j] ]; 
+				if (capi_capability == AST_FORMAT_ULAW) {
+					txavg += abs( capiULAW2INT[capi_reversebits[ ((unsigned char*)fsmooth->data)[j]]] );
+				} else {
+					txavg += abs( capiALAW2INT[capi_reversebits[ ((unsigned char*)fsmooth->data)[j]]] );
+				}
+			}
+			txavg = txavg / j;
+			for(j = 0; j < ECHO_TX_COUNT - 1; j++) {
+				i->txavg[j] = i->txavg[j+1];
+			}
+			i->txavg[ECHO_TX_COUNT - 1] = txavg;
+		} else {
+			if ((i->txgain == 1.0) || (capi_tcap_is_digital(c->transfercapability))) {
+				for (j = 0; j < fsmooth->datalen; j++) {
+					buf[j] = capi_reversebits[((unsigned char *)fsmooth->data)[j]];
+				}
+			} else {
+				for (j = 0; j < fsmooth->datalen; j++) {
+					buf[j] = i->g.txgains[capi_reversebits[((unsigned char *)fsmooth->data)[j]]];
+				}
+			}
+		}
+   
+   		error = 1; 
+		if (i->B3q > 0) {
+			error = capi_sendf(NULL, 0, CAPI_DATA_B3_REQ, i->NCCI, get_capi_MessageNumber(),
+				"dwww",
+				buf,
+				fsmooth->datalen,
+				i->send_buffer_handle,
+				0);
+		} else {
+			cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: too much voice to send for NCCI=%#x\n",
+				i->vname, i->NCCI);
+		}
+
+		if (!error) {
+			cc_mutex_lock(&i->lock);
+			i->B3count++;
+			i->B3q -= fsmooth->datalen;
+			if (i->B3q < 0)
+				i->B3q = 0;
+			cc_mutex_unlock(&i->lock);
+		}
+	}
+	return ret;
 }
 

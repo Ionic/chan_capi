@@ -138,11 +138,9 @@ AST_MUTEX_DEFINE_STATIC(usecnt_lock);
 #endif
 AST_MUTEX_DEFINE_STATIC(iflock);
 
-static int capi_capability = AST_FORMAT_ALAW;
-
 static pthread_t monitor_thread = (pthread_t)(0-1);
 
-struct capi_pvt *iflist = NULL;
+struct capi_pvt *capi_iflist = NULL;
 
 static struct cc_capi_controller *capi_controllers[CAPI_MAX_CONTROLLERS + 1];
 static int capi_num_controllers = 0;
@@ -161,6 +159,8 @@ static char capi_national_prefix[AST_MAX_EXTENSION];
 static char capi_international_prefix[AST_MAX_EXTENSION];
 
 static char default_language[MAX_LANGUAGE] = "";
+
+int capi_capability = AST_FORMAT_ALAW;
 
 #ifdef CC_AST_HAS_VERSION_1_4
 /* Global jitterbuffer configuration - by default, jb is disabled */
@@ -365,7 +365,7 @@ static int tcap2cip(unsigned short tcap)
 	return CAPI_CIPI_SPEECH;
 }
 
-static unsigned char tcap_is_digital(unsigned short tcap)
+unsigned char capi_tcap_is_digital(unsigned short tcap)
 {
 	int x;
 	
@@ -493,7 +493,7 @@ static void capi_echo_canceller(struct capi_pvt *i, int function)
 		return;
 	}
 
-	if (tcap_is_digital(c->transfercapability)) {
+	if (capi_tcap_is_digital(c->transfercapability)) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: No echo canceller in digital mode (PLCI=%#x)\n",
 			i->vname, i->PLCI);
 		return;
@@ -535,7 +535,7 @@ static int capi_detect_dtmf(struct capi_pvt *i, int flag)
 		return 0;
 	}
 
-	if (tcap_is_digital(c->transfercapability)) {
+	if (capi_tcap_is_digital(c->transfercapability)) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: No dtmf-detect in digital mode (PLCI=%#x)\n",
 			i->vname, i->PLCI);
 		return 0;
@@ -588,17 +588,6 @@ static int local_queue_frame(struct capi_pvt *i, struct ast_frame *f)
 		cc_log(LOG_ERROR, "No owner in local_queue_frame for %s\n",
 			i->vname);
 		return -1;
-	}
-
-	if (i->channeltype == CAPI_CHANNELTYPE_NULL) {
-		if (f->frametype == AST_FRAME_VOICE) {
-			/* NULL PLCI data is written directly */
-			ast_write(chan, f);
-			return 0;
-		}
-		cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: frame %d/%d not queued for NULL-PLCI.\n",
-			i->vname, f->frametype, f->subclass);
-		return 0;
 	}
 
 	if (!(i->isdnstate & CAPI_ISDN_STATE_PBX)) {
@@ -1096,7 +1085,7 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 	MESSAGE_EXCHANGE_ERROR  error;
 
 	cc_copy_string(buffer, idest, sizeof(buffer));
-	parse_dialstring(buffer, &interface, &dest, &param, &ocid);
+	capi_parse_dialstring(buffer, &interface, &dest, &param, &ocid);
 
 	/* init param settings */
 	i->doB3 = CAPI_B3_DONT;
@@ -1213,7 +1202,7 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 		dsa = calledsubaddress;
 	}
 
-	if (tcap_is_digital(c->transfercapability)) {
+	if (capi_tcap_is_digital(c->transfercapability)) {
 		i->bproto = CC_BPROTO_TRANSPARENT;
 		cc_verbose(4, 0, VERBOSE_PREFIX_2 "%s: is digital call, set proto to TRANSPARENT\n",
 			i->vname);
@@ -1358,7 +1347,7 @@ static int pbx_capi_answer(struct ast_channel *c)
 	i->bproto = CC_BPROTO_TRANSPARENT;
 
 	if (i->rtp) {
-		if (!tcap_is_digital(c->transfercapability))
+		if (!capi_tcap_is_digital(c->transfercapability))
 			i->bproto = CC_BPROTO_RTP;
 	}
 
@@ -1371,47 +1360,12 @@ static int pbx_capi_answer(struct ast_channel *c)
  */
 static struct ast_frame *pbx_capi_read(struct ast_channel *c) 
 {
-        struct capi_pvt *i = CC_CHANNEL_PVT(c);
+	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	struct ast_frame *f;
-	int readsize;
 
-	if (i == NULL) {
-		cc_log(LOG_ERROR, "channel has no interface\n");
-		return NULL;
-	}
-	if (i->readerfd == -1) {
-		cc_log(LOG_ERROR, "no readerfd\n");
-		return NULL;
-	}
+	f = capi_read_pipeframe(i);
 
-	f = &i->f;
-	f->frametype = AST_FRAME_NULL;
-	f->subclass = 0;
-
-	readsize = read(i->readerfd, f, sizeof(struct ast_frame));
-	if ((readsize != sizeof(struct ast_frame)) && (readsize > 0)) {
-		cc_log(LOG_ERROR, "did not read a whole frame (len=%d, err=%d)\n",
-			readsize, errno);
-	}
-	
-	f->mallocd = 0;
-	f->data = NULL;
-
-	if ((f->frametype == AST_FRAME_CONTROL) && (f->subclass == AST_CONTROL_HANGUP)) {
-		return NULL;
-	}
-
-	if ((f->frametype == AST_FRAME_VOICE) && (f->datalen > 0)) {
-		if (f->datalen > sizeof(i->frame_data)) {
-			cc_log(LOG_ERROR, "f.datalen(%d) greater than space of frame_data(%d)\n",
-				f->datalen, sizeof(i->frame_data));
-			f->datalen = sizeof(i->frame_data);
-		}
-		readsize = read(i->readerfd, i->frame_data + AST_FRIENDLY_OFFSET, f->datalen);
-		if (readsize != f->datalen) {
-			cc_log(LOG_ERROR, "did not read whole frame data\n");
-		}
-		f->data = i->frame_data + AST_FRIENDLY_OFFSET;
+	if ((f) && (f->frametype == AST_FRAME_VOICE) && (f->datalen > 0)) {
 		if ((i->doDTMF > 0) && (i->vad != NULL) ) {
 			f = ast_dsp_process(c, i->vad, f);
 		}
@@ -1425,122 +1379,10 @@ static struct ast_frame *pbx_capi_read(struct ast_channel *c)
 static int pbx_capi_write(struct ast_channel *c, struct ast_frame *f)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
-	MESSAGE_EXCHANGE_ERROR error;
-	int j = 0;
-	unsigned char *buf;
-	struct ast_frame *fsmooth;
-	int txavg=0;
 	int ret = 0;
 
-	if (!i) {
-		cc_log(LOG_ERROR, "channel has no interface\n");
-		return -1;
-	}
-	 
-	if ((!(i->isdnstate & CAPI_ISDN_STATE_B3_UP)) || (!i->NCCI) ||
-	    ((i->isdnstate & (CAPI_ISDN_STATE_B3_CHANGE | CAPI_ISDN_STATE_LI)))) {
-		return 0;
-	}
+	ret = capi_write_frame(i, f);
 
-	if ((!(i->ntmode)) && (i->state != CAPI_STATE_CONNECTED)) {
-		return 0;
-	}
-
-	if (f->frametype == AST_FRAME_NULL) {
-		return 0;
-	}
-	if (f->frametype == AST_FRAME_DTMF) {
-		cc_log(LOG_ERROR, "dtmf frame should be written\n");
-		return 0;
-	}
-	if (f->frametype != AST_FRAME_VOICE) {
-		cc_log(LOG_ERROR,"not a voice frame\n");
-		return 0;
-	}
-	if (i->FaxState & CAPI_FAX_STATE_ACTIVE) {
-		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: write on fax activity?\n",
-			i->vname);
-		return 0;
-	}
-	if ((!f->data) || (!f->datalen)) {
-		cc_log(LOG_DEBUG, "No data for FRAME_VOICE %s\n", c->name);
-		return 0;
-	}
-	if (i->isdnstate & CAPI_ISDN_STATE_RTP) {
-		if ((!(f->subclass & i->codec)) &&
-		    (f->subclass != capi_capability)) {
-			cc_log(LOG_ERROR, "don't know how to write subclass %s(%d)\n",
-				ast_getformatname(f->subclass), f->subclass);
-			return 0;
-		}
-		return capi_write_rtp(c, f);
-	}
-	if (i->B3count >= CAPI_MAX_B3_BLOCKS) {
-		cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: B3count is full, dropping packet.\n",
-			i->vname);
-		return 0;
-	}
-
-	if ((!i->smoother) || (ast_smoother_feed(i->smoother, f) != 0)) {
-		cc_log(LOG_ERROR, "%s: failed to fill smoother\n", i->vname);
-		return 0;
-	}
-
-	for (fsmooth = ast_smoother_read(i->smoother);
-	     fsmooth != NULL;
-	     fsmooth = ast_smoother_read(i->smoother)) {
-		buf = &(i->send_buffer[(i->send_buffer_handle % CAPI_MAX_B3_BLOCKS) *
-			(CAPI_MAX_B3_BLOCK_SIZE + AST_FRIENDLY_OFFSET)]);
-		i->send_buffer_handle++;
-
-		if ((i->doES == 1) && (!tcap_is_digital(c->transfercapability))) {
-			for (j = 0; j < fsmooth->datalen; j++) {
-				buf[j] = reversebits[ ((unsigned char *)fsmooth->data)[j] ]; 
-				if (capi_capability == AST_FORMAT_ULAW) {
-					txavg += abs( capiULAW2INT[reversebits[ ((unsigned char*)fsmooth->data)[j]]] );
-				} else {
-					txavg += abs( capiALAW2INT[reversebits[ ((unsigned char*)fsmooth->data)[j]]] );
-				}
-			}
-			txavg = txavg / j;
-			for(j = 0; j < ECHO_TX_COUNT - 1; j++) {
-				i->txavg[j] = i->txavg[j+1];
-			}
-			i->txavg[ECHO_TX_COUNT - 1] = txavg;
-		} else {
-			if ((i->txgain == 1.0) || (tcap_is_digital(c->transfercapability))) {
-				for (j = 0; j < fsmooth->datalen; j++) {
-					buf[j] = reversebits[((unsigned char *)fsmooth->data)[j]];
-				}
-			} else {
-				for (j = 0; j < fsmooth->datalen; j++) {
-					buf[j] = i->g.txgains[reversebits[((unsigned char *)fsmooth->data)[j]]];
-				}
-			}
-		}
-   
-   		error = 1; 
-		if (i->B3q > 0) {
-			error = capi_sendf(NULL, 0, CAPI_DATA_B3_REQ, i->NCCI, get_capi_MessageNumber(),
-				"dwww",
-				buf,
-				fsmooth->datalen,
-				i->send_buffer_handle,
-				0);
-		} else {
-			cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: too much voice to send for NCCI=%#x\n",
-				i->vname, i->NCCI);
-		}
-
-		if (!error) {
-			cc_mutex_lock(&i->lock);
-			i->B3count++;
-			i->B3q -= fsmooth->datalen;
-			if (i->B3q < 0)
-				i->B3q = 0;
-			cc_mutex_unlock(&i->lock);
-		}
-	}
 	return ret;
 }
 
@@ -1793,8 +1635,6 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 {
 	struct ast_channel *tmp;
 	int fmt;
-	int fds[2];
-	int flags;
 
 #ifdef CC_AST_HAS_EXT_CHAN_ALLOC
 	tmp = ast_channel_alloc(0, state, i->cid, NULL,
@@ -1824,19 +1664,10 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 	tmp->type = channeltype;
 #endif
 
-	if (pipe(fds) != 0) {
-		cc_log(LOG_ERROR, "%s: unable to create pipe.\n",
-			i->vname);
+	if (!(capi_create_reader_writer_pipe(i))) {
 		ast_channel_free(tmp);
 		return NULL;
 	}
-	i->readerfd = fds[0];
-	i->writerfd = fds[1];
-	flags = fcntl(i->readerfd, F_GETFL);
-	fcntl(i->readerfd, F_SETFL, flags | O_NONBLOCK);
-	flags = fcntl(i->writerfd, F_GETFL);
-	fcntl(i->writerfd, F_SETFL, flags | O_NONBLOCK);
-
 	tmp->fds[0] = i->readerfd;
 
 	if (i->smoother != NULL) {
@@ -1965,7 +1796,7 @@ pbx_capi_request(const char *type, int format, void *data, int *cause)
 	cc_verbose(1, 1, VERBOSE_PREFIX_4 "data = %s format=%d\n", (char *)data, format);
 
 	cc_copy_string(buffer, (char *)data, sizeof(buffer));
-	parse_dialstring(buffer, &interface, &dest, &param, &ocid);
+	capi_parse_dialstring(buffer, &interface, &dest, &param, &ocid);
 
 	if ((!interface) || (!dest)) {
 		cc_log(LOG_ERROR, "Syntax error in dialstring. Read the docs!\n");
@@ -1998,7 +1829,7 @@ pbx_capi_request(const char *type, int format, void *data, int *cause)
 
 	cc_mutex_lock(&iflock);
 	
-	for (i = iflist; i; i = i->next) {
+	for (i = capi_iflist; i; i = i->next) {
 		if ((i->used) || (i->channeltype != CAPI_CHANNELTYPE_B)) {
 			/* if already in use or no real channel */
 			continue;
@@ -2527,7 +2358,7 @@ static void capidev_handle_did_digits(_cmsg *CMSG, unsigned int PLCI, unsigned i
 /*
  * send control according to cause code
  */
-void queue_cause_control(struct capi_pvt *i, int control)
+void capi_queue_cause_control(struct capi_pvt *i, int control)
 {
 	struct ast_frame fr = { AST_FRAME_CONTROL, AST_CONTROL_HANGUP, };
 	
@@ -2566,14 +2397,14 @@ static void capidev_handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsig
 		cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s: Disconnect case 1\n",
 			i->vname);
 		if (i->state == CAPI_STATE_CONNECTED) {
-			queue_cause_control(i, 0);
+			capi_queue_cause_control(i, 0);
 		} else {
 			if ((i->isdnstate & CAPI_ISDN_STATE_STAYONLINE)) {
 				cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: stay-online hangup frame queued.\n",
 					i->vname);
 				i->whentoqueuehangup = time(NULL) + 1;
 			} else {
-				queue_cause_control(i, 1);
+				capi_queue_cause_control(i, 1);
 			}
 		}
 		return;
@@ -2584,7 +2415,7 @@ static void capidev_handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsig
 	    (i->state == CAPI_STATE_CONNECTED) && (i->outgoing == 1)) {
 		cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s: Disconnect case 2\n",
 			i->vname);
-		queue_cause_control(i, 1);
+		capi_queue_cause_control(i, 1);
 		return;
 	}
 
@@ -2601,7 +2432,7 @@ static void capidev_handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsig
 			capi_send_disconnect(i->PLCI, NULL);
 			return;
 		}
-		queue_cause_control(i, 0);
+		capi_queue_cause_control(i, 0);
 		return;
 	}
 	
@@ -2611,7 +2442,7 @@ static void capidev_handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsig
 			i->vname);
 		if ((i->state == CAPI_STATE_CONNECTED) &&
 		    (i->isdnstate & CAPI_ISDN_STATE_B3_UP)) {
-			queue_cause_control(i, 1);
+			capi_queue_cause_control(i, 1);
 			return;
 		}
 		/* wait for the 0x001e (PROGRESS), play audio and wait for a timeout from the network */
@@ -2816,7 +2647,7 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 		if (i->doB3 == CAPI_B3_DONT) {
 			if ((i->owner) &&
 			    (i->owner->hangupcause == AST_CAUSE_USER_BUSY)) {
-				queue_cause_control(i, 1);
+				capi_queue_cause_control(i, 1);
 				break;
 			}
 		}
@@ -3041,13 +2872,13 @@ static void capidev_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, un
 		i->B3q += b3len;
 	}
 
-	if ((i->doES == 1) && (!tcap_is_digital(chan->transfercapability))) {
+	if ((i->doES == 1) && (!capi_tcap_is_digital(chan->transfercapability))) {
 		for (j = 0; j < b3len; j++) {
-			*(b3buf + j) = reversebits[*(b3buf + j)]; 
+			*(b3buf + j) = capi_reversebits[*(b3buf + j)]; 
 			if (capi_capability == AST_FORMAT_ULAW) {
-				rxavg += abs(capiULAW2INT[ reversebits[*(b3buf + j)]]);
+				rxavg += abs(capiULAW2INT[ capi_reversebits[*(b3buf + j)]]);
 			} else {
-				rxavg += abs(capiALAW2INT[ reversebits[*(b3buf + j)]]);
+				rxavg += abs(capiALAW2INT[ capi_reversebits[*(b3buf + j)]]);
 			}
 		}
 		rxavg = rxavg / j;
@@ -3066,13 +2897,13 @@ static void capidev_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, un
 					i->vname, rxavg, txavg);
 		}
 	} else {
-		if ((i->rxgain == 1.0) || (tcap_is_digital(chan->transfercapability))) {
+		if ((i->rxgain == 1.0) || (capi_tcap_is_digital(chan->transfercapability))) {
 			for (j = 0; j < b3len; j++) {
-				*(b3buf + j) = reversebits[*(b3buf + j)];
+				*(b3buf + j) = capi_reversebits[*(b3buf + j)];
 			}
 		} else {
 			for (j = 0; j < b3len; j++) {
-				*(b3buf + j) = reversebits[i->g.rxgains[*(b3buf + j)]];
+				*(b3buf + j) = capi_reversebits[i->g.rxgains[*(b3buf + j)]];
 			}
 		}
 	}
@@ -3474,7 +3305,7 @@ static void capidev_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, un
 
 	/* well...somebody is calling us. let's set up a channel */
 	cc_mutex_lock(&iflock);
-	for (i = iflist; i; i = i->next) {
+	for (i = capi_iflist; i; i = i->next) {
 		if (i->used) {
 			/* is already used */
 			continue;
@@ -3541,7 +3372,7 @@ static void capidev_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, un
 				break;
 			}
  			i->owner->transfercapability = cip2tcap(i->cip);
-			if (tcap_is_digital(i->owner->transfercapability)) {
+			if (capi_tcap_is_digital(i->owner->transfercapability)) {
 				i->bproto = CC_BPROTO_TRANSPARENT;
 			}
 			i->owner->cid.cid_pres = callpres;
@@ -3735,7 +3566,7 @@ void capidev_handle_connection_conf(struct capi_pvt **i, unsigned int PLCI,
 			"defined interface received\n");
 		return;
 	}
-	*i = find_interface_by_msgnum(wMsgNum);
+	*i = capi_find_interface_by_msgnum(wMsgNum);
 	ii = *i;
 	if (ii == NULL) {
 		return;
@@ -3764,7 +3595,7 @@ static void capidev_handle_msg(_cmsg *CMSG)
 	unsigned short wCmd = HEADER_CMD(CMSG);
 	unsigned short wMsgNum = HEADER_MSGNUM(CMSG);
 	unsigned short wInfo = 0xffff;
-	struct capi_pvt *i = find_interface_by_plci(PLCI);
+	struct capi_pvt *i = capi_find_interface_by_plci(PLCI);
 
 	if ((wCmd == CAPI_P_IND(DATA_B3)) ||
 	    (wCmd == CAPI_P_CONF(DATA_B3))) {
@@ -4020,7 +3851,7 @@ static int pbx_capi_retrieve(struct ast_channel *c, char *param)
 	if (param) {
 		plci = (unsigned int)strtoul(param, NULL, 0);
 		cc_mutex_lock(&iflock);
-		for (i = iflist; i; i = i->next) {
+		for (i = capi_iflist; i; i = i->next) {
 			if (i->onholdPLCI == plci)
 				break;
 		}
@@ -4107,7 +3938,7 @@ static int pbx_capi_ect(struct ast_channel *c, char *param)
 	}
 
 	cc_mutex_lock(&iflock);
-	for (ii = iflist; ii; ii = ii->next) {
+	for (ii = capi_iflist; ii; ii = ii->next) {
 		if (ii->onholdPLCI == plci)
 			break;
 	}
@@ -4351,7 +4182,7 @@ static int pbx_capi_realhangup(struct ast_channel *c, char *param)
 	struct capi_pvt *i;
 
 	cc_mutex_lock(&iflock);
-	for (i = iflist; i; i = i->next) {
+	for (i = capi_iflist; i; i = i->next) {
 		if (i->peer == c)
 			break;
 	}
@@ -4424,7 +4255,7 @@ static int pbx_capi_3pty_begin(struct ast_channel *c, char *param)
 	}
 
 	cc_mutex_lock(&iflock);
-	for (ii = iflist; ii; ii = ii->next) {
+	for (ii = capi_iflist; ii; ii = ii->next) {
 		if (ii->onholdPLCI == plci)
 			break;
 	}
@@ -4755,7 +4586,7 @@ static void capidev_run_secondly(time_t now)
 
 	/* check for channels to hangup (timeout) */
 	cc_mutex_lock(&iflock);
-	for (i = iflist; i; i = i->next) {
+	for (i = capi_iflist; i; i = i->next) {
 		if (i->used == NULL) {
 			continue;
 		}
@@ -4768,7 +4599,7 @@ static void capidev_run_secondly(time_t now)
 		if ((i->whentoqueuehangup) && (i->whentoqueuehangup < now)) {
 			cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: stay-online queue-hangup.\n",
 				i->vname);
-			queue_cause_control(i, 1);
+			capi_queue_cause_control(i, 1);
 			i->whentoqueuehangup = 0;
 		}
 	}
@@ -4961,8 +4792,8 @@ int mkif(struct cc_capi_conf *conf)
 
 		tmp->qsigfeat = conf->qsigfeat;
 
-		tmp->next = iflist; /* prepend */
-		iflist = tmp;
+		tmp->next = capi_iflist; /* prepend */
+		capi_iflist = tmp;
 		cc_verbose(2, 0, VERBOSE_PREFIX_3 "capi %c %s (%s:%s) contr=%d devs=%d EC=%d,opt=%d,tail=%d\n",
 			(tmp->channeltype == CAPI_CHANNELTYPE_B)? 'B' : 'D',
 			tmp->vname, tmp->incomingmsn, tmp->context, tmp->controller,
@@ -5152,7 +4983,7 @@ static int pbxcli_capi_show_channels(int fd, int argc, char *argv[])
 
 	cc_mutex_lock(&iflock);
 
-	for (i = iflist; i; i = i->next) {
+	for (i = capi_iflist; i; i = i->next) {
 		if (i->channeltype != CAPI_CHANNELTYPE_B)
 			continue;
 
@@ -5472,7 +5303,7 @@ static int cc_post_init_capi(void)
 	int rtp_ext_size = 0;
 	unsigned needchannels = 0;
 
-	for (i = iflist; i && !rtp_ext_size; i = i->next) {
+	for (i = capi_iflist; i && !rtp_ext_size; i = i->next) {
 		/* if at least one line wants RTP, we need to re-register with
 		   bigger block size for RTP-header */
 		if (capi_controllers[i->controller]->rtpcodec & i->capability) {
@@ -5490,7 +5321,7 @@ static int cc_post_init_capi(void)
 
 	for (controller = 1; controller <= capi_num_controllers; controller++) {
 		if (capi_used_controllers & (1 << controller)) {
-			if ((error = ListenOnController(ALL_SERVICES, controller)) != 0) {
+			if ((error = capi_ListenOnController(ALL_SERVICES, controller)) != 0) {
 				cc_log(LOG_ERROR,"Unable to listen on contr%d (error=0x%x)\n",
 					controller, error);
 			} else {
@@ -5817,7 +5648,7 @@ int unload_module(void)
 		}
 	}
 	
-	i = iflist;
+	i = capi_iflist;
 	while (i) {
 		if ((i->owner) || (i->used))
 			cc_log(LOG_WARNING, "On unload, interface still has owner or is used.\n");

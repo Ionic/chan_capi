@@ -158,7 +158,7 @@ static void new_ccbsnr_id(char type, unsigned int plci,
 	/* if the hangup frame was deferred, it can be done now and here */
 	if (i->whentoqueuehangup) {
 		i->whentoqueuehangup = 0;
-		queue_cause_control(i, 1);
+		capi_queue_cause_control(i, 1);
 	}
 }
 

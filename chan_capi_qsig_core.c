@@ -778,7 +778,7 @@ unsigned int cc_qsig_add_call_setup_data(unsigned char *data, struct capi_pvt *i
 								i->qsig_data.calltransfer = 1;
 								i->qsig_data.partner_plci = atoi(pp);
 								/* set the other channel as partner to me */
-								struct capi_pvt *ii = find_interface_by_plci(i->qsig_data.partner_plci);
+								struct capi_pvt *ii = capi_find_interface_by_plci(i->qsig_data.partner_plci);
 								if (ii)
 									ii->qsig_data.partner_plci = i->PLCI;
 								
@@ -794,7 +794,7 @@ unsigned int cc_qsig_add_call_setup_data(unsigned char *data, struct capi_pvt *i
 								i->qsig_data.calltransfer_onring = 1;
 								i->qsig_data.partner_plci = atoi(pp);
 								/* set the other channel as partner to me */
-								struct capi_pvt *ii = find_interface_by_plci(i->qsig_data.partner_plci);
+								struct capi_pvt *ii = capi_find_interface_by_plci(i->qsig_data.partner_plci);
 								if (ii)
 									ii->qsig_data.partner_plci = i->PLCI;
 								
@@ -948,7 +948,7 @@ int pbx_capi_qsig_ct(struct ast_channel *c, char *param)
 	callmark = atoi(marker);
 	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * QSIG_CT: using call marker %i(%s)\n", callmark, marker);
 	
-	for (ii = iflist; ii; ii = ii->next) {
+	for (ii = capi_iflist; ii; ii = ii->next) {
 		if (ii->qsig_data.callmark == callmark)
 			break;
 	}
@@ -1031,7 +1031,7 @@ void pbx_capi_qsig_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsign
 				qsiginvoke = cc_qsig_handle_capi_facilityind( (unsigned char*) INFO_IND_INFOELEMENT(CMSG), i);
 /*			
 				if (i->qsig_data.pr_propose_cid && i->qsig_data.pr_propose_pn) {
-					struct capi_pvt *ii = find_interface_by_plci(i->qsig_data.partner_plci);
+					struct capi_pvt *ii = capi_find_interface_by_plci(i->qsig_data.partner_plci);
 								
 					if (ii) {
 						unsigned char fac[CAPI_MAX_FACILITYDATAARRAY_SIZE];
@@ -1077,7 +1077,7 @@ void pbx_capi_qsig_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsign
 			/* TODO: some checks, if there's any work here */
 			if (i->qsig_data.calltransfer_onring) {
 				unsigned char fac[CAPI_MAX_FACILITYDATAARRAY_SIZE];
-				struct capi_pvt *ii = find_interface_by_plci(i->qsig_data.partner_plci);
+				struct capi_pvt *ii = capi_find_interface_by_plci(i->qsig_data.partner_plci);
 
 				/* needed for Path Replacement */
 				ii->qsig_data.partner_plci = i->PLCI;
@@ -1112,7 +1112,7 @@ void pbx_capi_qsig_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsign
 		case 0x8007:	/* CONNECT */
 /*			{
 				if (i->qsig_data.pr_propose_cid && i->qsig_data.pr_propose_pn) {
-					struct capi_pvt *ii = find_interface_by_plci(i->qsig_data.partner_plci);
+					struct capi_pvt *ii = capi_find_interface_by_plci(i->qsig_data.partner_plci);
 							
 					if (ii) {
 						unsigned char fac[CAPI_MAX_FACILITYDATAARRAY_SIZE];
