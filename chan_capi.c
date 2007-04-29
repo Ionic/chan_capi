@@ -276,7 +276,7 @@ static const char * capi_command_to_string(unsigned short wCmd)
 int capi_wait_for_b3_up(struct capi_pvt *i)
 {
 	struct timespec abstime;
-	int ret = 0;
+	int ret = 1;
 
 	cc_mutex_lock(&i->lock);
 	if (!(i->isdnstate & CAPI_ISDN_STATE_B3_UP)) {
@@ -288,10 +288,10 @@ int capi_wait_for_b3_up(struct capi_pvt *i)
 		if (ast_cond_timedwait(&i->event_trigger, &i->lock, &abstime) != 0) {
 			cc_log(LOG_WARNING, "%s: timed out waiting for b3 up.\n",
 				i->vname);
+			ret = 0;
 		} else {
 			cc_verbose(4, 1, "%s: cond signal received for b3 up.\n",
 				i->vname);
-			ret = 1;
 		}
 	}
 	cc_mutex_unlock(&i->lock);
@@ -458,13 +458,17 @@ static void capi_channel_task(struct ast_channel *c, int task)
  * Echo cancellation is for cards w/ integrated echo cancellation only
  * (i.e. Eicon active cards support it)
  */
-static void capi_echo_canceller(struct ast_channel *c, int function)
+static void capi_echo_canceller(struct capi_pvt *i, int function)
 {
-	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+	struct ast_channel *c = i->owner;
 	int ecAvail = 0;
 
 	if ((i->isdnstate & CAPI_ISDN_STATE_DISCONNECT))
 		return;
+
+	if (i->channeltype == CAPI_CHANNELTYPE_NULL) {
+		return;
+	}
 
 	if (((function == EC_FUNCTION_ENABLE) && (i->isdnstate & CAPI_ISDN_STATE_EC)) ||
 	    ((function != EC_FUNCTION_ENABLE) && (!(i->isdnstate & CAPI_ISDN_STATE_EC)))) {
@@ -519,13 +523,17 @@ static void capi_echo_canceller(struct ast_channel *c, int function)
 /*
  * turn on/off DTMF detection
  */
-static int capi_detect_dtmf(struct ast_channel *c, int flag)
+static int capi_detect_dtmf(struct capi_pvt *i, int flag)
 {
-	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+	struct ast_channel *c = i->owner;
 	MESSAGE_EXCHANGE_ERROR error;
 
 	if ((i->isdnstate & CAPI_ISDN_STATE_DISCONNECT))
 		return 0;
+
+	if (i->channeltype == CAPI_CHANNELTYPE_NULL) {
+		return 0;
+	}
 
 	if (tcap_is_digital(c->transfercapability)) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: No dtmf-detect in digital mode (PLCI=%#x)\n",
@@ -580,6 +588,17 @@ static int local_queue_frame(struct capi_pvt *i, struct ast_frame *f)
 		cc_log(LOG_ERROR, "No owner in local_queue_frame for %s\n",
 			i->vname);
 		return -1;
+	}
+
+	if (i->channeltype == CAPI_CHANNELTYPE_NULL) {
+		if (f->frametype == AST_FRAME_VOICE) {
+			/* NULL PLCI data is written directly */
+			ast_write(chan, f);
+			return 0;
+		}
+		cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: frame %d/%d not queued for NULL-PLCI.\n",
+			i->vname, f->frametype, f->subclass);
+		return 0;
 	}
 
 	if (!(i->isdnstate & CAPI_ISDN_STATE_PBX)) {
@@ -949,7 +968,7 @@ void capi_activehangup(struct capi_pvt *i, int state)
 	if ((state == CAPI_STATE_ALERTING) ||
 	    (state == CAPI_STATE_DID) || (state == CAPI_STATE_INCALL)) {
 		capi_sendf(NULL, 0, CAPI_CONNECT_RESP, i->PLCI, i->MessageNumber,
-			"w",
+			"w()()()()()",
 			(i->cause) ? (0x3480 | (i->cause & 0x7f)) : 2);
 		return;
 	}
@@ -1697,13 +1716,13 @@ static CC_BRIDGE_RETURN pbx_capi_bridge(struct ast_channel *c0,
 	capi_wait_for_b3_up(i1);
 
 	if (!(flags & AST_BRIDGE_DTMF_CHANNEL_0))
-		capi_detect_dtmf(i0->owner, 0);
+		capi_detect_dtmf(i0, 0);
 
 	if (!(flags & AST_BRIDGE_DTMF_CHANNEL_1))
-		capi_detect_dtmf(i1->owner, 0);
+		capi_detect_dtmf(i1, 0);
 
-	capi_echo_canceller(i0->owner, EC_FUNCTION_DISABLE);
-	capi_echo_canceller(i1->owner, EC_FUNCTION_DISABLE);
+	capi_echo_canceller(i0, EC_FUNCTION_DISABLE);
+	capi_echo_canceller(i1, EC_FUNCTION_DISABLE);
 
 	if (line_interconnect(i0, i1, 1)) {
 		ret = AST_BRIDGE_FAILED;
@@ -1749,13 +1768,13 @@ static CC_BRIDGE_RETURN pbx_capi_bridge(struct ast_channel *c0,
 return_from_bridge:
 
 	if (!(flags & AST_BRIDGE_DTMF_CHANNEL_0))
-		capi_detect_dtmf(i0->owner, 1);
+		capi_detect_dtmf(i0, 1);
 
 	if (!(flags & AST_BRIDGE_DTMF_CHANNEL_1))
-		capi_detect_dtmf(i1->owner, 1);
+		capi_detect_dtmf(i1, 1);
 
-	capi_echo_canceller(i0->owner, EC_FUNCTION_ENABLE);
-	capi_echo_canceller(i1->owner, EC_FUNCTION_ENABLE);
+	capi_echo_canceller(i0, EC_FUNCTION_ENABLE);
+	capi_echo_canceller(i1, EC_FUNCTION_ENABLE);
 
 	return ret;
 }
@@ -2445,7 +2464,7 @@ static void start_pbx_on_match(struct capi_pvt *i, unsigned int PLCI, _cword Mes
 		cc_log(LOG_NOTICE, "%s: did not find exten for '%s', ignoring call.\n",
 			i->vname, i->dnid);
 		capi_sendf(NULL, 0, CAPI_CONNECT_RESP, PLCI, MessageNumber,
-			"w", 1 /* ignore */);
+			"w()()()()()", 1 /* ignore */);
 	}
 	return;
 }
@@ -3197,7 +3216,9 @@ static void capidev_handle_connect_b3_active_indication(_cmsg *CMSG, unsigned in
 
 	return_on_no_interface("CONNECT_ACTIVE_B3_IND");
 
-	capi_controllers[i->controller]->nfreebchannels--;
+	if (i->channeltype != CAPI_CHANNELTYPE_NULL) {
+		capi_controllers[i->controller]->nfreebchannels--;
+	}
 
 	if (i->state == CAPI_STATE_DISCONNECTING) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: CONNECT_B3_ACTIVE_IND during disconnect for NCCI %#x\n",
@@ -3240,8 +3261,8 @@ static void capidev_handle_connect_b3_active_indication(_cmsg *CMSG, unsigned in
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: Fax connection, no EC/DTMF\n",
 			i->vname);
 	} else {
-		capi_echo_canceller(i->owner, EC_FUNCTION_ENABLE);
-		capi_detect_dtmf(i->owner, 1);
+		capi_echo_canceller(i, EC_FUNCTION_ENABLE);
+		capi_detect_dtmf(i, 1);
 	}
 
 	if (i->state == CAPI_STATE_CONNECTED) {
@@ -3303,7 +3324,9 @@ static void capidev_handle_disconnect_b3_indication(_cmsg *CMSG, unsigned int PL
 		capi_send_disconnect(PLCI, NULL);
 	}
 
-	capi_controllers[i->controller]->nfreebchannels++;
+	if (i->channeltype != CAPI_CHANNELTYPE_NULL) {
+		capi_controllers[i->controller]->nfreebchannels++;
+	}
 }
 
 /*
@@ -3560,7 +3583,7 @@ static void capidev_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, un
 	}
 	
 	capi_sendf(NULL, 0, CAPI_CONNECT_RESP, CONNECT_IND_PLCI(CMSG), HEADER_MSGNUM(CMSG),
-			"w", 1 /* ignore */);
+			"w()()()()()", 1 /* ignore */);
 	return;
 }
 
@@ -3827,8 +3850,8 @@ static void capidev_handle_msg(_cmsg *CMSG)
 				cc_start_b3(i);
 			}
 			if ((i->owner) && (i->FaxState & CAPI_FAX_STATE_ACTIVE)) {
-				capi_echo_canceller(i->owner, EC_FUNCTION_DISABLE);
-				capi_detect_dtmf(i->owner, 0);
+				capi_echo_canceller(i, EC_FUNCTION_DISABLE);
+				capi_detect_dtmf(i, 0);
 			}
 		} else {
 			i->isdnstate &= ~CAPI_ISDN_STATE_B3_PEND;
@@ -4233,9 +4256,9 @@ static int pbx_capi_echocancel(struct ast_channel *c, char *param)
 	}
 	if (ast_true(param)) {
 		i->doEC = 1;
-		capi_echo_canceller(c, EC_FUNCTION_ENABLE);
+		capi_echo_canceller(i, EC_FUNCTION_ENABLE);
 	} else if (ast_false(param)) {
-		capi_echo_canceller(c, EC_FUNCTION_DISABLE);
+		capi_echo_canceller(i, EC_FUNCTION_DISABLE);
 		i->doEC = 0;
 	} else {
 		cc_log(LOG_WARNING, "Parameter for echocancel invalid.\n");
@@ -4591,7 +4614,8 @@ static int pbx_capi_indicate(struct ast_channel *c, int condition)
 			i->vname, c->name);
 		if ((i->state == CAPI_STATE_ALERTING) ||
 		    (i->state == CAPI_STATE_DID) || (i->state == CAPI_STATE_INCALL)) {
-			capi_sendf(NULL, 0, CAPI_CONNECT_RESP, i->PLCI, i->MessageNumber, "w", 3);
+			capi_sendf(NULL, 0, CAPI_CONNECT_RESP, i->PLCI, i->MessageNumber,
+				"w()()()()()", 3);
 			ret = 0;
 		}
 		if ((i->isdnstate & CAPI_ISDN_STATE_HOLD))
@@ -4602,7 +4626,8 @@ static int pbx_capi_indicate(struct ast_channel *c, int condition)
 			i->vname, c->name);
 		if ((i->state == CAPI_STATE_ALERTING) ||
 		    (i->state == CAPI_STATE_DID) || (i->state == CAPI_STATE_INCALL)) {
-			capi_sendf(NULL, 0, CAPI_CONNECT_RESP, i->PLCI, i->MessageNumber, "w", 4);
+			capi_sendf(NULL, 0, CAPI_CONNECT_RESP, i->PLCI, i->MessageNumber,
+				"w()()()()()", 4);
 			ret = 0;
 		}
 		if ((i->isdnstate & CAPI_ISDN_STATE_HOLD))

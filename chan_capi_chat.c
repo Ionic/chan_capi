@@ -116,8 +116,8 @@ static void del_chat_member(struct capichat_s *room)
 			} else {
 				tmproom2->next = tmproom->next;
 			}
-			cc_verbose(3, 1, VERBOSE_PREFIX_3 "capi chat: removed member from room %s (%d)\n",
-				room->name, room->number);
+			cc_verbose(3, 0, VERBOSE_PREFIX_3 "%s: removed chat member from room '%s' (%d)\n",
+				room->i->vname, room->name, room->number);
 			free(room);
 		}
 		tmproom2 = tmproom;
@@ -173,8 +173,8 @@ static struct capichat_s *add_chat_member(char *roomname,
 
 	cc_mutex_unlock(&chat_lock);
 
-	cc_verbose(3, 1, VERBOSE_PREFIX_3 "capi chat: added new member to room %s (%d)\n",
-		roomname, roomnumber);
+	cc_verbose(3, 0, VERBOSE_PREFIX_3 "%s: added new chat member to room '%s' (%d)\n",
+		i->vname, roomname, roomnumber);
 
 	update_capi_mixer(0, roomnumber, room->plci);
 
@@ -214,7 +214,7 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 		i = CC_CHANNEL_PVT(c); 
 	} else {
 		/* virtual CAPI channel */
-		i = mknullif(contr);
+		i = mknullif(c, contr);
 		if (!i) {
 			return -1;
 		}

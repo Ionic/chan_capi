@@ -81,6 +81,8 @@ int capi_remove_nullif(struct capi_pvt *i)
 			} else {
 				tmp->next = ii->next;
 			}
+			cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: removed null-interface.\n",
+				i->vname);
 			free(i);
 			break;
 		}
@@ -95,7 +97,7 @@ int capi_remove_nullif(struct capi_pvt *i)
 /*
  * create new null-interface
  */
-struct capi_pvt *mknullif(unsigned int controller)
+struct capi_pvt *mknullif(struct ast_channel *c, unsigned int controller)
 {
 	struct capi_pvt *tmp;
 
@@ -111,10 +113,12 @@ struct capi_pvt *mknullif(unsigned int controller)
 	cc_mutex_init(&tmp->lock);
 	ast_cond_init(&tmp->event_trigger, NULL);
 	
-	snprintf(tmp->name, sizeof(tmp->name) - 1, "CAPI-NULL-PLCI");
+	snprintf(tmp->name, sizeof(tmp->name) - 1, "%s-NULLPLCI", c->name);
 	snprintf(tmp->vname, sizeof(tmp->vname) - 1, "%s", tmp->name);
 
 	tmp->channeltype = CAPI_CHANNELTYPE_NULL;
+
+	tmp->owner = c;
 
 	tmp->controller = controller;
 	tmp->doEC = 1;
@@ -136,6 +140,8 @@ struct capi_pvt *mknullif(unsigned int controller)
 		"w()()()()(www()()()())()()()((wwbbb)()()())",
 		 0,       1,1,0,              3,0,0,0,0);
 
+	cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: created null-interface.\n",
+		tmp->vname);
 	return tmp;
 }
 
