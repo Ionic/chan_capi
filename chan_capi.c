@@ -987,6 +987,13 @@ void capi_activehangup(struct capi_pvt *i, int state)
 		cc_disconnect_b3(i, 0);
 		return;
 	}
+
+	if (i->channeltype == CAPI_CHANNELTYPE_NULL) {
+		if (i->PLCI == 0) {
+			interface_cleanup(i);
+			return;
+		}
+	}
 	
 	if ((state == CAPI_STATE_CONNECTED) || (state == CAPI_STATE_CONNECTPENDING) ||
 	    (state == CAPI_STATE_ANSWERING) || (state == CAPI_STATE_ONHOLD)) {
