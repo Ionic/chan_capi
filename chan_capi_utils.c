@@ -125,9 +125,6 @@ struct capi_pvt *capi_mknullif(struct ast_channel *c, unsigned int controller)
 	}
 	memset(tmp, 0, sizeof(struct capi_pvt));
 	
-	tmp->readerfd = -1;
-	tmp->writerfd = -1;
-		
 	cc_mutex_init(&tmp->lock);
 	ast_cond_init(&tmp->event_trigger, NULL);
 	
@@ -137,6 +134,8 @@ struct capi_pvt *capi_mknullif(struct ast_channel *c, unsigned int controller)
 	tmp->channeltype = CAPI_CHANNELTYPE_NULL;
 
 	tmp->owner = c;
+	tmp->used = c;
+	tmp->peer = c;
 
 	tmp->controller = controller;
 	tmp->doEC = 1;
@@ -145,19 +144,25 @@ struct capi_pvt *capi_mknullif(struct ast_channel *c, unsigned int controller)
 	tmp->ecTail = EC_DEFAULT_TAIL;
 	tmp->isdnmode = CAPI_ISDNMODE_MSN;
 	tmp->ecSelector = FACILITYSELECTOR_ECHO_CANCEL;
+	tmp->capability = capi_capability;
+	capi_gains(&tmp->g, 1.0, 1.0);
 
 	if (!(capi_create_reader_writer_pipe(tmp))) {
 		free(tmp);
 		return NULL;
 	}
-	
+
+	tmp->bproto = CC_BPROTO_TRANSPARENT;	
+	tmp->doB3 = CAPI_B3_DONT;
 	tmp->smoother = ast_smoother_new(CAPI_MAX_B3_BLOCK_SIZE);
+	tmp->isdnstate |= CAPI_ISDN_STATE_PBX;
 		
 	cc_mutex_lock(&nullif_lock);
 	tmp->next = nulliflist; /* prepend */
 	nulliflist = tmp;
 	cc_mutex_unlock(&nullif_lock);
 
+	/* connect to driver */
 	tmp->outgoing = 1;
 	tmp->state = CAPI_STATE_CONNECTPENDING;
 	tmp->MessageNumber = get_capi_MessageNumber();
@@ -167,12 +172,12 @@ struct capi_pvt *capi_mknullif(struct ast_channel *c, unsigned int controller)
 
 	cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: created null-interface.\n",
 		tmp->vname);
+
 	return tmp;
 }
 
-
 /*
- * get a new capi message number automically
+ * get a new capi message number atomically
  */
 _cword get_capi_MessageNumber(void)
 {

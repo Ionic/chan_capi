@@ -22,10 +22,9 @@
 #include "chan_capi_chat.h"
 #include "chan_capi_utils.h"
 
-#define CAPI_MAX_MEETME_NAME 32
 
 struct capichat_s {
-	char name[CAPI_MAX_MEETME_NAME];
+	char name[16];
 	unsigned int number;
 	struct capi_pvt *i;
 	struct capichat_s *next;
@@ -317,6 +316,7 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 		return -1;
 	}
 
+	/* main loop */
 	chat_handle_events(c, i);
 
 	del_chat_member(room);

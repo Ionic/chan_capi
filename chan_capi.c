@@ -4650,7 +4650,7 @@ static void *capidev_loop(void *data)
 /*
  * GAIN
  */
-static void capi_gains(struct cc_capi_gains *g, float rxgain, float txgain)
+void capi_gains(struct cc_capi_gains *g, float rxgain, float txgain)
 {
 	int i = 0;
 	int x = 0;

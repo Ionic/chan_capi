@@ -579,5 +579,6 @@ extern void capidev_handle_connection_conf(struct capi_pvt **i, unsigned int PLC
 extern void capi_wait_for_answered(struct capi_pvt *i);
 extern int capi_wait_for_b3_up(struct capi_pvt *i);
 extern void capi_activehangup(struct capi_pvt *i, int state);
+extern void capi_gains(struct cc_capi_gains *g, float rxgain, float txgain);
 
 #endif
