@@ -27,7 +27,6 @@
 struct capichat_s {
 	char name[CAPI_MAX_MEETME_NAME];
 	unsigned int number;
-	struct ast_channel *chan;
 	struct capi_pvt *i;
 	struct capichat_s *next;
 };
@@ -73,6 +72,8 @@ static void update_capi_mixer(int remove, unsigned int roomnumber, struct capi_p
 			p_list[j++] = (_cbyte)(dest >> 8);
 			p_list[j++] = (_cbyte)(dest >> 16);
 			p_list[j++] = (_cbyte)(dest >> 24);
+			cc_verbose(3, 1, VERBOSE_PREFIX_3 "capi mixer: listed %s PLCI=0x%04x LI=0x%x\n",
+				ii->vname, ii->PLCI, dest);
 		}
 		room = room->next;
 	}
@@ -95,6 +96,9 @@ static void update_capi_mixer(int remove, unsigned int roomnumber, struct capi_p
 		if (i->channeltype == CAPI_CHANNELTYPE_NULL) {
 			datapath |= 0x0000000c;
 		}
+
+		cc_verbose(3, 1, VERBOSE_PREFIX_3 "capi mixer: %s PLCI=0x%04x LI=0x%x\n",
+			i->vname, i->PLCI, datapath);
 
 		capi_sendf(NULL, 0, CAPI_FACILITY_REQ, i->PLCI, get_capi_MessageNumber(),
 			"w(w(dc))",
@@ -140,8 +144,7 @@ static void del_chat_member(struct capichat_s *room)
 /*
  * add a new chat member
  */
-static struct capichat_s *add_chat_member(char *roomname,
-	struct ast_channel *chan, struct capi_pvt *i)
+static struct capichat_s *add_chat_member(char *roomname, struct capi_pvt *i)
 {
 	struct capichat_s *room = NULL;
 	struct capichat_s *tmproom;
@@ -156,7 +159,6 @@ static struct capichat_s *add_chat_member(char *roomname,
 	
 	strncpy(room->name, roomname, sizeof(room->name));
 	room->name[sizeof(room->name) - 1] = 0;
-	room->chan = chan;
 	room->i = i;
 	
 	cc_mutex_lock(&chat_lock);
@@ -309,7 +311,7 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 		goto out;
 	}
 
-	room = add_chat_member(roomname, c, i);
+	room = add_chat_member(roomname, i);
 	if (!room) {
 		cc_log(LOG_WARNING, "Unable to open capi chat room.\n");
 		return -1;
@@ -329,5 +331,38 @@ out:
 	}
 
 	return 0;
+}
+
+/*
+ * do command capi chatinfo
+ */
+int pbxcli_capi_chatinfo(int fd, int argc, char *argv[])
+{
+	struct capichat_s *room = NULL;
+	struct ast_channel *c;
+	
+	if (argc != 2)
+		return RESULT_SHOWUSAGE;
+
+	if (chat_list == NULL) {
+		ast_cli(fd, "There are no members in CAPI CHAT.\n");
+		return RESULT_SUCCESS;
+	}
+
+	ast_cli(fd, "CAPI CHAT\n");
+	ast_cli(fd, "Room# Roomname    Member                        Caller\n");
+
+	cc_mutex_lock(&chat_lock);
+	room = chat_list;
+	while (room) {
+		c = room->i->owner;
+		ast_cli(fd, "%3d   %-12s%-30s\"%s\" <%s>\n",
+			room->number, room->name, c->name,
+			(c->cid.cid_name) ? c->cid.cid_name:"", c->cid.cid_num);
+		room = room->next;
+	}
+	cc_mutex_unlock(&chat_lock);
+
+	return RESULT_SUCCESS;
 }
 

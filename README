@@ -69,6 +69,7 @@ This chan_capi version includes:
 - Asterisk 1.4 jitterbuffer configuration.
 - some QSIG extensions (see README.qsig)
 - CCBS (call completion on busy subscriber)
+- CAPI CHAT (CAPI MeetMe using onboard DSPs)
 
 
 The Dial string
@@ -106,6 +107,27 @@ The Dial string
   be modified using the SetCallerPres() application. Use
   SetCallerPres(prohib_not_screened) for CLIR. That is why the msn= param in
   capi.conf has been removed. The callerID is also taken from the calling channel.
+
+
+CLI commands
+============
+
+capi info:
+    Show chan-capi version info.
+    Show status of available B-channels.
+
+capi debug:
+    Enable CAPI message verbosity.
+
+capi no debug:
+    Disable CAPI message verbosity.
+
+capi show channels:
+    Display detailed information on CAPI B-channels.
+    (Description see below)
+
+capi chatinfo:
+    Show status of CAPI CHAT.
 
 
 CAPI command application
@@ -256,6 +278,13 @@ Deactivate CCBS:
         Example:
         exten => s,1,capicommand(ccbsstop|${CCLINKAGEID})
 
+Chat (MeetMe/Conference):
+    If the CAPI card/driver supports it, the caller can be put into a chat-room:
+        exten => s,1,capicommand(chat|<roomname>|<controller>|<options>)
+		Example:
+            exten => s,1,capicommand(chat|salesmeeting|1)
+
+
 Using CLIR
 ==========
 Use the SetCallerPres() application before you dial:
@@ -292,6 +321,7 @@ you:
     
 For normal PBX usage you would use the "b" option, always early B3.
 
+
 Overlap sending (a.k.a. real dialtone)
 ======================================
 When you dial an empty number, and have early B3 enabled, with:
@@ -300,6 +330,7 @@ The channel will come up at once and give you the dialtone it gets from the
 local exchange.
 At this point the channel is like a legacy phone, now you can send DTMF digits 
 to dial.    
+
 
 Example context for incoming calls on MSN 12345678:
 ===================================================
@@ -388,6 +419,7 @@ Column description:
               S = SETUP[_ACK] was signaled
   ton       : type of number value
   number    : the caller-number and destination-number
+
 
 Asterisk variables used/set by chan_capi
 ========================================

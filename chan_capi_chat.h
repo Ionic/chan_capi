@@ -18,5 +18,6 @@
  * prototypes
  */
 extern int pbx_capi_chat(struct ast_channel *c, char *param);
+extern int pbxcli_capi_chatinfo(int fd, int argc, char *argv[]);
 
 #endif

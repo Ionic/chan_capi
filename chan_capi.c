@@ -585,7 +585,7 @@ static int local_queue_frame(struct capi_pvt *i, struct ast_frame *f)
 	int wbuflen;
 
 	if (chan == NULL) {
-		cc_log(LOG_ERROR, "No owner in local_queue_frame for %s\n",
+		cc_log(LOG_WARNING, "No owner in local_queue_frame for %s\n",
 			i->vname);
 		return -1;
 	}
@@ -5090,6 +5090,10 @@ static char no_debug_usage[] =
 "Usage: capi no debug\n"
 "       Disables dumping of CAPI packets for debugging purposes\n";
 
+static char chatinfo_usage[] = 
+"Usage: capi chatinfo\n"
+"       Show info about chat status.\n";
+
 /*
  * define commands
  */
@@ -5101,6 +5105,8 @@ static struct ast_cli_entry  cli_debug =
 	{ { "capi", "debug", NULL }, pbxcli_capi_do_debug, "Enable CAPI debugging", debug_usage };
 static struct ast_cli_entry  cli_no_debug =
 	{ { "capi", "no", "debug", NULL }, pbxcli_capi_no_debug, "Disable CAPI debugging", no_debug_usage };
+static struct ast_cli_entry  cli_chatinfo =
+	{ { "capi", "chatinfo", NULL }, pbxcli_capi_chatinfo, "Show CAPI chat info", chatinfo_usage };
 
 const struct ast_channel_tech capi_tech = {
 	.type = channeltype,
@@ -5623,6 +5629,7 @@ int unload_module(void)
 	ast_cli_unregister(&cli_show_channels);
 	ast_cli_unregister(&cli_debug);
 	ast_cli_unregister(&cli_no_debug);
+	ast_cli_unregister(&cli_chatinfo);
 
 #ifdef CC_AST_HAS_VERSION_1_4
 	ast_module_user_hangup_all();
@@ -5726,6 +5733,7 @@ int load_module(void)
 	ast_cli_register(&cli_show_channels);
 	ast_cli_register(&cli_debug);
 	ast_cli_register(&cli_no_debug);
+	ast_cli_register(&cli_chatinfo);
 	
 	ast_register_application(commandapp, pbx_capicommand_exec, commandsynopsis, commandtdesc);
 

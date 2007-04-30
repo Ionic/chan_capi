@@ -7,6 +7,7 @@ HEAD
 - added 'x' option to capicommand(ect) to have real 'explicit call transfer'
   (needed by some ISDN lines)
 - support CCBS (call completion on busy subscriber)
+- added capicommand(chat) for CAPI based MeetMe/Conference using onboard DSPs.
 
 
 chan_capi-1.0.1
