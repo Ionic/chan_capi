@@ -199,17 +199,18 @@ static struct capichat_s *add_chat_member(char *roomname, struct capi_pvt *i)
 /*
  * loop during chat
  */
-static void chat_handle_events(struct ast_channel *chan, struct capi_pvt *i)
+static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i)
 {
 	struct ast_frame *f;
 	int ms;
 	int exception;
 	int ready_fd;
-	int waitfds[1];
+	int waitfd;
 	int nfds = 0;
 	struct ast_channel *rchan;
+	struct ast_channel *chan = c;
 
-	waitfds[0] = i->readerfd;
+	waitfd = i->readerfd;
 	if (i->channeltype == CAPI_CHANNELTYPE_NULL) {
 		nfds = 1;
 		ast_indicate(chan, -1);
@@ -231,7 +232,7 @@ static void chat_handle_events(struct ast_channel *chan, struct capi_pvt *i)
 		errno = 0;
 		exception = 0;
 
-		rchan = ast_waitfor_nandfds(&chan, 1, waitfds, nfds, &exception, &ready_fd, &ms);
+		rchan = ast_waitfor_nandfds(&chan, 1, &waitfd, nfds, &exception, &ready_fd, &ms);
 
 		if (rchan) {
 			f = ast_read(chan);
@@ -245,16 +246,16 @@ static void chat_handle_events(struct ast_channel *chan, struct capi_pvt *i)
 					i->vname);
 				ast_frfree(f);
 				break;
-			}
-			if (f->frametype == AST_FRAME_VOICE) {
+			} else if (f->frametype == AST_FRAME_VOICE) {
 				cc_verbose(5, 1, VERBOSE_PREFIX_3 "%s: chat: voice frame.\n",
 					i->vname);
 				if (i->channeltype == CAPI_CHANNELTYPE_NULL) {
 					capi_write_frame(i, f);
 				}
+			} else {
+				cc_verbose(5, 1, VERBOSE_PREFIX_3 "%s: chat: unhandled frame %d/%d.\n",
+					i->vname, f->frametype, f->subclass);
 			}
-			cc_verbose(5, 1, VERBOSE_PREFIX_3 "%s: chat: unhandled frame %d/%d.\n",
-				i->vname, f->frametype, f->subclass);
 			ast_frfree(f);
 		} else if (ready_fd == i->readerfd) {
 			if (exception) {
