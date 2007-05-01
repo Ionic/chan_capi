@@ -188,9 +188,8 @@ int capi_alloc_rtp(struct capi_pvt *i)
 /*
  * write rtp for a channel
  */
-int capi_write_rtp(struct ast_channel *c, struct ast_frame *f)
+int capi_write_rtp(struct capi_pvt *i, struct ast_frame *f)
 {
-	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	struct sockaddr_in us;
 	int len;
 	socklen_t uslen;
@@ -243,7 +242,7 @@ int capi_write_rtp(struct ast_channel *c, struct ast_frame *f)
 			i->vname, i->NCCI, len, f->datalen, ast_getformatname(f->subclass),
 			i->timestamp);
 
-		capi_sendf (NULL, 0, CAPI_DATA_B3_REQ, i->NCCI, get_capi_MessageNumber(),
+		capi_sendf(NULL, 0, CAPI_DATA_B3_REQ, i->NCCI, get_capi_MessageNumber(),
 			"dwww",
 			buf,
 			len,
@@ -313,7 +312,7 @@ void voice_over_ip_profile(struct cc_capi_controller *cp)
 	unsigned short info = 0;
 	unsigned int payload1, payload2;
 
-	capi_sendf (NULL, 0, CAPI_FACILITY_REQ, cp->controller, get_capi_MessageNumber(),
+	capi_sendf(NULL, 0, CAPI_FACILITY_REQ, cp->controller, get_capi_MessageNumber(),
 		"ws",
 		FACILITYSELECTOR_VOICE_OVER_IP,
 		&fac

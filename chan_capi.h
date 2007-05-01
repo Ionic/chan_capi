@@ -318,7 +318,7 @@ struct capi_pvt {
 
 	/* which b-protocol is active */
 	int bproto;
-	
+
 	char context[AST_MAX_EXTENSION];
 	/*! Multiple Subscriber Number we listen to (, seperated list) */
 	char incomingmsn[CAPI_MAX_STRING];	
@@ -379,6 +379,7 @@ struct capi_pvt {
 
 	/* Common ISDN Profile (CIP) */
 	int cip;
+	unsigned short transfercapability;
 	
 	/* if not null, receiving a fax */
 	FILE *fFax;

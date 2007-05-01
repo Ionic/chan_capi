@@ -279,7 +279,8 @@ int capi_wait_for_b3_up(struct capi_pvt *i)
 	int ret = 1;
 
 	cc_mutex_lock(&i->lock);
-	if (!(i->isdnstate & CAPI_ISDN_STATE_B3_UP)) {
+	if ((!(i->isdnstate & CAPI_ISDN_STATE_B3_UP)) &&
+	    (i->PLCI != 0)) {
 		i->waitevent = CAPI_WAITEVENT_B3_UP;
 		abstime.tv_sec = time(NULL) + 2;
 		abstime.tv_nsec = 0;
@@ -460,7 +461,6 @@ static void capi_channel_task(struct ast_channel *c, int task)
  */
 static void capi_echo_canceller(struct capi_pvt *i, int function)
 {
-	struct ast_channel *c = i->owner;
 	int ecAvail = 0;
 
 	if ((i->isdnstate & CAPI_ISDN_STATE_DISCONNECT))
@@ -493,7 +493,7 @@ static void capi_echo_canceller(struct capi_pvt *i, int function)
 		return;
 	}
 
-	if (capi_tcap_is_digital(c->transfercapability)) {
+	if (capi_tcap_is_digital(i->transfercapability)) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: No echo canceller in digital mode (PLCI=%#x)\n",
 			i->vname, i->PLCI);
 		return;
@@ -525,7 +525,6 @@ static void capi_echo_canceller(struct capi_pvt *i, int function)
  */
 static int capi_detect_dtmf(struct capi_pvt *i, int flag)
 {
-	struct ast_channel *c = i->owner;
 	MESSAGE_EXCHANGE_ERROR error;
 
 	if ((i->isdnstate & CAPI_ISDN_STATE_DISCONNECT))
@@ -535,7 +534,7 @@ static int capi_detect_dtmf(struct capi_pvt *i, int flag)
 		return 0;
 	}
 
-	if (capi_tcap_is_digital(c->transfercapability)) {
+	if (capi_tcap_is_digital(i->transfercapability)) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: No dtmf-detect in digital mode (PLCI=%#x)\n",
 			i->vname, i->PLCI);
 		return 0;
@@ -580,15 +579,8 @@ static int capi_detect_dtmf(struct capi_pvt *i, int flag)
  */
 static int local_queue_frame(struct capi_pvt *i, struct ast_frame *f)
 {
-	struct ast_channel *chan = i->owner;
 	unsigned char *wbuf;
 	int wbuflen;
-
-	if (chan == NULL) {
-		cc_log(LOG_WARNING, "No owner in local_queue_frame for %s\n",
-			i->vname);
-		return -1;
-	}
 
 	if (!(i->isdnstate & CAPI_ISDN_STATE_PBX)) {
 		/* if there is no PBX running yet,
@@ -642,7 +634,9 @@ static void update_channel_name(struct capi_pvt *i)
 
 	snprintf(name, sizeof(name) - 1, "CAPI/%s/%s-%x",
 		i->vname, i->dnid, capi_counter++);
-	ast_change_name(i->owner, name);
+	if (i->owner) {
+		ast_change_name(i->owner, name);
+	}
 	cc_verbose(3, 0, VERBOSE_PREFIX_3 "%s: Updated channel name: %s\n",
 			i->vname, name);
 }
@@ -1139,6 +1133,7 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 
 	i->peer = cc_get_peer_link_id(pbx_builtin_getvar_helper(c, "CAPIPEERLINKID"));
 	i->outgoing = 1;
+	i->transfercapability = c->transfercapability;
 	i->isdnstate |= CAPI_ISDN_STATE_PBX;
 	i->state = CAPI_STATE_CONNECTPENDING;
 	ast_setstate(c, AST_STATE_DIALING);
@@ -1146,7 +1141,7 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 
 	/* if this is a CCBS/CCNR callback call */
 	if (i->ccbsnrhandle) {
-		_cword cip = (_cword)tcap2cip(c->transfercapability);
+		_cword cip = (_cword)tcap2cip(i->transfercapability);
 		_cword rbref;
 
 		i->doOverlap = 0;
@@ -1202,7 +1197,7 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 		dsa = calledsubaddress;
 	}
 
-	if (capi_tcap_is_digital(c->transfercapability)) {
+	if (capi_tcap_is_digital(i->transfercapability)) {
 		i->bproto = CC_BPROTO_TRANSPARENT;
 		cc_verbose(4, 0, VERBOSE_PREFIX_2 "%s: is digital call, set proto to TRANSPARENT\n",
 			i->vname);
@@ -1242,7 +1237,7 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 
 	error = capi_sendf(NULL, 0, CAPI_CONNECT_REQ, i->controller, i->MessageNumber,
 		"wssss(wwwsss())()()()((w)()()s)",
-		tcap2cip(c->transfercapability), /* CIP value */
+		tcap2cip(i->transfercapability), /* CIP value */
 		called, /* called party number */
 		calling, /* calling party number */
 		dsa, /* called party subaddress */
@@ -1347,7 +1342,7 @@ static int pbx_capi_answer(struct ast_channel *c)
 	i->bproto = CC_BPROTO_TRANSPARENT;
 
 	if (i->rtp) {
-		if (!capi_tcap_is_digital(c->transfercapability))
+		if (!capi_tcap_is_digital(i->transfercapability))
 			i->bproto = CC_BPROTO_RTP;
 	}
 
@@ -2126,7 +2121,7 @@ static void capi_handle_dtmf_fax(struct capi_pvt *i)
 	struct ast_channel *c = i->owner;
 
 	if (!c) {
-		cc_log(LOG_ERROR, "No channel!\n");
+		/* no channel, ignore */
 		return;
 	}
 	
@@ -2812,7 +2807,6 @@ static void capidev_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, u
  */
 static void capidev_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
 {
-	struct ast_channel *chan;
 	struct ast_frame fr = { AST_FRAME_NULL, };
 	unsigned char *b3buf = NULL;
 	int b3len = 0;
@@ -2833,8 +2827,6 @@ static void capidev_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, un
 		"w", DATA_B3_IND_DATAHANDLE(CMSG));
 
 	return_on_no_interface("DATA_B3_IND");
-
-	chan = i->owner;
 
 	if (i->fFax) {
 		/* we are in fax mode and have a file open */
@@ -2872,7 +2864,7 @@ static void capidev_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, un
 		i->B3q += b3len;
 	}
 
-	if ((i->doES == 1) && (!capi_tcap_is_digital(chan->transfercapability))) {
+	if ((i->doES == 1) && (!capi_tcap_is_digital(i->transfercapability))) {
 		for (j = 0; j < b3len; j++) {
 			*(b3buf + j) = capi_reversebits[*(b3buf + j)]; 
 			if (capi_capability == AST_FORMAT_ULAW) {
@@ -2897,7 +2889,7 @@ static void capidev_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, un
 					i->vname, rxavg, txavg);
 		}
 	} else {
-		if ((i->rxgain == 1.0) || (capi_tcap_is_digital(chan->transfercapability))) {
+		if ((i->rxgain == 1.0) || (capi_tcap_is_digital(i->transfercapability))) {
 			for (j = 0; j < b3len; j++) {
 				*(b3buf + j) = capi_reversebits[*(b3buf + j)];
 			}
@@ -3084,12 +3076,6 @@ static void capidev_handle_connect_b3_active_indication(_cmsg *CMSG, unsigned in
 	if ((i->isdnstate & CAPI_ISDN_STATE_B3_CHANGE)) {
 		i->isdnstate &= ~CAPI_ISDN_STATE_B3_CHANGE;
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: B3 protocol changed.\n",
-			i->vname);
-		return;
-	}
-
-	if (!i->owner) {
-		cc_log(LOG_ERROR, "%s: No channel for interface!\n",
 			i->vname);
 		return;
 	}
@@ -3371,8 +3357,9 @@ static void capidev_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, un
 				interface_cleanup(i);
 				break;
 			}
- 			i->owner->transfercapability = cip2tcap(i->cip);
-			if (capi_tcap_is_digital(i->owner->transfercapability)) {
+			i->transfercapability = cip2tcap(i->cip);
+ 			i->owner->transfercapability = i->transfercapability;
+			if (capi_tcap_is_digital(i->transfercapability)) {
 				i->bproto = CC_BPROTO_TRANSPARENT;
 			}
 			i->owner->cid.cid_pres = callpres;
@@ -3383,7 +3370,7 @@ static void capidev_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, un
 			cc_mutex_unlock(&iflock);
 			cc_mutex_lock(&i->lock);
 		
-			pbx_builtin_setvar_helper(i->owner, "TRANSFERCAPABILITY", transfercapability2str(i->owner->transfercapability));
+			pbx_builtin_setvar_helper(i->owner, "TRANSFERCAPABILITY", transfercapability2str(i->transfercapability));
 			pbx_builtin_setvar_helper(i->owner, "BCHANNELINFO", bchannelinfo);
 			sprintf(buffer, "%d", callednplan);
 			pbx_builtin_setvar_helper(i->owner, "CALLEDTON", buffer);

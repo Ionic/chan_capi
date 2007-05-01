@@ -47,6 +47,12 @@ static void update_capi_mixer(int remove, unsigned int roomnumber, struct capi_p
 	unsigned int found = 0;
 	_cword j = 0;
 
+	if (i->PLCI == 0) {
+		cc_verbose(2, 0, VERBOSE_PREFIX_3 "capi mixer: %s: PLCI is unset, abort.\n",
+			i->vname);
+		return;
+	}
+
 	cc_mutex_lock(&chat_lock);
 	room = chat_list;
 	while (room) {
@@ -206,6 +212,7 @@ static void chat_handle_events(struct ast_channel *chan, struct capi_pvt *i)
 	waitfds[0] = i->readerfd;
 	if (i->channeltype == CAPI_CHANNELTYPE_NULL) {
 		nfds = 1;
+		ast_indicate(chan, -1);
 		ast_set_read_format(chan, capi_capability);
 		ast_set_write_format(chan, capi_capability);
 	}
@@ -356,9 +363,18 @@ int pbxcli_capi_chatinfo(int fd, int argc, char *argv[])
 	room = chat_list;
 	while (room) {
 		c = room->i->owner;
-		ast_cli(fd, "%3d   %-12s%-30s\"%s\" <%s>\n",
-			room->number, room->name, c->name,
-			(c->cid.cid_name) ? c->cid.cid_name:"", c->cid.cid_num);
+		if (!c) {
+			c = room->i->used;
+		}
+		if (!c) {
+			ast_cli(fd, "%3d   %-12s%-30s\"%s\" <%s>\n",
+				room->number, room->name, room->i->vname,
+				"?", "?");
+		} else {
+			ast_cli(fd, "%3d   %-12s%-30s\"%s\" <%s>\n",
+				room->number, room->name, c->name,
+				(c->cid.cid_name) ? c->cid.cid_name:"", c->cid.cid_num);
+		}
 		room = room->next;
 	}
 	cc_mutex_unlock(&chat_lock);

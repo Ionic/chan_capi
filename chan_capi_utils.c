@@ -88,6 +88,9 @@ int capi_remove_nullif(struct capi_pvt *i)
 		return 0;
 	}
 
+	cc_mutex_destroy(&i->lock);
+	ast_cond_destroy(&i->event_trigger);
+
 	cc_mutex_lock(&nullif_lock);
 	ii = nulliflist;
 	while (ii) {
@@ -133,10 +136,11 @@ struct capi_pvt *capi_mknullif(struct ast_channel *c, unsigned int controller)
 
 	tmp->channeltype = CAPI_CHANNELTYPE_NULL;
 
-	tmp->owner = c;
 	tmp->used = c;
 	tmp->peer = c;
 
+	tmp->cip = CAPI_CIPI_SPEECH;
+	tmp->transfercapability = PRI_TRANS_CAP_SPEECH;
 	tmp->controller = controller;
 	tmp->doEC = 1;
 	tmp->doEC_global = 1;
@@ -166,7 +170,8 @@ struct capi_pvt *capi_mknullif(struct ast_channel *c, unsigned int controller)
 	tmp->outgoing = 1;
 	tmp->state = CAPI_STATE_CONNECTPENDING;
 	tmp->MessageNumber = get_capi_MessageNumber();
-	capi_sendf (NULL, 0, CAPI_CONNECT_REQ, controller, tmp->MessageNumber,
+
+	capi_sendf(NULL, 0, CAPI_CONNECT_REQ, controller, tmp->MessageNumber,
 		"w()()()()(www()()()())()()()((wwbbb)()()())",
 		 0,       1,1,0,              3,0,0,0,0);
 
@@ -849,7 +854,7 @@ unsigned capi_ListenOnController(unsigned int CIPmask, unsigned controller)
 	int waitcount = 50;
 	_cmsg CMSG;
 
-	error = capi_sendf (NULL, 0, CAPI_LISTEN_REQ, controller, get_capi_MessageNumber(),
+	error = capi_sendf(NULL, 0, CAPI_LISTEN_REQ, controller, get_capi_MessageNumber(),
 		"ddd()()",
 		0x0000ffff,
 		CIPmask,
@@ -1080,7 +1085,6 @@ struct ast_frame *capi_read_pipeframe(struct capi_pvt *i)
  */
 int capi_write_frame(struct capi_pvt *i, struct ast_frame *f)
 {
-	struct ast_channel *c;
 	MESSAGE_EXCHANGE_ERROR error;
 	int j = 0;
 	unsigned char *buf;
@@ -1092,7 +1096,6 @@ int capi_write_frame(struct capi_pvt *i, struct ast_frame *f)
 		cc_log(LOG_ERROR, "channel has no interface\n");
 		return -1;
 	}
-	c = i->owner;
 	 
 	if ((!(i->isdnstate & CAPI_ISDN_STATE_B3_UP)) || (!i->NCCI) ||
 	    ((i->isdnstate & (CAPI_ISDN_STATE_B3_CHANGE | CAPI_ISDN_STATE_LI)))) {
@@ -1120,7 +1123,7 @@ int capi_write_frame(struct capi_pvt *i, struct ast_frame *f)
 		return 0;
 	}
 	if ((!f->data) || (!f->datalen)) {
-		cc_log(LOG_DEBUG, "No data for FRAME_VOICE %s\n", c->name);
+		cc_log(LOG_DEBUG, "No data for FRAME_VOICE %s\n", i->vname);
 		return 0;
 	}
 	if (i->isdnstate & CAPI_ISDN_STATE_RTP) {
@@ -1130,7 +1133,7 @@ int capi_write_frame(struct capi_pvt *i, struct ast_frame *f)
 				ast_getformatname(f->subclass), f->subclass);
 			return 0;
 		}
-		return capi_write_rtp(c, f);
+		return capi_write_rtp(i, f);
 	}
 	if (i->B3count >= CAPI_MAX_B3_BLOCKS) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: B3count is full, dropping packet.\n",
@@ -1150,7 +1153,7 @@ int capi_write_frame(struct capi_pvt *i, struct ast_frame *f)
 			(CAPI_MAX_B3_BLOCK_SIZE + AST_FRIENDLY_OFFSET)]);
 		i->send_buffer_handle++;
 
-		if ((i->doES == 1) && (!capi_tcap_is_digital(c->transfercapability))) {
+		if ((i->doES == 1) && (!capi_tcap_is_digital(i->transfercapability))) {
 			for (j = 0; j < fsmooth->datalen; j++) {
 				buf[j] = capi_reversebits[ ((unsigned char *)fsmooth->data)[j] ]; 
 				if (capi_capability == AST_FORMAT_ULAW) {
@@ -1165,7 +1168,7 @@ int capi_write_frame(struct capi_pvt *i, struct ast_frame *f)
 			}
 			i->txavg[ECHO_TX_COUNT - 1] = txavg;
 		} else {
-			if ((i->txgain == 1.0) || (capi_tcap_is_digital(c->transfercapability))) {
+			if ((i->txgain == 1.0) || (capi_tcap_is_digital(i->transfercapability))) {
 				for (j = 0; j < fsmooth->datalen; j++) {
 					buf[j] = capi_reversebits[((unsigned char *)fsmooth->data)[j]];
 				}
