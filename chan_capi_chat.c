@@ -236,17 +236,25 @@ static void chat_handle_events(struct ast_channel *chan, struct capi_pvt *i)
 		if (rchan) {
 			f = ast_read(chan);
 			if (!f) {
+				cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: chat: no frame, hangup.\n",
+					i->vname);
 				break;
 			}
 			if ((f->frametype == AST_FRAME_CONTROL) && (f->subclass == AST_CONTROL_HANGUP)) {
+				cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: chat: hangup frame.\n",
+					i->vname);
 				ast_frfree(f);
 				break;
 			}
 			if (f->frametype == AST_FRAME_VOICE) {
+				cc_verbose(5, 1, VERBOSE_PREFIX_3 "%s: chat: voice frame.\n",
+					i->vname);
 				if (i->channeltype == CAPI_CHANNELTYPE_NULL) {
 					capi_write_frame(i, f);
 				}
 			}
+			cc_verbose(5, 1, VERBOSE_PREFIX_3 "%s: chat: unhandled frame %d/%d.\n",
+				i->vname, f->frametype, f->subclass);
 			ast_frfree(f);
 		} else if (ready_fd == i->readerfd) {
 			if (exception) {

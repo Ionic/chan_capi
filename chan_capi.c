@@ -279,8 +279,7 @@ int capi_wait_for_b3_up(struct capi_pvt *i)
 	int ret = 1;
 
 	cc_mutex_lock(&i->lock);
-	if ((!(i->isdnstate & CAPI_ISDN_STATE_B3_UP)) &&
-	    (i->PLCI != 0)) {
+	if (!(i->isdnstate & CAPI_ISDN_STATE_B3_UP)) {
 		i->waitevent = CAPI_WAITEVENT_B3_UP;
 		abstime.tv_sec = time(NULL) + 2;
 		abstime.tv_nsec = 0;
