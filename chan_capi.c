@@ -4602,6 +4602,9 @@ static void *capidev_loop(void *data)
 	time_t lastcall = 0;
 	time_t newtime;
 	
+	cc_verbose(2, 0, VERBOSE_PREFIX_1 "Started CAPI monitor-thread with PID %d.\n",
+		getpid());
+
 	for (/* for ever */;;) {
 		switch(Info = capidev_check_wait_get_cmsg(&monCMSG)) {
 		case 0x0000:
