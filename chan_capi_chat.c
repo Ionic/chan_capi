@@ -219,14 +219,6 @@ static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i)
 	}
 
 	while (1) {
-		if (ast_test_flag(chan, AST_FLAG_ZOMBIE)) {
-			cc_log(LOG_NOTICE, "%s: is zombie.\n", chan->name);
-			break;
-		}
-		if (ast_check_hangup(chan)) {
-			cc_log(LOG_NOTICE, "%s: got check_hangup.\n", chan->name);
-			break;
-		}
 		ready_fd = 0;
 		ms = 100;
 		errno = 0;
@@ -252,8 +244,12 @@ static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i)
 				if (i->channeltype == CAPI_CHANNELTYPE_NULL) {
 					capi_write_frame(i, f);
 				}
+			} else if (f->frametype == AST_FRAME_NULL) {
+				/* ignore NULL frame */
+				cc_verbose(5, 1, VERBOSE_PREFIX_3 "%s: chat: NULL frame, ignoring.\n",
+					i->vname);
 			} else {
-				cc_verbose(5, 1, VERBOSE_PREFIX_3 "%s: chat: unhandled frame %d/%d.\n",
+				cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: chat: unhandled frame %d/%d.\n",
 					i->vname, f->frametype, f->subclass);
 			}
 			ast_frfree(f);
