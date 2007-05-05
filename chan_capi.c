@@ -3025,6 +3025,15 @@ static void capidev_handle_connect_active_indication(_cmsg *CMSG, unsigned int P
 		/* send a CONNECT_B3_REQ */
 		if (i->outgoing == 1) {
 			/* outgoing call */
+			if (i->channeltype == CAPI_CHANNELTYPE_NULL) {
+				/* NULL-PLCI needs a virtual connection */
+				capi_sendf(NULL, 0, CAPI_FACILITY_REQ, PLCI, get_capi_MessageNumber(),
+					"w(w(d()))",
+					FACILITYSELECTOR_LINE_INTERCONNECT,
+					0x0001, /* CONNECT */
+					0x0000000c /* mask */
+				);
+			}
 			cc_start_b3(i);
 		} else {
 			/* incoming call */
