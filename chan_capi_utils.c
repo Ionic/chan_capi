@@ -79,17 +79,28 @@ void cc_verbose(int o_v, int c_d, char *text, ...)
 /*
  * hangup and remove null-interface
  */
-int capi_remove_nullif(struct capi_pvt *i)
+void capi_remove_nullif(struct capi_pvt *i)
 {
 	struct capi_pvt *ii;
 	struct capi_pvt *tmp = NULL;
+	int state;
 
 	if (i->channeltype != CAPI_CHANNELTYPE_NULL) {
-		return 0;
+		return;
 	}
 
-	cc_mutex_destroy(&i->lock);
-	ast_cond_destroy(&i->event_trigger);
+	if (i->PLCI != 0) {
+		/* if the interface is in use, hangup first */
+		cc_mutex_lock(&i->lock);
+
+		state = i->state;
+		i->state = CAPI_STATE_DISCONNECTING;
+		capi_activehangup(i, state);
+
+		cc_mutex_unlock(&i->lock);
+
+		return;
+	}
 
 	cc_mutex_lock(&nullif_lock);
 	ii = nulliflist;
@@ -104,6 +115,8 @@ int capi_remove_nullif(struct capi_pvt *i)
 				i->vname);
 			if (i->smoother)
 				ast_smoother_free(i->smoother);
+			cc_mutex_destroy(&i->lock);
+			ast_cond_destroy(&i->event_trigger);
 			free(i);
 			break;
 		}
@@ -111,8 +124,6 @@ int capi_remove_nullif(struct capi_pvt *i)
 		ii = ii->next;
 	}
 	cc_mutex_unlock(&nullif_lock);
-
-	return 1;
 }
 
 /*

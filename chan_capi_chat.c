@@ -284,7 +284,6 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 	struct capi_pvt *i = NULL; 
 	char *roomname, *controller, *options;
 	struct capichat_s *room;
-	int state;
 	unsigned int contr = 1;
 
 	roomname = strsep(&param, "|");
@@ -334,13 +333,7 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 	del_chat_member(room);
 
 out:
-	if (i->channeltype == CAPI_CHANNELTYPE_NULL) {
-		cc_mutex_lock(&i->lock);
-		state = i->state;
-		i->state = CAPI_STATE_DISCONNECTING;
-		capi_activehangup(i, state);
-		cc_mutex_unlock(&i->lock);
-	}
+	capi_remove_nullif(i);
 
 	return 0;
 }

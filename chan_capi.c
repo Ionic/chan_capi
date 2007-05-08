@@ -790,10 +790,6 @@ static void interface_cleanup(struct capi_pvt *i)
 		i->writerfd = -1;
 	}
 
-	if (capi_remove_nullif(i)) {
-		return;
-	}
-
 	i->isdnstate = 0;
 	i->cause = 0;
 
@@ -824,6 +820,9 @@ static void interface_cleanup(struct capi_pvt *i)
 	i->peer = NULL;	
 	i->owner = NULL;
 	i->used = NULL;
+
+	capi_remove_nullif(i);
+
 	return;
 }
 
