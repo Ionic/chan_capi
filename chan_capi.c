@@ -155,6 +155,11 @@ static int channel_task;
 #define CAPI_CHANNEL_TASK_PICKUP           3
 #define CAPI_CHANNEL_TASK_GOTOFAX          4
 
+static struct capi_pvt *interface_for_task;
+static int interface_task;
+#define CAPI_INTERFACE_TASK_NONE           0
+#define CAPI_INTERFACE_TASK_NULLIFREMOVE   1
+
 static char capi_national_prefix[AST_MAX_EXTENSION];
 static char capi_international_prefix[AST_MAX_EXTENSION];
 
@@ -439,6 +444,19 @@ static char *transfercapability2str(int transfercapability)
 	default:
 		return "UNKNOWN";
 	}
+}
+
+/*
+ * set task for an interface which need to be done out of lock
+ * ( after the capi thread loop )
+ */
+static void capi_interface_task(struct capi_pvt *i, int task)
+{
+	interface_for_task = i;
+	interface_task = task;
+
+	cc_verbose(4, 1, VERBOSE_PREFIX_4 "%s: set interface task to %d\n",
+		i->name, task);
 }
 
 /*
@@ -821,7 +839,9 @@ static void interface_cleanup(struct capi_pvt *i)
 	i->owner = NULL;
 	i->used = NULL;
 
-	capi_remove_nullif(i);
+	if (i->channeltype == CAPI_CHANNELTYPE_NULL) {
+		capi_interface_task(i, CAPI_INTERFACE_TASK_NULLIFREMOVE);
+	}
 
 	return;
 }
@@ -4532,12 +4552,31 @@ static int pbx_capi_devicestate(void *data)
 	return res;
 }
 
+static void capi_do_interface_task(void)
+{
+	if (interface_for_task == NULL)
+		return;
+
+	switch (interface_task) {
+	case CAPI_INTERFACE_TASK_NULLIFREMOVE:
+		/* remove an old null-plci interface */
+		capi_remove_nullif(interface_for_task);
+		break;
+	default:
+		/* nothing to do */
+		break;
+	}
+
+	interface_for_task = NULL;
+	interface_task = CAPI_INTERFACE_TASK_NONE;
+}
+
 static void capi_do_channel_task(void)
 {
 	if (chan_for_task == NULL)
 		return;
 
-	switch(channel_task) {
+	switch (channel_task) {
 	case CAPI_CHANNEL_TASK_HANGUP:
 		/* deferred (out of lock) hangup */
 		ast_hangup(chan_for_task);
@@ -4617,6 +4656,7 @@ static void *capidev_loop(void *data)
 		case 0x0000:
 			capidev_handle_msg(&monCMSG);
 			capi_do_channel_task();
+			capi_do_interface_task();
 			break;
 		case 0x1104:
 			/* CAPI queue is empty */
