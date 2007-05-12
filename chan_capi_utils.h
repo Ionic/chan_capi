@@ -34,7 +34,7 @@ extern char *capi_number_func(unsigned char *data, unsigned int strip, char *buf
 extern int cc_add_peer_link_id(struct ast_channel *c);
 extern struct ast_channel *cc_get_peer_link_id(const char *p);
 extern void capi_remove_nullif(struct capi_pvt *i);
-extern struct capi_pvt *capi_mknullif(struct ast_channel *c, unsigned int controller);
+extern struct capi_pvt *capi_mknullif(struct ast_channel *c, unsigned long controllermask);
 extern int capi_create_reader_writer_pipe(struct capi_pvt *i);
 extern struct ast_frame *capi_read_pipeframe(struct capi_pvt *i);
 extern int capi_write_frame(struct capi_pvt *i, struct ast_frame *f);

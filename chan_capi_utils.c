@@ -38,6 +38,7 @@ AST_MUTEX_DEFINE_STATIC(nullif_lock);
 static _cword capi_MessageNumber;
 
 static struct capi_pvt *nulliflist = NULL;
+static int controller_nullplcis[CAPI_MAX_CONTROLLERS];
 
 #define CAPI_MAX_PEERLINKCHANNELS  32
 static struct peerlink_s {
@@ -117,6 +118,7 @@ void capi_remove_nullif(struct capi_pvt *i)
 				ast_smoother_free(i->smoother);
 			cc_mutex_destroy(&i->lock);
 			ast_cond_destroy(&i->event_trigger);
+			controller_nullplcis[i->controller - 1]--;
 			free(i);
 			break;
 		}
@@ -129,9 +131,22 @@ void capi_remove_nullif(struct capi_pvt *i)
 /*
  * create new null-interface
  */
-struct capi_pvt *capi_mknullif(struct ast_channel *c, unsigned int controller)
+struct capi_pvt *capi_mknullif(struct ast_channel *c, unsigned long controllermask)
 {
 	struct capi_pvt *tmp;
+	unsigned int controller = 1;
+	int contrcount;
+	int channelcount = 0xffff;
+
+	/* find the next controller of mask with least plcis used */	
+	for (contrcount = 0; contrcount < CAPI_MAX_CONTROLLERS; contrcount++) {
+		if ((controllermask & (1 << contrcount))) {
+			if (controller_nullplcis[contrcount] < channelcount) {
+				channelcount = controller_nullplcis[contrcount];
+				controller = contrcount + 1;
+			}
+		}
+	}
 
 	tmp = malloc(sizeof(struct capi_pvt));
 	if (!tmp) {
@@ -178,6 +193,7 @@ struct capi_pvt *capi_mknullif(struct ast_channel *c, unsigned int controller)
 	cc_mutex_lock(&nullif_lock);
 	tmp->next = nulliflist; /* prepend */
 	nulliflist = tmp;
+	controller_nullplcis[tmp->controller - 1]++;
 	cc_mutex_unlock(&nullif_lock);
 
 	/* connect to driver */
@@ -189,8 +205,8 @@ struct capi_pvt *capi_mknullif(struct ast_channel *c, unsigned int controller)
 		"w()()()()(www()()()())()()()((wwbbb)()()())",
 		 0,       1,1,0,              3,0,0,0,0);
 
-	cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: created null-interface.\n",
-		tmp->vname);
+	cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: created null-interface on controller %d.\n",
+		tmp->vname, tmp->controller);
 
 	return tmp;
 }

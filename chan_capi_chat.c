@@ -286,7 +286,8 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 	struct capi_pvt *i = NULL; 
 	char *roomname, *controller, *options;
 	struct capichat_s *room;
-	unsigned int contr = 1;
+	ast_group_t tmpcntr;
+	unsigned long contr = 0;
 
 	roomname = strsep(&param, "|");
 	controller = strsep(&param, "|");
@@ -302,7 +303,8 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 		c->name, roomname, controller, options);
 
 	if (controller) {
-		contr = (unsigned int)strtoul(controller, NULL, 0);
+		tmpcntr = ast_get_group(controller);
+		contr = (unsigned long)(tmpcntr >> 1);
 	}
 
 	if (c->tech == &capi_tech) {
