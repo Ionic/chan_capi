@@ -95,11 +95,13 @@ static void update_capi_mixer(int remove, unsigned int roomnumber, struct capi_p
 			datapath = 0x0000000c;
 			if (found == 1) {
 				/* only one left, enable DATA_B3 too */
-				p_list[5] |= 0x30;
+				p_list[5] |= 0x0c;
 			}
 		}
 		if (i->channeltype == CAPI_CHANNELTYPE_NULL) {
-			datapath |= 0x0000000c;
+			if (!remove) {
+				datapath |= 0x00000030;
+			}
 		}
 
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "capi mixer: %s PLCI=0x%04x LI=0x%x\n",
