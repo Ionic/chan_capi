@@ -364,16 +364,16 @@ MESSAGE_EXCHANGE_ERROR capidev_check_wait_get_cmsg(_cmsg *CMSG)
 		
 		Info = capi_get_cmsg(CMSG, capi_ApplID);
 
-		if (Info == 0x0000) {
 #if (CAPI_OS_HINT == 1) || (CAPI_OS_HINT == 2)
+		if (Info == 0x0000) {
 			/*
 			 * For BSD allow controller 0:
 			 */
 			if ((HEADER_CID(CMSG) & 0xFF) == 0) {
 				HEADER_CID(CMSG) += capi_num_controllers;
 		 	}
-#endif
 		}
+#endif
 	}
 
 	if ((Info != 0x0000) && (Info != 0x1104)) {
