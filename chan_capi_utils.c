@@ -160,6 +160,9 @@ struct capi_pvt *capi_mknullif(struct ast_channel *c, unsigned int controller)
 	tmp->isdnmode = CAPI_ISDNMODE_MSN;
 	tmp->ecSelector = FACILITYSELECTOR_ECHO_CANCEL;
 	tmp->capability = capi_capability;
+
+	tmp->rxgain = 1.0;
+	tmp->txgain = 1.0;
 	capi_gains(&tmp->g, 1.0, 1.0);
 
 	if (!(capi_create_reader_writer_pipe(tmp))) {
