@@ -754,7 +754,7 @@ unsigned int cc_qsig_add_call_setup_data(unsigned char *data, struct capi_pvt *i
 	char *pp = NULL;
 	int add_externalinfo = 0;
 			
-	if ((p = pbx_builtin_getvar_helper(c, "QSIG_SETUP"))) {
+	if ((p = (char *)pbx_builtin_getvar_helper(c, "QSIG_SETUP"))) {
 		/* some special dial parameters */
 		/* parse the parameters */
 		while ((p) && (*p)) {
