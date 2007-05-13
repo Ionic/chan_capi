@@ -2815,7 +2815,7 @@ static void capidev_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, u
 	if (!resp_done) {
 		capi_sendf(NULL, 0, CAPI_FACILITY_RESP, PLCI, HEADER_MSGNUM(CMSG),
 			"w()",
-			FACILITYSELECTOR_SUPPLEMENTARY
+			FACILITY_IND_FACILITYSELECTOR(CMSG)
 		);
 	}
 }

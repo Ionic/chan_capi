@@ -280,9 +280,10 @@ Deactivate CCBS:
 
 Chat (MeetMe/Conference):
     If the CAPI card/driver supports it, the caller can be put into a chat-room:
-        exten => s,1,capicommand(chat|<roomname>|<controller>|<options>)
+    (This uses the DSPs onboard a Dialogic DIVA Server Rev.2 card.)
+        exten => s,1,capicommand(chat|<roomname>|<options>|controller)
 		Example:
-            exten => s,1,capicommand(chat|salesmeeting|1)
+            exten => s,1,capicommand(chat|salesmeeting||1,3-6)
 
 
 Using CLIR

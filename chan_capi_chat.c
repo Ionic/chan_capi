@@ -285,27 +285,31 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 {
 	struct capi_pvt *i = NULL; 
 	char *roomname, *controller, *options;
+	char *p;
 	struct capichat_s *room;
 	ast_group_t tmpcntr;
 	unsigned long contr = 0;
 
 	roomname = strsep(&param, "|");
-	controller = strsep(&param, "|");
-	options = param;
+	options = strsep(&param, "|");
+	controller = param;
 
 	if (!roomname) {
 		cc_log(LOG_WARNING, "capi chat requires room name.\n");
 		return -1;
 	}
 	
-	cc_verbose(3, 1, VERBOSE_PREFIX_3 "capi chat: %s: roomname=%s "
-		"controller=%s options=%s\n",
-		c->name, roomname, controller, options);
-
 	if (controller) {
+		for (p = controller; p && *p; p++) {
+			if (*p == '|') *p = ',';
+		}
 		tmpcntr = ast_get_group(controller);
 		contr = (unsigned long)(tmpcntr >> 1);
 	}
+
+	cc_verbose(3, 1, VERBOSE_PREFIX_3 "capi chat: %s: roomname=%s "
+		"options=%s controller=%s (0x%x)\n",
+		c->name, roomname, options, controller, contr);
 
 	if (c->tech == &capi_tech) {
 		i = CC_CHANNEL_PVT(c); 
