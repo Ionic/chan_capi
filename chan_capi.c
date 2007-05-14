@@ -934,6 +934,9 @@ static void send_progress(struct capi_pvt *i)
  */
 static void capi_send_disconnect(unsigned int PLCI, struct capi_pvt *i)
 {
+	if (PLCI == 0) {
+		return;
+	}
 	if (i) {
 		capi_sendf(i, 1, CAPI_DISCONNECT_REQ, PLCI, get_capi_MessageNumber(), "()");
 	} else {
