@@ -1002,10 +1002,10 @@ void interface_cleanup_qsig(struct capi_pvt *i)
 		i->qsig_data.partner_ch = NULL;
 		i->qsig_data.calltransfer_active = 0;
 		i->qsig_data.calltransfer_onring = 0;
-		if (i->qsig_data.pr_propose_cid)
-			free(i->qsig_data.pr_propose_cid);
-		if (i->qsig_data.pr_propose_pn)
-			free(i->qsig_data.pr_propose_pn);
+ 		if (i->qsig_data.pr_propose_cid)
+ 			free(i->qsig_data.pr_propose_cid);
+ 		if (i->qsig_data.pr_propose_pn)
+ 			free(i->qsig_data.pr_propose_pn);
 		
 	}
 }
@@ -1029,27 +1029,37 @@ void pbx_capi_qsig_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsign
 			{
 				unsigned int qsiginvoke;
 				qsiginvoke = cc_qsig_handle_capi_facilityind( (unsigned char*) INFO_IND_INFOELEMENT(CMSG), i);
-/*			
-				if (i->qsig_data.pr_propose_cid && i->qsig_data.pr_propose_pn) {
+			
+				/* got an Path Replacement */
+				if ((i->qsig_data.pr_propose_cid && i->qsig_data.pr_propose_pn) &! i->qsig_data.pr_propose_sendback) {
 					struct capi_pvt *ii = capi_find_interface_by_plci(i->qsig_data.partner_plci);
-								
-					if (ii) {
-						unsigned char fac[CAPI_MAX_FACILITYDATAARRAY_SIZE];
 					
-						cc_qsig_do_facility(fac, i->owner, NULL, 4, 0);
+					if (ii) {
+						if (ii->state == CAPI_STATE_CONNECTED) { /* second line is connected, we can proceed */
+							unsigned char fac[CAPI_MAX_FACILITYDATAARRAY_SIZE];
+					
+							cc_qsig_do_facility(fac, i->owner, NULL, 4, 0);
 							
-						capi_sendf(NULL, 0, CAPI_INFO_REQ, ii->PLCI, get_capi_MessageNumber(),
-							"()(()()()s)",
-							fac
-						);
-					} else {
+							capi_sendf(NULL, 0, CAPI_INFO_REQ, ii->PLCI, get_capi_MessageNumber(),
+									"()(()()()s)",
+									fac
+							);
+						} else { /* Path Replacement has to be sent back after Connect on second line */
+							ii->qsig_data.pr_propose_sendback = 1;
+							ii->qsig_data.pr_propose_cid = strdup(i->qsig_data.pr_propose_cid);
+							ii->qsig_data.pr_propose_pn = strdup(i->qsig_data.pr_propose_pn);
+						}
+					} else 
 						cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * QSIG_PATHREPLACEMENT_PROPOSE: no partner channel found (%#x)\n", i->qsig_data.partner_plci);
-					}
+					
+
 								
 					free(i->qsig_data.pr_propose_cid);
+					i->qsig_data.pr_propose_cid = NULL;
 					free(i->qsig_data.pr_propose_pn);
+					i->qsig_data.pr_propose_pn = NULL;
 				}
-			*/
+			
 				
 			}
 			break;
@@ -1110,27 +1120,53 @@ void pbx_capi_qsig_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsign
 		case 0x8005:	/* SETUP */
 			break;
 		case 0x8007:	/* CONNECT */
-/*			{
-				if (i->qsig_data.pr_propose_cid && i->qsig_data.pr_propose_pn) {
-					struct capi_pvt *ii = capi_find_interface_by_plci(i->qsig_data.partner_plci);
-							
-					if (ii) {
-						unsigned char fac[CAPI_MAX_FACILITYDATAARRAY_SIZE];
-			
-						cc_qsig_do_facility(fac, i->owner, NULL, 4, 0);
-					
-						capi_sendf(NULL, 0, CAPI_INFO_REQ, ii->PLCI, get_capi_MessageNumber(),
+			if (i->qsig_data.calltransfer) {
+				unsigned char fac[CAPI_MAX_FACILITYDATAARRAY_SIZE];
+				struct capi_pvt *ii = capi_find_interface_by_plci(i->qsig_data.partner_plci);
+
+				/* needed for Path Replacement */
+				ii->qsig_data.partner_plci = i->PLCI;
+				
+				i->qsig_data.calltransfer = 0;
+
+				if (ii) {
+					cc_qsig_do_facility(fac, ii->owner, NULL, 12, 0);
+
+					capi_sendf(NULL, 0, CAPI_INFO_REQ, ii->PLCI, get_capi_MessageNumber(),
+							"()(()()()s)", 
+							fac
+					);
+
+					cc_qsig_do_facility(fac, i->owner, NULL, 12, 1);
+		
+					capi_sendf(NULL, 0, CAPI_INFO_REQ, i->PLCI, get_capi_MessageNumber(),
 							"()(()()()s)",
 							fac
-						);
-					} else {
-						cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * QSIG_PATHREPLACEMENT_PROPOSE: no partner channel found (%#x)\n", i->qsig_data.partner_plci);
-					}
-							
-					free(i->qsig_data.pr_propose_cid);
-					free(i->qsig_data.pr_propose_pn);
+					);
+				} else {
+					cc_log(LOG_WARNING, "Call Transfer failed - second channel not found (PLCI %#x)!\n", i->qsig_data.partner_plci);
 				}
-			}*/
+			}
+			{
+				/* handle prior received Path Replacement */
+				if ((i->qsig_data.pr_propose_cid && i->qsig_data.pr_propose_pn) && i->qsig_data.pr_propose_sendback) {
+					unsigned char fac[CAPI_MAX_FACILITYDATAARRAY_SIZE];
+			
+					cc_qsig_do_facility(fac, i->owner, NULL, 4, 0);
+						
+					capi_sendf(NULL, 0, CAPI_INFO_REQ, i->PLCI, get_capi_MessageNumber(),
+							"()(()()()s)",
+							fac
+					);
+					
+					i->qsig_data.pr_propose_sendback = 0;
+					free(i->qsig_data.pr_propose_cid);
+					i->qsig_data.pr_propose_cid = NULL;
+					free(i->qsig_data.pr_propose_pn);
+					i->qsig_data.pr_propose_pn = NULL;
+				}
+			}
+
 			break;
 		case 0x800d:	/* SETUP ACK */
 			break;

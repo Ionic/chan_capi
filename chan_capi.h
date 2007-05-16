@@ -263,6 +263,7 @@ struct cc_qsig_data {
 	unsigned int callmark;
 	
 	/* Path Replacement */
+	int pr_propose_sendback; /* send back an prior received PR PROPOSE on Connect */
 	char *pr_propose_cid;	/* Call identity */
 	char *pr_propose_pn;	/* Party Number */
 	
