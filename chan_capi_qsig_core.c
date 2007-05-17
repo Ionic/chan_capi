@@ -27,8 +27,14 @@
 #include "chan_capi_qsig_asn197ade.h"
 #include "chan_capi_qsig_asn197no.h"
 
-/*
+/**
  * Encodes an ASN.1 string
+ *
+ * @param buf destination pointer for string
+ * @param idx index points to string position in buffer
+ * @param data string
+ * @param datalen string length 
+ * @return always zero 
  */
 unsigned int cc_qsig_asn1_add_string(unsigned char *buf, int *idx, char *data, int datalen)
 {

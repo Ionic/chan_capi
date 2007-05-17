@@ -73,7 +73,7 @@ unsigned int cc_qsig_asn197no_get_name(char *buf, int buflen, unsigned int *bufd
 				if (data[myidx++] == ASN1_OCTETSTRING) {
 					/* should be so */
 					namelength = cc_qsig_asn1_get_string((unsigned char *)buf, buflen, &data[myidx]);
-					myidx += data[myidx-1];		/* is this safe? */
+					myidx += namelength + 1;
 				} else {
 					cc_verbose(1, 1, VERBOSE_PREFIX_4 " Namestruct not ECMA conform (String expected)\n");
 					break;

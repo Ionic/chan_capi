@@ -292,8 +292,15 @@ void cc_qsig_encode_ecma_calltransfer(unsigned char * buf, unsigned int *idx, st
 				icanswer = ccanswer[0] - 0x30;
 		}
 	} else {
-		cid = strdup(i->owner->cid.cid_num);
-		cidlen = strlen(cid);
+/* 		cid = strdup(i->owner->cid.cid_num);*/ /* Here we get the Asterisk extension */
+		if (info) { /* info should be >0 on outbound channel */
+			cid = strdup(i->cid);
+			cidlen = strlen(cid);
+		} else { /* have to build first facility - send destination number back to inbound channel */
+			struct capi_pvt *ii = capi_find_interface_by_plci(i->qsig_data.partner_plci);
+			cid = strdup(ii->dnid);
+			cidlen = strlen(cid);
+		}
 		
 		if (!info)
 			icanswer = i->qsig_data.calltransfer_onring % 1;
