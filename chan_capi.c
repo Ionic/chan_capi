@@ -1201,6 +1201,8 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 	if ((ton = pbx_builtin_getvar_helper(c, "CALLERTON"))) {
 		callernplan = atoi(ton) & 0x7f;
 	}
+	i->cid_ton = callernplan;
+
 	cc_verbose(1, 1, VERBOSE_PREFIX_2 "%s: Call %s %s%s (pres=0x%02x, ton=0x%02x)\n",
 		i->vname, c->name, i->doB3 ? "with B3 ":" ",
 		i->doOverlap ? "overlap":"", CLIR, callernplan);
