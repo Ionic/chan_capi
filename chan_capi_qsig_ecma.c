@@ -46,6 +46,7 @@ void cc_qsig_op_ecma_isdn_namepres(struct cc_qsig_invokedata *invoke, struct cap
 	unsigned int namelength = 0;
 	unsigned int datalength;
 	int myidx = 0;
+	char *nametype = NULL;
 	
 	cc_verbose(1, 1, VERBOSE_PREFIX_4 "Handling Name Operation (id# %#x)\n", invoke->id);
 
@@ -53,11 +54,44 @@ void cc_qsig_op_ecma_isdn_namepres(struct cc_qsig_invokedata *invoke, struct cap
 	
 	myidx = cc_qsig_asn197no_get_name(callername, ASN197NO_NAME_STRSIZE, &namelength, &myidx, invoke->data );
 	
-	if (namelength > 0) {
-		/* TODO: Maybe we do some charset conversions */
-		i->owner->cid.cid_name = strdup(callername);
-		cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * received name (%i byte(s)): \"%s\"\n", namelength, callername); 
+	if (namelength == 0) {
+		return;
 	}
+		
+	/* TODO: Maybe we do some charset conversions */
+	
+	switch (invoke->type) {
+		case 0:	/* Calling Name */
+			nametype = "CALLING NAME";
+			break;
+		case 1:	/* Called Name */
+			nametype = "CALLED NAME";
+			break;
+		case 2: /* Connected Name */
+			nametype = "CONNECTED NAME";
+			break;
+		case 3: /* Busy Name */
+			nametype = "BUSY NAME";
+			break;
+	}
+		
+	switch (invoke->type) {
+		case 0:	/* Calling Name */
+			i->owner->cid.cid_name = strdup(callername);	/* Save name to callerid */
+			break;
+		case 1:	/* Called Name */
+		case 2: /* Connected Name */
+		case 3: /* Busy Name */
+			if (i->qsig_data.dnameid)	/* this facility may come more than once - if so, then update this value */
+				free(i->qsig_data.dnameid);
+			i->qsig_data.dnameid = strdup(callername);	/* save name as destination in qsig specific fields */
+									/* there's no similarly field in asterisk */
+			break;
+		default:
+			break;
+	}
+	
+	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * %s: (%i byte(s)): \"%s\"\n", nametype, namelength, callername); 
 
 	/* if there was an sequence tag, we have more informations here, but we will ignore it at the moment */
 	

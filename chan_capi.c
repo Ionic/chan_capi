@@ -4832,6 +4832,22 @@ int mkif(struct cc_capi_conf *conf)
 		tmp->capability = conf->capability;
 
 		tmp->qsigfeat = conf->qsigfeat;
+		if (conf->qsigfeat) {
+			tmp->qsig_data.calltransfer_active = 0;
+			tmp->qsig_data.calltransfer = 0;
+			tmp->qsig_data.calltransfer_onring = 0;
+			tmp->qsig_data.callmark = 0;
+			tmp->qsig_data.dnameid = NULL;
+
+			/* Path Replacement */
+			tmp->qsig_data.pr_propose_sendback = 0; /* send back an prior received PR PROPOSE on Connect */
+			tmp->qsig_data.pr_propose_cid = NULL;	/* Call identity */
+			tmp->qsig_data.pr_propose_pn = NULL;	/* Party Number */
+	
+			/* Partner Channel - needed for many features */
+			tmp->qsig_data.partner_ch = NULL;
+			tmp->qsig_data.partner_plci = 0;
+		}
 
 		tmp->next = capi_iflist; /* prepend */
 		capi_iflist = tmp;

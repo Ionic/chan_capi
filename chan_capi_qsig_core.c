@@ -127,10 +127,40 @@ unsigned int cc_qsig_asn1_get_integer(unsigned char *data, int *idx)
  */
 unsigned char *cc_qsig_asn1_oid2str(unsigned char *data, int size)
 {
-	/* TODO: Add code */
+	unsigned char buf[1024];
+	char numbuf[10];
+	unsigned char *s;
+	int len, i;
+	unsigned long n;
 	
+	s = buf;
+	if (size < 3) {
+		cc_verbose(1, 1, VERBOSE_PREFIX_3 "OID2STR: Object identifier too small (%i).\n", size);
+		return NULL;
+	}
 	
-	return 0;
+#define N(n) \
+		snprintf(numbuf, sizeof numbuf, "%lu", (unsigned long)n); \
+		len = strlen(numbuf); \
+		memcpy(s, numbuf, len); \
+		s += len;
+	
+	N(data[0] / 40)
+	*s++ = '.';
+	N(data[0] % 40)
+	n = 0;
+	for (i = 1; i < size; i++) {
+		n = n << 7 | (data[i] & 0x7f);
+		if ((data[i] & 0x80) == 0) {
+			*s++ = '.';
+			N(n)
+			n = 0;
+		}
+	}
+	
+	s = buf;
+	return (unsigned char *) strdup((char*)s);
+	
 }
 
 
@@ -230,7 +260,7 @@ int cc_qsig_add_invoke(unsigned char * buf, unsigned int *idx, struct cc_qsig_in
 		case ASN1_INTEGER:
 			result = cc_qsig_asn1_add_integer(buf, &myidx, invoke->type);
 			if (result) {
-				cc_log(LOG_ERROR, "QSIG: Cannot add invoke, identifier is not encoded!\n");
+				cc_log(LOG_ERROR, "QSIG: Cannot add invoke, type is not encoded!\n");
 				return -1;
 			}
 			break;
@@ -395,10 +425,15 @@ signed int cc_qsig_fill_invokestruct(unsigned char *data, int *idx, struct cc_qs
 			
 			/* TODO: Maybe we decode the OID here and be verbose - have to write cc_qsig_asn1get_oid */
 			
-/*			cc_verbose(1, 1, VERBOSE_PREFIX_3 "CONNECT_IND (OID, Length %i)\n", temp); */
 			invoke->oid_len = temp;
 			memcpy(invoke->oid_bin, &data[myidx], temp);	/* Copy OID to separate array */
 			myidx = myidx + temp;				/* Set index to next information */
+			
+			if (temp == 4) {	/* even if we have an OID, set the numeric invoke type */
+				invoke->type = (int) invoke->oid_bin[3];
+			} else {
+				invoke->type = -1;
+			}
 			
 			temp2 = (invoke->len) + (invoke->offset) + 1;	/* Array End = Invoke Length + Invoke Offset +1 */
 			datalen = temp2 - myidx;
@@ -408,7 +443,6 @@ signed int cc_qsig_fill_invokestruct(unsigned char *data, int *idx, struct cc_qs
 				datalen = 255;
 			}
 			
-/*			cc_verbose(1, 1, VERBOSE_PREFIX_3 "CONNECT_IND (OID, Datalength %i)\n",datalen); */
 			invoke->datalen = datalen;
 			memcpy(invoke->data, &data[myidx], datalen);	/* copy data of Invoke Operation */
 			myidx += datalen;		/* points to next INVOKE component, if there's any */
@@ -435,6 +469,24 @@ signed int cc_qsig_fill_invokestruct(unsigned char *data, int *idx, struct cc_qs
 	
 }
 
+static int ident_qsig_invoke(int invoketype)
+{
+	switch (invoketype) {
+		case 0:
+		case 1:
+		case 2:
+		case 3:
+			return CCQSIG__ECMA__NAMEPRES;
+		case 4:
+			return CCQSIG__ECMA__PRPROPOSE;
+		case 21:
+			return CCQSIG__ECMA__LEGINFO2;
+		default:
+			cc_verbose(1, 1, VERBOSE_PREFIX_4 "QSIG: Unhandled QSIG INVOKE (%i)\n", invoketype);
+			return -1;
+	}
+}
+
 /*
  * Identify an INVOKE and return our own Ident Integer (CCQSIG__*)
  */
@@ -450,37 +502,26 @@ signed int cc_qsig_identifyinvoke(struct cc_qsig_invokedata *invoke, int protoco
 			switch (invoke->descr_type) {
 				case ASN1_INTEGER:
 					invokedescrtype = 1;
-					switch (invoke->type) {
-						case 0:
-							return CCQSIG__ECMA__NAMEPRES;
-						case 4:
-							return CCQSIG__ECMA__PRPROPOSE;
-						case 21:
-							return CCQSIG__ECMA__LEGINFO2;
-						default:
-							cc_verbose(1, 1, VERBOSE_PREFIX_4 "QSIG: Unhandled ECMA-ISDN QSIG INVOKE (%i)\n", invoke->type);
-							return -1;
-					}
+					cc_verbose(1, 1, VERBOSE_PREFIX_3 "QSIG: INVOKE OP (%i)\n", invoke->type);
+					return ident_qsig_invoke(invoke->type);
 					break;
 				case ASN1_OBJECTIDENTIFIER:
 					invokedescrtype = 2;
 					datalen = invoke->oid_len;
-					if ((datalen) == 4) {
-						if (!cc_qsig_asn1_check_ecma_isdn_oid(invoke->oid_bin, datalen)) {
-							switch (invoke->oid_bin[3]) {
-								case 0:		/* ECMA QSIG Name Presentation */
-									return CCQSIG__ECMA__NAMEPRES;
-								case 4:
-									return CCQSIG__ECMA__PRPROPOSE;
-								case 21:
-									return CCQSIG__ECMA__LEGINFO2;
-								default:	/* Unknown Operation */
-									cc_verbose(1, 1, VERBOSE_PREFIX_4 "QSIG: Unhandled ECMA-ISDN QSIG INVOKE (%i)\n", invoke->oid_bin[3]);
-									return -1;
-							}
-						}
+					
+					unsigned char *oidstr = NULL;
+					oidstr = cc_qsig_asn1_oid2str(invoke->oid_bin, invoke->oid_len);
+					if (oidstr) {
+						cc_verbose(1, 1, VERBOSE_PREFIX_3 "QSIG: INVOKE OP (%s)\n", oidstr);
+						free(oidstr);
 					}
 					
+					if ((datalen) == 4) {
+						if (!cc_qsig_asn1_check_ecma_isdn_oid(invoke->oid_bin, datalen)) {
+							return ident_qsig_invoke( (int)invoke->oid_bin[3]);
+						}
+					}
+					return -1;
 					break;
 				default:
 					cc_verbose(1, 1, VERBOSE_PREFIX_3 "QSIG: Unidentified INVOKE OP\n");
@@ -491,34 +532,23 @@ signed int cc_qsig_identifyinvoke(struct cc_qsig_invokedata *invoke, int protoco
 			switch (invoke->descr_type) {
 				case ASN1_INTEGER:
 					invokedescrtype = 1;
-					switch (invoke->type) {
-						case 0:
-							return CCQSIG__ECMA__NAMEPRES;
-						case 4:
-							return CCQSIG__ECMA__PRPROPOSE;
-						case 21:
-							return CCQSIG__ECMA__LEGINFO2;
-						default:
-							cc_verbose(1, 1, VERBOSE_PREFIX_4 "QSIG: Unhandled ISO QSIG INVOKE (%i)\n", invoke->type);
-							return -1;
-					}
+					cc_verbose(1, 1, VERBOSE_PREFIX_3 "QSIG: INVOKE OP (%i)\n", invoke->type);
+					return ident_qsig_invoke(invoke->type);
 					break;
 				case ASN1_OBJECTIDENTIFIER:
 					invokedescrtype = 2;
 					datalen = invoke->oid_len;
+					
+					unsigned char *oidstr = NULL;
+					oidstr = cc_qsig_asn1_oid2str(invoke->oid_bin, invoke->oid_len);
+					if (oidstr) {
+						cc_verbose(1, 1, VERBOSE_PREFIX_3 "QSIG: INVOKE OP (%s)\n", oidstr);
+						free(oidstr);
+					}
+					
 					if ((datalen) == 4) {
 						if (!cc_qsig_asn1_check_ecma_isdn_oid(invoke->oid_bin, datalen)) {
-							switch (invoke->oid_bin[3]) {
-								case 0:		/* ECMA QSIG Name Presentation */
-									return CCQSIG__ECMA__NAMEPRES;
-								case 4:
-									return CCQSIG__ECMA__PRPROPOSE;
-								case 21:
-									return CCQSIG__ECMA__LEGINFO2;
-								default:	/* Unknown Operation */
-									cc_verbose(1, 1, VERBOSE_PREFIX_4 "QSIG: Unhandled ISO QSIG INVOKE (%i)\n", invoke->oid_bin[3]);
-									return -1;
-							}
+							return ident_qsig_invoke( (int)invoke->oid_bin[3]);
 						}
 					}
 					break;
@@ -968,6 +998,8 @@ void interface_cleanup_qsig(struct capi_pvt *i)
  			free(i->qsig_data.pr_propose_cid);
  		if (i->qsig_data.pr_propose_pn)
  			free(i->qsig_data.pr_propose_pn);
+		if (i->qsig_data.dnameid)
+			free(i->qsig_data.dnameid);
 		
 	}
 }
@@ -1133,6 +1165,10 @@ void pbx_capi_qsig_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsign
 		case 0x800d:	/* SETUP ACK */
 			break;
 		case 0x800f:	/* CONNECT ACK */
+			{
+				unsigned int qsiginvoke;
+				qsiginvoke = cc_qsig_handle_capi_facilityind( (unsigned char*) INFO_IND_INFOELEMENT(CMSG), i);
+			}
 			break;
 		case 0x8045:	/* DISCONNECT */
 			break;
