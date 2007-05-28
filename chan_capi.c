@@ -2528,6 +2528,10 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 	case 0x0018:	/* Channel Identification */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element CHANNEL IDENTIFICATION %02x\n",
 			i->vname, INFO_IND_INFOELEMENT(CMSG)[1]);
+		if (i->doB3 == CAPI_B3_ON_SUCCESS) { 
+			/* try early B3 Connect */
+			cc_start_b3(i);
+		}
 		break;
 	case 0x001c:	/*  Facility Q.932 */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element FACILITY\n",
