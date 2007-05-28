@@ -352,13 +352,13 @@ void cc_qsig_encode_ecma_calltransfer(unsigned char * buf, unsigned int *idx, st
 
 	c[ix++] = ASN1_TC_CONTEXTSPEC | ASN1_TF_CONSTRUCTED;	/* val 2 - Source Caller ID struct */
 	c[ix++] = 5 + cidlen;
-	c[ix++] = ASN1_TC_CONTEXTSPEC;				/* CallerID */
-	c[ix++] = cidlen;
-	memcpy(&c[ix], cid, cidlen);
-	ix += cidlen;
-	c[ix++] = ASN1_ENUMERATED;					/* Screening Indicator */
-	c[ix++] = 1; /* length */
-	c[ix++] = 1; /* 01 = userProvidedVerifiedAndPassed    ...we hope so */
+		c[ix++] = ASN1_TC_CONTEXTSPEC;				/* CallerID */
+		c[ix++] = cidlen;
+		memcpy(&c[ix], cid, cidlen);
+		ix += cidlen;
+		c[ix++] = ASN1_ENUMERATED;					/* Screening Indicator */
+		c[ix++] = 1; /* length */
+		c[ix++] = 1; /* 01 = userProvidedVerifiedAndPassed    ...we hope so */
 	
 	c[ix++] = ASN1_ENUMERATED;			/* val 3 - wait for connect ? */
 	c[ix++] = 1;

@@ -168,6 +168,7 @@ extern int pbx_capi_qsig_ssct(struct ast_channel *c, char *param);
 extern int pbx_capi_qsig_ct(struct ast_channel *c, char *param);
 extern int pbx_capi_qsig_callmark(struct ast_channel *c, char *param);
 
+extern void cc_qsig_interface_init(struct cc_capi_conf *conf, struct capi_pvt *tmp);
 extern void interface_cleanup_qsig(struct capi_pvt *i);
 extern void pbx_capi_qsig_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i);
 

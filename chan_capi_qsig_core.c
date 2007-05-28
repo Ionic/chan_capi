@@ -985,6 +985,27 @@ int pbx_capi_qsig_callmark(struct ast_channel *c, char *param)
 }
 
 /*
+ * init QSIG data on new channel - will be called by mkif
+ */
+void cc_qsig_interface_init(struct cc_capi_conf *conf, struct capi_pvt *tmp)
+{
+	tmp->qsig_data.calltransfer_active = 0;
+	tmp->qsig_data.calltransfer = 0;
+	tmp->qsig_data.calltransfer_onring = 0;
+	tmp->qsig_data.callmark = 0;
+	tmp->qsig_data.dnameid = NULL;
+
+	/* Path Replacement */
+	tmp->qsig_data.pr_propose_sendback = 0; /* send back an prior received PR PROPOSE on Connect */
+	tmp->qsig_data.pr_propose_cid = NULL;	/* Call identity */
+	tmp->qsig_data.pr_propose_pn = NULL;	/* Party Number */
+	
+	/* Partner Channel - needed for many features */
+	tmp->qsig_data.partner_ch = NULL;
+	tmp->qsig_data.partner_plci = 0;
+}
+
+/*
  * cleanup QSIG stuff on interface
  */
 void interface_cleanup_qsig(struct capi_pvt *i)
