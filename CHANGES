@@ -8,6 +8,7 @@ HEAD
   (needed by some ISDN lines)
 - support CCBS (call completion on busy subscriber)
 - added capicommand(chat) for CAPI based MeetMe/Conference using onboard DSPs.
+- fixed ton-display in 'show capi channels' on outgoing line.
 
 
 chan_capi-1.0.1
