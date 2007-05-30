@@ -50,6 +50,7 @@ void cc_qsig_op_ecma_isdn_namepres(struct cc_qsig_invokedata *invoke, struct cap
 	
 	cc_verbose(1, 1, VERBOSE_PREFIX_4 "Handling Name Operation (id# %#x)\n", invoke->id);
 
+	callername[0] = 0;
 	datalength = invoke->datalen;
 	
 	myidx = cc_qsig_asn197no_get_name(callername, ASN197NO_NAME_STRSIZE, &namelength, &myidx, invoke->data );
@@ -82,8 +83,10 @@ void cc_qsig_op_ecma_isdn_namepres(struct cc_qsig_invokedata *invoke, struct cap
 		case 1:	/* Called Name */
 		case 2: /* Connected Name */
 		case 3: /* Busy Name */
-			if (i->qsig_data.dnameid)	/* this facility may come more than once - if so, then update this value */
-				free(i->qsig_data.dnameid);
+ 			if (i->qsig_data.dnameid) {	/* this facility may come more than once - if so, then update this value */
+				cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * deleting previously received name.\n", nametype, namelength, callername); 
+			 	free(i->qsig_data.dnameid);
+			}
 			i->qsig_data.dnameid = strdup(callername);	/* save name as destination in qsig specific fields */
 									/* there's no similarly field in asterisk */
 			break;

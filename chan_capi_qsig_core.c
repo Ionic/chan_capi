@@ -65,7 +65,7 @@ unsigned int cc_qsig_asn1_get_string(unsigned char *buf, int buflen, unsigned ch
 	if (strsize > buflen)
 		strsize = buflen - 1;
 	memcpy(buf, &data[myidx], strsize);
-	buf[strsize] = 0;
+	buf[strsize++] = 0;
 /*	cc_verbose(1, 1, VERBOSE_PREFIX_4 " get_string length %i\n", strsize); */
 	return strsize;
 }
@@ -1006,22 +1006,35 @@ void cc_qsig_interface_init(struct cc_capi_conf *conf, struct capi_pvt *tmp)
 }
 
 /*
+ * cleanup QSIG stuff on every (end of) call per interface
+ */
+static void qsig_cleanup_channel(struct  capi_pvt *i)
+{
+	i->qsig_data.callmark = 0;
+	i->qsig_data.partner_ch = NULL;
+	i->qsig_data.calltransfer_active = 0;
+	i->qsig_data.calltransfer_onring = 0;
+	if (i->qsig_data.pr_propose_cid) {
+		free(i->qsig_data.pr_propose_cid);
+		i->qsig_data.pr_propose_cid = NULL;
+	}
+	if (i->qsig_data.pr_propose_pn) {
+		free(i->qsig_data.pr_propose_pn);
+		i->qsig_data.pr_propose_pn = NULL;
+	}
+	if (i->qsig_data.dnameid) {
+		free(i->qsig_data.dnameid);
+		i->qsig_data.dnameid = NULL;
+	}
+}
+
+/*
  * cleanup QSIG stuff on interface
  */
 void interface_cleanup_qsig(struct capi_pvt *i)
 {
 	if (i->qsigfeat) {
-		i->qsig_data.callmark = 0;
-		i->qsig_data.partner_ch = NULL;
-		i->qsig_data.calltransfer_active = 0;
-		i->qsig_data.calltransfer_onring = 0;
- 		if (i->qsig_data.pr_propose_cid)
- 			free(i->qsig_data.pr_propose_cid);
- 		if (i->qsig_data.pr_propose_pn)
- 			free(i->qsig_data.pr_propose_pn);
-		if (i->qsig_data.dnameid)
-			free(i->qsig_data.dnameid);
-		
+		qsig_cleanup_channel(i);
 	}
 }
 
@@ -1192,10 +1205,14 @@ void pbx_capi_qsig_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsign
 			}
 			break;
 		case 0x8045:	/* DISCONNECT */
+			qsig_cleanup_channel(i);
+			
 			break;
 		case 0x804d:	/* RELEASE */
 			break;
 		case 0x805a:	/* RELEASE COMPLETE */
+			qsig_cleanup_channel(i);
+
 			break;
 		case 0x8062:	/* FACILITY */
 			break;
