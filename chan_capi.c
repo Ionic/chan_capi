@@ -696,7 +696,16 @@ static int capi_send_info_digits(struct capi_pvt *i, char *digits, int len)
  */
 static int pbx_capi_send_digit_begin(struct ast_channel *c, char digit)
 {
-	/* Not needed */
+	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+	
+	if ((i->state == CAPI_STATE_CONNECTED) && (i->isdnstate & CAPI_ISDN_STATE_B3_UP)) {
+		/* we have a real connection, so send real DTMF */
+		if ((capi_controllers[i->controller]->dtmf == 0) || (i->doDTMF > 0)) {
+			/* let * fake it */
+			return -1;
+		}
+	}
+	
 	return 0;
 }
 #endif

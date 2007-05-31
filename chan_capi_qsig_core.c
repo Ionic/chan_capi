@@ -300,6 +300,7 @@ int cc_qsig_add_invoke(unsigned char * buf, unsigned int *idx, struct cc_qsig_in
 unsigned int cc_qsig_check_facility(unsigned char *data, int *idx, int *apduval, int protocol)
 {
 	int myidx = *idx;
+	char *APDU_STR[] = {"IGNORE", "REJECT CALL", "CLEAR CALL"};
 	
 	/* First byte after Facility Length */ 
 	if (data[myidx] != (unsigned char)(0x80 | protocol)) {
@@ -322,7 +323,7 @@ unsigned int cc_qsig_check_facility(unsigned char *data, int *idx, int *apduval,
 		*apduval = data[myidx++];
 		/* TODO: implement real reject or clear call ? */
 		*idx = myidx;
-		/* cc_verbose(1, 1, VERBOSE_PREFIX_3  "QSIG: Facility has APDU %s", APDU_STR[*apduval]); */
+		 cc_verbose(1, 1, VERBOSE_PREFIX_3  "QSIG: Facility has APDU - What to do if INVOKE is unknown: %s\n", APDU_STR[*apduval]); 
 	}
 	return 1;
 }
