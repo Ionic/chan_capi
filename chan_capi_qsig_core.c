@@ -65,8 +65,9 @@ unsigned int cc_qsig_asn1_get_string(unsigned char *buf, int buflen, unsigned ch
 	if (strsize > buflen)
 		strsize = buflen - 1;
 	memcpy(buf, &data[myidx], strsize);
-	buf[strsize++] = 0;
-/*	cc_verbose(1, 1, VERBOSE_PREFIX_4 " get_string length %i\n", strsize); */
+	buf[strsize] = 0;
+	/* don't increase strsize after closing zero - string ends at strsize ! */
+	
 	return strsize;
 }
 
@@ -157,6 +158,8 @@ unsigned char *cc_qsig_asn1_oid2str(unsigned char *data, int size)
 			n = 0;
 		}
 	}
+	
+	*s++ = 0;
 	
 	s = buf;
 	return (unsigned char *) strdup((char*)s);
@@ -515,6 +518,8 @@ signed int cc_qsig_identifyinvoke(struct cc_qsig_invokedata *invoke, int protoco
 					if (oidstr) {
 						cc_verbose(1, 1, VERBOSE_PREFIX_3 "QSIG: INVOKE OP (%s)\n", oidstr);
 						free(oidstr);
+					} else {
+						cc_verbose(1, 1, VERBOSE_PREFIX_3 "QSIG: INVOKE OP (unknown - OID not displayable)\n");
 					}
 					
 					if ((datalen) == 4) {
@@ -545,6 +550,8 @@ signed int cc_qsig_identifyinvoke(struct cc_qsig_invokedata *invoke, int protoco
 					if (oidstr) {
 						cc_verbose(1, 1, VERBOSE_PREFIX_3 "QSIG: INVOKE OP (%s)\n", oidstr);
 						free(oidstr);
+					} else {
+						cc_verbose(1, 1, VERBOSE_PREFIX_3 "QSIG: INVOKE OP (unknown - OID not displayable)\n");
 					}
 					
 					if ((datalen) == 4) {

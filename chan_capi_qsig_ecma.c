@@ -304,8 +304,10 @@ void cc_qsig_op_ecma_isdn_leginfo2(struct cc_qsig_invokedata *invoke, struct cap
 void cc_qsig_encode_ecma_calltransfer(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke, struct capi_pvt *i, char *param, int info)
 {
 	char *cid, *ccanswer;
+	char *name = NULL;
 	int icanswer = 0;
 	int cidlen = 0;
+	int namelength = 0;
 	int seqlen = 13;
 	char c[255];
 	int ix = 0;
@@ -330,13 +332,31 @@ void cc_qsig_encode_ecma_calltransfer(unsigned char * buf, unsigned int *idx, st
 		}
 	} else {
 /* 		cid = strdup(i->owner->cid.cid_num);*/ /* Here we get the Asterisk extension */
-		if (info) { /* info should be >0 on outbound channel */
+		if (info) { /* info is >0 on outbound channel (second facility) */
+ 			struct capi_pvt *ii = capi_find_interface_by_plci(i->qsig_data.partner_plci);
+			
 			cid = strdup(i->cid);
 			cidlen = strlen(cid);
+			
+			if (ii) {
+				/* send callers name to user B */
+				if (ii->owner->cid.cid_name) {
+					name = ast_strdupa(ii->owner->cid.cid_name);
+					namelength = strlen(name);
+				}
+			}
 		} else { /* have to build first facility - send destination number back to inbound channel */
 			struct capi_pvt *ii = capi_find_interface_by_plci(i->qsig_data.partner_plci);
 			cid = strdup(ii->dnid);
 			cidlen = strlen(cid);
+			
+			if (ii) {
+				/* send destination name to user A */
+				if (ii->qsig_data.dnameid) {
+					name = ast_strdupa(ii->qsig_data.dnameid);
+					namelength = strlen(name);
+				}
+			}
 		}
 		
 		if (!info)
@@ -344,7 +364,8 @@ void cc_qsig_encode_ecma_calltransfer(unsigned char * buf, unsigned int *idx, st
 	}
 	
 	seqlen += cidlen;
-	
+	if (namelength)
+		seqlen += 4 + namelength;
 	
 	c[ix++] = ASN1_SEQUENCE | ASN1_TF_CONSTRUCTED;	/* start of SEQUENCE */
 	c[ix++] = seqlen;
@@ -353,7 +374,7 @@ void cc_qsig_encode_ecma_calltransfer(unsigned char * buf, unsigned int *idx, st
 	c[ix++] = 1; /* length */
 	c[ix++] = info;
 
-	c[ix++] = ASN1_TC_CONTEXTSPEC | ASN1_TF_CONSTRUCTED;	/* val 2 - Source Caller ID struct */
+	c[ix++] = (ASN1_TC_CONTEXTSPEC | ASN1_TF_CONSTRUCTED) + 0;	/* val 0 - Source Caller ID struct */
 	c[ix++] = 5 + cidlen;
 		c[ix++] = ASN1_TC_CONTEXTSPEC;				/* CallerID */
 		c[ix++] = cidlen;
@@ -363,6 +384,17 @@ void cc_qsig_encode_ecma_calltransfer(unsigned char * buf, unsigned int *idx, st
 		c[ix++] = 1; /* length */
 		c[ix++] = 1; /* 01 = userProvidedVerifiedAndPassed    ...we hope so */
 	
+	{
+		if (namelength) {
+			c[ix++] = (ASN1_TC_CONTEXTSPEC | ASN1_TF_CONSTRUCTED) + 1;	/* val 1 - Source Caller ID struct */
+			c[ix++] = 2 + namelength;
+			c[ix++] = ASN1_OCTETSTRING;				/* CallerID */
+			c[ix++] = namelength;
+			memcpy(&c[ix], name, namelength);
+			ix += namelength;
+		}
+	}
+		
 	c[ix++] = ASN1_ENUMERATED;			/* val 3 - wait for connect ? */
 	c[ix++] = 1;
 	c[ix++] = icanswer;
