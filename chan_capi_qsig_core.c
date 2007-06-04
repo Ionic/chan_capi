@@ -754,6 +754,8 @@ unsigned int cc_qsig_add_call_setup_data(unsigned char *data, struct capi_pvt *i
 	char *pp = NULL;
 	int add_externalinfo = 0;
 			
+	data[0] = 0; /* Initialize array length */
+	
 	if ((p = (char *)pbx_builtin_getvar_helper(c, "QSIG_SETUP"))) {
 		/* some special dial parameters */
 		/* parse the parameters */
@@ -833,10 +835,12 @@ unsigned int cc_qsig_add_call_setup_data(unsigned char *data, struct capi_pvt *i
 	
 	if (add_externalinfo) {
 		/* add PROGRESS INDICATOR for external calls*/
-		memcpy(&data[dataidx], xprogress, sizeof(xprogress));
-		data[0] += data[0] + sizeof(xprogress);
+		int progress_size = sizeof(xprogress);
+		memcpy(&data[dataidx], xprogress, progress_size);
+		data[0] += progress_size;
+		dataidx += progress_size;
 	}
-/*	}*/
+	
 	return 0;
 }
 
@@ -866,7 +870,7 @@ unsigned int cc_qsig_do_facility(unsigned char *fac, struct  ast_channel *c, cha
 			break;
 	}
 	
-	cc_qsig_build_facility_struct(fac, &facidx, protocolvar, APDUINTERPRETATION_REJECT, &nfe);
+	cc_qsig_build_facility_struct(fac, &facidx, protocolvar, APDUINTERPRETATION_IGNORE, &nfe);
 	switch (factype) {
 		case 4: /* ECMA-xxx pathReplacementPropose */
 			cc_qsig_encode_ecma_prpropose(fac, &facidx, &invoke, i, param);
@@ -992,6 +996,30 @@ int pbx_capi_qsig_callmark(struct ast_channel *c, char *param)
 	return 0;
 }
 
+
+static void send_feature_calltransfer(struct capi_pvt *i)
+{
+	unsigned char *fac = alloca(CAPI_MAX_FACILITYDATAARRAY_SIZE);
+
+	struct capi_pvt *ii = capi_find_interface_by_plci(i->qsig_data.partner_plci);
+
+	/* needed for Path Replacement */
+	ii->qsig_data.partner_plci = i->PLCI;
+
+	if (ii) {
+		cc_qsig_do_facility(fac, ii->owner, NULL, 12, 0);
+
+		capi_sendf(NULL, 0, CAPI_INFO_REQ, ii->PLCI, get_capi_MessageNumber(), "()(()()()s())", fac);
+
+		cc_qsig_do_facility(fac, i->owner, NULL, 12, 1);
+		
+		capi_sendf(NULL, 0, CAPI_INFO_REQ, i->PLCI, get_capi_MessageNumber(), "()(()()()s())", fac);
+	} else {
+		cc_log(LOG_WARNING, "Call Transfer failed - second channel not found (PLCI %#x)!\n", i->qsig_data.partner_plci);
+	}
+
+}
+
 /*
  * init QSIG data on new channel - will be called by mkif
  */
@@ -1004,13 +1032,18 @@ void cc_qsig_interface_init(struct cc_capi_conf *conf, struct capi_pvt *tmp)
 	tmp->qsig_data.dnameid = NULL;
 
 	/* Path Replacement */
+	tmp->qsig_data.pr_propose_active = 0;
 	tmp->qsig_data.pr_propose_sendback = 0; /* send back an prior received PR PROPOSE on Connect */
+	tmp->qsig_data.pr_propose_sentback = 0;
 	tmp->qsig_data.pr_propose_cid = NULL;	/* Call identity */
 	tmp->qsig_data.pr_propose_pn = NULL;	/* Party Number */
 	
 	/* Partner Channel - needed for many features */
 	tmp->qsig_data.partner_ch = NULL;
 	tmp->qsig_data.partner_plci = 0;
+	tmp->qsig_data.waitevent = 0;
+	
+ 	ast_cond_init(&tmp->qsig_data.event_trigger, NULL);
 }
 
 /*
@@ -1022,6 +1055,8 @@ static void qsig_cleanup_channel(struct  capi_pvt *i)
 	i->qsig_data.partner_ch = NULL;
 	i->qsig_data.calltransfer_active = 0;
 	i->qsig_data.calltransfer_onring = 0;
+	i->qsig_data.pr_propose_active = 0;
+	i->qsig_data.pr_propose_sentback = 0;
 	if (i->qsig_data.pr_propose_cid) {
 		free(i->qsig_data.pr_propose_cid);
 		i->qsig_data.pr_propose_cid = NULL;
@@ -1034,6 +1069,7 @@ static void qsig_cleanup_channel(struct  capi_pvt *i)
 		free(i->qsig_data.dnameid);
 		i->qsig_data.dnameid = NULL;
 	}
+	
 }
 
 /*
@@ -1042,10 +1078,85 @@ static void qsig_cleanup_channel(struct  capi_pvt *i)
 void interface_cleanup_qsig(struct capi_pvt *i)
 {
 	if (i->qsigfeat) {
+		cc_verbose(1, 1, VERBOSE_PREFIX_4 "QSIG: cleanup channel\n");
 		qsig_cleanup_channel(i);
 	}
 }
 
+/*
+ * cleanup QSIG stuff on module unload
+ */
+void pbx_capi_qsig_unload_module(struct capi_pvt *i)
+{
+	ast_cond_destroy(&i->qsig_data.event_trigger);
+}
+
+/*
+ * wait for B3 up
+ */
+int pbx_capi_qsig_wait_for_prpropose(struct capi_pvt *i)
+{
+	struct timespec abstime;
+	int ret = 1;
+
+  	cc_mutex_lock(&i->lock);
+	if (!(i->qsig_data.pr_propose_sentback)) {
+		i->qsig_data.waitevent = CAPI_QSIG_WAITEVENT_PRPROPOSE;
+		abstime.tv_sec = time(NULL) + CCQSIG_TIMER_WAIT_PRPROPOSE;  /* PR PROPOSE TIMER */
+		abstime.tv_nsec = 0;
+		cc_verbose(4, 1, "%s: wait for PATH REPLACEMENT.\n",
+			   i->vname);
+		if (ast_cond_timedwait(&i->qsig_data.event_trigger, &i->lock, &abstime) != 0) {
+			cc_log(LOG_WARNING, "%s: timed out waiting for PATH REPLACEMENT.\n",
+			       i->vname);
+			ret = 0;
+		} else {
+			cc_verbose(4, 1, "%s: cond signal received for PATH REPLACEMENT.\n",
+				   i->vname);
+		}
+	}
+	cc_mutex_unlock(&i->lock);
+
+	return ret;
+}
+
+/*
+ * check special conditions, wake waiting threads and send outstanding commands
+ * for the given interface
+ */
+static void pbx_capi_qsig_post_handling(struct capi_pvt *i)
+{
+	if ((i->qsig_data.waitevent == CAPI_QSIG_WAITEVENT_PRPROPOSE) &&
+		    (i->qsig_data.pr_propose_sentback == 1)) {
+		i->qsig_data.waitevent = 0;
+ 		ast_cond_signal(&i->qsig_data.event_trigger);
+		cc_verbose(4, 1, "%s: found and signal for PATH REPLACEMENT state.\n",
+			   i->vname);
+		return;
+	}
+}
+
+/* 
+ * handle a bridge attempt - maybe we're allowed to make a path replacement
+ */
+int pbx_capi_qsig_bridge(struct capi_pvt *i0,struct capi_pvt *i1)
+{
+	if (i1->qsig_data.pr_propose_sentback) {
+		return 2; /* Path Replacement already sent out - call will be cleared in short */
+	}
+	
+	i1->qsig_data.partner_plci = i0->PLCI;
+	send_feature_calltransfer(i1);	
+	
+	if (pbx_capi_qsig_wait_for_prpropose(i1))
+		return 1; /* Path Replacement successful */
+
+	/* No Path Replacement - allow line interconnect */
+	return 0;
+
+}
+
+		
 /*
  *  CAPI INFO_IND (QSIG part)
  */
@@ -1080,10 +1191,13 @@ void pbx_capi_qsig_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsign
 									"()(()()()s)",
 									fac
 							);
+							i->qsig_data.pr_propose_active = 1;
+							ii->qsig_data.pr_propose_sentback = 1;
 						} else { /* Path Replacement has to be sent back after Connect on second line */
 							ii->qsig_data.pr_propose_sendback = 1;
 							ii->qsig_data.pr_propose_cid = strdup(i->qsig_data.pr_propose_cid);
 							ii->qsig_data.pr_propose_pn = strdup(i->qsig_data.pr_propose_pn);
+							ii->qsig_data.pr_propose_active = 1;
 						}
 					} else 
 						cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * QSIG_PATHREPLACEMENT_PROPOSE: no partner channel found (%#x)\n", i->qsig_data.partner_plci);
@@ -1122,31 +1236,8 @@ void pbx_capi_qsig_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsign
 		case 0x8001:	/* ALERTING */
 			/* TODO: some checks, if there's any work here */
 			if (i->qsig_data.calltransfer_onring) {
-				unsigned char fac[CAPI_MAX_FACILITYDATAARRAY_SIZE];
-				struct capi_pvt *ii = capi_find_interface_by_plci(i->qsig_data.partner_plci);
-
-				/* needed for Path Replacement */
-				ii->qsig_data.partner_plci = i->PLCI;
-				
 				i->qsig_data.calltransfer_onring = 0;
-
-				if (ii) {
-					cc_qsig_do_facility(fac, ii->owner, NULL, 12, 0);
-
-					capi_sendf(NULL, 0, CAPI_INFO_REQ, ii->PLCI, get_capi_MessageNumber(),
-						"()(()()()s)",
-						fac
-					);
-
-					cc_qsig_do_facility(fac, i->owner, NULL, 12, 1);
-		
-					capi_sendf(NULL, 0, CAPI_INFO_REQ, i->PLCI, get_capi_MessageNumber(),
-						"()(()()()s)",
-						fac
-					);
-				} else {
-					cc_log(LOG_WARNING, "Call Transfer failed - second channel not found (PLCI %#x)!\n", i->qsig_data.partner_plci);
-				}
+				send_feature_calltransfer(i);
 			}
 			break;
 		case 0x8002:	/* CALL PROCEEDING */
@@ -1157,31 +1248,8 @@ void pbx_capi_qsig_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsign
 			break;
 		case 0x8007:	/* CONNECT */
 			if (i->qsig_data.calltransfer) {
-				unsigned char fac[CAPI_MAX_FACILITYDATAARRAY_SIZE];
-				struct capi_pvt *ii = capi_find_interface_by_plci(i->qsig_data.partner_plci);
-
-				/* needed for Path Replacement */
-				ii->qsig_data.partner_plci = i->PLCI;
-				
 				i->qsig_data.calltransfer = 0;
-
-				if (ii) {
-					cc_qsig_do_facility(fac, ii->owner, NULL, 12, 0);
-
-					capi_sendf(NULL, 0, CAPI_INFO_REQ, ii->PLCI, get_capi_MessageNumber(),
-							"()(()()()s)", 
-							fac
-					);
-
-					cc_qsig_do_facility(fac, i->owner, NULL, 12, 1);
-		
-					capi_sendf(NULL, 0, CAPI_INFO_REQ, i->PLCI, get_capi_MessageNumber(),
-							"()(()()()s)",
-							fac
-					);
-				} else {
-					cc_log(LOG_WARNING, "Call Transfer failed - second channel not found (PLCI %#x)!\n", i->qsig_data.partner_plci);
-				}
+				send_feature_calltransfer(i);
 			}
 			{
 				/* handle prior received Path Replacement */
@@ -1200,6 +1268,8 @@ void pbx_capi_qsig_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsign
 					i->qsig_data.pr_propose_cid = NULL;
 					free(i->qsig_data.pr_propose_pn);
 					i->qsig_data.pr_propose_pn = NULL;
+					
+					i->qsig_data.pr_propose_sentback = 1;
 				}
 			}
 
@@ -1233,6 +1303,7 @@ void pbx_capi_qsig_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsign
 		default:
 			break;
 	}
+  	pbx_capi_qsig_post_handling(i);
 	return;
 
 }

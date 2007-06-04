@@ -94,7 +94,7 @@ void cc_qsig_op_ecma_isdn_namepres(struct cc_qsig_invokedata *invoke, struct cap
 			break;
 	}
 	
-	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * %s: (%i byte(s)): \"%s\"\n", nametype, namelength, callername); 
+	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * Got %s: \"%s\" (%i byte(s))\n", nametype, callername, namelength); 
 
 	/* if there was an sequence tag, we have more informations here, but we will ignore it at the moment */
 	
@@ -161,7 +161,8 @@ int cc_qsig_encode_ecma_name_invoke(unsigned char * buf, unsigned int *idx, stru
 	invoke->datalen = dataidx;
 	memcpy(invoke->data, data, dataidx);
 	
-		
+ 	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * Sending \"%s\": (%i byte(s))\n", namebuf, namelen); 
+
 	return 0;
 }
 
@@ -277,7 +278,7 @@ void cc_qsig_op_ecma_isdn_leginfo2(struct cc_qsig_invokedata *invoke, struct cap
 	pbx_builtin_setvar_helper(i->owner, "_QSIG_LI2_DIVNAME", divertName);
 	pbx_builtin_setvar_helper(i->owner, "_QSIG_LI2_ODIVNAME", origCalledName);
 
-	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * QSIG_LEG_INFO2: %i(%i), %ix %s->%s, %s->%s\n", divReason, orgDivReason, divCount, origCalledNum, divertNum, origCalledName, divertName);
+	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * Got QSIG_LEG_INFO2: %i(%i), %ix %s->%s, %s->%s\n", divReason, orgDivReason, divCount, origCalledNum, divertNum, origCalledName, divertName);
 	
 	return;
 	
@@ -408,7 +409,7 @@ void cc_qsig_encode_ecma_calltransfer(unsigned char * buf, unsigned int *idx, st
 	
 	invoke->datalen = ix;
 	memcpy(invoke->data, c, ix);
-	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * QSIG_CT: %i->%s\n", info, cid);
+	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * Sending QSIG_CT: %i->%s\n", info, cid);
 	
 	if (cid)
 		free(cid);
@@ -484,7 +485,7 @@ void cc_qsig_encode_ecma_sscalltransfer(unsigned char * buf, unsigned int *idx, 
 
 	invoke->datalen = ix;
 	memcpy(invoke->data, c, ix);
-	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * QSIG_SSCT: %s->%s\n", cidsrc, ciddst);
+	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * Sending QSIG_SSCT: %s->%s\n", cidsrc, ciddst);
 	
 }
 
@@ -554,7 +555,7 @@ void cc_qsig_op_ecma_isdn_prpropose(struct cc_qsig_invokedata *invoke, struct ca
 	i->qsig_data.pr_propose_cid  = strdup(callid);
 	i->qsig_data.pr_propose_pn = strdup(reroutingnr);
 	
-	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * QSIG_PATHREPLACEMENT_PROPOSE Call identity: %s, Party number: %s (%i)\n", callid, reroutingnr, temp);
+	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * Got QSIG_PATHREPLACEMENT_PROPOSE Call identity: %s, Party number: %s (%i)\n", callid, reroutingnr, temp);
 	
 	return;
 }
@@ -622,7 +623,7 @@ void cc_qsig_encode_ecma_prpropose(unsigned char * buf, unsigned int *idx, struc
 
 	invoke->datalen = ix;
 	memcpy(invoke->data, c, ix);
-	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * QSIG_PATHREPLACEMENT_PROPOSE: %s,%s\n", callid, reroutingnr);
+	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * Sending QSIG_PATHREPLACEMENT_PROPOSE: Call identity: %s, Party number: %s\n", callid, reroutingnr);
 	
 	
 	return;

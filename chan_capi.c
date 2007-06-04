@@ -1268,7 +1268,7 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 	}
 
 	error = capi_sendf(NULL, 0, CAPI_CONNECT_REQ, i->controller, i->MessageNumber,
-		"wssss(wwwsss())()()()((w)()()s)",
+		"wssss(wwwsss())()()()((w)()()s())",
 		tcap2cip(i->transfercapability), /* CIP value */
 		called, /* called party number */
 		calling, /* calling party number */
@@ -1584,13 +1584,28 @@ static CC_BRIDGE_RETURN pbx_capi_bridge(struct ast_channel *c0,
 	}
 
 	if ((i0->isdnstate & CAPI_ISDN_STATE_ECT) ||
-	    (i0->isdnstate & CAPI_ISDN_STATE_ECT)) {
+	    (i1->isdnstate & CAPI_ISDN_STATE_ECT)) {
 		return AST_BRIDGE_FAILED;
+	}
+
+	if ((i0->qsigfeat) && (i1->qsigfeat)) {
+		int br_status = pbx_capi_qsig_bridge(i0, i1);
+		
+		switch (br_status) {
+			case 1: /* successfull established Call Transfer with PR */
+				return ret;
+			case 2: /* don't do bridge - call transfer is active */
+				cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s:%s cancelled bridge (path replacement was sent) for %s and %s\n",
+					   i0->vname, i1->vname, c0->name, c1->name);
+				return AST_BRIDGE_FAILED_NOWARN;
+			default: /* let's do line interconnect */
+				break;
+		}
 	}
 	
 	capi_wait_for_b3_up(i0);
 	capi_wait_for_b3_up(i1);
-
+	
 	if (!(flags & AST_BRIDGE_DTMF_CHANNEL_0))
 		capi_detect_dtmf(i0, 0);
 
@@ -5718,6 +5733,10 @@ int unload_module(void)
 			cc_log(LOG_WARNING, "On unload, interface still has owner or is used.\n");
 		if (i->smoother)
 			ast_smoother_free(i->smoother);
+		
+		if (i->qsigfeat)
+			pbx_capi_qsig_unload_module(i);
+		
 		cc_mutex_destroy(&i->lock);
 		ast_cond_destroy(&i->event_trigger);
 		itmp = i;

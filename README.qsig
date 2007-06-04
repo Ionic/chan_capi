@@ -35,7 +35,9 @@ To use Q.SIG with asterisk, you'll need a card like Eicon DIVA Server
 
 The QSIG support includes:
 ==========================
+
 - Name presentation on Call SETUP incoming like outgoing
+
 - ISDN LEG INFO2 field - a message which delivers informations about call diversions on incoming call to asterisk
     Data is stored in Asterisk variables:
     QSIG_LI2_DIVREASON		Reason of divertion: 0 - unknown, 1 - unconditional, 2 - user busy, 3 - user no reply
@@ -47,17 +49,20 @@ The QSIG support includes:
     QSIG_LI2_ODIVNAME		original diverting name
 
     at the moment only incoming handling is supported
+    
 - Possibility to inform QSIG switch about call from public network
     If you set variable QSIG_SETUP=X then the QSIG switch on the other side will know, 
     this call source is public network - you will get different ring tone, etc.
     In dialplan use:    Set(__QSIG_SETUP=X)  command.
     The leading "__" tells asterisk, to export this variable to the outgoing channel and
     its subchannels
+    
 - Simple Call Transfer
     With capicommand(qsig_ct|src-id|dst-id) you can transfer an inbound call back to the qsig switch.
     The B-Channel of this call will be relased, so that the line is free for a next call.
     Unfortunately the call will be completely released by the switch, if the target is busy.
     If you want need to know, if your target is busy, you can use the call transfer feature below.
+    
 - Call Transfer (outgoing)
     You can do an outbound call transfer.
     First you need the PLCI (logical channel id) of your first channel. You'll get it with capicommand(getplci). This 
@@ -68,16 +73,24 @@ The QSIG support includes:
     
     If the external switch offers an path replacement propose, it will be taken automatically in account.
     The B-Channels will be cleared by the switch after call connection. Your channels stay free.
-
+    
+- Automatic Call Transfer and Path Replacement (if allowed/possible) on bridge/line interconnect
+    If an line interconnect is set up from asterisk, chan_capi sends an Call Transfer facility out and waits for an
+    Path Replacement Propose message - if no Path Replacement is received, the line interconnect will proceed.
+    The Call Transfer allows your connected extensions in every case (if the switch supports the Call Transfer feature)
+    to see the name and number of his connected peer.
+    This should be configurable in the next release.
 
 Future Targets:
 ===============
 - check code for buffer overflows
 - Call Transfer inbound
 - Path Replacement inbound
+- Allow/Disallow Path Replacement within capi.conf
 - Call Rerouting feature [ECMA-174]
 - CCBS
 - AOC
+- Sent out LEG_INFO2 - maybe this would allow an sendtext (display instructions on the connected set)
 - ...
 
 How to use:

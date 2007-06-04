@@ -20,6 +20,9 @@
 #define QSIG_TYPE_ALCATEL_ECMA	0x01		/* use additional Alcatel ECMA */
 #define QSIG_TYPE_HICOM_ECMAV2	0x02		/* use additional Hicom ECMA V2 */
 
+#define CAPI_QSIG_WAITEVENT_PRPROPOSE 0x01000000
+
+
 #define Q932_PROTOCOL_ROSE			0x11	/* X.219 & X.229 */
 #define Q932_PROTOCOL_CMIP			0x12	/* Q.941 */
 #define Q932_PROTOCOL_ACSE			0x13	/* X.217 & X.227 */
@@ -94,6 +97,9 @@
 #define CCQSIG__ECMA__PRPROPOSE	1004		/* Path Replacement Propose */
 #define CCQSIG__ECMA__LEGINFO2	1021		/* LEG INFORMATION2 */
 
+
+#define CCQSIG_TIMER_WAIT_PRPROPOSE 1		/* Wait x seconds */
+
 /*
  * INVOKE Data struct, contains data for further operations
  */
@@ -167,9 +173,12 @@ extern int pbx_capi_qsig_getplci(struct ast_channel *c, char *param);
 extern int pbx_capi_qsig_ssct(struct ast_channel *c, char *param);
 extern int pbx_capi_qsig_ct(struct ast_channel *c, char *param);
 extern int pbx_capi_qsig_callmark(struct ast_channel *c, char *param);
+extern int pbx_capi_qsig_bridge(struct capi_pvt *i0, struct capi_pvt *i1);
+
 
 extern void cc_qsig_interface_init(struct cc_capi_conf *conf, struct capi_pvt *tmp);
 extern void interface_cleanup_qsig(struct capi_pvt *i);
+extern void pbx_capi_qsig_unload_module(struct capi_pvt *i);
 extern void pbx_capi_qsig_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i);
 
 /*

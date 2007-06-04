@@ -266,12 +266,16 @@ struct cc_qsig_data {
 
 	/* Path Replacement */
 	int pr_propose_sendback; /* send back an prior received PR PROPOSE on Connect */
+	int pr_propose_sentback; /* set to 1 after sending an PR PROPOSE */
+	int pr_propose_active;
 	char *pr_propose_cid;	/* Call identity */
 	char *pr_propose_pn;	/* Party Number */
 	
 	/* Partner Channel - needed for many features */
 	struct capi_pvt *partner_ch;
 	unsigned int partner_plci;
+	ast_cond_t event_trigger;
+	unsigned int waitevent;
 };
 
 /* ! Private data for a capi device */
