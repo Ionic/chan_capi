@@ -25,6 +25,7 @@
 #include <asterisk/options.h>
 #include "chan_capi20.h"
 #include "chan_capi.h"
+#include "chan_capi_utils.h"
 #include "chan_capi_qsig.h"
 #include "chan_capi_qsig_asn197ade.h"
 
@@ -48,12 +49,17 @@ unsigned int cc_qsig_asn197ade_get_partynumber(char *buf, int buflen, int *idx, 
 	
 	numtype = (data[myidx++] & 0x0F);	/* defines type of Number: numDigits, publicPartyNum, nsapEncNum, dataNumDigits */
 	
-	/* cc_verbose(1, 1, VERBOSE_PREFIX_4 " * num type %i\n", numtype);  */
+	/* cc_verbose(1, 1, VERBOSE_PREFIX_4 " * num type %i\n", numtype);   */
 	switch (numtype){
 		case 0:
-			if (data[myidx++] > 0)	/* length of this context data */
-				if (data[myidx++] == ASN1_TC_CONTEXTSPEC)
-					myidx += cc_qsig_asn197ade_get_numdigits(buf, buflen, &myidx, data) + 1;
+			if (data[myidx] > 0) {	/* length of this context data */
+				if (data[myidx+1] == ASN1_TC_CONTEXTSPEC) {
+					myidx += 2;
+					myidx += cc_qsig_asn197ade_get_numdigits(buf, buflen, &myidx, data);
+				} else {
+					myidx += cc_qsig_asn197ade_get_numdigits(buf, buflen, &myidx, data);
+				}
+			}
 			break;
 		case 1:			/* publicPartyNumber (E.164) not supported yet */
 			return 0;
@@ -62,9 +68,14 @@ unsigned int cc_qsig_asn197ade_get_partynumber(char *buf, int buflen, int *idx, 
 			return 0;
 			break;
 		case 3:
-			if (data[myidx++] > 0)	/* length of this context data */
-				if (data[myidx++] == ASN1_TC_CONTEXTSPEC)
-					myidx += cc_qsig_asn197ade_get_numdigits(buf, buflen, &myidx, data) + 1;
+			if (data[myidx++] > 0) {	/* length of this context data */
+				if (data[myidx+1] == ASN1_TC_CONTEXTSPEC) {
+					myidx += 2;
+					myidx += cc_qsig_asn197ade_get_numdigits(buf, buflen, &myidx, data);
+				} else {
+					myidx += cc_qsig_asn197ade_get_numdigits(buf, buflen, &myidx, data);
+				}
+			}
 			break;
 	};
 	return myidx - *idx;
@@ -84,7 +95,7 @@ unsigned int cc_qsig_asn197ade_get_numdigits(char *buf, int buflen, int *idx, un
 	memcpy(buf, &data[myidx], strsize);
 	buf[strsize] = 0;
 	
-/*	cc_verbose(1, 1, VERBOSE_PREFIX_4 " * string length %i\n", strsize); */
+// 	cc_verbose(1, 1, VERBOSE_PREFIX_4 " * string length %i\n", strsize); 
 	return strsize;
 }
 

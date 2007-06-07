@@ -144,12 +144,8 @@ int cc_qsig_encode_ecma_name_invoke(unsigned char * buf, unsigned int *idx, stru
   	invoke->descr_type = -1;	/* Let others do the work: qsig_add_invoke */
 	invoke->type = 0;	/* Invoke Operation Number, if OID it's the last byte*/
 	
-	/* HACK: */
-	if (nametype)
-		invoke->type = 2;
-	
 	if (namelen>0) {
-		data[dataidx++] = 0x80;	/* We send only simple Name, Namepresentation allowed */
+		data[dataidx++] = 0x80 | (nametype % 4);	/* We send only simple Name, Namepresentation allowed */
 		data[dataidx++] = namelen;
 		memcpy(&data[dataidx], namebuf, namelen);
 		dataidx += namelen;
@@ -416,6 +412,131 @@ void cc_qsig_encode_ecma_calltransfer(unsigned char * buf, unsigned int *idx, st
 	
 }
 
+/* 
+ * Decode Operation: 1.3.12.9.12		ECMA/ISDN/CALLTRANSFER
+ * 
+ * This function decodes the call transfer facility
+ *
+ * We create an invoke struct with the complete encoded invoke.
+ *
+ * parameters
+ *	buf 	is pointer to facility array, not used now
+ *	idx	current idx in facility array, not used now
+ *	invoke	struct, which contains encoded data from facility
+ *	i	is pointer to capi channel
+ * returns
+ * 	transfer to destination number
+ */
+char *cc_qsig_decode_ecma_calltransfer(struct cc_qsig_invokedata *invoke, struct capi_pvt *i)
+{
+	unsigned int datalength;
+	unsigned int seqlength = 0;
+	unsigned char *data = invoke->data;
+	int myidx = 0;
+	/* TODO: write more code */
+	
+	char *ct_status_txt[] = { "ANSWERED", "ALERTING" };
+	int ct_status = 0;
+	char ct_target[ASN197ADE_NUMDIGITS_STRSIZE+1] = { 0 };
+	char ct_name[ASN197NO_NAME_STRSIZE+1] = { "EMPTY" };
+	int ct_enddesignation = 0;
+	int ct_numberpresentation = 0;
+	unsigned int namelength = 0;
+	int temp = 0;
+	
+#define ct_err(x...)	{ cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * not Handling QSIG CALL TRANSFER - "x); return NULL; }
+	
+	cc_verbose(1, 1, VERBOSE_PREFIX_4 "Handling QSIG CALL TRANSFER (id# %#x)\n", invoke->id);
+
+	if (data[myidx++] != (ASN1_SEQUENCE | ASN1_TC_UNIVERSAL | ASN1_TF_CONSTRUCTED)) { /* 0x30 */
+		/* We do not handle this, because it should start with an sequence tag */
+		ct_err("not a sequence\n");
+	}
+	
+	/* This facility is encoded as SEQUENCE */
+	seqlength = data[myidx++];
+	datalength = invoke->datalen;
+	if (datalength < (seqlength+1)) {
+		ct_err("buffer error\n");
+	}
+	
+	if (data[myidx++] == ASN1_ENUMERATED) {
+			ct_enddesignation = cc_qsig_asn1_get_integer(data, &myidx);
+	} else {
+		ct_err("no endDesignation information.\n");
+	}
+	
+	if (data[myidx] == (ASN1_TC_CONTEXTSPEC | ASN1_TF_CONSTRUCTED | 0)) {  /* Parameter 0: partyNumber - transferee number */
+		myidx ++;
+	
+		temp = cc_qsig_asn197ade_get_partynumber(ct_target, ASN197ADE_NUMDIGITS_STRSIZE+1, &myidx, data);
+	
+		if (temp)
+			myidx += temp + 1;
+
+		/* HACK: this has to be moved to _get_presentednumberscreened */
+		if (data[myidx++] == ASN1_ENUMERATED) {
+			ct_numberpresentation = cc_qsig_asn1_get_integer(data, &myidx);
+		} else {
+			ct_err("screeningIndicator is missing.\n");
+			return NULL;
+		}
+	} else {
+		myidx += 2;	/* HACK:	I've seen an IMPLICIT ade "numberNotAvailableDueToInterworking  NULL" */
+	}
+	
+	/* TODO: remove this code snippet, when it's 100% working */
+	/*
+	if (data[myidx++] == (ASN1_TC_CONTEXTSPEC | ASN1_TF_CONSTRUCTED | 0)) { */ /* Parameter 0: partyNumber - transferee number */
+/*		if (!data[myidx++]) /* length = 0 */
+/*			ct_err("No destination received.\n");
+		
+		if (data[myidx++] != ASN1_TC_CONTEXTSPEC)
+			ct_err("No destination received.\n");
+		
+		temp = cc_qsig_asn1_get_string((unsigned char*)&ct_target, sizeof(ct_target), &data[myidx]);
+	
+		if (temp) {
+			myidx += temp + 1;
+		} else {
+			cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * not Handling QSIG CALL TRANSFER - partyNumber expected (%i)\n", myidx);
+			return NULL;
+		}
+		
+		if (data[myidx++] == ASN1_ENUMERATED) {
+			ct_numberpresentation = cc_qsig_asn1_get_integer(data, &myidx);
+		} else {
+			cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * not Handling QSIG CALL TRANSFER - wrong encoded #2.\n");
+			return NULL;
+		}
+	}*/
+	
+	if (myidx < datalength) {
+		if (data[myidx] == ASN1_TC_APPLICATION) {
+			/* ignore special Application Parameters - have no info about content */
+			myidx++;
+			cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * QSIG CALL TRANSFER - ignoring application data (%i bytes).\n", (int)data[myidx]);
+			myidx += data[myidx] + 1;
+		}
+	}
+	
+	if (myidx < datalength) {
+		if (data[myidx] != ASN1_ENUMERATED) { /* Maybe we get an name (OPTIONAL) */
+			myidx += cc_qsig_asn197no_get_name(ct_name, ASN197NO_NAME_STRSIZE+1, &namelength, &myidx, data );
+		}
+	}
+	
+	if (myidx < datalength) {
+		if (data[myidx++] == ASN1_ENUMERATED) { /* Call Status */
+			ct_status = cc_qsig_asn1_get_integer(data, &myidx);
+		}
+	}	
+	
+	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * Got QSIG CALL TRANSFER endDesignation: %i partyNumber: %s (ScreeningInd: %i), partyName: \"%s\", Call state: %s\n", ct_enddesignation, ct_target, ct_numberpresentation, ct_name, ct_status_txt[ct_status]);
+	
+	return strdup(ct_target);
+#undef ct_err
+}
 
 /* 
  * Encode Operation: 1.3.12.9.99		ECMA/ISDN/SINGLESTEPCALLTRANSFER

@@ -95,6 +95,7 @@
 /* QSIG Operations += 1000 */
 #define CCQSIG__ECMA__NAMEPRES	1000		/* Setting an own constant for ECMA Operation/Namepresentation, others will follow */
 #define CCQSIG__ECMA__PRPROPOSE	1004		/* Path Replacement Propose */
+#define CCQSIG__ECMA__CTCOMPLETE 1012		/* Call Transfer Complete */
 #define CCQSIG__ECMA__LEGINFO2	1021		/* LEG INFORMATION2 */
 
 
@@ -195,5 +196,6 @@ extern void cc_qsig_encode_ecma_prpropose(unsigned char * buf, unsigned int *idx
 
 extern void cc_qsig_encode_ecma_sscalltransfer(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke, struct capi_pvt *i, char *param);
 extern void cc_qsig_encode_ecma_calltransfer(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke, struct capi_pvt *i, char *param, int info);
+extern char *cc_qsig_decode_ecma_calltransfer(struct cc_qsig_invokedata *invoke, struct capi_pvt *i);
 
 #endif

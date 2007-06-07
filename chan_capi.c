@@ -3448,9 +3448,8 @@ static void capidev_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, un
 			pbx_builtin_setvar_helper(i->owner, "SECONDCALLERID", buffer);
 			*/
 
-			if (i->qsigfeat != QSIG_DISABLED) {
-				cc_qsig_handle_capiind(CONNECT_IND_FACILITYDATAARRAY(CMSG), i);
-			}
+			/* Handle QSIG informations, if any */
+			cc_qsig_handle_capiind(CONNECT_IND_FACILITYDATAARRAY(CMSG), i);
 			
 			if ((i->isdnmode == CAPI_ISDNMODE_MSN) && (i->immediate)) {
 				/* if we don't want to wait for SETUP/SENDING-COMPLETE in MSN mode */
@@ -4859,11 +4858,9 @@ int mkif(struct cc_capi_conf *conf)
 		tmp->doDTMF = conf->softdtmf;
 		tmp->capability = conf->capability;
 
-		tmp->qsigfeat = conf->qsigfeat;
-		if (conf->qsigfeat) {
-			cc_qsig_interface_init(conf, tmp);
-		}
-
+		/* Initialize QSIG code */
+		cc_qsig_interface_init(conf, tmp);
+		
 		tmp->next = capi_iflist; /* prepend */
 		capi_iflist = tmp;
 		cc_verbose(2, 0, VERBOSE_PREFIX_3 "capi %c %s (%s:%s) contr=%d devs=%d EC=%d,opt=%d,tail=%d\n",
@@ -5734,8 +5731,7 @@ int unload_module(void)
 		if (i->smoother)
 			ast_smoother_free(i->smoother);
 		
-		if (i->qsigfeat)
-			pbx_capi_qsig_unload_module(i);
+		pbx_capi_qsig_unload_module(i);
 		
 		cc_mutex_destroy(&i->lock);
 		ast_cond_destroy(&i->event_trigger);

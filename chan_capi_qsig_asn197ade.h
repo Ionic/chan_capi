@@ -22,6 +22,11 @@
 
 #define ASN197ADE_NUMDIGITS_STRSIZE	20
 
+struct asn197ade_numberscreened {
+	unsigned char *partyNumber;
+	enum screeningInd { userProvidedNotScreened, userProvidedVerifiedAndPassed, userProvidedVerifiedAndFailed, networkProvided };
+};
+
 extern unsigned int cc_qsig_asn197ade_get_partynumber(char *buf, int buflen, int *idx, unsigned char *data);
 extern unsigned int cc_qsig_asn197ade_get_numdigits(char *buf, int buflen, int *idx, unsigned char *data);
 

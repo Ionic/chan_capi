@@ -483,6 +483,8 @@ static int ident_qsig_invoke(int invoketype)
 			return CCQSIG__ECMA__NAMEPRES;
 		case 4:
 			return CCQSIG__ECMA__PRPROPOSE;
+		case 12:
+			return CCQSIG__ECMA__CTCOMPLETE;
 		case 21:
 			return CCQSIG__ECMA__LEGINFO2;
 		default:
@@ -572,9 +574,19 @@ signed int cc_qsig_identifyinvoke(struct cc_qsig_invokedata *invoke, int protoco
 	
 }
 
+static void pbx_capi_qsig_handle_ctc(struct cc_qsig_invokedata *invoke, struct capi_pvt *i)
+{
+	char *destination = cc_qsig_decode_ecma_calltransfer(invoke, i);
+	
+	if (destination) {
+		free(destination);
+	}
+	
+	return ;
+}
 
 /*
- *
+ * Handle inbound INVOKEs
  */
 unsigned int cc_qsig_handle_invokeoperation(int invokeident, struct cc_qsig_invokedata *invoke, struct capi_pvt *i)
 {
@@ -584,6 +596,9 @@ unsigned int cc_qsig_handle_invokeoperation(int invokeident, struct cc_qsig_invo
 			break;
 		case CCQSIG__ECMA__PRPROPOSE:
 			cc_qsig_op_ecma_isdn_prpropose(invoke, i);
+			break;
+		case CCQSIG__ECMA__CTCOMPLETE:
+			pbx_capi_qsig_handle_ctc(invoke, i);
 			break;
 		case CCQSIG__ECMA__LEGINFO2:
 			cc_qsig_op_ecma_isdn_leginfo2(invoke, i);
@@ -646,6 +661,9 @@ unsigned int cc_qsig_handle_capiind(unsigned char *data, struct capi_pvt *i)
 	int faclen0 = 0;
 	int faclen = 0;
 	int facidx = 2;
+	
+	if (!i->qsigfeat)
+		return 0;
 	
 	if (!data) {
 		return 0;
@@ -965,14 +983,14 @@ int pbx_capi_qsig_ct(struct ast_channel *c, char *param)
 	cc_qsig_do_facility(fac, c, param, 12, 0);
 	
 	capi_sendf(NULL, 0, CAPI_INFO_REQ, ii->PLCI, get_capi_MessageNumber(),
-		"()(()()()s)",
+		"()(()()()s())",
 		fac
 	);
 	
 	cc_qsig_do_facility(fac, c, param, 12, 1);
 	
 	capi_sendf(NULL, 0, CAPI_INFO_REQ, i->PLCI, get_capi_MessageNumber(),
-		"()(()()()s)",
+		"()(()()()s())",
 		fac
 	);
 
@@ -980,7 +998,7 @@ int pbx_capi_qsig_ct(struct ast_channel *c, char *param)
 }
 
 /*
- * Initiate a QSIG Call Transfer
+ * mark an call
  */
 int pbx_capi_qsig_callmark(struct ast_channel *c, char *param)
 {
@@ -1025,6 +1043,10 @@ static void send_feature_calltransfer(struct capi_pvt *i)
  */
 void cc_qsig_interface_init(struct cc_capi_conf *conf, struct capi_pvt *tmp)
 {
+	tmp->qsigfeat = conf->qsigfeat;
+	if (!conf->qsigfeat) 
+		return;
+		
 	tmp->qsig_data.calltransfer_active = 0;
 	tmp->qsig_data.calltransfer = 0;
 	tmp->qsig_data.calltransfer_onring = 0;
@@ -1088,6 +1110,8 @@ void interface_cleanup_qsig(struct capi_pvt *i)
  */
 void pbx_capi_qsig_unload_module(struct capi_pvt *i)
 {
+	if (!i->qsigfeat)
+		return;
 	ast_cond_destroy(&i->qsig_data.event_trigger);
 }
 
