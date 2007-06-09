@@ -486,10 +486,10 @@ char *cc_qsig_decode_ecma_calltransfer(struct cc_qsig_invokedata *invoke, struct
 	}
 	
 	/* TODO: remove this code snippet, when it's 100% working */
-	/*
-	if (data[myidx++] == (ASN1_TC_CONTEXTSPEC | ASN1_TF_CONSTRUCTED | 0)) { */ /* Parameter 0: partyNumber - transferee number */
-/*		if (!data[myidx++]) /* length = 0 */
-/*			ct_err("No destination received.\n");
+#if 0
+	if (data[myidx++] == (ASN1_TC_CONTEXTSPEC | ASN1_TF_CONSTRUCTED | 0)) { /* Parameter 0: partyNumber - transferee number */
+		if (!data[myidx++]) /* length = 0 */
+			ct_err("No destination received.\n");
 		
 		if (data[myidx++] != ASN1_TC_CONTEXTSPEC)
 			ct_err("No destination received.\n");
@@ -509,7 +509,8 @@ char *cc_qsig_decode_ecma_calltransfer(struct cc_qsig_invokedata *invoke, struct
 			cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * not Handling QSIG CALL TRANSFER - wrong encoded #2.\n");
 			return NULL;
 		}
-	}*/
+	}
+#endif
 	
 	if (myidx < datalength) {
 		if (data[myidx] == ASN1_TC_APPLICATION) {
