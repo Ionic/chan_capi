@@ -27,6 +27,7 @@
 #include "chan_capi.h"
 #include "chan_capi_utils.h"
 #include "chan_capi_qsig.h"
+#include "chan_capi_qsig_ecma.h"
 #include "chan_capi_qsig_asn197ade.h"
 
 /*
@@ -115,4 +116,72 @@ unsigned int cc_qsig_asn197ade_add_numdigits(char *buf, int buflen, int *idx, un
 	memcpy(&buf[myidx], data, buflen);
 	myidx = 1 + strlen(buf);
 	return myidx;
+}
+
+/*
+ * Returns an "PresentedNumberScreened" from an string, encoded as in addressing-data-elements-asn1-97
+ *	data is pointer to PresentedNumberScreened struct
+ *  return:
+ *	index counter
+ */
+unsigned int cc_qsig_asn197ade_get_pns(unsigned char *data, int *idx, struct asn197ade_numberscreened *ns)
+{	/* sample data:  a0 08 80 03>513<0a 01 00 */
+	int myidx = *idx;
+	char buf[ASN197ADE_NUMDIGITS_STRSIZE+1];
+	unsigned int buflen = sizeof(buf);
+	unsigned res;
+	
+	ns->partyNumber = NULL;
+	ns->screeningInd = userProvidedNotScreened;
+	int numtype;
+	
+	numtype = (data[myidx++] & 0x0F);	/* defines type of Number */
+	
+	/* cc_verbose(1, 1, VERBOSE_PREFIX_4 " * num type %i\n", numtype);   */
+	switch (numtype){
+		case 0:
+			/* myidx points now to length */
+			res = cc_qsig_asn197ade_get_partynumber(buf, buflen, &myidx, data);
+			if (!res)
+				return 0;
+			
+			myidx += res;
+			if (strlen(buf)) {
+				ns->partyNumber = strdup(buf);
+			}
+			
+			/* get screening indicator */
+			if (data[myidx] == ASN1_ENUMERATED) {
+				myidx++;
+				ns->screeningInd = cc_qsig_asn1_get_integer(data, &myidx);
+			}
+			
+			break;
+		case 1:			/* presentation restricted */
+			myidx += data[myidx] + 1;	/* this val should be zero */
+			break;
+		case 2:			/* number not available due to interworking */
+			myidx += data[myidx] + 1;	/* this val should be zero */
+			break;
+		case 3:
+			/* myidx points now to length */
+			res = cc_qsig_asn197ade_get_partynumber(buf, buflen, &myidx, data);
+			if (!res)
+				return 0;
+			
+			myidx += res;
+			if (strlen(buf)) {
+				ns->partyNumber = strdup(buf);
+			}
+			
+			/* get screening indicator */
+			if (data[myidx] == ASN1_ENUMERATED) {
+				myidx++;
+				ns->screeningInd = cc_qsig_asn1_get_integer(data, &myidx);
+			}
+			
+			break;
+	};
+
+	return myidx - *idx;
 }

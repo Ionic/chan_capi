@@ -101,6 +101,8 @@
 
 #define CCQSIG_TIMER_WAIT_PRPROPOSE 1		/* Wait x seconds */
 
+/* Common QSIG structs */
+
 /*
  * INVOKE Data struct, contains data for further operations
  */
@@ -136,6 +138,7 @@ struct cc_qsig_nfe {
 	struct cc_qsig_entityaddr dst_addr;	/* same here for destination */
 };
 
+/* struct cc_qsig_calltransfer */
 
 
 /*
@@ -182,20 +185,5 @@ extern void interface_cleanup_qsig(struct capi_pvt *i);
 extern void pbx_capi_qsig_unload_module(struct capi_pvt *i);
 extern void pbx_capi_qsig_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i);
 
-/*
- *** ECMA QSIG Functions 
- */
-
-extern void cc_qsig_op_ecma_isdn_namepres(struct cc_qsig_invokedata *invoke, struct capi_pvt *i);
-extern int cc_qsig_encode_ecma_name_invoke(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke, struct capi_pvt *i, int nametype);
-
-extern void cc_qsig_op_ecma_isdn_leginfo2(struct cc_qsig_invokedata *invoke, struct capi_pvt *i);
-
-extern void cc_qsig_op_ecma_isdn_prpropose(struct cc_qsig_invokedata *invoke, struct capi_pvt *i);
-extern void cc_qsig_encode_ecma_prpropose(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke, struct capi_pvt *i, char *param);
-
-extern void cc_qsig_encode_ecma_sscalltransfer(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke, struct capi_pvt *i, char *param);
-extern void cc_qsig_encode_ecma_calltransfer(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke, struct capi_pvt *i, char *param, int info);
-extern char *cc_qsig_decode_ecma_calltransfer(struct cc_qsig_invokedata *invoke, struct capi_pvt *i);
 
 #endif

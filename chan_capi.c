@@ -32,6 +32,7 @@
 #include "chan_capi.h"
 #include "chan_capi_rtp.h"
 #include "chan_capi_qsig.h"
+#include "chan_capi_qsig_ecma.h"
 #include "chan_capi_qsig_asn197ade.h"
 #include "chan_capi_qsig_asn197no.h"
 #include "chan_capi_utils.h"

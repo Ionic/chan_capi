@@ -24,6 +24,7 @@
 #include "chan_capi.h"
 #include "chan_capi_utils.h"
 #include "chan_capi_qsig.h"
+#include "chan_capi_qsig_ecma.h"
 #include "chan_capi_qsig_asn197ade.h"
 #include "chan_capi_qsig_asn197no.h"
 
@@ -427,7 +428,7 @@ void cc_qsig_encode_ecma_calltransfer(unsigned char * buf, unsigned int *idx, st
  * returns
  * 	transfer to destination number
  */
-char *cc_qsig_decode_ecma_calltransfer(struct cc_qsig_invokedata *invoke, struct capi_pvt *i)
+unsigned int cc_qsig_decode_ecma_calltransfer(struct cc_qsig_invokedata *invoke, struct capi_pvt *i, struct cc_qsig_ctcomplete *ctc)
 {
 	unsigned int datalength;
 	unsigned int seqlength = 0;
@@ -444,7 +445,15 @@ char *cc_qsig_decode_ecma_calltransfer(struct cc_qsig_invokedata *invoke, struct
 	unsigned int namelength = 0;
 	int temp = 0;
 	
-#define ct_err(x...)	{ cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * not Handling QSIG CALL TRANSFER - "x); return NULL; }
+	ctc->endDesignation = primaryEnd;
+	ctc->redirectionNumber.partyNumber = NULL;
+	ctc->redirectionNumber.screeningInd = userProvidedNotScreened;
+	ctc->basicCallInfoElements = NULL;
+	ctc->redirectionName = NULL;
+	ctc->callStatus = answered;
+	ctc->argumentExtension = NULL;	/* unhandled yet */
+	
+#define ct_err(x...)	{ cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * not Handling QSIG CALL TRANSFER - "x); return 0; }
 	
 	cc_verbose(1, 1, VERBOSE_PREFIX_4 "Handling QSIG CALL TRANSFER (id# %#x)\n", invoke->id);
 
@@ -461,11 +470,20 @@ char *cc_qsig_decode_ecma_calltransfer(struct cc_qsig_invokedata *invoke, struct
 	}
 	
 	if (data[myidx++] == ASN1_ENUMERATED) {
-			ct_enddesignation = cc_qsig_asn1_get_integer(data, &myidx);
+			ctc->endDesignation = cc_qsig_asn1_get_integer(data, &myidx);
 	} else {
 		ct_err("no endDesignation information.\n");
 	}
 	
+	temp = cc_qsig_asn197ade_get_pns(data, &myidx, &ctc->redirectionNumber);
+	
+	if (!temp) {
+		ct_err("error on decoding PresentedNumberScreened value.\n");
+	}
+	myidx += temp;
+	
+	
+#if 0
 	if (data[myidx] == (ASN1_TC_CONTEXTSPEC | ASN1_TF_CONSTRUCTED | 0)) {  /* Parameter 0: partyNumber - transferee number */
 		myidx ++;
 	
@@ -484,7 +502,8 @@ char *cc_qsig_decode_ecma_calltransfer(struct cc_qsig_invokedata *invoke, struct
 	} else {
 		myidx += 2;	/* HACK:	I've seen an IMPLICIT ade "numberNotAvailableDueToInterworking  NULL" */
 	}
-	
+#endif
+					       
 	/* TODO: remove this code snippet, when it's 100% working */
 #if 0
 	if (data[myidx++] == (ASN1_TC_CONTEXTSPEC | ASN1_TF_CONSTRUCTED | 0)) { /* Parameter 0: partyNumber - transferee number */
@@ -514,9 +533,15 @@ char *cc_qsig_decode_ecma_calltransfer(struct cc_qsig_invokedata *invoke, struct
 	
 	if (myidx < datalength) {
 		if (data[myidx] == ASN1_TC_APPLICATION) {
-			/* ignore special Application Parameters - have no info about content */
 			myidx++;
-			cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * QSIG CALL TRANSFER - ignoring application data (%i bytes).\n", (int)data[myidx]);
+			/* TODO: check size -> could be bigger than 256 bytes - MSB is set then */
+			ctc->basicCallInfoElements = malloc(data[myidx]);
+			if (ctc->basicCallInfoElements) {
+				memcpy(ctc->basicCallInfoElements, &data[myidx+1], data[myidx] );
+			} else {
+				cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * QSIG CALL TRANSFER - couldn't allocate memory for basicCallInfoElements.\n", (int)data[myidx]);
+			}
+			/* cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * QSIG CALL TRANSFER - ignoring application data (%i bytes).\n", (int)data[myidx]); */
 			myidx += data[myidx] + 1;
 		}
 	}
@@ -524,18 +549,21 @@ char *cc_qsig_decode_ecma_calltransfer(struct cc_qsig_invokedata *invoke, struct
 	if (myidx < datalength) {
 		if (data[myidx] != ASN1_ENUMERATED) { /* Maybe we get an name (OPTIONAL) */
 			myidx += cc_qsig_asn197no_get_name(ct_name, ASN197NO_NAME_STRSIZE+1, &namelength, &myidx, data );
+			if (namelength)
+				ctc->redirectionName = strdup(ct_name);
 		}
 	}
 	
 	if (myidx < datalength) {
 		if (data[myidx++] == ASN1_ENUMERATED) { /* Call Status */
-			ct_status = cc_qsig_asn1_get_integer(data, &myidx);
+			ctc->callStatus = cc_qsig_asn1_get_integer(data, &myidx);
 		}
 	}	
 	
-	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * Got QSIG CALL TRANSFER endDesignation: %i partyNumber: %s (ScreeningInd: %i), partyName: \"%s\", Call state: %s\n", ct_enddesignation, ct_target, ct_numberpresentation, ct_name, ct_status_txt[ct_status]);
+	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * Got QSIG CALL TRANSFER endDesignation: %i partyNumber: %s (ScreeningInd: %i), partyName: \"%s\", Call state: %s\n", 
+		   ctc->endDesignation, ctc->redirectionNumber.partyNumber, ctc->redirectionNumber.screeningInd, ctc->redirectionName, ct_status_txt[ctc->callStatus]);
 	
-	return strdup(ct_target);
+	return 1;
 #undef ct_err
 }
 

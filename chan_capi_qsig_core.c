@@ -24,6 +24,7 @@
 #include "chan_capi.h"
 #include "chan_capi_utils.h"
 #include "chan_capi_qsig.h"
+#include "chan_capi_qsig_ecma.h"
 #include "chan_capi_qsig_asn197ade.h"
 #include "chan_capi_qsig_asn197no.h"
 
@@ -574,14 +575,63 @@ signed int cc_qsig_identifyinvoke(struct cc_qsig_invokedata *invoke, int protoco
 	
 }
 
+/*
+ * find the interface (pvt) the PLCI belongs to
+ */
+static struct capi_pvt *capi_find_interface_bynumber(char * num)
+{
+	struct capi_pvt *i;
+
+	if (!num)
+		return NULL;
+
+	for (i = capi_iflist; i; i = i->next) {
+		if (strcmp(i->cid, num) == 0 ||
+		    strcmp(i->dnid, num) == 0)
+			return i;
+	}
+
+#if 0
+	cc_mutex_lock(&nullif_lock);
+	for (i = nulliflist; i; i = i->next) {
+		if (strcmp(i->cid, num) == 0 ||
+		    strcmp(i->dnid, num) == 0)
+			break;
+	}
+	cc_mutex_unlock(&nullif_lock);
+#endif
+	
+	return i;
+}
+
 static void pbx_capi_qsig_handle_ctc(struct cc_qsig_invokedata *invoke, struct capi_pvt *i)
 {
-	char *destination = cc_qsig_decode_ecma_calltransfer(invoke, i);
+	struct cc_qsig_ctcomplete ctc;
+	struct capi_pvt *ii;
 	
-	if (destination) {
-		free(destination);
+#define CLEAR_CTC {	if (ctc.redirectionNumber.partyNumber)	free(ctc.redirectionNumber.partyNumber);\
+			if (ctc.basicCallInfoElements)	free(ctc.basicCallInfoElements); \
+			if (ctc.redirectionName) free(ctc.redirectionName); \
+			if (ctc.argumentExtension) free(ctc.argumentExtension); }
+
+	int res = cc_qsig_decode_ecma_calltransfer(invoke, i, &ctc);
+	
+	if (!res)
+		return;
+	
+	if (ctc.redirectionNumber.partyNumber && (ctc.endDesignation == 2)) { /* TODO: activate this - have a bug in incoming PathReplacement handling */
+		ii = capi_find_interface_bynumber(ctc.redirectionNumber.partyNumber);
+		if (ii) {
+			cc_verbose(1, 1, VERBOSE_PREFIX_3 "QSIG: Call Transfer partner channel for %s found at channel %s\n", ctc.redirectionNumber.partyNumber, ii->vname);
+			
+			CLEAR_CTC
+					
+			ast_channel_masquerade(i->owner, ii->owner);
+		}
 	}
 	
+	CLEAR_CTC
+		
 	return ;
 }
 
