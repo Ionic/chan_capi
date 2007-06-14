@@ -437,11 +437,7 @@ unsigned int cc_qsig_decode_ecma_calltransfer(struct cc_qsig_invokedata *invoke,
 	/* TODO: write more code */
 	
 	char *ct_status_txt[] = { "ANSWERED", "ALERTING" };
-	int ct_status = 0;
-	char ct_target[ASN197ADE_NUMDIGITS_STRSIZE+1] = { 0 };
 	char ct_name[ASN197NO_NAME_STRSIZE+1] = { "EMPTY" };
-	int ct_enddesignation = 0;
-	int ct_numberpresentation = 0;
 	unsigned int namelength = 0;
 	int temp = 0;
 	
@@ -482,55 +478,6 @@ unsigned int cc_qsig_decode_ecma_calltransfer(struct cc_qsig_invokedata *invoke,
 	}
 	myidx += temp;
 	
-	
-#if 0
-	if (data[myidx] == (ASN1_TC_CONTEXTSPEC | ASN1_TF_CONSTRUCTED | 0)) {  /* Parameter 0: partyNumber - transferee number */
-		myidx ++;
-	
-		temp = cc_qsig_asn197ade_get_partynumber(ct_target, ASN197ADE_NUMDIGITS_STRSIZE+1, &myidx, data);
-	
-		if (temp)
-			myidx += temp + 1;
-
-		/* HACK: this has to be moved to _get_presentednumberscreened */
-		if (data[myidx++] == ASN1_ENUMERATED) {
-			ct_numberpresentation = cc_qsig_asn1_get_integer(data, &myidx);
-		} else {
-			ct_err("screeningIndicator is missing.\n");
-			return NULL;
-		}
-	} else {
-		myidx += 2;	/* HACK:	I've seen an IMPLICIT ade "numberNotAvailableDueToInterworking  NULL" */
-	}
-#endif
-					       
-	/* TODO: remove this code snippet, when it's 100% working */
-#if 0
-	if (data[myidx++] == (ASN1_TC_CONTEXTSPEC | ASN1_TF_CONSTRUCTED | 0)) { /* Parameter 0: partyNumber - transferee number */
-		if (!data[myidx++]) /* length = 0 */
-			ct_err("No destination received.\n");
-		
-		if (data[myidx++] != ASN1_TC_CONTEXTSPEC)
-			ct_err("No destination received.\n");
-		
-		temp = cc_qsig_asn1_get_string((unsigned char*)&ct_target, sizeof(ct_target), &data[myidx]);
-	
-		if (temp) {
-			myidx += temp + 1;
-		} else {
-			cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * not Handling QSIG CALL TRANSFER - partyNumber expected (%i)\n", myidx);
-			return NULL;
-		}
-		
-		if (data[myidx++] == ASN1_ENUMERATED) {
-			ct_numberpresentation = cc_qsig_asn1_get_integer(data, &myidx);
-		} else {
-			cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * not Handling QSIG CALL TRANSFER - wrong encoded #2.\n");
-			return NULL;
-		}
-	}
-#endif
-	
 	if (myidx < datalength) {
 		if (data[myidx] == ASN1_TC_APPLICATION) {
 			myidx++;
@@ -541,7 +488,6 @@ unsigned int cc_qsig_decode_ecma_calltransfer(struct cc_qsig_invokedata *invoke,
 			} else {
 				cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * QSIG CALL TRANSFER - couldn't allocate memory for basicCallInfoElements.\n", (int)data[myidx]);
 			}
-			/* cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * QSIG CALL TRANSFER - ignoring application data (%i bytes).\n", (int)data[myidx]); */
 			myidx += data[myidx] + 1;
 		}
 	}

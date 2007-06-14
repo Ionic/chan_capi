@@ -138,8 +138,6 @@ struct cc_qsig_nfe {
 	struct cc_qsig_entityaddr dst_addr;	/* same here for destination */
 };
 
-/* struct cc_qsig_calltransfer */
-
 
 /*
  * prototypes

@@ -619,7 +619,7 @@ static void pbx_capi_qsig_handle_ctc(struct cc_qsig_invokedata *invoke, struct c
 	if (!res)
 		return;
 	
-	if (ctc.redirectionNumber.partyNumber && (ctc.endDesignation == 2)) { /* TODO: activate this - have a bug in incoming PathReplacement handling */
+	if (ctc.redirectionNumber.partyNumber && (ctc.endDesignation == 2)) { /* TODO: activate this - there is a problem with channel_masquerade */
 		ii = capi_find_interface_bynumber(ctc.redirectionNumber.partyNumber);
 		if (ii) {
 			cc_verbose(1, 1, VERBOSE_PREFIX_3 "QSIG: Call Transfer partner channel for %s found at channel %s\n", ctc.redirectionNumber.partyNumber, ii->vname);
