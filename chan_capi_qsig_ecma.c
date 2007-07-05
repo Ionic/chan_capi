@@ -190,6 +190,7 @@ void cc_qsig_op_ecma_isdn_leginfo2(struct cc_qsig_invokedata *invoke, struct cap
 	char tempstr[5];
 	char divertNum[ASN197ADE_NUMDIGITS_STRSIZE+1];
 	char origCalledNum[ASN197ADE_NUMDIGITS_STRSIZE+1];
+	struct asn197ade_numberscreened divertPNS, origPNS;
 	char divertName[ASN197NO_NAME_STRSIZE+1];
 	char origCalledName[ASN197NO_NAME_STRSIZE+1];
 	unsigned int temp = 0;
@@ -233,32 +234,29 @@ void cc_qsig_op_ecma_isdn_leginfo2(struct cc_qsig_invokedata *invoke, struct cap
 					orgDivReason = cc_qsig_asn1_get_integer(invoke->data, &myidx);
 				break;
 			case 1:
-				temp = cc_qsig_asn197ade_get_partynumber(divertNum, ASN197ADE_NUMDIGITS_STRSIZE, &myidx, invoke->data);
-				if (temp) {
-					myidx += temp;
-				}
+				temp = invoke->data[myidx++]; /* keep the length of this info - maybe we don't get all data now */
+				cc_qsig_asn197ade_get_pns(invoke->data, &myidx, &divertPNS);
+				myidx += temp;
 				break;
 			case 2:
-				temp = cc_qsig_asn197ade_get_partynumber(origCalledNum, ASN197ADE_NUMDIGITS_STRSIZE, &myidx, invoke->data);
-				if (temp) {
-					myidx += temp;
-				}
+				temp = invoke->data[myidx++]; /* keep the length of this info - maybe we don't get all data now */
+				cc_qsig_asn197ade_get_pns(invoke->data, &myidx, &origPNS);
+				myidx += temp;
 				break;
 			case 3:
 				/* Redirecting Name */
-				myidx++;
-				temp = cc_qsig_asn197no_get_name(divertName, ASN197NO_NAME_STRSIZE, &temp2, &myidx, invoke->data);
-				if (temp) {
-					myidx += temp;
-				}
+				temp = invoke->data[myidx++]; /* keep the length of this info - maybe we don't get all data now */
+				cc_qsig_asn197no_get_name(divertName, ASN197NO_NAME_STRSIZE, &temp2, &myidx, invoke->data);
+				myidx += temp;
 				break;
 			case 4:
 				/* origCalled Name */
-				myidx++;
-				temp = cc_qsig_asn197no_get_name(origCalledName, ASN197NO_NAME_STRSIZE, &temp2, &myidx, invoke->data);
-				if (temp) {
-					myidx += temp;
-				}
+				temp = invoke->data[myidx++]; /* keep the length of this info - maybe we don't get all data now */
+				cc_qsig_asn197no_get_name(origCalledName, ASN197NO_NAME_STRSIZE, &temp2, &myidx, invoke->data);
+				myidx += temp;
+				break;
+			default:
+				cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * unknown parameter %i\n", parameter);
 				break;
 		}
 	}
@@ -270,12 +268,12 @@ void cc_qsig_op_ecma_isdn_leginfo2(struct cc_qsig_invokedata *invoke, struct cap
 	snprintf(tempstr, 5, "%i", divCount);
 	pbx_builtin_setvar_helper(i->owner, "_QSIG_LI2_DIVCOUNT", tempstr);
 	
-	pbx_builtin_setvar_helper(i->owner, "_QSIG_LI2_DIVNUM", divertNum);
-	pbx_builtin_setvar_helper(i->owner, "_QSIG_LI2_ODIVNUM", origCalledNum);
+ 	pbx_builtin_setvar_helper(i->owner, "_QSIG_LI2_DIVNUM", divertPNS.partyNumber);
+ 	pbx_builtin_setvar_helper(i->owner, "_QSIG_LI2_ODIVNUM", origPNS.partyNumber);
 	pbx_builtin_setvar_helper(i->owner, "_QSIG_LI2_DIVNAME", divertName);
 	pbx_builtin_setvar_helper(i->owner, "_QSIG_LI2_ODIVNAME", origCalledName);
 
-	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * Got QSIG_LEG_INFO2: %i(%i), %ix %s->%s, %s->%s\n", divReason, orgDivReason, divCount, origCalledNum, divertNum, origCalledName, divertName);
+	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * Got QSIG_LEG_INFO2: %i(%i), %ix %s->%s, %s->%s\n", divReason, orgDivReason, divCount, origPNS.partyNumber, divertPNS.partyNumber, origCalledName, divertName);
 	
 	return;
 	

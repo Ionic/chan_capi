@@ -5474,7 +5474,6 @@ static int conf_interface(struct cc_capi_conf *conf, struct ast_variable *v)
 		CONF_TRUE(conf->es, "echosquelch", 1)
 		CONF_TRUE(conf->bridge, "bridge", 1)
 		CONF_TRUE(conf->ntmode, "ntmode", 1)
-		CONF_INTEGER(conf->qsigfeat, "qsig")
 		if (!strcasecmp(v->name, "callgroup")) {
 			conf->callgroup = ast_get_group(v->value);
 			continue;
@@ -5575,6 +5574,7 @@ static int conf_interface(struct cc_capi_conf *conf, struct ast_variable *v)
 		if (!strcasecmp(v->name, "disallow")) {
 			ast_parse_allow_disallow(&conf->prefs, &conf->capability, v->value, 0);
 		}
+		cc_pbx_qsig_conf_interface_value(conf, v);
 	}
 #undef CONF_STRING
 #undef CONF_INTEGER

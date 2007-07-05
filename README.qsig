@@ -82,14 +82,12 @@ The QSIG support includes:
     This should be configurable in the next release.
 
 - decoding of incoming Call Transfer feature
-    Does nothing useful yet, only some debug output. It's now a small step to implement inbound Path Replacement.
+    Enables inbound Path Replacement. If received, an automatic Path Replacement with asterisk internal bridging will be fired.
 
 Future Targets:
 ===============
 - check code for buffer overflows
-- complete Call Transfer inbound
-- Path Replacement inbound
-- Allow/Disallow Path Replacement within capi.conf
+- complete path replacement features
 - Call Rerouting feature [ECMA-174]
 - CCBS
 - AOC
@@ -113,5 +111,6 @@ Set qsig to one of the following values, which corresponds to your configuration
 ToDo List:
 ==========
 
-- Support for inbound routing
+- Support for inbound rerouting
 - Enhance ASN1-97 Addressing Data Elements support - will save much code
+- Allow/Disallow Path Replacement within capi.conf  - partially done

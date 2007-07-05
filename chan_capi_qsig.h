@@ -101,6 +101,9 @@
 
 #define CCQSIG_TIMER_WAIT_PRPROPOSE 1		/* Wait x seconds */
 
+
+#define free_null(x)	{ free(x); x = NULL; }
+
 /* Common QSIG structs */
 
 /*
@@ -179,6 +182,7 @@ extern int pbx_capi_qsig_bridge(struct capi_pvt *i0, struct capi_pvt *i1);
 
 
 extern void cc_qsig_interface_init(struct cc_capi_conf *conf, struct capi_pvt *tmp);
+extern void cc_pbx_qsig_conf_interface_value(struct cc_capi_conf *conf, struct ast_variable *v);
 extern void interface_cleanup_qsig(struct capi_pvt *i);
 extern void pbx_capi_qsig_unload_module(struct capi_pvt *i);
 extern void pbx_capi_qsig_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i);

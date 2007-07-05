@@ -268,8 +268,11 @@ struct cc_qsig_data {
 	int pr_propose_sendback; /* send back an prior received PR PROPOSE on Connect */
 	int pr_propose_sentback; /* set to 1 after sending an PR PROPOSE */
 	int pr_propose_active;
+	int pr_propose_doinboundbridge; /* We have to to bridge a call back to asterisk */
 	char *pr_propose_cid;	/* Call identity */
 	char *pr_propose_pn;	/* Party Number */
+	
+	char if_pr_propose_pn[AST_MAX_EXTENSION];	/* configured interface Party Number */
 	
 	/* Partner Channel - needed for many features */
 	struct capi_pvt *partner_ch;
@@ -457,6 +460,10 @@ struct cc_capi_profile {
 	unsigned int manufacturer[5];
 } __attribute__((__packed__));
 
+struct cc_capi_qsig_conf {
+	char if_pr_propose_pn[AST_MAX_EXTENSION];
+};
+
 struct cc_capi_conf {
 	char name[CAPI_MAX_STRING];	
 	char language[MAX_LANGUAGE];
@@ -481,6 +488,7 @@ struct cc_capi_conf {
 	int bridge;
 	int amaflags;
 	int qsigfeat;
+	struct cc_capi_qsig_conf qsigconf;
 	unsigned int faxsetting;
 	ast_group_t callgroup;
 	ast_group_t pickupgroup;
