@@ -788,8 +788,10 @@ static int pbx_capi_alert(struct ast_channel *c)
 		return -1;
 	}
 	
-	facilityarray = alloca(CAPI_MAX_FACILITYDATAARRAY_SIZE);
-	cc_qsig_add_call_alert_data(facilityarray, i, c);
+	if (i->qsigfeat) {
+		facilityarray = alloca(CAPI_MAX_FACILITYDATAARRAY_SIZE);
+		cc_qsig_add_call_alert_data(facilityarray, i, c);
+	}
 
 	if (capi_sendf(NULL, 0, CAPI_ALERT_REQ, i->PLCI, get_capi_MessageNumber(),
 	    "(()()()s())", facilityarray) != 0) {
@@ -1343,8 +1345,10 @@ static int capi_send_answer(struct ast_channel *c, _cstruct b3conf)
 	cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: Answering for %s\n",
 		i->vname, dnid);
 		
-	facilityarray = alloca(CAPI_MAX_FACILITYDATAARRAY_SIZE);
-	cc_qsig_add_call_answer_data(facilityarray, i, c);
+	if (i->qsigfeat) {
+		facilityarray = alloca(CAPI_MAX_FACILITYDATAARRAY_SIZE);
+		cc_qsig_add_call_answer_data(facilityarray, i, c);
+	}
 
 	if (capi_sendf(NULL, 0, CAPI_CONNECT_RESP, i->PLCI, i->MessageNumber,
 	    "w(wwwssss)s()()(()()()s())",
