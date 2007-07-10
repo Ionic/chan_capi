@@ -936,7 +936,7 @@ unsigned int cc_qsig_add_call_setup_data(unsigned char *data, struct capi_pvt *i
 	}
 		
 	cc_qsig_build_facility_struct(data, &dataidx, protocolvar, APDUINTERPRETATION_IGNORE, &nfe);
-	cc_qsig_encode_ecma_name_invoke(data, &dataidx, &invoke, i, 0);
+	cc_qsig_encode_ecma_name_invoke(data, &dataidx, &invoke, i, 0, i->owner->cid.cid_name);
 	cc_qsig_add_invoke(data, &dataidx, &invoke, i);
 	
 	if (add_externalinfo) {
@@ -950,6 +950,81 @@ unsigned int cc_qsig_add_call_setup_data(unsigned char *data, struct capi_pvt *i
 	return 0;
 }
 
+/*
+ * Handles outgoing Facilies on Call Answer
+ */
+unsigned int cc_qsig_add_call_answer_data(unsigned char *data, struct capi_pvt *i, struct  ast_channel *c)
+{
+	struct cc_qsig_invokedata invoke;
+	struct cc_qsig_nfe nfe;
+	unsigned int dataidx = 0;
+	int protocolvar = 0;
+	const char *connectedname;
+	
+	if (!i->qsigfeat)
+		return 0;
+	
+	connectedname = pbx_builtin_getvar_helper(c, "CONNECTEDNAME");
+	if (!strlen(connectedname)) 
+		return 0;
+	
+	switch (i->qsigfeat) {
+		case QSIG_TYPE_ALCATEL_ECMA:
+			protocolvar = Q932_PROTOCOL_ROSE;
+			break;
+		case QSIG_TYPE_HICOM_ECMAV2:
+			protocolvar = Q932_PROTOCOL_EXTENSIONS;
+			break;
+		default:
+			cc_log(LOG_WARNING, " Unknown QSIG variant configured.\n");
+			return 0;
+			break;
+	}
+
+	cc_qsig_build_facility_struct(data, &dataidx, protocolvar, APDUINTERPRETATION_IGNORE, &nfe);
+	cc_qsig_encode_ecma_name_invoke(data, &dataidx, &invoke, i, 2, (char *)connectedname);
+	cc_qsig_add_invoke(data, &dataidx, &invoke, i);
+
+	return 1;
+}
+
+/*
+ * Handles outgoing Facilies on Call Answer
+ */
+unsigned int cc_qsig_add_call_alert_data(unsigned char *data, struct capi_pvt *i, struct  ast_channel *c)
+{
+	struct cc_qsig_invokedata invoke;
+	struct cc_qsig_nfe nfe;
+	unsigned int dataidx = 0;
+	int protocolvar = 0;
+	const char *connectedname;
+	
+	if (!i->qsigfeat)
+		return 0;
+	
+	connectedname = pbx_builtin_getvar_helper(c, "CALLEDNAME");
+	if (!strlen(connectedname)) 
+		return 0;
+	
+	switch (i->qsigfeat) {
+		case QSIG_TYPE_ALCATEL_ECMA:
+			protocolvar = Q932_PROTOCOL_ROSE;
+			break;
+		case QSIG_TYPE_HICOM_ECMAV2:
+			protocolvar = Q932_PROTOCOL_EXTENSIONS;
+			break;
+		default:
+			cc_log(LOG_WARNING, " Unknown QSIG variant configured.\n");
+			return 0;
+			break;
+	}
+
+	cc_qsig_build_facility_struct(data, &dataidx, protocolvar, APDUINTERPRETATION_IGNORE, &nfe);
+	cc_qsig_encode_ecma_name_invoke(data, &dataidx, &invoke, i, 1, (char *)connectedname);
+	cc_qsig_add_invoke(data, &dataidx, &invoke, i);
+
+	return 1;
+}
 
 /*
  * Handles outgoing Facilies on capicommand
@@ -1301,6 +1376,44 @@ int pbx_capi_qsig_bridge(struct capi_pvt *i0,struct capi_pvt *i1)
 
 }
 
+int pbx_capi_qsig_sendtext(struct ast_channel *c, const char *text)
+{
+	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+	
+#if 0
+	/* suppress compiler warnings */
+	unsigned char *data = alloca(CAPI_MAX_FACILITYDATAARRAY_SIZE);
+	unsigned int dataidx = 0;
+	struct cc_qsig_invokedata invoke;
+	struct cc_qsig_nfe nfe;
+#endif
+	
+	int protocolvar = 0;
+	
+	if (!i->qsigfeat)
+		return 0;
+	
+	
+	if (!strlen(text)) 
+		return 0;
+	
+	switch (i->qsigfeat) {
+		case QSIG_TYPE_ALCATEL_ECMA:
+			protocolvar = Q932_PROTOCOL_ROSE;
+			break;
+		case QSIG_TYPE_HICOM_ECMAV2:
+			protocolvar = Q932_PROTOCOL_EXTENSIONS;
+			break;
+		default:
+			cc_log(LOG_WARNING, " Unknown QSIG variant configured.\n");
+			return 0;
+			break;
+	}
+
+	/* TODO: implement something - QSIG_LEG_INFO3 doesn't work here */	
+	
+	return 0;
+}
 		
 /*
  *  CAPI INFO_IND (QSIG part)

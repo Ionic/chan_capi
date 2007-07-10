@@ -779,6 +779,7 @@ static int pbx_capi_send_digit(struct ast_channel *c, char digit)
 static int pbx_capi_alert(struct ast_channel *c)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+	unsigned char *facilityarray = NULL;
 
 	if ((i->state != CAPI_STATE_INCALL) &&
 	    (i->state != CAPI_STATE_DID)) {
@@ -787,8 +788,11 @@ static int pbx_capi_alert(struct ast_channel *c)
 		return -1;
 	}
 	
+	facilityarray = alloca(CAPI_MAX_FACILITYDATAARRAY_SIZE);
+	cc_qsig_add_call_alert_data(facilityarray, i, c);
+
 	if (capi_sendf(NULL, 0, CAPI_ALERT_REQ, i->PLCI, get_capi_MessageNumber(),
-		"()") != 0) {
+	    "(()()()s())", facilityarray) != 0) {
 		return -1;
 	}
 
@@ -1311,6 +1315,7 @@ static int capi_send_answer(struct ast_channel *c, _cstruct b3conf)
 	char buf[CAPI_MAX_STRING];
 	const char *dnid;
 	const char *connectednumber;
+	unsigned char *facilityarray = NULL;
     
 	if ((i->isdnmode == CAPI_ISDNMODE_DID) &&
 	    ((strlen(i->incomingmsn) < strlen(i->dnid)) && 
@@ -1338,8 +1343,11 @@ static int capi_send_answer(struct ast_channel *c, _cstruct b3conf)
 	cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: Answering for %s\n",
 		i->vname, dnid);
 		
+	facilityarray = alloca(CAPI_MAX_FACILITYDATAARRAY_SIZE);
+	cc_qsig_add_call_answer_data(facilityarray, i, c);
+
 	if (capi_sendf(NULL, 0, CAPI_CONNECT_RESP, i->PLCI, i->MessageNumber,
-		"w(wwwssss)s()()()",
+	    "w(wwwssss)s()()(()()()s())",
 		0, /* accept call */
 		/* B protocol */
 		b_protocol_table[i->bproto].b1protocol,
@@ -1349,10 +1357,11 @@ static int capi_send_answer(struct ast_channel *c, _cstruct b3conf)
 		b_protocol_table[i->bproto].b2configuration,
 		b3conf,
 		capi_set_global_configuration(i),
-		buf /* connected number */
+		buf, /* connected number */
 		/* connected subaddress */
 		/* LLC */
 		/* Additional info */
+		facilityarray		
 		) != 0) {
 		return -1;	
 	}
@@ -5189,7 +5198,7 @@ const struct ast_channel_tech capi_tech = {
 #else
 	.send_digit = pbx_capi_send_digit,
 #endif
-	.send_text = NULL,
+	.send_text = pbx_capi_qsig_sendtext,
 	.call = pbx_capi_call,
 	.hangup = pbx_capi_hangup,
 	.answer = pbx_capi_answer,

@@ -116,15 +116,15 @@ void cc_qsig_op_ecma_isdn_namepres(struct cc_qsig_invokedata *invoke, struct cap
  * returns
  * 	always 0
  */
-int cc_qsig_encode_ecma_name_invoke(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke, struct capi_pvt *i, int nametype)
+int cc_qsig_encode_ecma_name_invoke(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke, struct capi_pvt *i, int nametype, char * name)
 {
 	unsigned char namebuf[51];
 	unsigned char data[255];
 	int dataidx = 0;
 	int namelen = 0;
 	
-	if (i->owner->cid.cid_name)
-		namelen = strlen(i->owner->cid.cid_name);
+	if (name)
+		namelen = strlen(name);
 	
 	if (namelen < 1) {	/* There's no name available, try to take Interface-Name */
 		if (i->name) {
@@ -138,15 +138,15 @@ int cc_qsig_encode_ecma_name_invoke(unsigned char * buf, unsigned int *idx, stru
 	} else {
 		if (namelen > 50)
 			namelen = 50;
-		memcpy(namebuf, i->owner->cid.cid_name, namelen);
+		memcpy(namebuf, name, namelen);
 	}
 	
 	invoke->id = 1;
   	invoke->descr_type = -1;	/* Let others do the work: qsig_add_invoke */
-	invoke->type = 0;	/* Invoke Operation Number, if OID it's the last byte*/
+	invoke->type = (nametype % 4);	/* Invoke Operation Number, if OID it's the last byte*/
 	
 	if (namelen>0) {
-		data[dataidx++] = 0x80 | (nametype % 4);	/* We send only simple Name, Namepresentation allowed */
+		data[dataidx++] = 0x80;	/* We send only simple Name, Namepresentation allowed */
 		data[dataidx++] = namelen;
 		memcpy(&data[dataidx], namebuf, namelen);
 		dataidx += namelen;
@@ -159,6 +159,76 @@ int cc_qsig_encode_ecma_name_invoke(unsigned char * buf, unsigned int *idx, stru
 	memcpy(invoke->data, data, dataidx);
 	
  	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * Sending \"%s\": (%i byte(s))\n", namebuf, namelen); 
+
+	return 0;
+}
+
+/* 
+ * Encode Operation: 1.3.12.9.22		ECMA/ISDN/LEG_INFO3
+ * 
+ * This function encodes the namepresentation facility
+ * The name will be copied from the cid.cid_name field of the asterisk channel struct.
+ * We create an invoke struct with the complete encoded invoke.
+ *
+ * parameters
+ *	buf 	is pointer to facility array, not used now
+ *	idx	current idx in facility array, not used now
+ *	invoke	struct, which contains encoded data for facility
+ *	i	is pointer to capi channel
+ * returns
+ * 	always 0
+ */
+int cc_qsig_encode_ecma_isdn_leginfo3_invoke(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke, struct capi_pvt *i, char *name)
+{
+	unsigned char namebuf[51];
+	unsigned char data[255];
+	
+	int dataidx = 0;
+	int namelen = 0;
+	
+	if (name)
+		namelen = strlen(name);
+	
+	if (namelen < 1) {	/* There's no name available, try to take Interface-Name */
+		if (i->name) {
+			if (strlen(i->name) >= 1) {
+				if (namelen > 50)
+					namelen = 50;
+				namelen = strlen(i->name);
+				memcpy(namebuf, i->name, namelen);
+			}
+		}
+	} else {
+		if (namelen > 50)
+			namelen = 50;
+		memcpy(namebuf, name, namelen);
+	}
+	
+	invoke->id = 1;
+	invoke->descr_type = -1;	/* Let others do the work: qsig_add_invoke */
+	invoke->type = 22;		/* Invoke Operation Number, if OID it's the last byte*/
+	
+	data[dataidx++] = ASN1_TF_CONSTRUCTED | ASN1_SEQUENCE;
+	data[dataidx++] = 5 + namelen;
+	
+	data[dataidx++] = ASN1_BOOLEAN;		/* PresentationAllowedIndicator */
+	data[dataidx++] = 1;
+	data[dataidx++] = 1;
+	
+	if (namelen>0) {
+		data[dataidx++] = 0x80;	/* We send only simple Name, Namepresentation allowed */
+		data[dataidx++] = namelen;
+		memcpy(&data[dataidx], namebuf, namelen);
+		dataidx += namelen;
+	} else {
+		data[dataidx++] = 0x84;	/* Name not available */
+		data[dataidx++] = 0;
+	}
+	
+	invoke->datalen = dataidx;
+	memcpy(invoke->data, data, dataidx);
+	
+	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * Sending QSIG_LEG_INFO3 \"%s\": (%i byte(s))\n", namebuf, namelen); 
 
 	return 0;
 }

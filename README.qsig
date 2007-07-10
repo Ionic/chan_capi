@@ -84,6 +84,13 @@ The QSIG support includes:
 - decoding of incoming Call Transfer feature
     Enables inbound Path Replacement. If received, an automatic Path Replacement with asterisk internal bridging will be fired.
 
+- Support for sending CalledName
+    If in dialplan a variable CALLEDNAME was set, it will be sent out to the switch, while the asterisk extension is ringing.
+
+- Support for sending ConnectedName
+    If in dialplan a variable CONNECTEDNAME was set, it will be sent out to the switch AFTER connection is answered by asterisk
+    
+
 Future Targets:
 ===============
 - check code for buffer overflows
@@ -91,7 +98,7 @@ Future Targets:
 - Call Rerouting feature [ECMA-174]
 - CCBS
 - AOC
-- Sent out LEG_INFO3 - maybe this would allow an sendtext (display instructions on the connected set)
+- sendtext implementation (e.g. display instructions on the connected set)
 - ...
 
 How to use:

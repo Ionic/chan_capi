@@ -97,6 +97,7 @@
 #define CCQSIG__ECMA__PRPROPOSE	1004		/* Path Replacement Propose */
 #define CCQSIG__ECMA__CTCOMPLETE 1012		/* Call Transfer Complete */
 #define CCQSIG__ECMA__LEGINFO2	1021		/* LEG INFORMATION2 */
+#define CCQSIG__ECMA__LEGINFO3	1022		/* LEG INFORMATION3 */
 
 
 #define CCQSIG_TIMER_WAIT_PRPROPOSE 1		/* Wait x seconds */
@@ -167,6 +168,8 @@ extern signed int cc_qsig_fill_invokestruct(unsigned char *data, int *idx, struc
 extern unsigned int cc_qsig_handle_capiind(unsigned char *data, struct capi_pvt *i);
 extern unsigned int cc_qsig_handle_capi_facilityind(unsigned char *data, struct capi_pvt *i);
 extern unsigned int cc_qsig_add_call_setup_data(unsigned char *data, struct capi_pvt *i, struct  ast_channel *c);
+extern unsigned int cc_qsig_add_call_answer_data(unsigned char *data, struct capi_pvt *i, struct  ast_channel *c);
+extern unsigned int cc_qsig_add_call_alert_data(unsigned char *data, struct capi_pvt *i, struct  ast_channel *c);
 extern unsigned int cc_qsig_add_call_facility_data(unsigned char *data, struct capi_pvt *i, int facility);
 
 extern signed int cc_qsig_identifyinvoke(struct cc_qsig_invokedata *invoke, int protocol);
@@ -179,6 +182,7 @@ extern int pbx_capi_qsig_ssct(struct ast_channel *c, char *param);
 extern int pbx_capi_qsig_ct(struct ast_channel *c, char *param);
 extern int pbx_capi_qsig_callmark(struct ast_channel *c, char *param);
 extern int pbx_capi_qsig_bridge(struct capi_pvt *i0, struct capi_pvt *i1);
+extern int pbx_capi_qsig_sendtext(struct ast_channel *c, const char *text);
 
 
 extern void cc_qsig_interface_init(struct cc_capi_conf *conf, struct capi_pvt *tmp);
