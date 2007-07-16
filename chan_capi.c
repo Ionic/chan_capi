@@ -728,6 +728,9 @@ static int pbx_capi_send_digit(struct ast_channel *c, char digit)
 		return -1;
 	}
 
+	cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: send_digit '%c' in state %d(%d)\n",
+		i->vname, digit, i->state, c->_state);
+
 	cc_mutex_lock(&i->lock);
 
 	if ((c->_state == AST_STATE_DIALING) &&
