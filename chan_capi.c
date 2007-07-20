@@ -710,8 +710,44 @@ static int pbx_capi_send_digit_begin(struct ast_channel *c, char digit)
 	return 0;
 }
 #endif
+
 /*
- * send a DTMF digit
+ * send DTMF digit
+ */
+static int capi_send_dtmf_digits(struct capi_pvt *i, char digit)
+{
+	int ret;
+
+	if (!(i->isdnstate & CAPI_ISDN_STATE_B3_UP)) {
+		cc_verbose(2, 1, VERBOSE_PREFIX_3 "%s: send DTMF: B-channel not connected.\n",
+			i->vname);
+		return -1;
+	}
+
+	if ((capi_controllers[i->controller]->dtmf == 0) || (i->doDTMF > 0)) {
+		/* let * fake it */
+		cc_mutex_unlock(&i->lock);
+		return -1;
+	}
+
+	ret = capi_sendf(i, 0, CAPI_FACILITY_REQ, i->NCCI, get_capi_MessageNumber(),
+		"w(www(b)())",
+		FACILITYSELECTOR_DTMF,
+		3,	/* send DTMF digit */
+		CAPI_DTMF_DURATION,	/* XXX: duration comes from asterisk in 1.4 */
+		CAPI_DTMF_DURATION,
+		digit
+	);
+		
+	if (ret == 0) {
+		cc_verbose(3, 0, VERBOSE_PREFIX_4 "%s: sent dtmf '%c'\n",
+			i->vname, digit);
+	}
+	return ret;
+}
+
+/*
+ * send a digit
  */
 #if defined(CC_AST_HAS_VERSION_1_4) && defined(CC_AST_HAS_SEND_DIGIT_END_DURATION)
 static int pbx_capi_send_digit(struct ast_channel *c, char digit, unsigned int duration)
@@ -735,42 +771,32 @@ static int pbx_capi_send_digit(struct ast_channel *c, char digit)
 
 	if ((c->_state == AST_STATE_DIALING) &&
 	    (i->state != CAPI_STATE_DISCONNECTING)) {
-		did[0] = digit;
-		did[1] = 0;
-		strncat(i->dnid, did, sizeof(i->dnid) - 1);
-		update_channel_name(i);	
-		if ((i->isdnstate & CAPI_ISDN_STATE_SETUP_ACK) &&
-		    (i->doOverlap == 0)) {
-			ret = capi_send_info_digits(i, &digit, 1);
+		if (!(i->isdnstate & CAPI_ISDN_STATE_ISDNPROGRESS)) {
+			did[0] = digit;
+			did[1] = 0;
+			strncat(i->dnid, did, sizeof(i->dnid) - 1);
+			update_channel_name(i);	
+			if ((i->isdnstate & CAPI_ISDN_STATE_SETUP_ACK) &&
+			    (i->doOverlap == 0)) {
+				ret = capi_send_info_digits(i, &digit, 1);
+			} else {
+				/* if no SETUP-ACK yet, add it to the overlap list */
+				strncat(i->overlapdigits, &digit, 1);
+				i->doOverlap = 1;
+			}
+			cc_mutex_unlock(&i->lock);
+			return ret;
 		} else {
-			/* if no SETUP-ACK yet, add it to the overlap list */
-			strncat(i->overlapdigits, &digit, 1);
-			i->doOverlap = 1;
+			/* if PROGRESS arrived, we sent as DTMF */
+			capi_send_dtmf_digits(i, digit);
+			cc_mutex_unlock(&i->lock);
+			return ret;
 		}
-		cc_mutex_unlock(&i->lock);
-		return ret;
 	}
 
-	if ((i->state == CAPI_STATE_CONNECTED) && (i->isdnstate & CAPI_ISDN_STATE_B3_UP)) {
+	if (i->state == CAPI_STATE_CONNECTED) {
 		/* we have a real connection, so send real DTMF */
-		if ((capi_controllers[i->controller]->dtmf == 0) || (i->doDTMF > 0)) {
-			/* let * fake it */
-			cc_mutex_unlock(&i->lock);
-			return -1;
-		}
-		ret = capi_sendf(i, 0, CAPI_FACILITY_REQ, i->NCCI, get_capi_MessageNumber(),
-			"w(www(b)())",
-			FACILITYSELECTOR_DTMF,
-			3,	/* send DTMF digit */
-			CAPI_DTMF_DURATION,	/* XXX: duration comes from asterisk in 1.4 */
-			CAPI_DTMF_DURATION,
-			digit
-		);
-		
-		if (ret == 0) {
-			cc_verbose(3, 0, VERBOSE_PREFIX_4 "%s: sent dtmf '%c'\n",
-				i->vname, digit);
-		}
+		capi_send_dtmf_digits(i, digit);
 	}
 	cc_mutex_unlock(&i->lock);
 	return ret;
@@ -2714,6 +2740,7 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 				break;
 			}
 		}
+		i->isdnstate |= CAPI_ISDN_STATE_ISDNPROGRESS;
 		send_progress(i);
 		break;
 	case 0x8005:	/* SETUP */
