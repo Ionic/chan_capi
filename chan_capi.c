@@ -724,6 +724,9 @@ static int capi_send_dtmf_digits(struct capi_pvt *i, char digit)
 		return -1;
 	}
 
+	cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: send DTMF '%c'.\n",
+		i->vname, digit);
+
 	if ((capi_controllers[i->controller]->dtmf == 0) || (i->doDTMF > 0)) {
 		/* let * fake it */
 		cc_mutex_unlock(&i->lock);
@@ -2719,6 +2722,7 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 		local_queue_frame(i, &fr);
 		break;
 	case 0x8003:	/* PROGRESS */
+		i->isdnstate |= CAPI_ISDN_STATE_ISDNPROGRESS;
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element PROGRESS\n",
 			i->vname);
 		/*
@@ -2740,7 +2744,6 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 				break;
 			}
 		}
-		i->isdnstate |= CAPI_ISDN_STATE_ISDNPROGRESS;
 		send_progress(i);
 		break;
 	case 0x8005:	/* SETUP */
