@@ -791,7 +791,7 @@ static int pbx_capi_send_digit(struct ast_channel *c, char digit)
 			return ret;
 		} else {
 			/* if PROGRESS arrived, we sent as DTMF */
-			capi_send_dtmf_digits(i, digit);
+			ret = capi_send_dtmf_digits(i, digit);
 			cc_mutex_unlock(&i->lock);
 			return ret;
 		}
@@ -799,7 +799,7 @@ static int pbx_capi_send_digit(struct ast_channel *c, char digit)
 
 	if (i->state == CAPI_STATE_CONNECTED) {
 		/* we have a real connection, so send real DTMF */
-		capi_send_dtmf_digits(i, digit);
+		ret = capi_send_dtmf_digits(i, digit);
 	}
 	cc_mutex_unlock(&i->lock);
 	return ret;
