@@ -961,10 +961,14 @@ unsigned int cc_qsig_add_call_answer_data(unsigned char *data, struct capi_pvt *
 	int protocolvar = 0;
 	const char *connectedname;
 	
+	data[0] = 0;
+
 	if (!i->qsigfeat)
 		return 0;
 	
-	connectedname = pbx_builtin_getvar_helper(c, "CONNECTEDNAME");
+	if (!(connectedname = pbx_builtin_getvar_helper(c, "CONNECTEDNAME")))
+		return 0;
+	
 	if (!strlen(connectedname)) 
 		return 0;
 	
@@ -989,7 +993,7 @@ unsigned int cc_qsig_add_call_answer_data(unsigned char *data, struct capi_pvt *
 }
 
 /*
- * Handles outgoing Facilies on Call Answer
+ * Handles outgoing Facilies on Call Alert
  */
 unsigned int cc_qsig_add_call_alert_data(unsigned char *data, struct capi_pvt *i, struct  ast_channel *c)
 {
@@ -999,10 +1003,14 @@ unsigned int cc_qsig_add_call_alert_data(unsigned char *data, struct capi_pvt *i
 	int protocolvar = 0;
 	const char *connectedname;
 	
+	data[0] = 0;
+	
 	if (!i->qsigfeat)
 		return 0;
 	
-	connectedname = pbx_builtin_getvar_helper(c, "CALLEDNAME");
+ 	if (!(connectedname = pbx_builtin_getvar_helper(c, "CALLEDNAME")))
+		return 0;
+		
 	if (!strlen(connectedname)) 
 		return 0;
 	
