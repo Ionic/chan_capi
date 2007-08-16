@@ -663,6 +663,12 @@ void handle_facility_confirmation_supplementary(
 				name, PLCI);
 		}
 		break;
+	case 0x0003: /* RETRIEVE */
+		if (serviceinfo == 0) {
+			cc_verbose(2, 0, VERBOSE_PREFIX_3 "%s: Call retreived (PLCI=%#x)\n",
+				name, PLCI);
+		}
+		break;
 	case 0x000f: /* CCBS request */
 		cc_verbose(2, 1, VERBOSE_PREFIX_3 "%s: CCBS request confirmation (0x%04x) (PLCI=%#x)\n",
 			name, serviceinfo, PLCI);
