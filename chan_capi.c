@@ -3979,9 +3979,10 @@ static int pbx_capi_retrieve(struct ast_channel *c, char *param)
 		return -1;
 	}
 
-	cc_mutex_lock(&i->lock);
+	if (param != NULL)
+		cc_mutex_lock(&i->lock);
 
-	capi_sendf(i, 1, CAPI_FACILITY_REQ, plci, get_capi_MessageNumber(),
+	capi_sendf(i, (param == NULL) ? 0:1, CAPI_FACILITY_REQ, plci, get_capi_MessageNumber(),
 		"w(w())",
 		FACILITYSELECTOR_SUPPLEMENTARY,
 		0x0003  /* retrieve */
@@ -3989,7 +3990,8 @@ static int pbx_capi_retrieve(struct ast_channel *c, char *param)
 	
 	i->isdnstate &= ~CAPI_ISDN_STATE_HOLD;
 
-	cc_mutex_unlock(&i->lock);
+	if (param != NULL)
+		cc_mutex_unlock(&i->lock);
 
 	cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: sent RETRIEVE for PLCI=%#x\n",
 		i->vname, plci);
