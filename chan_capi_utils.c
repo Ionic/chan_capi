@@ -455,6 +455,17 @@ MESSAGE_EXCHANGE_ERROR capi_sendf(
 			*(p++) = (unsigned char)(d >> 16);
 			*(p++) = (unsigned char)(d >> 24);
 			break;
+		case 'q': /* quad word (8 bytes) */
+			d = va_arg(ap, unsigned int);
+			*(p++) = (unsigned char) d;
+			*(p++) = (unsigned char)(d >> 8);
+			*(p++) = (unsigned char)(d >> 16);
+			*(p++) = (unsigned char)(d >> 24);
+			*(p++) = (unsigned char)(d >> 32);
+			*(p++) = (unsigned char)(d >> 40);
+			*(p++) = (unsigned char)(d >> 48);
+			*(p++) = (unsigned char)(d >> 56);
+			break;
 		case 's': /* struct, length is the first byte */
 			string = va_arg(ap, unsigned char *);
 			if (string == NULL) {
@@ -1211,12 +1222,14 @@ int capi_write_frame(struct capi_pvt *i, struct ast_frame *f)
    
    		error = 1; 
 		if (i->B3q > 0) {
-			error = capi_sendf(NULL, 0, CAPI_DATA_B3_REQ, i->NCCI, get_capi_MessageNumber(),
-				"dwww",
-				buf,
-				fsmooth->datalen,
-				i->send_buffer_handle,
-				0);
+			if (sizeof(void *) == 4) {
+				error = capi_sendf(NULL, 0, CAPI_DATA_B3_REQ, i->NCCI, get_capi_MessageNumber(),
+					"dwww", buf, fsmooth->datalen, i->send_buffer_handle, 0);
+			} else {
+				/* for 64bit */
+				error = capi_sendf(NULL, 0, CAPI_DATA_B3_REQ, i->NCCI, get_capi_MessageNumber(),
+					"dwwwq", 0, fsmooth->datalen, i->send_buffer_handle, 0, buf);
+			}
 		} else {
 			cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: too much voice to send for NCCI=%#x\n",
 				i->vname, i->NCCI);
