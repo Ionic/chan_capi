@@ -416,6 +416,7 @@ MESSAGE_EXCHANGE_ERROR capi_sendf(
 	MESSAGE_EXCHANGE_ERROR ret;
 	int i, j;
 	unsigned int d;
+	uint64_t ll;
 	unsigned char *p, *p_length;
 	unsigned char *string;
 	va_list ap;
@@ -456,15 +457,15 @@ MESSAGE_EXCHANGE_ERROR capi_sendf(
 			*(p++) = (unsigned char)(d >> 24);
 			break;
 		case 'q': /* quad word (8 bytes) */
-			d = va_arg(ap, unsigned int);
-			*(p++) = (unsigned char) d;
-			*(p++) = (unsigned char)(d >> 8);
-			*(p++) = (unsigned char)(d >> 16);
-			*(p++) = (unsigned char)(d >> 24);
-			*(p++) = (unsigned char)(d >> 32);
-			*(p++) = (unsigned char)(d >> 40);
-			*(p++) = (unsigned char)(d >> 48);
-			*(p++) = (unsigned char)(d >> 56);
+			ll = va_arg(ap, uint64_t);
+			*(p++) = (unsigned char) ll;
+			*(p++) = (unsigned char)(ll >> 8);
+			*(p++) = (unsigned char)(ll >> 16);
+			*(p++) = (unsigned char)(ll >> 24);
+			*(p++) = (unsigned char)(ll >> 32);
+			*(p++) = (unsigned char)(ll >> 40);
+			*(p++) = (unsigned char)(ll >> 48);
+			*(p++) = (unsigned char)(ll >> 56);
 			break;
 		case 's': /* struct, length is the first byte */
 			string = va_arg(ap, unsigned char *);
