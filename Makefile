@@ -22,8 +22,6 @@ OSNAME=${shell uname}
 
 .EXPORT_ALL_VARIABLES:
 
-.PHONY: openpbx
-
 V=0
 
 INSTALL_PREFIX=
@@ -111,7 +109,6 @@ all: config.h $(SHAREDOS)
 clean:
 	rm -f config.h
 	rm -f *.so *.o
-	rm -rf openpbx
 
 config.h:
 	./create_config.sh "$(ASTERISK_HEADER_DIR)"
