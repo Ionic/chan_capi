@@ -416,9 +416,9 @@ MESSAGE_EXCHANGE_ERROR capi_sendf(
 	MESSAGE_EXCHANGE_ERROR ret;
 	int i, j;
 	unsigned int d;
-	uint64_t ll;
 	unsigned char *p, *p_length;
 	unsigned char *string;
+	unsigned short header_length;
 	va_list ap;
 	capi_prestruct_t *s;
 	unsigned char msg[2048];
@@ -455,17 +455,6 @@ MESSAGE_EXCHANGE_ERROR capi_sendf(
 			*(p++) = (unsigned char)(d >> 8);
 			*(p++) = (unsigned char)(d >> 16);
 			*(p++) = (unsigned char)(d >> 24);
-			break;
-		case 'q': /* quad word (8 bytes) */
-			ll = va_arg(ap, uint64_t);
-			*(p++) = (unsigned char) ll;
-			*(p++) = (unsigned char)(ll >> 8);
-			*(p++) = (unsigned char)(ll >> 16);
-			*(p++) = (unsigned char)(ll >> 24);
-			*(p++) = (unsigned char)(ll >> 32);
-			*(p++) = (unsigned char)(ll >> 40);
-			*(p++) = (unsigned char)(ll >> 48);
-			*(p++) = (unsigned char)(ll >> 56);
 			break;
 		case 's': /* struct, length is the first byte */
 			string = va_arg(ap, unsigned char *);
@@ -518,7 +507,21 @@ MESSAGE_EXCHANGE_ERROR capi_sendf(
 	if (p_length) {
 		cc_log(LOG_ERROR, "capi_sendf: inconsistent format \"%s\"\n", format);
 	}
-	write_capi_word(&msg[0], (unsigned short)(p - (&msg[0])));
+
+	header_length = (unsigned short)(p - (&msg[0]));
+
+	if ((sizeof(void *) > 4) && (command == CAPI_DATA_B3_REQ)) {
+		void* req_data;
+		va_start(ap, format);
+		req_data = va_arg(ap, void *);
+		va_end(ap);
+
+		header_length += 8;
+		write_capi_dword(&msg[12], 0);
+		memcpy(&msg[22], &req_data, sizeof(void *));
+	}
+
+	write_capi_word(&msg[0], header_length);
 
 	ret = _capi_put_msg(&msg[0]);
 	if ((!(ret)) && (waitconf)) {
@@ -1223,14 +1226,8 @@ int capi_write_frame(struct capi_pvt *i, struct ast_frame *f)
    
    		error = 1; 
 		if (i->B3q > 0) {
-			if (sizeof(void *) == 4) {
-				error = capi_sendf(NULL, 0, CAPI_DATA_B3_REQ, i->NCCI, get_capi_MessageNumber(),
-					"dwww", buf, fsmooth->datalen, i->send_buffer_handle, 0);
-			} else {
-				/* for 64bit */
-				error = capi_sendf(NULL, 0, CAPI_DATA_B3_REQ, i->NCCI, get_capi_MessageNumber(),
-					"dwwwq", 0, fsmooth->datalen, i->send_buffer_handle, 0, buf);
-			}
+			error = capi_sendf(NULL, 0, CAPI_DATA_B3_REQ, i->NCCI, get_capi_MessageNumber(),
+				"dwww", buf, fsmooth->datalen, i->send_buffer_handle, 0);
 		} else {
 			cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: too much voice to send for NCCI=%#x\n",
 				i->vname, i->NCCI);

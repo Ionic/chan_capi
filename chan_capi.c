@@ -3048,14 +3048,8 @@ static void capidev_send_faxdata(struct capi_pvt *i)
 		len = fread(faxdata, 1, CAPI_MAX_B3_BLOCK_SIZE, i->fFax);
 		if (len > 0) {
 			i->send_buffer_handle++;
-			if (sizeof(void *) == 4) {
-				capi_sendf(NULL, 0, CAPI_DATA_B3_REQ, i->NCCI, get_capi_MessageNumber(),
-					"dwww", faxdata, len, i->send_buffer_handle, 0);
-			} else {
-				/* 64bit */
-				capi_sendf(NULL, 0, CAPI_DATA_B3_REQ, i->NCCI, get_capi_MessageNumber(),
-					"dwwwq", 0, len, i->send_buffer_handle, 0, faxdata);
-			}
+			capi_sendf(NULL, 0, CAPI_DATA_B3_REQ, i->NCCI, get_capi_MessageNumber(),
+				"dwww", faxdata, len, i->send_buffer_handle, 0);
 			cc_verbose(5, 1, VERBOSE_PREFIX_3 "%s: send %d fax bytes.\n",
 				i->vname, len);
 #ifndef CC_AST_HAS_VERSION_1_4
