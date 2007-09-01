@@ -2566,6 +2566,39 @@ static void capidev_handle_setup_element(_cmsg *CMSG, unsigned int PLCI, struct 
 }
 
 /*
+ * Send info elements back to calling channel if in NT-mode
+ * (this works with peerlink only)
+ */
+static void capidev_sendback_info(struct capi_pvt *i, _cmsg *CMSG)
+{
+	struct capi_pvt *i2;
+	unsigned char fac[CAPI_MAX_FACILITYDATAARRAY_SIZE];
+	unsigned char length;
+
+	if (!(i->peer))
+		return;
+
+	if (i->peer->tech != &capi_tech)
+		return;
+
+	i2 = CC_CHANNEL_PVT(i->peer);
+
+	if (!(i2->ntmode))
+		return;
+
+	length = INFO_IND_INFOELEMENT(CMSG)[0];
+
+	fac[0] = length + 2;
+	fac[1] = (unsigned char) INFO_IND_INFONUMBER(CMSG) & 0xff;
+	memcpy(&fac[2], &INFO_IND_INFOELEMENT(CMSG)[0], length + 1);
+
+	capi_sendf(NULL, 0, CAPI_INFO_REQ, i2->PLCI, get_capi_MessageNumber(),
+		"()(()()()s())",
+		fac
+	);
+}
+
+/*
  * CAPI INFO_IND
  */
 static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
@@ -2586,10 +2619,12 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 		if (i->owner) {
 			i->owner->hangupcause = INFO_IND_INFOELEMENT(CMSG)[2] & 0x7f;
 		}
+		capidev_sendback_info(i, CMSG);
 		break;
 	case 0x0014:	/* Call State */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element CALL STATE %02x\n",
 			i->vname, INFO_IND_INFOELEMENT(CMSG)[1]);
+		capidev_sendback_info(i, CMSG);
 		break;
 	case 0x0018:	/* Channel Identification */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element CHANNEL IDENTIFICATION %02x\n",
@@ -2607,6 +2642,7 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element PI %02x %02x\n",
 			i->vname, INFO_IND_INFOELEMENT(CMSG)[1], INFO_IND_INFOELEMENT(CMSG)[2]);
 		handle_progress_indicator(CMSG, PLCI, i);
+		capidev_sendback_info(i, CMSG);
 		break;
 	case 0x0027: {	/*  Notification Indicator */
 		char *desc = "?";
@@ -2631,11 +2667,13 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 		}
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element NOTIFICATION INDICATOR '%s' (0x%02x)\n",
 			i->vname, desc, INFO_IND_INFOELEMENT(CMSG)[1]);
+		capidev_sendback_info(i, CMSG);
 		break;
 	}
 	case 0x0028:	/* DSP */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element DSP\n",
 			i->vname);
+		capidev_sendback_info(i, CMSG);
 		break;
 	case 0x0029:	/* Date/Time */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element Date/Time %02d/%02d/%02d %02d:%02d\n",
@@ -2643,6 +2681,7 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 			INFO_IND_INFOELEMENT(CMSG)[1], INFO_IND_INFOELEMENT(CMSG)[2],
 			INFO_IND_INFOELEMENT(CMSG)[3], INFO_IND_INFOELEMENT(CMSG)[4],
 			INFO_IND_INFOELEMENT(CMSG)[5]);
+		capidev_sendback_info(i, CMSG);
 		break;
 	case 0x0070:	/* Called Party Number */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element CALLED PARTY NUMBER\n",
@@ -2666,6 +2705,7 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 			}
 			i->owner->cid.cid_rdnis = strdup(p);
 		}
+		capidev_sendback_info(i, CMSG);
 		break;
 	case 0x0076:	/* Redirection Number */
 		p = capi_number(INFO_IND_INFOELEMENT(CMSG), 2);
@@ -2685,6 +2725,7 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 			snprintf(numberbuf, sizeof(numberbuf) - 1, "%s%s", p2, p);
 			pbx_builtin_setvar_helper(i->owner, "REDIRECTIONNUMBER", numberbuf);
 		}
+		capidev_sendback_info(i, CMSG);
 		break;
 	case 0x00a1:	/* Sending Complete */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element Sending Complete\n",
@@ -4317,7 +4358,7 @@ static int pbx_capi_signal_progress(struct ast_channel *c, char *param)
 
 	/* send facility for Progress 'In-Band info available' */
 	capi_sendf(NULL, 0, CAPI_INFO_REQ, i->PLCI, get_capi_MessageNumber(),
-		"()(()()()s)",
+		"()(()()()s())",
 		fac
 	);
 
