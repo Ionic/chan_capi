@@ -11,6 +11,7 @@ HEAD
 - fixed ton-display in 'show capi channels' on outgoing line.
 - fix for 64bit support
 - Asterisk 1.4.4 adaptions
+- send 'In-band info available' for progress in NT-mode
 
 
 chan_capi-1.0.1
