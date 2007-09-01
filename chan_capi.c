@@ -4291,6 +4291,7 @@ static int pbx_capi_realhangup(struct ast_channel *c, char *param)
 static int pbx_capi_signal_progress(struct ast_channel *c, char *param)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+	unsigned char fac[] = "\x04\x1e\x02\x82\x88"; /* In-Band info available */
 
 	if ((i->state != CAPI_STATE_DID) && (i->state != CAPI_STATE_INCALL)) {
 		cc_log(LOG_DEBUG, "wrong channel state to signal PROGRESS\n");
@@ -4313,6 +4314,12 @@ static int pbx_capi_signal_progress(struct ast_channel *c, char *param)
 	i->isdnstate |= CAPI_ISDN_STATE_B3_PEND;
 
 	cc_select_b(i, NULL);
+
+	/* send facility for Progress 'In-Band info available' */
+	capi_sendf(NULL, 0, CAPI_INFO_REQ, i->PLCI, get_capi_MessageNumber(),
+		"()(()()()s)",
+		fac
+	);
 
 	return 0;
 }
