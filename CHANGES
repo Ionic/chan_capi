@@ -12,6 +12,7 @@ HEAD
 - fix for 64bit support
 - Asterisk 1.4.4 adaptions
 - send 'In-band info available' for progress in NT-mode
+- detect KEYPAD digits in NT-mode and send call to 'K...' extension
 
 
 chan_capi-1.0.1

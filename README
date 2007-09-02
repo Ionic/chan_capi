@@ -70,6 +70,7 @@ This chan_capi version includes:
 - some QSIG extensions (see README.qsig)
 - CCBS (call completion on busy subscriber)
 - CAPI CHAT (CAPI MeetMe using onboard DSPs)
+- KEYPAD digits detection
 
 
 The Dial string
@@ -399,6 +400,11 @@ FAXFORMAT     : 0 = SFF.
 FAXPAGES      : Number of pages received.
 FAXID         : The ID of the remote fax maschine.
 
+KEYPAD digits in NT-mode
+========================
+If the device connected to a NT-mode port sends KEYPAD digits
+instead of normal digits, this call is then send to extension
+'Kxxx'. Where 'xxx' stands for the KEYPAD digits sent.
 
 CLI command "capi show channels"
 ================================

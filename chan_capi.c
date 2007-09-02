@@ -2394,7 +2394,8 @@ static void start_pbx_on_match(struct capi_pvt *i, unsigned int PLCI, _cword Mes
 /*
  * Called Party Number via INFO_IND
  */
-static void capidev_handle_did_digits(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
+static void capidev_handle_did_digits(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI,
+	struct capi_pvt *i, unsigned int skip)
 {
 	char *did;
 	struct ast_frame fr = { AST_FRAME_NULL, };
@@ -2411,15 +2412,20 @@ static void capidev_handle_did_digits(_cmsg *CMSG, unsigned int PLCI, unsigned i
 		return;
 	}
 
-	did = capi_number(INFO_IND_INFOELEMENT(CMSG), 1);
+	did = capi_number(INFO_IND_INFOELEMENT(CMSG), skip);
 
 	if ((!(i->isdnstate & CAPI_ISDN_STATE_DID)) && 
 	    (strlen(i->dnid) && !strcasecmp(i->dnid, did))) {
 		did = NULL;
 	}
 
-	if ((did) && (strlen(i->dnid) < (sizeof(i->dnid) - 1)))
+	if ((did) && (strlen(i->dnid) < (sizeof(i->dnid) - 1))) {
+		if ((!strlen(i->dnid)) && (INFO_IND_INFONUMBER(CMSG) = 0x002c)) {
+			/* start of keypad */
+			strcat(i->dnid, "K");
+		}
 		strcat(i->dnid, did);
+	}
 
 	i->isdnstate |= CAPI_ISDN_STATE_DID;
 	
@@ -2556,7 +2562,7 @@ static void capidev_handle_setup_element(_cmsg *CMSG, unsigned int PLCI, struct 
 	}
 
 	if (i->isdnmode == CAPI_ISDNMODE_DID) {
-		if (!strlen(i->dnid) && (i->immediate)) {
+		if (strlen(i->dnid) || (i->immediate)) {
 			start_pbx_on_match(i, PLCI, HEADER_MSGNUM(CMSG));
 		}
 	} else {
@@ -2683,10 +2689,16 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 			INFO_IND_INFOELEMENT(CMSG)[5]);
 		capidev_sendback_info(i, CMSG);
 		break;
+	case 0x002c:	/* Keypad facility */
+		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element KEYPAD FACILITY\n",
+			i->vname);
+		/* we handle keypad digits as normal digits */
+		capidev_handle_did_digits(CMSG, PLCI, NCCI, i, 0);
+		break;
 	case 0x0070:	/* Called Party Number */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element CALLED PARTY NUMBER\n",
 			i->vname);
-		capidev_handle_did_digits(CMSG, PLCI, NCCI, i);
+		capidev_handle_did_digits(CMSG, PLCI, NCCI, i, 1);
 		break;
 	case 0x0074:	/* Redirecting Number */
 		p = capi_number(INFO_IND_INFOELEMENT(CMSG), 3);
@@ -3386,6 +3398,7 @@ static void capidev_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, un
 	struct capi_pvt *i;
 	char *DNID;
 	char *CID;
+	char *KEYPAD;
 	int callernplan = 0, callednplan = 0;
 	int controller = 0;
 	char *msn;
@@ -3407,10 +3420,18 @@ static void capidev_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, un
 		return;
 	}
 
+	KEYPAD = capi_number(CONNECT_IND_KEYPADFACILITY(CMSG), 0);
 	DNID = capi_number(CONNECT_IND_CALLEDPARTYNUMBER(CMSG), 1);
 	if (!DNID) {
-		DNID = emptydnid;
+		if (!KEYPAD) {
+			DNID = emptydnid;
+		} else {
+			/* if keypad is signaled instead, use it as DID with 'K' */
+			DNID = alloca(AST_MAX_EXTENSION);
+			snprintf(DNID, AST_MAX_EXTENSION -1, "K%s", KEYPAD);
+		}
 	}
+
 	if (CONNECT_IND_CALLEDPARTYNUMBER(CMSG)[0] > 1) {
 		callednplan = (CONNECT_IND_CALLEDPARTYNUMBER(CMSG)[1] & 0x7f);
 	}
