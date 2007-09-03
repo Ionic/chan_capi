@@ -3446,7 +3446,7 @@ static void capidev_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, un
 	cc_verbose(1, 1, VERBOSE_PREFIX_3 "CONNECT_IND (PLCI=%#x,DID=%s,CID=%s,CIP=%#x,CONTROLLER=%#x)\n",
 		PLCI, DNID, CID, CONNECT_IND_CIPVALUE(CMSG), controller);
 
-	if (CONNECT_IND_BCHANNELINFORMATION(CMSG)) {
+	if (CONNECT_IND_BCHANNELINFORMATION(CMSG) && (CONNECT_IND_BCHANNELINFORMATION(CMSG)[0] > 0)) {
 		bchannelinfo[0] = CONNECT_IND_BCHANNELINFORMATION(CMSG)[1] + '0';
 	}
 
