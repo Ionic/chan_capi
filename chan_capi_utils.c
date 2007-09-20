@@ -934,6 +934,11 @@ char *capi_number_func(unsigned char *data, unsigned int strip, char *buf)
 {
 	unsigned int len;
 
+	if (data == NULL) {
+		buf[0] = '\0';
+		return buf;
+	}
+
 	if (data[0] == 0xff) {
 		len = read_capi_word(&data[1]);
 		data += 2;

@@ -3398,7 +3398,7 @@ static void capidev_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, un
 	struct capi_pvt *i;
 	char *DNID;
 	char *CID;
-	char *KEYPAD;
+	char *KEYPAD = NULL;
 	int callernplan = 0, callednplan = 0;
 	int controller = 0;
 	char *msn;
@@ -3420,7 +3420,9 @@ static void capidev_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, un
 		return;
 	}
 
-	KEYPAD = capi_number(CONNECT_IND_KEYPADFACILITY(CMSG), 0);
+	if (CONNECT_IND_KEYPADFACILITY(CMSG)) {
+		KEYPAD = capi_number(CONNECT_IND_KEYPADFACILITY(CMSG), 0);
+	}
 	DNID = capi_number(CONNECT_IND_CALLEDPARTYNUMBER(CMSG), 1);
 	if (!DNID) {
 		if (!KEYPAD) {
