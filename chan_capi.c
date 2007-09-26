@@ -1349,6 +1349,12 @@ static int capi_send_answer(struct ast_channel *c, _cstruct b3conf)
 	const char *connectednumber;
 	unsigned char *facilityarray = NULL;
     
+	if (i->state == CAPI_STATE_DISCONNECTED) {
+		cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: Not answering disconnected call.\n",
+			i->vname);
+		return -1;	
+	}
+
 	if ((i->isdnmode == CAPI_ISDNMODE_DID) &&
 	    ((strlen(i->incomingmsn) < strlen(i->dnid)) && 
 	    (strcmp(i->incomingmsn, "*")))) {
