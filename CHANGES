@@ -1,7 +1,7 @@
 CHANGES
 =======
 
-HEAD
+chan_capi-1.0.2
 ------------------
 - possibly fixed ECT channel hang
 - added 'x' option to capicommand(ect) to have real 'explicit call transfer'
@@ -13,6 +13,7 @@ HEAD
 - Asterisk 1.4.4 adaptions
 - send 'In-band info available' for progress in NT-mode
 - detect KEYPAD digits in NT-mode and send call to 'K...' extension
+- fixed possible deadlock when answering a just disconnected call
 
 
 chan_capi-1.0.1

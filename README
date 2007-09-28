@@ -21,14 +21,12 @@ Jan Stocker
 Frank Sautter, levigo group
 Hans Petter Selasky
 Simon Peter <dn.tlp@gmx.net>
+Mario Goegel <m.goegel@gmx.de>
 
 (...and all the others that have been forgotten...) :-)
 
 No support for Asterisk 1.0.x any more, you need at least
 Asterisk 1.2.x
-
-To support all fax features (e.g. fax polling), you
-need version 3 of libcapi20.
 
 This chan_capi version includes:
 ================================
