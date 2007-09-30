@@ -1,6 +1,10 @@
 CHANGES
 =======
 
+HEAD
+------------------
+- added transfergroup config option to set controllers allowed for transfer.
+
 chan_capi-1.0.2
 ------------------
 - possibly fixed ECT channel hang

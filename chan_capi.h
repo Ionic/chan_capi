@@ -255,6 +255,7 @@ struct cc_capi_gains {
 #define CAPI_WAITEVENT_B3_UP          0x00010000
 #define CAPI_WAITEVENT_B3_DOWN        0x00020000
 #define CAPI_WAITEVENT_ANSWER_FINISH  0x00030000
+#define CAPI_WAITEVENT_HOLD_IND       0x00040000
 
 /* Private qsig data for capi device */
 struct cc_qsig_data {
@@ -352,6 +353,8 @@ struct capi_pvt {
 	ast_group_t pickupgroup;
 	ast_group_t group;
 	
+	ast_group_t transfergroup;
+
 	/* language */
 	char language[MAX_LANGUAGE];	
 
@@ -494,6 +497,7 @@ struct cc_capi_conf {
 	ast_group_t callgroup;
 	ast_group_t pickupgroup;
 	ast_group_t group;
+	ast_group_t transfergroup;
 	float rxgain;
 	float txgain;
 	struct ast_codec_pref prefs;

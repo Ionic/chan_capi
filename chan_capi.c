@@ -182,6 +182,7 @@ static char global_mohinterpret[MAX_MUSICCLASS] = "default";
 #endif
 
 /* local prototypes */
+static int pbx_capi_hold(struct ast_channel *c, char *param);
 #ifdef CC_AST_HAS_INDICATE_DATA
 static int pbx_capi_indicate(struct ast_channel *c, int condition, const void *data, size_t datalen);
 #else
@@ -1608,13 +1609,105 @@ static void cc_unset_transparent(struct capi_pvt *i, int rtpwanted)
 #endif
 
 /*
+ * try call transfer instead of bridge
+ */
+static int pbx_capi_bridge_transfer(
+	struct ast_channel *c0,
+	struct ast_channel *c1,
+	struct capi_pvt *i0,
+	struct capi_pvt *i1)
+{
+	int ret = 0;
+	ast_group_t tgroup0 = i0->transfergroup;
+	ast_group_t tgroup1 = i1->transfergroup;
+	struct timespec abstime;
+	const char* var;
+
+	/* variable may override config */
+	if ((var = pbx_builtin_getvar_helper(c0, "TRANSFERGROUP")) != NULL) {
+		tgroup0 = ast_get_group((char *)var);
+	}
+	if ((var = pbx_builtin_getvar_helper(c1, "TRANSFERGROUP")) != NULL) {
+		tgroup1 = ast_get_group((char *)var);
+	}
+
+	if ((!((1 << i0->controller) & tgroup1)) ||
+		(!((1 << i1->controller) & tgroup0))) {
+		/* transfer between those controllers is not allowed */
+		cc_verbose(4, 1, "%s: transfergroup mismatch %d(0x%x),%d(0x%x)\n",
+			i0->vname, i0->controller, tgroup1, i1->controller, tgroup0);
+		return 0;
+	}
+
+	if ((i0->qsigfeat) && (i1->qsigfeat)) {
+		/* QSIG */
+		ret = pbx_capi_qsig_bridge(i0, i1);
+	
+		if (ret == 2) {	
+			/* don't do bridge - call transfer is active */
+			cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s:%s cancelled bridge (path replacement was sent) for %s and %s\n",
+				   i0->vname, i1->vname, c0->name, c1->name);
+		}
+	} else {
+		/* standard ECT */
+
+		/* put first call on hold */
+		pbx_capi_hold(c1, NULL);
+		cc_mutex_lock(&i1->lock);
+		if ((i1->onholdPLCI != 0) && (i1->state != CAPI_STATE_ONHOLD)) {
+			i1->waitevent = CAPI_WAITEVENT_HOLD_IND;
+			abstime.tv_sec = time(NULL) + 2;
+			abstime.tv_nsec = 0;
+			if (ast_cond_timedwait(&i1->event_trigger, &i1->lock, &abstime) != 0) {
+				cc_log(LOG_WARNING, "%s: timed out waiting for HOLD.\n", i1->vname);
+			} else {
+				cc_verbose(4, 1, "%s: cond signal received for HOLD.\n", i1->vname);
+			}
+		}
+		cc_mutex_unlock(&i1->lock);
+
+		if (i1->state != CAPI_STATE_ONHOLD) {
+			cc_verbose(4, 1, "%s: HOLD impossible, transfer aborted.\n", i1->vname);
+			return 0;
+		}
+
+		/* start the ECT */
+		cc_disconnect_b3(i0, 1);
+
+		cc_mutex_lock(&i1->lock);
+
+		/* ECT */
+		capi_sendf(i1, 1, CAPI_FACILITY_REQ, i0->PLCI, get_capi_MessageNumber(),
+			"w(w(d))",
+			FACILITYSELECTOR_SUPPLEMENTARY,
+			0x0006,  /* ECT */
+			i1->PLCI
+		);
+
+		i1->isdnstate &= ~CAPI_ISDN_STATE_HOLD;
+		i1->isdnstate |= CAPI_ISDN_STATE_ECT;
+		i0->isdnstate |= CAPI_ISDN_STATE_ECT;
+	
+		cc_mutex_unlock(&i1->lock);
+
+		cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: sent ECT for PLCI=%#x to PLCI=%#x\n",
+			i1->vname, i1->PLCI, i0->PLCI);
+
+		ret = 1;
+	}
+
+	return ret;
+}
+
+/*
  * native bridging / line interconnect
  */
-static CC_BRIDGE_RETURN pbx_capi_bridge(struct ast_channel *c0,
-                                    struct ast_channel *c1,
-                                    int flags, struct ast_frame **fo,
-				    struct ast_channel **rc,
-                                    int timeoutms)
+static CC_BRIDGE_RETURN pbx_capi_bridge(
+	struct ast_channel *c0,
+	struct ast_channel *c1,
+	int flags, struct ast_frame **fo,
+	struct ast_channel **rc,
+	int timeoutms)
 {
 	struct capi_pvt *i0 = CC_CHANNEL_PVT(c0);
 	struct capi_pvt *i1 = CC_CHANNEL_PVT(c1);
@@ -1623,34 +1716,31 @@ static CC_BRIDGE_RETURN pbx_capi_bridge(struct ast_channel *c0,
 	cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s:%s Requested native bridge for %s and %s\n",
 		i0->vname, i1->vname, c0->name, c1->name);
 
+	if ((i0->isdnstate & CAPI_ISDN_STATE_ECT) ||
+	    (i1->isdnstate & CAPI_ISDN_STATE_ECT)) {
+		/* If an ECT is already in progress, forget about the bridge */
+		return AST_BRIDGE_FAILED;
+	}
+
+	switch(pbx_capi_bridge_transfer(c0, c1, i0, i1)) {
+	case 1: /* transfer was sucessful */
+		return ret;
+	case 2: /* not successful, abort */
+		return AST_BRIDGE_FAILED_NOWARN;
+	default: /* go on with line-interconnect */
+		break;
+	}
+
+	/* do bridge aka line-interconnect here */
+	
 	if ((!i0->bridge) || (!i1->bridge))
 		return AST_BRIDGE_FAILED_NOWARN;
-
+	
 	if ((!capi_controllers[i0->controller]->lineinterconnect) ||
 	    (!capi_controllers[i1->controller]->lineinterconnect)) {
 		return AST_BRIDGE_FAILED_NOWARN;
 	}
 
-	if ((i0->isdnstate & CAPI_ISDN_STATE_ECT) ||
-	    (i1->isdnstate & CAPI_ISDN_STATE_ECT)) {
-		return AST_BRIDGE_FAILED;
-	}
-
-	if ((i0->qsigfeat) && (i1->qsigfeat)) {
-		int br_status = pbx_capi_qsig_bridge(i0, i1);
-		
-		switch (br_status) {
-			case 1: /* successfull established Call Transfer with PR */
-				return ret;
-			case 2: /* don't do bridge - call transfer is active */
-				cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s:%s cancelled bridge (path replacement was sent) for %s and %s\n",
-					   i0->vname, i1->vname, c0->name, c1->name);
-				return AST_BRIDGE_FAILED_NOWARN;
-			default: /* let's do line interconnect */
-				break;
-		}
-	}
-	
 	capi_wait_for_b3_up(i0);
 	capi_wait_for_b3_up(i1);
 	
@@ -3698,6 +3788,16 @@ static void capidev_post_handling(struct capi_pvt *i, _cmsg *CMSG)
 			i->vname);
 		return;
 	}
+	if ((i->waitevent == CAPI_WAITEVENT_HOLD_IND) &&
+	    (HEADER_CMD(CMSG) == CAPI_P_IND(FACILITY)) &&
+		(FACILITY_IND_FACILITYSELECTOR(CMSG) == FACILITYSELECTOR_SUPPLEMENTARY) &&
+		(read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[1]) == 0x0002)) {
+		i->waitevent = 0;
+		ast_cond_signal(&i->event_trigger);
+		cc_verbose(4, 1, "%s: found and signal for HOLD indication.\n",
+			i->vname);
+		return;
+	}
 	if (i->waitevent == capicommand) {
 		i->waitevent = 0;
 		ast_cond_signal(&i->event_trigger);
@@ -4137,7 +4237,7 @@ static int pbx_capi_ect(struct ast_channel *c, char *param)
 
 	cc_mutex_lock(&ii->lock);
 
-    /* implicit ECT */
+	/* implicit ECT */
 	capi_sendf(ii, 1, CAPI_FACILITY_REQ, ectplci, get_capi_MessageNumber(),
 		"w(w(d))",
 		FACILITYSELECTOR_SUPPLEMENTARY,
@@ -4960,6 +5060,7 @@ int mkif(struct cc_capi_conf *conf)
 		tmp->callgroup = conf->callgroup;
 		tmp->pickupgroup = conf->pickupgroup;
 		tmp->group = conf->group;
+		tmp->transfergroup = conf->transfergroup;
 		tmp->amaflags = conf->amaflags;
 		tmp->immediate = conf->immediate;
 		tmp->holdtype = conf->holdtype;
@@ -5601,6 +5702,10 @@ static int conf_interface(struct cc_capi_conf *conf, struct ast_variable *v)
 		} else
 		if (!strcasecmp(v->name, "group")) {
 			conf->group = ast_get_group(v->value);
+			continue;
+		} else
+		if (!strcasecmp(v->name, "transfergroup")) {
+			conf->transfergroup = ast_get_group(v->value);
 			continue;
 		} else
 		if (!strcasecmp(v->name, "amaflags")) {
