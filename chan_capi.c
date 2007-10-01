@@ -1674,7 +1674,7 @@ static int pbx_capi_bridge_transfer(
 		/* start the ECT */
 		cc_disconnect_b3(i0, 1);
 
-		cc_mutex_lock(&i1->lock);
+		cc_mutex_lock(&i0->lock);
 
 		/* ECT */
 		capi_sendf(i0, 1, CAPI_FACILITY_REQ, i0->PLCI, get_capi_MessageNumber(),
@@ -1688,7 +1688,16 @@ static int pbx_capi_bridge_transfer(
 		i1->isdnstate |= CAPI_ISDN_STATE_ECT;
 		i0->isdnstate |= CAPI_ISDN_STATE_ECT;
 	
-		cc_mutex_unlock(&i1->lock);
+		i0->waitevent = CAPI_WAITEVENT_ECT_IND;
+		abstime.tv_sec = time(NULL) + 2;
+		abstime.tv_nsec = 0;
+		if (ast_cond_timedwait(&i0->event_trigger, &i0->lock, &abstime) != 0) {
+			cc_log(LOG_WARNING, "%s: timed out waiting for ECT.\n", i0->vname);
+		} else {
+			cc_verbose(4, 1, "%s: cond signal received for ECT.\n", i0->vname);
+		}
+
+		cc_mutex_unlock(&i0->lock);
 
 		cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: sent ECT for PLCI=%#x to PLCI=%#x\n",
 			i1->vname, i1->PLCI, i0->PLCI);
@@ -3795,6 +3804,16 @@ static void capidev_post_handling(struct capi_pvt *i, _cmsg *CMSG)
 		i->waitevent = 0;
 		ast_cond_signal(&i->event_trigger);
 		cc_verbose(4, 1, "%s: found and signal for HOLD indication.\n",
+			i->vname);
+		return;
+	}
+	if ((i->waitevent == CAPI_WAITEVENT_ECT_IND) &&
+	    (HEADER_CMD(CMSG) == CAPI_P_IND(FACILITY)) &&
+		(FACILITY_IND_FACILITYSELECTOR(CMSG) == FACILITYSELECTOR_SUPPLEMENTARY) &&
+		(read_capi_word(&FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[1]) == 0x0006)) {
+		i->waitevent = 0;
+		ast_cond_signal(&i->event_trigger);
+		cc_verbose(4, 1, "%s: found and signal for ECT indication.\n",
 			i->vname);
 		return;
 	}

@@ -256,6 +256,7 @@ struct cc_capi_gains {
 #define CAPI_WAITEVENT_B3_DOWN        0x00020000
 #define CAPI_WAITEVENT_ANSWER_FINISH  0x00030000
 #define CAPI_WAITEVENT_HOLD_IND       0x00040000
+#define CAPI_WAITEVENT_ECT_IND        0x00050000
 
 /* Private qsig data for capi device */
 struct cc_qsig_data {
