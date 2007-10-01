@@ -1677,7 +1677,7 @@ static int pbx_capi_bridge_transfer(
 		cc_mutex_lock(&i1->lock);
 
 		/* ECT */
-		capi_sendf(i1, 1, CAPI_FACILITY_REQ, i0->PLCI, get_capi_MessageNumber(),
+		capi_sendf(i0, 1, CAPI_FACILITY_REQ, i0->PLCI, get_capi_MessageNumber(),
 			"w(w(d))",
 			FACILITYSELECTOR_SUPPLEMENTARY,
 			0x0006,  /* ECT */
