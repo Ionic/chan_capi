@@ -571,6 +571,7 @@ int handle_facility_indication_supplementary(
 		if (infoword != 0) {
 			/* reason != 0x0000 == problem */
 			i->onholdPLCI = 0;
+			i->isdnstate &= ~CAPI_ISDN_STATE_HOLD;
 			cc_log(LOG_WARNING, "%s: unable to put PLCI=%#x onhold, REASON = 0x%04x, maybe you need to subscribe for this...\n",
 				i->vname, PLCI, infoword);
 			show_capi_info(i, infoword);
