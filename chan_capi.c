@@ -850,6 +850,7 @@ static int pbx_capi_alert(struct ast_channel *c)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	unsigned char *facilityarray = NULL;
+	char *sending_complete = "\x02\x01\x00";
 
 	if ((i->state != CAPI_STATE_INCALL) &&
 	    (i->state != CAPI_STATE_DID)) {
@@ -862,7 +863,10 @@ static int pbx_capi_alert(struct ast_channel *c)
 	cc_qsig_add_call_alert_data(facilityarray, i, c);
 
 	if (capi_sendf(NULL, 0, CAPI_ALERT_REQ, i->PLCI, get_capi_MessageNumber(),
-	    "(()()()s())", facilityarray) != 0) {
+	    "(()()()ss)",
+		facilityarray,
+		sending_complete
+		) != 0) {
 		return -1;
 	}
 
@@ -1318,7 +1322,7 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 	} else {
 		i->doOverlap = 0;
 		called[0] = strlen(dest) + 1;
-		sending_complete = "\x02\x00\x01";
+		sending_complete = "\x02\x01\x00";
 	}
 	called[1] = 0x80;
 	strncpy(&called[2], dest, sizeof(called) - 3);
