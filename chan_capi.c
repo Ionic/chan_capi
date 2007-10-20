@@ -1709,7 +1709,6 @@ static int pbx_capi_bridge_transfer(
 				   i0->vname, i1->vname);
 				pbx_capi_retrieve(c1, NULL);
 				capi_wait_for_b3_up(i1);
-				return 0;
 			}
 			heldcall = i0;
 			consultationcall = i1;
