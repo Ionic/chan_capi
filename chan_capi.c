@@ -1701,8 +1701,10 @@ static int pbx_capi_bridge_transfer(
 		/* standard ECT */
 		if (i0->isdnstate & CAPI_ISDN_STATE_HOLD) {
 			if (i1->isdnstate & CAPI_ISDN_STATE_HOLD) {
-				cc_log(LOG_WARNING, "%s,%s: both channels on hold, refuse transfer.\n",
-					i0->vname, i1->vname);
+				cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s:%s both channels on hold, retrieving second one.\n",
+				   i0->vname, i1->vname);
+				pbx_capi_retrieve(c1, NULL);
+				capi_wait_for_b3_up(i1);
 				return 0;
 			}
 			heldcall = i0;
