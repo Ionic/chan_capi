@@ -4801,9 +4801,6 @@ static int pbx_capi_indicate(struct ast_channel *c, int condition)
 			pbx_capi_retrieve(c, NULL);
 		*/
 		if (i->ntmode) {
-			if ((i->isdnstate & CAPI_ISDN_STATE_B3_UP)) {
-				ret = 0;
-			}
 			pbx_capi_signal_progress(c, NULL);
 			pbx_capi_alert(c);
 		} else {
