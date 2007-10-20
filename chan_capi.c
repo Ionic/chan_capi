@@ -1407,7 +1407,7 @@ static int capi_send_answer(struct ast_channel *c, _cstruct b3conf)
 
 	if (strlen(dnid)) {
 		buf[0] = strlen(dnid) + 2;
-		buf[1] = 0x00;
+		buf[1] = 0x21;
 		buf[2] = 0x80;
 		strncpy(&buf[3], dnid, sizeof(buf) - 4);
 	} else {
