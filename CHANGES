@@ -5,6 +5,9 @@ HEAD
 ------------------
 - send local DATE/TIME with CONNECT when in NT-mode.
 - added transfergroup config option to set controllers allowed for transfer.
+- send Sending-Complete if overlap dialing is not used.
+- fixed numberingplan for 'connectedṅumber'.
+- added devicestate option.
 
 chan_capi-1.0.2
 ------------------

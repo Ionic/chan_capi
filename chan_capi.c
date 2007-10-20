@@ -4902,15 +4902,60 @@ static int pbx_capi_indicate(struct ast_channel *c, int condition)
  */
 static int pbx_capi_devicestate(void *data)
 {
-	int res = AST_DEVICE_UNKNOWN;
+	char *s;
+	char *target;
+	int res = AST_DEVICE_INVALID;
+	struct capi_pvt *i;
 
 	if (!data) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "No data for capi_devicestate\n");
 		return res;
 	}
 
-	cc_verbose(3, 1, VERBOSE_PREFIX_4 "CAPI devicestate requested for %s\n",
-		(char *)data);
+	s = ast_strdupa(data);
+	target = strsep(&s, "/");
+
+	cc_mutex_lock(&iflock);
+	for (i = capi_iflist; i; i = i->next) {
+		if (!(strcmp(target, i->vname)))
+			break;
+	}
+	cc_mutex_unlock(&iflock);
+
+	if (!i) {
+		cc_log(LOG_WARNING, "Unknown target '%s' for devicestate.\n",
+			target);
+	} else {
+		switch (i->state) {
+		case 0:
+		case CAPI_STATE_DISCONNECTED:
+		case CAPI_STATE_DISCONNECTING:
+			res = AST_DEVICE_NOT_INUSE;
+			break;
+		case CAPI_STATE_ALERTING:
+			res = AST_DEVICE_RINGINUSE;
+			break;
+		case CAPI_STATE_DID:
+		case CAPI_STATE_INCALL:
+			res = AST_DEVICE_RINGING;
+			break;
+		case CAPI_STATE_ONHOLD:
+			res = AST_DEVICE_ONHOLD;
+			break;
+		case CAPI_STATE_CONNECTED:
+		case CAPI_STATE_CONNECTPENDING:
+		case CAPI_STATE_ANSWERING:
+			res = AST_DEVICE_INUSE;
+			break;
+		default:
+			res = AST_DEVICE_UNKNOWN;
+			break;
+		/* AST_DEVICE_BUSY */
+		/* AST_DEVICE_UNAVAILABLE */
+		}
+		cc_verbose(3, 1, VERBOSE_PREFIX_4 "CAPI devicestate requested for %s is '%s'\n",
+			(char *)data, devstate2str(res));
+	}
 
 	return res;
 }
