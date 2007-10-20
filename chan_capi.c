@@ -183,6 +183,7 @@ static char global_mohinterpret[MAX_MUSICCLASS] = "default";
 
 /* local prototypes */
 static int pbx_capi_hold(struct ast_channel *c, char *param);
+static int pbx_capi_retrieve(struct ast_channel *c, char *param);
 #ifdef CC_AST_HAS_INDICATE_DATA
 static int pbx_capi_indicate(struct ast_channel *c, int condition, const void *data, size_t datalen);
 #else
@@ -896,6 +897,7 @@ static void interface_cleanup(struct capi_pvt *i)
 
 	i->whentohangup = 0;
 	i->whentoqueuehangup = 0;
+	i->whentoretrieve = 0;
 
 	i->FaxState &= ~CAPI_FAX_STATE_MASK;
 
@@ -1663,6 +1665,8 @@ static int pbx_capi_bridge_transfer(
 	ast_group_t tgroup1 = i1->transfergroup;
 	struct timespec abstime;
 	const char* var;
+	struct capi_pvt *heldcall;
+	struct capi_pvt *consultationcall;
 
 	/* variable may override config */
 	if ((var = pbx_builtin_getvar_helper(c0, "TRANSFERGROUP")) != NULL) {
@@ -1691,59 +1695,87 @@ static int pbx_capi_bridge_transfer(
 		}
 	} else {
 		/* standard ECT */
-
-		/* put first call on hold */
-		pbx_capi_hold(c1, NULL);
-		cc_mutex_lock(&i1->lock);
-		if ((i1->onholdPLCI != 0) && (i1->state != CAPI_STATE_ONHOLD)) {
-			i1->waitevent = CAPI_WAITEVENT_HOLD_IND;
-			abstime.tv_sec = time(NULL) + 2;
-			abstime.tv_nsec = 0;
-			if (ast_cond_timedwait(&i1->event_trigger, &i1->lock, &abstime) != 0) {
-				cc_log(LOG_WARNING, "%s: timed out waiting for HOLD.\n", i1->vname);
-			} else {
-				cc_verbose(4, 1, "%s: cond signal received for HOLD.\n", i1->vname);
+		if (i0->isdnstate & CAPI_ISDN_STATE_HOLD) {
+			if (i1->isdnstate & CAPI_ISDN_STATE_HOLD) {
+				cc_log(LOG_WARNING, "%s,%s: both channels on hold, refuse transfer.\n",
+					i0->vname, i1->vname);
+				return 0;
 			}
-		}
-		cc_mutex_unlock(&i1->lock);
+			heldcall = i0;
+			consultationcall = i1;
+		} else if (i1->isdnstate & CAPI_ISDN_STATE_HOLD) {
+			heldcall = i1;
+			consultationcall = i0;
+		} else {
+			/* no one on hold */
+			/* put first call on hold */
+			cc_mutex_lock(&i0->lock);
+			pbx_capi_hold(c0, NULL);
+			if ((i0->onholdPLCI != 0) && (i0->state != CAPI_STATE_ONHOLD)) {
+				i0->waitevent = CAPI_WAITEVENT_HOLD_IND;
+				abstime.tv_sec = time(NULL) + 2;
+				abstime.tv_nsec = 0;
+				if (ast_cond_timedwait(&i0->event_trigger, &i0->lock, &abstime) != 0) {
+					cc_log(LOG_WARNING, "%s: timed out waiting for HOLD.\n", i0->vname);
+				} else {
+					cc_verbose(4, 1, "%s: cond signal received for HOLD.\n", i0->vname);
+				}
+			}
+			cc_mutex_unlock(&i0->lock);
 
-		if (i1->state != CAPI_STATE_ONHOLD) {
-			cc_verbose(4, 1, "%s: HOLD impossible, transfer aborted.\n", i1->vname);
-			return 0;
+			if (i0->state != CAPI_STATE_ONHOLD) {
+				cc_verbose(4, 1, "%s: HOLD impossible, transfer aborted.\n", i0->vname);
+				return 0;
+			}
+			heldcall = i0;
+			consultationcall = i1;
 		}
+		heldcall->whentoretrieve = 0;
 
 		/* start the ECT */
-		cc_disconnect_b3(i0, 1);
+		cc_disconnect_b3(consultationcall, 1);
 
-		cc_mutex_lock(&i0->lock);
+		cc_mutex_lock(&consultationcall->lock);
 
 		/* ECT */
-		capi_sendf(i0, 1, CAPI_FACILITY_REQ, i0->PLCI, get_capi_MessageNumber(),
+		capi_sendf(consultationcall, 1, CAPI_FACILITY_REQ, consultationcall->PLCI,
+			get_capi_MessageNumber(),
 			"w(w(d))",
 			FACILITYSELECTOR_SUPPLEMENTARY,
 			0x0006,  /* ECT */
-			i1->PLCI
+			heldcall->PLCI
 		);
 
-		i1->isdnstate &= ~CAPI_ISDN_STATE_HOLD;
-		i1->isdnstate |= CAPI_ISDN_STATE_ECT;
-		i0->isdnstate |= CAPI_ISDN_STATE_ECT;
+		heldcall->isdnstate &= ~CAPI_ISDN_STATE_HOLD;
+		heldcall->isdnstate |= CAPI_ISDN_STATE_ECT;
+		consultationcall->isdnstate |= CAPI_ISDN_STATE_ECT;
 	
-		i0->waitevent = CAPI_WAITEVENT_ECT_IND;
+		cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: sent ECT for PLCI=%#x to PLCI=%#x\n",
+			consultationcall->vname, heldcall->PLCI, consultationcall->PLCI);
+
+		consultationcall->waitevent = CAPI_WAITEVENT_ECT_IND;
 		abstime.tv_sec = time(NULL) + 2;
 		abstime.tv_nsec = 0;
-		if (ast_cond_timedwait(&i0->event_trigger, &i0->lock, &abstime) != 0) {
-			cc_log(LOG_WARNING, "%s: timed out waiting for ECT.\n", i0->vname);
+		if (ast_cond_timedwait(&consultationcall->event_trigger,
+				&consultationcall->lock, &abstime) != 0) {
+			cc_log(LOG_WARNING, "%s: timed out waiting for ECT.\n", consultationcall->vname);
 		} else {
-			cc_verbose(4, 1, "%s: cond signal received for ECT.\n", i0->vname);
+			cc_verbose(4, 1, "%s: cond signal received for ECT.\n", consultationcall->vname);
 		}
 
-		cc_mutex_unlock(&i0->lock);
+		cc_mutex_unlock(&consultationcall->lock);
 
-		cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: sent ECT for PLCI=%#x to PLCI=%#x\n",
-			i1->vname, i1->PLCI, i0->PLCI);
-
-		ret = 1;
+		if (consultationcall->isdnstate & CAPI_ISDN_STATE_ECT) {
+			/* ECT was activated */
+			ret = 1;
+		} else {
+			cc_log(LOG_WARNING, "%s: ECT was not activated, trying to resume normal operation.\n",
+				consultationcall->vname);
+			cc_start_b3(consultationcall);
+			capi_wait_for_b3_up(consultationcall);
+			pbx_capi_retrieve(heldcall->owner, NULL);
+			ret = 0;
+		}
 	}
 
 	return ret;
@@ -4162,7 +4194,7 @@ static int pbx_capi_retrieve(struct ast_channel *c, char *param)
 		i = NULL;
 	}
 
-	if (param) {
+	if ((param) && (*param)) {
 		plci = (unsigned int)strtoul(param, NULL, 0);
 		cc_mutex_lock(&iflock);
 		for (i = capi_iflist; i; i = i->next) {
@@ -4343,9 +4375,11 @@ static int pbx_capi_hold(struct ast_channel *c, char *param)
 		return 0;
 	}
 
-	cc_mutex_lock(&i->lock);
+	if (param != NULL) {
+		cc_mutex_lock(&i->lock);
+	}
 
-	capi_sendf(i, 1, CAPI_FACILITY_REQ, i->PLCI, get_capi_MessageNumber(),
+	capi_sendf(i, (param == NULL) ? 0:1, CAPI_FACILITY_REQ, i->PLCI, get_capi_MessageNumber(),
 		"w(w())",
 		FACILITYSELECTOR_SUPPLEMENTARY,
 		0x0002  /* hold */
@@ -4354,7 +4388,9 @@ static int pbx_capi_hold(struct ast_channel *c, char *param)
 	i->onholdPLCI = i->PLCI;
 	i->isdnstate |= CAPI_ISDN_STATE_HOLD;
 
-	cc_mutex_unlock(&i->lock);
+	if (param != NULL) {
+		cc_mutex_unlock(&i->lock);
+	}
 
 	cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: sent HOLD for PLCI=%#x\n",
 		i->vname, i->PLCI);
@@ -4820,7 +4856,14 @@ static int pbx_capi_indicate(struct ast_channel *c, int condition)
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested UNHOLD-Indication for %s\n",
 			i->vname, c->name);
 		if (i->doholdtype != CC_HOLDTYPE_LOCAL) {
-			ret = pbx_capi_retrieve(c, NULL);
+			if (i->transfergroup) {
+				/* we assume bridge transfer, so wait a little bit to see
+				 * if bridge is activated */
+				i->whentoretrieve = time(NULL) + 1; /* timeout 1 second */
+			} else {
+				pbx_capi_retrieve(c, NULL);
+			}
+			ret = 0;
 		}
 #ifdef CC_AST_HAS_VERSION_1_4
 		else {
@@ -4831,8 +4874,15 @@ static int pbx_capi_indicate(struct ast_channel *c, int condition)
 	case -1: /* stop indications */
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested Indication-STOP for %s\n",
 			i->vname, c->name);
-		if ((i->isdnstate & CAPI_ISDN_STATE_HOLD))
-			pbx_capi_retrieve(c, NULL);
+		if ((i->isdnstate & CAPI_ISDN_STATE_HOLD)) {
+			if (i->transfergroup) {
+				/* we assume bridge transfer, so wait a little bit to see
+				 * if bridge is activated */
+				i->whentoretrieve = time(NULL) + 1; /* timeout 1 second */
+			} else {
+				pbx_capi_retrieve(c, NULL);
+			}
+		}
 		break;
 	default:
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested unknown Indication %d for %s\n",
@@ -4943,6 +4993,14 @@ static void capidev_run_secondly(time_t now)
 				i->vname);
 			capi_queue_cause_control(i, 1);
 			i->whentoqueuehangup = 0;
+		}
+		if ((i->whentoretrieve) && (i->whentoretrieve < now)) {
+			cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: deferred retrieve.\n",
+				i->vname);
+			i->whentoretrieve = 0;
+			if (i->owner) {
+				pbx_capi_retrieve(i->owner, NULL);
+			}
 		}
 	}
 	cc_mutex_unlock(&iflock);

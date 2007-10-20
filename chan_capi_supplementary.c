@@ -599,6 +599,9 @@ int handle_facility_indication_supplementary(
 	case 0x0006:	/* ECT */
 		cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: PLCI=%#x ECT  Reason=0x%04x\n",
 			i->vname, PLCI, infoword);
+		if (infoword != 0) {
+			i->isdnstate &= ~CAPI_ISDN_STATE_ECT;
+		}
 		show_capi_info(i, infoword);
 		break;
 	case 0x0007: /* 3PTY begin */

@@ -435,6 +435,7 @@ struct capi_pvt {
 	/* deferred tasks */
 	time_t whentohangup;
 	time_t whentoqueuehangup;
+	time_t whentoretrieve;
 
 	/* RTP */
 	struct ast_rtp *rtp;
