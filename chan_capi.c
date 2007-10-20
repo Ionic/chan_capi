@@ -1180,6 +1180,7 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 	char callingsubaddress[AST_MAX_EXTENSION];
 	char calledsubaddress[AST_MAX_EXTENSION];
 	int doqsig;
+	char *sending_complete;
 	unsigned char *facilityarray = NULL;
 	
 	MESSAGE_EXCHANGE_ERROR  error;
@@ -1313,9 +1314,11 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 	if ((i->doOverlap) && (strlen(dest))) {
 		cc_copy_string(i->overlapdigits, dest, sizeof(i->overlapdigits));
 		called[0] = 1;
+		sending_complete = "\x00";
 	} else {
 		i->doOverlap = 0;
 		called[0] = strlen(dest) + 1;
+		sending_complete = "\x02\x00\x01";
 	}
 	called[1] = 0x80;
 	strncpy(&called[2], dest, sizeof(called) - 3);
@@ -1344,7 +1347,7 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 	}
 
 	error = capi_sendf(NULL, 0, CAPI_CONNECT_REQ, i->controller, i->MessageNumber,
-		"wssss(wwwsss())()()()((w)()()s())",
+		"wssss(wwwsss())()()()((w)()()ss)",
 		tcap2cip(i->transfercapability), /* CIP value */
 		called, /* called party number */
 		calling, /* calling party number */
@@ -1364,7 +1367,8 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 		  0x0000, /* B channel info */
 		   /* Keypad facility */
 		   /* User-User data */
-		  facilityarray /* Facility data array */
+		  facilityarray, /* Facility data array */
+		  sending_complete /* Sending complete */
 	);
 
 	if (error) {
