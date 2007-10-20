@@ -475,6 +475,42 @@ static void capi_channel_task(struct ast_channel *c, int task)
 }
 
 /*
+ * Added date/time IE to facility structure
+ */
+static void capi_facility_add_datetime(unsigned char *facilityarray)
+{
+	unsigned int idx;
+	time_t current_time;
+	struct tm *time_local;
+	unsigned char year;
+
+	if (!facilityarray)
+		return;
+
+	current_time = time(NULL);
+	time_local = localtime(&current_time);
+	year = time_local->tm_year;
+
+	while (year > 99) {
+		year -= 100;
+	}
+	
+	idx = facilityarray[0] + 1;
+
+	facilityarray[idx++] = 0x29;	/* date/time IE */
+	facilityarray[idx++] = 5;		/* length */
+	facilityarray[idx++] = year;
+	facilityarray[idx++] = time_local->tm_mon + 1;
+	facilityarray[idx++] = time_local->tm_mday;
+	facilityarray[idx++] = time_local->tm_hour;
+	facilityarray[idx++] = time_local->tm_min;
+
+	facilityarray[0] = idx - 1;
+
+	return;
+}
+
+/*
  * Echo cancellation is for cards w/ integrated echo cancellation only
  * (i.e. Eicon active cards support it)
  */
@@ -1384,6 +1420,11 @@ static int capi_send_answer(struct ast_channel *c, _cstruct b3conf)
 		
 	facilityarray = alloca(CAPI_MAX_FACILITYDATAARRAY_SIZE);
 	cc_qsig_add_call_answer_data(facilityarray, i, c);
+
+	if (i->ntmode) {
+		/* in NT-mode we send the current local time to device */
+		capi_facility_add_datetime(facilityarray);
+	}
 
 	if (capi_sendf(NULL, 0, CAPI_CONNECT_RESP, i->PLCI, i->MessageNumber,
 	    "w(wwwssss)s()()(()()()s())",
@@ -2792,7 +2833,6 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 			INFO_IND_INFOELEMENT(CMSG)[1], INFO_IND_INFOELEMENT(CMSG)[2],
 			INFO_IND_INFOELEMENT(CMSG)[3], INFO_IND_INFOELEMENT(CMSG)[4],
 			INFO_IND_INFOELEMENT(CMSG)[5]);
-		capidev_sendback_info(i, CMSG);
 		break;
 	case 0x002c:	/* Keypad facility */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element KEYPAD FACILITY\n",

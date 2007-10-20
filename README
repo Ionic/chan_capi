@@ -69,6 +69,7 @@ This chan_capi version includes:
 - CCBS (call completion on busy subscriber)
 - CAPI CHAT (CAPI MeetMe using onboard DSPs)
 - KEYPAD digits detection
+- provide DATE/TIME in NT-mode.
 
 
 The Dial string
