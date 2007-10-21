@@ -2607,7 +2607,7 @@ static void capidev_handle_did_digits(_cmsg *CMSG, unsigned int PLCI, unsigned i
 	}
 
 	if ((did) && (strlen(i->dnid) < (sizeof(i->dnid) - 1))) {
-		if ((!strlen(i->dnid)) && (INFO_IND_INFONUMBER(CMSG) = 0x002c)) {
+		if ((!strlen(i->dnid)) && (INFO_IND_INFONUMBER(CMSG) == 0x002c)) {
 			/* start of keypad */
 			strcat(i->dnid, "K");
 		}
