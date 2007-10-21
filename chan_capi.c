@@ -4935,15 +4935,19 @@ static int pbx_capi_devicestate(void *data)
 			res = AST_DEVICE_NOT_INUSE;
 			break;
 		case CAPI_STATE_ALERTING:
+#ifdef CC_AST_HAS_VERSION_1_4
 			res = AST_DEVICE_RINGINUSE;
 			break;
+#endif
 		case CAPI_STATE_DID:
 		case CAPI_STATE_INCALL:
 			res = AST_DEVICE_RINGING;
 			break;
+#ifdef CC_AST_HAS_VERSION_1_4
 		case CAPI_STATE_ONHOLD:
 			res = AST_DEVICE_ONHOLD;
 			break;
+#endif
 		case CAPI_STATE_CONNECTED:
 		case CAPI_STATE_CONNECTPENDING:
 		case CAPI_STATE_ANSWERING:
