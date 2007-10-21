@@ -139,7 +139,7 @@ AST_MUTEX_DEFINE_STATIC(usecnt_lock);
 #endif
 AST_MUTEX_DEFINE_STATIC(iflock);
 
-static pthread_t monitor_thread = (pthread_t)(0-1);
+static pthread_t capi_device_thread = (pthread_t)(0-1);
 
 struct capi_pvt *capi_iflist = NULL;
 
@@ -5062,7 +5062,7 @@ static void capidev_run_secondly(time_t now)
 }
 
 /*
- * module stuff, monitor...
+ * Main loop to read the capi_device.
  */
 static void *capidev_loop(void *data)
 {
@@ -5071,7 +5071,7 @@ static void *capidev_loop(void *data)
 	time_t lastcall = 0;
 	time_t newtime;
 	
-	cc_log(LOG_NOTICE, "Started CAPI monitor-thread.\n");
+	cc_log(LOG_NOTICE, "Started CAPI device thread.\n");
 
 	for (/* for ever */;;) {
 		switch(Info = capidev_check_wait_get_cmsg(&monCMSG)) {
@@ -6099,10 +6099,10 @@ int unload_module(void)
 	ast_module_user_hangup_all();
 #endif
 
-	if (monitor_thread != (pthread_t)(0-1)) {
-		pthread_cancel(monitor_thread);
-		pthread_kill(monitor_thread, SIGURG);
-		pthread_join(monitor_thread, NULL);
+	if (capi_device_thread != (pthread_t)(0-1)) {
+		pthread_cancel(capi_device_thread);
+		pthread_kill(capi_device_thread, SIGURG);
+		pthread_join(capi_device_thread, NULL);
 	}
 
 	cc_mutex_lock(&iflock);
@@ -6204,9 +6204,9 @@ int load_module(void)
 	
 	ast_register_application(commandapp, pbx_capicommand_exec, commandsynopsis, commandtdesc);
 
-	if (ast_pthread_create(&monitor_thread, NULL, capidev_loop, NULL) < 0) {
-		monitor_thread = (pthread_t)(0-1);
-		cc_log(LOG_ERROR, "Unable to start monitor thread!\n");
+	if (ast_pthread_create(&capi_device_thread, NULL, capidev_loop, NULL) < 0) {
+		capi_device_thread = (pthread_t)(0-1);
+		cc_log(LOG_ERROR, "Unable to start capi device thread!\n");
 		return -1;
 	}
 
