@@ -4906,7 +4906,7 @@ static int pbx_capi_devicestate(void *data)
 {
 	char *s;
 	char *target;
-	int res = AST_DEVICE_INVALID;
+	int res = AST_DEVICE_UNKNOWN;
 	struct capi_pvt *i;
 
 	if (!data) {
