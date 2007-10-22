@@ -283,7 +283,9 @@ Chat (MeetMe/Conference):
     (This uses the DSPs onboard a Dialogic DIVA Server Rev.2 card.)
         exten => s,1,capicommand(chat|<roomname>|<options>|controller)
 		Example:
-            exten => s,1,capicommand(chat|salesmeeting||1,3-6)
+            exten => s,1,capicommand(chat|salesmeeting|m|1,3-6)
+    Possible options:
+    'm' = The first caller will get music-on-hold until second caller arrives.
 
 
 Using CLIR

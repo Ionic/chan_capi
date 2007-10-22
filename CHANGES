@@ -8,6 +8,7 @@ HEAD
 - send Sending-Complete if overlap dialing is not used.
 - fixed numberingplan for 'connected number'.
 - added devicestate option.
+- capi-chat can play music-on-hold for first caller.
 
 chan_capi-1.0.2
 ------------------

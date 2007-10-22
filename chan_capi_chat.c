@@ -22,10 +22,12 @@
 #include "chan_capi_chat.h"
 #include "chan_capi_utils.h"
 
+#define CHAT_FLAG_MOH      0x0001
 
 struct capichat_s {
 	char name[16];
 	unsigned int number;
+	int active;
 	struct capi_pvt *i;
 	struct capichat_s *next;
 };
@@ -79,6 +81,13 @@ static void update_capi_mixer(int remove, unsigned int roomnumber, struct capi_p
 			p_list[j++] = (_cbyte)(dest >> 24);
 			cc_verbose(3, 1, VERBOSE_PREFIX_3 "capi mixer: listed %s PLCI=0x%04x LI=0x%x\n",
 				ii->vname, ii->PLCI, dest);
+		}
+		room = room->next;
+	}
+	room = chat_list;
+	while (room) {
+		if (room->number == roomnumber) {
+			room->active = found + ((remove) ? 0 : 1);
 		}
 		room = room->next;
 	}
@@ -201,7 +210,8 @@ static struct capichat_s *add_chat_member(char *roomname, struct capi_pvt *i)
 /*
  * loop during chat
  */
-static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i)
+static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i,
+	struct capichat_s *room, unsigned int flags)
 {
 	struct ast_frame *f;
 	int ms;
@@ -211,13 +221,20 @@ static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i)
 	int nfds = 0;
 	struct ast_channel *rchan;
 	struct ast_channel *chan = c;
+	int moh_active = 0;
+
+	ast_indicate(chan, -1);
 
 	waitfd = i->readerfd;
 	if (i->channeltype == CAPI_CHANNELTYPE_NULL) {
 		nfds = 1;
-		ast_indicate(chan, -1);
 		ast_set_read_format(chan, capi_capability);
 		ast_set_write_format(chan, capi_capability);
+	}
+
+	if ((flags & CHAT_FLAG_MOH) && (room->active < 2)) {
+		ast_moh_start(chan, NULL, NULL);
+		moh_active = 1;
 	}
 
 	while (1) {
@@ -275,6 +292,10 @@ static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i)
 				break;
 			}
 		}
+		if ((moh_active) && (room->active > 1)) {
+			ast_moh_stop(chan);
+			moh_active = 0;
+		}
 	}
 }
 
@@ -289,6 +310,7 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 	struct capichat_s *room;
 	ast_group_t tmpcntr;
 	unsigned long contr = 0;
+	unsigned int flags = 0;
 
 	roomname = strsep(&param, "|");
 	options = strsep(&param, "|");
@@ -307,6 +329,19 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 		contr = (unsigned long)(tmpcntr >> 1);
 	}
 
+	while ((options) && (*options)) {
+		switch (*options) {
+		case 'm':
+			flags |= CHAT_FLAG_MOH;
+			break;
+		default:
+			cc_log(LOG_WARNING, "Unknown chat option '%c'.\n",
+				*options);
+			break;
+		}
+		options++;
+	}
+
 	cc_verbose(3, 1, VERBOSE_PREFIX_3 "capi chat: %s: roomname=%s "
 		"options=%s controller=%s (0x%x)\n",
 		c->name, roomname, options, controller, contr);
@@ -321,8 +356,9 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 		}
 	}
 
-	if (c->_state != AST_STATE_UP)
+	if (c->_state != AST_STATE_UP) {
 		ast_answer(c);
+	}
 
 	capi_wait_for_answered(i);
 	if (!(capi_wait_for_b3_up(i))) {
@@ -336,7 +372,7 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 	}
 
 	/* main loop */
-	chat_handle_events(c, i);
+	chat_handle_events(c, i, room, flags);
 
 	del_chat_member(room);
 
