@@ -18,6 +18,7 @@
 
 /* ECMA Features structs */
 
+
 /* Call Transfer Complete struct */
 struct cc_qsig_ctcomplete {
 	enum {
@@ -35,6 +36,17 @@ struct cc_qsig_ctcomplete {
 	char *argumentExtension;	/* OPTIONAL: ASN1_SEQUENCE - manufacturer specific extension */
 };
 
+/* CCBS struct */
+struct cc_qsig_ccbsreq {
+	char *numberA;			/* Simplified numbers*/
+	char *numberB;
+	char *PSS1InfoElement;		/* Bearer caps, LLC, HLC */
+	char *subaddrA;
+	char *subaddrB;
+	int can_retain_service;
+	int retain_sig_connection;
+	char *extension;
+};
 
 /*
  *** ECMA QSIG Functions 

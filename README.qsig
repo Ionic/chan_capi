@@ -65,7 +65,7 @@ The QSIG support includes:
     
 - Call Transfer (outgoing)
     You can do an outbound call transfer.
-    First you need the PLCI (logical channel id) of your first channel. You'll get it with capicommand(getplci). This 
+    First you need the PLCI (logical channel id) of your first channel. You'll get it with capicommand(qsig_getplci). This 
     command returns the channel id in the variable QSIG_PLCI. Now you can enable the call transfer feature.
     Simply add "Ct<PLCI>" to QSIG_SETUP (i.e. QSIG_SETUP="X/Ct${QSIG_PLCI}" ). On the next dial command the call will 
     be automatically transferred. The transfer occurs after the CONNECT. If you want an transfer early on ringing you 
@@ -103,6 +103,12 @@ Future Targets:
 
 How to use:
 ===========
+
+You will find more documentation at the chan_capi wiki.
+
+Please visit:		http://www.melware.org/ChanCapiConf
+
+
 
 simply enable Q.SIG with following line in your capi.conf interface:
 

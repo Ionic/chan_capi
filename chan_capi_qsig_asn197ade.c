@@ -50,7 +50,7 @@ unsigned int cc_qsig_asn197ade_get_partynumber(char *buf, int buflen, int *idx, 
 	
 	numtype = (data[myidx++] & 0x0F);	/* defines type of Number: numDigits, publicPartyNum, nsapEncNum, dataNumDigits */
 	
-	/* cc_verbose(1, 1, VERBOSE_PREFIX_4 " * num type %i,%i\n", numtype, myidx);   */
+	/* cc_qsig_verbose( 1, VERBOSE_PREFIX_4 " * num type %i,%i\n", numtype, myidx);   */
 	switch (numtype){
 		case 0:
 			if (data[myidx] > 0) {	/* length of this context data */
@@ -79,7 +79,7 @@ unsigned int cc_qsig_asn197ade_get_partynumber(char *buf, int buflen, int *idx, 
 			}
 			break;
 	};
-	/* cc_verbose(1, 1, VERBOSE_PREFIX_4 " * num type %i,%i\n", numtype, myidx);    */
+	/* cc_qsig_verbose( 1, VERBOSE_PREFIX_4 " * num type %i,%i\n", numtype, myidx);    */
 	return myidx - *idx;
 }
 
@@ -97,7 +97,7 @@ unsigned int cc_qsig_asn197ade_get_numdigits(char *buf, int buflen, int *idx, un
 	memcpy(buf, &data[myidx], strsize);
 	buf[strsize] = 0;
 	
- 	/* cc_verbose(1, 1, VERBOSE_PREFIX_4 " * string length %i,%i\n", strsize, *idx); */
+ 	/* cc_qsig_verbose( 1, VERBOSE_PREFIX_4 " * string length %i,%i\n", strsize, *idx); */
 	return strsize;
 }
 
@@ -138,12 +138,12 @@ unsigned int cc_qsig_asn197ade_get_pns(unsigned char *data, int *idx, struct asn
 	
 	numtype = (data[myidx++] & 0x0F);	/* defines type of Number */
 	
-	/* cc_verbose(1, 1, VERBOSE_PREFIX_4 " * num type %i,%i\n", numtype, myidx);   */
+	/* cc_qsig_verbose( 1, VERBOSE_PREFIX_4 " * num type %i,%i\n", numtype, myidx);   */
 	switch (numtype){
 		case 0:
 			/* myidx points now to length */
 			res = cc_qsig_asn197ade_get_partynumber(buf, buflen, &myidx, data);
-			/* cc_verbose(1, 1, VERBOSE_PREFIX_4 " * res %i\n", numtype);   */
+			/* cc_qsig_verbose( 1, VERBOSE_PREFIX_4 " * res %i\n", numtype);   */
 			if (!res)
 				return 0;
 			

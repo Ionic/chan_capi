@@ -49,7 +49,7 @@ void cc_qsig_op_ecma_isdn_namepres(struct cc_qsig_invokedata *invoke, struct cap
 	int myidx = 0;
 	char *nametype = NULL;
 	
-	cc_verbose(1, 1, VERBOSE_PREFIX_4 "Handling Name Operation (id# %#x)\n", invoke->id);
+	cc_qsig_verbose( 1, VERBOSE_PREFIX_4 "Handling Name Operation (id# %#x)\n", invoke->id);
 
 	callername[0] = 0;
 	datalength = invoke->datalen;
@@ -85,7 +85,7 @@ void cc_qsig_op_ecma_isdn_namepres(struct cc_qsig_invokedata *invoke, struct cap
 		case 2: /* Connected Name */
 		case 3: /* Busy Name */
  			if (i->qsig_data.dnameid) {	/* this facility may come more than once - if so, then update this value */
-				cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * deleting previously received name.\n", nametype, namelength, callername); 
+				cc_qsig_verbose( 1, VERBOSE_PREFIX_4 "  * deleting previously received name.\n", nametype, namelength, callername); 
 			 	free(i->qsig_data.dnameid);
 			}
 			i->qsig_data.dnameid = strdup(callername);	/* save name as destination in qsig specific fields */
@@ -95,7 +95,7 @@ void cc_qsig_op_ecma_isdn_namepres(struct cc_qsig_invokedata *invoke, struct cap
 			break;
 	}
 	
-	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * Got %s: \"%s\" (%i byte(s))\n", nametype, callername, namelength); 
+	cc_qsig_verbose( 0, VERBOSE_PREFIX_4 "  * Got %s: \"%s\" (%i byte(s))\n", nametype, callername, namelength); 
 
 	/* if there was an sequence tag, we have more informations here, but we will ignore it at the moment */
 	
@@ -140,6 +140,7 @@ int cc_qsig_encode_ecma_name_invoke(unsigned char * buf, unsigned int *idx, stru
 			namelen = 50;
 		memcpy(namebuf, name, namelen);
 	}
+	namebuf[namelen] = 0;
 	
 	invoke->id = 1;
   	invoke->descr_type = -1;	/* Let others do the work: qsig_add_invoke */
@@ -158,7 +159,7 @@ int cc_qsig_encode_ecma_name_invoke(unsigned char * buf, unsigned int *idx, stru
 	invoke->datalen = dataidx;
 	memcpy(invoke->data, data, dataidx);
 	
- 	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * Sending \"%s\": (%i byte(s))\n", namebuf, namelen); 
+ 	cc_qsig_verbose( 0, VERBOSE_PREFIX_4 "  * Sending \"%s\": (%i byte(s))\n", namebuf, namelen); 
 
 	return 0;
 }
@@ -228,7 +229,7 @@ int cc_qsig_encode_ecma_isdn_leginfo3_invoke(unsigned char * buf, unsigned int *
 	invoke->datalen = dataidx;
 	memcpy(invoke->data, data, dataidx);
 	
-	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * Sending QSIG_LEG_INFO3 \"%s\": (%i byte(s))\n", namebuf, namelen); 
+	cc_qsig_verbose( 0, VERBOSE_PREFIX_4 "  * Sending QSIG_LEG_INFO3 \"%s\": (%i byte(s))\n", namebuf, namelen); 
 
 	return 0;
 }
@@ -272,11 +273,14 @@ void cc_qsig_op_ecma_isdn_leginfo2(struct cc_qsig_invokedata *invoke, struct cap
 	divertName[0] = 0;
 	origCalledName[0] = 0;
 	
-	cc_verbose(1, 1, VERBOSE_PREFIX_4 "Handling QSIG LEG INFO2 (id# %#x)\n", invoke->id);
+	cc_qsig_verbose( 1, VERBOSE_PREFIX_4 "Handling QSIG LEG INFO2 (id# %#x)\n", invoke->id);
 
+	origPNS.partyNumber = NULL;
+	divertPNS.partyNumber = NULL;
+	
 	if (invoke->data[myidx++] != (ASN1_SEQUENCE | ASN1_TC_UNIVERSAL | ASN1_TF_CONSTRUCTED)) { /* 0x30 */
 		/* We do not handle this, because it should start with an sequence tag */
-		cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * not Handling QSIG LEG INFO2 - not a sequence\n");
+		cc_qsig_verbose( 1, VERBOSE_PREFIX_4 "  * not Handling QSIG LEG INFO2 - not a sequence\n");
 		return;
 	}
 	
@@ -284,7 +288,7 @@ void cc_qsig_op_ecma_isdn_leginfo2(struct cc_qsig_invokedata *invoke, struct cap
 	seqlength = invoke->data[myidx++];
 	datalength = invoke->datalen;
 	if (datalength < (seqlength+1)) {
-		cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * not Handling QSIG LEG INFO2 - buffer error\n");
+		cc_qsig_verbose( 1, VERBOSE_PREFIX_4 "  * not Handling QSIG LEG INFO2 - buffer error\n");
 		return;
 	}
 	
@@ -296,7 +300,7 @@ void cc_qsig_op_ecma_isdn_leginfo2(struct cc_qsig_invokedata *invoke, struct cap
 	
 	while (myidx < datalength) {
 		parameter = (invoke->data[myidx++] & 0x0f);
-		cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * Found parameter %i\n", parameter);
+		cc_qsig_verbose( 1, VERBOSE_PREFIX_4 "  * Found parameter %i\n", parameter);
 		switch (parameter) {
 			case 0:
 				myidx++;	/* Ignore Length of enumeration tag*/
@@ -316,17 +320,17 @@ void cc_qsig_op_ecma_isdn_leginfo2(struct cc_qsig_invokedata *invoke, struct cap
 			case 3:
 				/* Redirecting Name */
 				temp = invoke->data[myidx++]; /* keep the length of this info - maybe we don't get all data now */
-				cc_qsig_asn197no_get_name(divertName, ASN197NO_NAME_STRSIZE, &temp2, &myidx, invoke->data);
-				myidx += temp;
+ 				cc_qsig_asn197no_get_name(divertName, ASN197NO_NAME_STRSIZE, &temp2, &myidx, invoke->data);
+				myidx += temp + 1;
 				break;
 			case 4:
 				/* origCalled Name */
 				temp = invoke->data[myidx++]; /* keep the length of this info - maybe we don't get all data now */
 				cc_qsig_asn197no_get_name(origCalledName, ASN197NO_NAME_STRSIZE, &temp2, &myidx, invoke->data);
-				myidx += temp;
+				myidx += temp + 1;
 				break;
 			default:
-				cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * unknown parameter %i\n", parameter);
+				cc_qsig_verbose( 1, VERBOSE_PREFIX_4 "  * unknown parameter %i\n", parameter);
 				break;
 		}
 	}
@@ -338,12 +342,14 @@ void cc_qsig_op_ecma_isdn_leginfo2(struct cc_qsig_invokedata *invoke, struct cap
 	snprintf(tempstr, 5, "%i", divCount);
 	pbx_builtin_setvar_helper(i->owner, "_QSIG_LI2_DIVCOUNT", tempstr);
 	
- 	pbx_builtin_setvar_helper(i->owner, "_QSIG_LI2_DIVNUM", divertPNS.partyNumber);
- 	pbx_builtin_setvar_helper(i->owner, "_QSIG_LI2_ODIVNUM", origPNS.partyNumber);
+	if (divertPNS.partyNumber)
+		pbx_builtin_setvar_helper(i->owner, "_QSIG_LI2_DIVNUM", divertPNS.partyNumber);
+	if (origPNS.partyNumber)
+		pbx_builtin_setvar_helper(i->owner, "_QSIG_LI2_ODIVNUM", origPNS.partyNumber);
 	pbx_builtin_setvar_helper(i->owner, "_QSIG_LI2_DIVNAME", divertName);
 	pbx_builtin_setvar_helper(i->owner, "_QSIG_LI2_ODIVNAME", origCalledName);
 
-	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * Got QSIG_LEG_INFO2: %i(%i), %ix %s->%s, %s->%s\n", divReason, orgDivReason, divCount, origPNS.partyNumber, divertPNS.partyNumber, origCalledName, divertName);
+	cc_qsig_verbose( 0, VERBOSE_PREFIX_4 "  * Got QSIG_LEG_INFO2: %i(%i), %ix %s->%s, %s->%s\n", divReason, orgDivReason, divCount, origPNS.partyNumber, divertPNS.partyNumber, origCalledName, divertName);
 	
 	return;
 	
@@ -474,7 +480,7 @@ void cc_qsig_encode_ecma_calltransfer(unsigned char * buf, unsigned int *idx, st
 	
 	invoke->datalen = ix;
 	memcpy(invoke->data, c, ix);
-	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * Sending QSIG_CT: %i->%s\n", info, cid);
+	cc_qsig_verbose( 0, VERBOSE_PREFIX_4 "  * Sending QSIG_CT: %i->%s\n", info, cid);
 	
 	if (cid)
 		free(cid);
@@ -517,9 +523,9 @@ unsigned int cc_qsig_decode_ecma_calltransfer(struct cc_qsig_invokedata *invoke,
 	ctc->callStatus = answered;
 	ctc->argumentExtension = NULL;	/* unhandled yet */
 	
-#define ct_err(x...)	{ cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * not Handling QSIG CALL TRANSFER - "x); return 0; }
+#define ct_err(x...)	{ cc_qsig_verbose( 1, VERBOSE_PREFIX_4 "  * not Handling QSIG CALL TRANSFER - "x); return 0; }
 	
-	cc_verbose(1, 1, VERBOSE_PREFIX_4 "Handling QSIG CALL TRANSFER (id# %#x)\n", invoke->id);
+	cc_qsig_verbose( 1, VERBOSE_PREFIX_4 "Handling QSIG CALL TRANSFER (id# %#x)\n", invoke->id);
 
 	if (data[myidx++] != (ASN1_SEQUENCE | ASN1_TC_UNIVERSAL | ASN1_TF_CONSTRUCTED)) { /* 0x30 */
 		/* We do not handle this, because it should start with an sequence tag */
@@ -554,7 +560,7 @@ unsigned int cc_qsig_decode_ecma_calltransfer(struct cc_qsig_invokedata *invoke,
 			if (ctc->basicCallInfoElements) {
 				memcpy(ctc->basicCallInfoElements, &data[myidx+1], data[myidx] );
 			} else {
-				cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * QSIG CALL TRANSFER - couldn't allocate memory for basicCallInfoElements.\n", (int)data[myidx]);
+				cc_qsig_verbose( 1, VERBOSE_PREFIX_4 "  * QSIG CALL TRANSFER - couldn't allocate memory for basicCallInfoElements.\n", (int)data[myidx]);
 			}
 			myidx += data[myidx] + 1;
 		}
@@ -574,7 +580,7 @@ unsigned int cc_qsig_decode_ecma_calltransfer(struct cc_qsig_invokedata *invoke,
 		}
 	}	
 	
-	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * Got QSIG CALL TRANSFER endDesignation: %i partyNumber: %s (ScreeningInd: %i), partyName: \"%s\", Call state: %s\n", 
+	cc_qsig_verbose( 0, VERBOSE_PREFIX_4 "  * Got QSIG CALL TRANSFER endDesignation: %i partyNumber: %s (ScreeningInd: %i), partyName: \"%s\", Call state: %s\n", 
 		   ctc->endDesignation, ctc->redirectionNumber.partyNumber, ctc->redirectionNumber.screeningInd, ctc->redirectionName, ct_status_txt[ctc->callStatus]);
 	
 	return 1;
@@ -649,7 +655,7 @@ void cc_qsig_encode_ecma_sscalltransfer(unsigned char * buf, unsigned int *idx, 
 
 	invoke->datalen = ix;
 	memcpy(invoke->data, c, ix);
-	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * Sending QSIG_SSCT: %s->%s\n", cidsrc, ciddst);
+	cc_qsig_verbose( 0, VERBOSE_PREFIX_4 "  * Sending QSIG_SSCT: %s->%s\n", cidsrc, ciddst);
 	
 }
 
@@ -680,11 +686,11 @@ void cc_qsig_op_ecma_isdn_prpropose(struct cc_qsig_invokedata *invoke, struct ca
 	callid[0] = 0;
 	reroutingnr[0] = 0;
 	
-	cc_verbose(1, 1, VERBOSE_PREFIX_4 "Handling QSIG PATH REPLACEMENT PROPOSE (id# %#x)\n", invoke->id);
+	cc_qsig_verbose( 1, VERBOSE_PREFIX_4 "Handling QSIG PATH REPLACEMENT PROPOSE (id# %#x)\n", invoke->id);
 
 	if (invoke->data[myidx++] != (ASN1_SEQUENCE | ASN1_TC_UNIVERSAL | ASN1_TF_CONSTRUCTED)) { /* 0x30 */
 		/* We do not handle this, because it should start with an sequence tag */
-		cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * not Handling QSIG REPLACEMENT PROPOSE - not a sequence\n");
+		cc_qsig_verbose( 1, VERBOSE_PREFIX_4 "  * not Handling QSIG REPLACEMENT PROPOSE - not a sequence\n");
 		return;
 	}
 	
@@ -692,7 +698,7 @@ void cc_qsig_op_ecma_isdn_prpropose(struct cc_qsig_invokedata *invoke, struct ca
 	seqlength = invoke->data[myidx++];
 	datalength = invoke->datalen;
 	if (datalength < (seqlength+1)) {
-		cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * not Handling QSIG REPLACEMENT PROPOSE - buffer error\n");
+		cc_qsig_verbose( 1, VERBOSE_PREFIX_4 "  * not Handling QSIG REPLACEMENT PROPOSE - buffer error\n");
 		return;
 	}
 	
@@ -701,7 +707,7 @@ void cc_qsig_op_ecma_isdn_prpropose(struct cc_qsig_invokedata *invoke, struct ca
 		strsize = cc_qsig_asn1_get_string((unsigned char*)&callid, sizeof(callid), &invoke->data[myidx]);
 		myidx += strsize +1;
 	} else {
-		cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * not Handling QSIG REPLACEMENT PROPOSE - NUMERICSTRING expected\n");
+		cc_qsig_verbose( 1, VERBOSE_PREFIX_4 "  * not Handling QSIG REPLACEMENT PROPOSE - NUMERICSTRING expected\n");
 		return;
 	}
 	
@@ -711,7 +717,7 @@ void cc_qsig_op_ecma_isdn_prpropose(struct cc_qsig_invokedata *invoke, struct ca
 	if (temp) {
 		myidx += temp;
 	} else {
-		cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * not Handling QSIG REPLACEMENT PROPOSE - partyNumber expected (%i)\n", myidx);
+		cc_qsig_verbose( 1, VERBOSE_PREFIX_4 "  * not Handling QSIG REPLACEMENT PROPOSE - partyNumber expected (%i)\n", myidx);
 		return;
 	}
 	
@@ -719,7 +725,7 @@ void cc_qsig_op_ecma_isdn_prpropose(struct cc_qsig_invokedata *invoke, struct ca
 	i->qsig_data.pr_propose_cid  = strdup(callid);
 	i->qsig_data.pr_propose_pn = strdup(reroutingnr);
 	
-	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * Got QSIG_PATHREPLACEMENT_PROPOSE Call identity: %s, Party number: %s (%i)\n", callid, reroutingnr, temp);
+	cc_qsig_verbose( 0, VERBOSE_PREFIX_4 "  * Got QSIG_PATHREPLACEMENT_PROPOSE Call identity: %s, Party number: %s (%i)\n", callid, reroutingnr, temp);
 	
 	return;
 }
@@ -742,7 +748,6 @@ void cc_qsig_op_ecma_isdn_prpropose(struct cc_qsig_invokedata *invoke, struct ca
  */
 void cc_qsig_encode_ecma_prpropose(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke, struct capi_pvt *i, char *param)
 {
-	/* TODO: write code */
  	int invokeop = 4;
 	
 	char *callid, *reroutingnr;
@@ -750,6 +755,11 @@ void cc_qsig_encode_ecma_prpropose(unsigned char * buf, unsigned int *idx, struc
 	int seqlen = 4;
 	char c[255];
 	int ix = 0;
+
+	int res = 0;
+	int ii = 0;
+	struct rose_component *comp = NULL, *compstk[10];
+	int compsp = 0;
 
 	if (!i->qsig_data.pr_propose_cid)
 		return ;
@@ -764,7 +774,8 @@ void cc_qsig_encode_ecma_prpropose(unsigned char * buf, unsigned int *idx, struc
 	rrnlen = strlen(reroutingnr);
 	seqlen += cidlen + rrnlen;
 	
-	
+
+#if 0	
 	c[ix++] = ASN1_SEQUENCE | ASN1_TF_CONSTRUCTED;	/* start of SEQUENCE */
 	c[ix++] = seqlen;
 		
@@ -777,6 +788,23 @@ void cc_qsig_encode_ecma_prpropose(unsigned char * buf, unsigned int *idx, struc
 	c[ix++] = rrnlen;
 	memcpy(&c[ix], reroutingnr, rrnlen);
 	ix += rrnlen;
+#else
+	ASN1_ADD_SIMPLE(comp, (ASN1_SEQUENCE | ASN1_TF_CONSTRUCTED), c, ii);
+	ASN1_PUSH(compstk, compsp, comp);
+	
+	res = cc_qsig_asn1_add_string2(ASN1_NUMERICSTRING, &c[ii], sizeof(c) - ii, 20, callid, cidlen);
+	if (res < 0)
+		return;
+	ii += res;
+	
+	res = cc_qsig_asn1_add_string2(ASN1_TC_CONTEXTSPEC, &c[ii], sizeof(c) - ii, 20, reroutingnr, rrnlen);
+	if (res < 0)
+		return;
+	ii += res;
+
+	ASN1_FIXUP(compstk, compsp, c, ii);
+	ix = ii;
+#endif
 	
 	/* end of SEQUENCE */
 	/* there are optional data possible here */
@@ -787,8 +815,44 @@ void cc_qsig_encode_ecma_prpropose(unsigned char * buf, unsigned int *idx, struc
 
 	invoke->datalen = ix;
 	memcpy(invoke->data, c, ix);
-	cc_verbose(1, 1, VERBOSE_PREFIX_4 "  * Sending QSIG_PATHREPLACEMENT_PROPOSE: Call identity: %s, Party number: %s\n", callid, reroutingnr);
 	
+	cc_qsig_verbose( 0, VERBOSE_PREFIX_4 "  * Sending QSIG_PATHREPLACEMENT_PROPOSE: Call identity: %s, Party number: %s\n", callid, reroutingnr);
 	
 	return;
+}
+
+void cc_qsig_encode_ecma_ccnr_req(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke, struct capi_pvt *i, char *param)
+{
+	int invokeop = 27;
+	
+	int ii = 0;
+	unsigned char c[256];
+	struct rose_component *comp = NULL, *compstk[10];
+	int compsp = 0;
+	int ix = 0;
+
+	ASN1_ADD_SIMPLE(comp, (ASN1_TF_CONSTRUCTED | ASN1_SEQUENCE), c, ii);
+	ASN1_PUSH(compstk, compsp, comp);
+	
+	
+	
+#if 0	/* Constructed data - ECMAv1 HICOM/HIPATH */
+	ASN1_ADD_SIMPLE(comp, (ASN1_CONTEXT_SPECIFIC | ASN1_CONSTRUCTOR | ASN1_TAG_1), buffer, i);
+	ASN1_PUSH(compstk, compsp, comp);
+	res = asn1_string_encode(ASN1_OCTETSTRING, &buffer[i], sizeof(buffer)-i,  50, c->callername, namelen);
+	if (res < 0)
+		return -1;
+	i += res;
+	ASN1_FIXUP(compstk, compsp, buffer, i);
+#endif
+	
+	invoke->id = invokeop;
+	invoke->descr_type = -1;
+	invoke->type = invokeop;
+
+	invoke->datalen = ix;
+	memcpy(invoke->data, c, ix);
+	cc_qsig_verbose( 1, VERBOSE_PREFIX_4 "  * Sending QSIG_CCNR_REQ\n");
+
+	return ;
 }

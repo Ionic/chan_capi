@@ -5530,6 +5530,34 @@ static int pbxcli_capi_no_debug(int fd, int argc, char *argv[])
 }
 
 /*
+ * enable QSIG debugging
+ */
+static int pbxcli_capi_qsig_do_debug(int fd, int argc, char *argv[])
+{
+	if (argc != 3)
+		return RESULT_SHOWUSAGE;
+		
+	capiqsigdebug = 1;
+	ast_cli(fd, "CAPI QSIG Debugging Enabled\n");
+	
+	return RESULT_SUCCESS;
+}
+
+/*
+ * disable QSIG debugging
+ */
+static int pbxcli_capi_qsig_no_debug(int fd, int argc, char *argv[])
+{
+	if (argc != 4)
+		return RESULT_SHOWUSAGE;
+
+	capiqsigdebug = 0;
+	ast_cli(fd, "CAPI QSIG Debugging Disabled\n");
+	
+	return RESULT_SUCCESS;
+}
+
+/*
  * usages
  */
 static char info_usage[] = 
@@ -5548,6 +5576,14 @@ static char no_debug_usage[] =
 "Usage: capi no debug\n"
 "       Disables dumping of CAPI packets for debugging purposes\n";
 
+static char qsig_debug_usage[] = 
+"Usage: capi qsig debug\n"
+"       Enables dumping of CAPI QSIG facilities for debugging purposes\n";
+
+static char qsig_no_debug_usage[] = 
+"Usage: capi qsig no debug\n"
+"       Disables dumping of CAPI QSIG facilities for debugging purposes\n";
+
 static char chatinfo_usage[] = 
 "Usage: capi chatinfo\n"
 "       Show info about chat status.\n";
@@ -5563,6 +5599,10 @@ static struct ast_cli_entry  cli_debug =
 	{ { "capi", "debug", NULL }, pbxcli_capi_do_debug, "Enable CAPI debugging", debug_usage };
 static struct ast_cli_entry  cli_no_debug =
 	{ { "capi", "no", "debug", NULL }, pbxcli_capi_no_debug, "Disable CAPI debugging", no_debug_usage };
+static struct ast_cli_entry  cli_qsig_debug =
+	{ { "capi", "qsig", "debug", NULL }, pbxcli_capi_qsig_do_debug, "Enable CAPI QSIG debugging", qsig_debug_usage };
+static struct ast_cli_entry  cli_qsig_no_debug =
+	{ { "capi", "qsig", "no", "debug", NULL }, pbxcli_capi_qsig_no_debug, "Disable CAPI QSIG debugging", qsig_no_debug_usage };
 static struct ast_cli_entry  cli_chatinfo =
 	{ { "capi", "chatinfo", NULL }, pbxcli_capi_chatinfo, "Show CAPI chat info", chatinfo_usage };
 
@@ -6091,6 +6131,8 @@ int unload_module(void)
 	ast_cli_unregister(&cli_show_channels);
 	ast_cli_unregister(&cli_debug);
 	ast_cli_unregister(&cli_no_debug);
+	ast_cli_unregister(&cli_qsig_debug);
+	ast_cli_unregister(&cli_qsig_no_debug);
 	ast_cli_unregister(&cli_chatinfo);
 
 #ifdef CC_AST_HAS_VERSION_1_4
@@ -6198,6 +6240,8 @@ int load_module(void)
 	ast_cli_register(&cli_show_channels);
 	ast_cli_register(&cli_debug);
 	ast_cli_register(&cli_no_debug);
+	ast_cli_register(&cli_qsig_debug);
+	ast_cli_register(&cli_qsig_no_debug);
 	ast_cli_register(&cli_chatinfo);
 	
 	ast_register_application(commandapp, pbx_capicommand_exec, commandsynopsis, commandtdesc);

@@ -14,6 +14,8 @@
 #ifndef PBX_QSIG_H
 #define PBX_QSIG_H
 
+int capiqsigdebug;
+
 #define QSIG_DISABLED		0x00
 #define QSIG_ENABLED		0x01		/* shouldn't be used anymore */
 
@@ -102,6 +104,91 @@
 
 #define CCQSIG_TIMER_WAIT_PRPROPOSE 1		/* Wait x seconds */
 
+struct rose_component {
+	u_int8_t type;
+	u_int8_t len;
+	u_int8_t data[0];
+};
+
+#define GET_COMPONENT(component, idx, ptr, length) \
+	if ((idx)+2 > (length)) \
+		break; \
+	(component) = (struct rose_component*)&((ptr)[idx]); \
+	if ((idx)+(component)->len+2 > (length)) { \
+		if ((component)->len != ASN1_LEN_INDEF) \
+			pri_message(pri, "Length (%d) of 0x%X component is too long\n", (component)->len, (component)->type); \
+}
+
+#define NEXT_COMPONENT(component, idx) \
+	(idx) += (component)->len + 2
+
+#define SUB_COMPONENT(component, idx) \
+	(idx) += 2
+
+#define CHECK_COMPONENT(component, comptype, message) \
+	if ((component)->type && ((component)->type & ASN1_TYPE_MASK) != (comptype)) { \
+		pri_message(pri, (message), (component)->type); \
+		asn1_dump(pri, (component), (component)->len+2); \
+		break; \
+}
+	
+#define ASN1_GET_INTEGER(component, variable) \
+	do { \
+		int comp_idx; \
+		(variable) = 0; \
+		for (comp_idx = 0; comp_idx < (component)->len; ++comp_idx) \
+			(variable) = ((variable) << 8) | (component)->data[comp_idx]; \
+} while (0)
+
+#define ASN1_FIXUP_LEN(component, size) \
+	do { \
+		if ((component)->len == ASN1_LEN_INDEF) \
+			size += 2; \
+} while (0)
+
+#define ASN1_ADD_SIMPLE(component, comptype, ptr, idx) \
+	do { \
+		(component) = (struct rose_component *)&((ptr)[(idx)]); \
+		(component)->type = (comptype); \
+		(component)->len = 0; \
+		(idx) += 2; \
+} while (0)
+
+#define ASN1_ADD_BYTECOMP(component, comptype, ptr, idx, value) \
+	do { \
+		(component) = (struct rose_component *)&((ptr)[(idx)]); \
+		(component)->type = (comptype); \
+		(component)->len = 1; \
+		(component)->data[0] = (value); \
+		(idx) += 3; \
+} while (0)
+
+#define ASN1_ADD_WORDCOMP(component, comptype, ptr, idx, value) \
+	do { \
+		int __val = (value); \
+		int __i = 0; \
+		(component) = (struct rose_component *)&((ptr)[(idx)]); \
+		(component)->type = (comptype); \
+		if ((__val >> 24)) \
+			(component)->data[__i++] = (__val >> 24) & 0xff; \
+		if ((__val >> 16)) \
+			(component)->data[__i++] = (__val >> 16) & 0xff; \
+		if ((__val >> 8)) \
+			(component)->data[__i++] = (__val >> 8) & 0xff; \
+		(component)->data[__i++] = __val & 0xff; \
+		(component)->len = __i; \
+		(idx) += 2 + __i; \
+} while (0)
+
+#define ASN1_PUSH(stack, stackpointer, component) \
+	(stack)[(stackpointer)++] = (component)
+
+#define ASN1_FIXUP(stack, stackpointer, data, idx) \
+	do { \
+		--(stackpointer); \
+		(stack)[(stackpointer)]->len = (unsigned char *)&((data)[(idx)]) - (unsigned char *)(stack)[(stackpointer)] - 2; \
+} while (0)
+
 
 #define free_null(x)	{ free(x); x = NULL; }
 
@@ -150,6 +237,7 @@ struct cc_qsig_nfe {
 /*
  ***  QSIG Core Functions 
  */
+extern void cc_qsig_verbose(int c_d, char *text, ...);
 
 extern int cc_qsig_build_facility_struct(unsigned char * buf, unsigned int *idx, int protocolvar, int apdu_interpr, struct cc_qsig_nfe *nfe);
 extern int cc_qsig_add_invoke(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke, struct capi_pvt *i);
@@ -157,6 +245,7 @@ extern int cc_qsig_add_invoke(unsigned char * buf, unsigned int *idx, struct cc_
 extern unsigned int cc_qsig_asn1_get_string(unsigned char *buf, int buflen, unsigned char *data);
 extern unsigned int cc_qsig_asn1_get_integer(unsigned char *data, int *idx);
 extern unsigned char *cc_qsig_asn1_oid2str(unsigned char *data, int size);
+extern int cc_qsig_asn1_add_string2(unsigned char asn1_type, void *data, int len, int max_len, void *src, int src_len);
 extern unsigned int cc_qsig_asn1_add_string(unsigned char *buf, int *idx, char *data, int datalen);
 extern unsigned int cc_qsig_asn1_add_integer(unsigned char *buf, int *idx, int value);
 

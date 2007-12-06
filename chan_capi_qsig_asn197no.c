@@ -54,7 +54,7 @@ unsigned int cc_qsig_asn197no_get_name(char *buf, int buflen, unsigned int *bufd
 		/* This facility is encoded as SEQUENCE */
 		seqlength = data[++myidx];
 		myidx++;
-		cc_verbose(1, 1, VERBOSE_PREFIX_4 "  Got name sequence (Length= %i)\n", seqlength);
+		cc_qsig_verbose( 1, VERBOSE_PREFIX_4 "  Got name sequence (Length= %i)\n", seqlength);
 	}
 
 	if (nametag < 0x80) {	/* Tag shows an simple String */
@@ -76,13 +76,13 @@ unsigned int cc_qsig_asn197no_get_name(char *buf, int buflen, unsigned int *bufd
 					namelength = cc_qsig_asn1_get_string((unsigned char *)buf, buflen, &data[myidx]);
 					myidx += namelength + 1;
 				} else {
-					cc_verbose(1, 1, VERBOSE_PREFIX_4 " Namestruct not ECMA conform (String expected)\n");
+					cc_qsig_verbose( 1, VERBOSE_PREFIX_4 " Namestruct not ECMA conform (String expected)\n");
 					break;
 				}
 				if (data[myidx++] == ASN1_INTEGER) {
 					charset = cc_qsig_asn1_get_integer(data, &myidx);
 				} else {
-					cc_verbose(1, 1, VERBOSE_PREFIX_4 " Namestruct not ECMA conform (Integer expected)\n");
+					cc_qsig_verbose( 1, VERBOSE_PREFIX_4 " Namestruct not ECMA conform (Integer expected)\n");
 				}
 				break;
 			case 4:		/* Name not available */
