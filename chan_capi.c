@@ -1313,12 +1313,15 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 		cc_verbose(4, 0, VERBOSE_PREFIX_2 "%s: is digital call, set proto to TRANSPARENT\n",
 			i->vname);
 	}
-	if ((i->doOverlap) && (strlen(dest))) {
-		cc_copy_string(i->overlapdigits, dest, sizeof(i->overlapdigits));
+	if ((i->doOverlap) || (!strlen(dest))) {
 		called[0] = 1;
 		sending_complete = "\x00";
+		if (strlen(dest)) {
+			cc_copy_string(i->overlapdigits, dest, sizeof(i->overlapdigits));
+		} else {
+			i->doOverlap = 0;
+		}
 	} else {
-		i->doOverlap = 0;
 		called[0] = strlen(dest) + 1;
 		sending_complete = "\x02\x01\x00";
 	}
