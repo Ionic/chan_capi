@@ -27,8 +27,13 @@ if [ ! -d "$INCLUDEDIR" ]; then
 fi
 
 echo -n "Checking Asterisk version... "
+if grep -q "ast_get_version_num" $INCLUDEDIR/version.h; then
+AVERSION=TRUNK
+VER=1_6
+else
 AVERSION=`sed -n '/.*ASTERISK_VERSION /s/^.*ASTERISK_VERSION //p' $INCLUDEDIR/version.h`
 AVERSION=`echo $AVERSION | sed 's/\"//g'`
+fi
 echo $AVERSION
 
 echo "/*" >$CONFIGFILE
@@ -49,14 +54,24 @@ else
 		echo " * assuming Asterisk version 1.4"
 		VER=1_4
 	else
-		echo "#undef CC_AST_HAS_VERSION_1_4" >>$CONFIGFILE
+		if [ "$VER" = "1_6" ]; then
+			echo "#define CC_AST_HAS_VERSION_1_4" >>$CONFIGFILE
+			echo "#define CC_AST_HAS_VERSION_1_6" >>$CONFIGFILE
+			echo " * assuming Asterisk trunk version (1.6)"
+		else
+			echo "#undef CC_AST_HAS_VERSION_1_4" >>$CONFIGFILE
+		fi
 	fi
 fi
 
 if [ "$VER" = "1_2" ]; then
 	echo "Using Asterisk 1.2 API"
 else
-	echo "Using Asterisk 1.4 API"
+	if [ "$VER" = "1_6" ]; then
+		echo "Using Asterisk 1.6 API"
+	else
+		echo "Using Asterisk 1.4 API"
+	fi
 fi
 
 if grep -q "AST_STRING_FIELD(name)" $INCLUDEDIR/channel.h; then
