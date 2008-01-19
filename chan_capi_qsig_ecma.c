@@ -17,9 +17,6 @@
 #include <stdio.h>
 #include <string.h>
 		
-#include <asterisk/channel.h>
-#include <asterisk/options.h>
-#include <asterisk/pbx.h>
 #include "chan_capi20.h"
 #include "chan_capi.h"
 #include "chan_capi_utils.h"

@@ -5426,17 +5426,76 @@ static char *show_isdnstate(unsigned int isdnstate, char *str)
 }
 
 /*
+ * usages
+ */
+static char info_usage[] = 
+"Usage: capi info\n"
+"       Show info about B channels on controllers.\n";
+
+static char show_channels_usage[] = 
+"Usage: capi show channels\n"
+"       Show info about B channels.\n";
+
+static char debug_usage[] = 
+"Usage: capi debug\n"
+"       Enables dumping of CAPI packets for debugging purposes\n";
+
+static char no_debug_usage[] = 
+"Usage: capi no debug\n"
+"       Disables dumping of CAPI packets for debugging purposes\n";
+
+static char qsig_debug_usage[] = 
+"Usage: capi qsig debug\n"
+"       Enables dumping of CAPI QSIG facilities for debugging purposes\n";
+
+static char qsig_no_debug_usage[] = 
+"Usage: capi qsig no debug\n"
+"       Disables dumping of CAPI QSIG facilities for debugging purposes\n";
+
+#ifndef CC_AST_HAS_VERSION_1_6
+static
+#endif
+char chatinfo_usage[] = 
+"Usage: capi chatinfo\n"
+"       Show info about chat status.\n";
+
+#define CC_CLI_TEXT_INFO "Show CAPI info"
+#define CC_CLI_TEXT_SHOW_CHANNELS "Show B-channel info"
+#define CC_CLI_TEXT_DEBUG "Enable CAPI debugging"
+#define CC_CLI_TEXT_NO_DEBUG "Disable CAPI debugging"
+#define CC_CLI_TEXT_QSIG_DEBUG "Enable CAPI QSIG debugging"
+#define CC_CLI_TEXT_QSIG_NO_DEBUG "Disable CAPI QSIG debugging"
+#define CC_CLI_TEXT_CHATINFO "Show CAPI chat info"
+
+/*
  * do command capi show channels
  */
+#ifdef CC_AST_HAS_VERSION_1_6
+static char *pbxcli_capi_show_channels(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+#else
 static int pbxcli_capi_show_channels(int fd, int argc, char *argv[])
+#endif
 {
 	struct capi_pvt *i;
 	char iochar;
 	char i_state[80];
 	char b3q[32];
+#ifdef CC_AST_HAS_VERSION_1_6
+	int fd = a->fd;
+
+	if (cmd == CLI_INIT) {
+		e->command = "capi show channels";
+		e->usage = show_channels_usage;
+		return NULL;
+	} else if (cmd == CLI_GENERATE)
+		return NULL;
+	if (a->argc != e->args)
+		return CLI_SHOWUSAGE;
+#else
 	
 	if (argc != 3)
 		return RESULT_SHOWUSAGE;
+#endif
 	
 	ast_cli(fd, "CAPI B-channel information:\n");
 	ast_cli(fd, "Line-Name       NTmode state i/o bproto isdnstate   ton  number\n");
@@ -5479,18 +5538,39 @@ static int pbxcli_capi_show_channels(int fd, int argc, char *argv[])
 
 	cc_mutex_unlock(&iflock);
 		
+#ifdef CC_AST_HAS_VERSION_1_6
+	return CLI_SUCCESS;
+#else
 	return RESULT_SUCCESS;
+#endif
 }
 
 /*
  * do command capi info
  */
+#ifdef CC_AST_HAS_VERSION_1_6
+static char *pbxcli_capi_info(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+#else
 static int pbxcli_capi_info(int fd, int argc, char *argv[])
+#endif
 {
 	int i = 0;
+#ifdef CC_AST_HAS_VERSION_1_6
+	int fd = a->fd;
+
+	if (cmd == CLI_INIT) {
+		e->command = "capi info";
+		e->usage = info_usage;
+		return NULL;
+	} else if (cmd == CLI_GENERATE)
+		return NULL;
+	if (a->argc != e->args)
+		return CLI_SHOWUSAGE;
+#else
 	
 	if (argc != 2)
 		return RESULT_SHOWUSAGE;
+#endif
 	
 	ast_cli(fd, "%s www.chan-capi.org\n", tdesc);
 		
@@ -5501,113 +5581,182 @@ static int pbxcli_capi_info(int fd, int argc, char *argv[])
 				capi_controllers[i]->nfreebchannels);
 		}
 	}
+#ifdef CC_AST_HAS_VERSION_1_6
+	return CLI_SUCCESS;
+#else
 	return RESULT_SUCCESS;
+#endif
 }
 
 /*
  * enable debugging
  */
+#ifdef CC_AST_HAS_VERSION_1_6
+static char *pbxcli_capi_do_debug(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+#else
 static int pbxcli_capi_do_debug(int fd, int argc, char *argv[])
+#endif
 {
+#ifdef CC_AST_HAS_VERSION_1_6
+	int fd = a->fd;
+
+	if (cmd == CLI_INIT) {
+		e->command = "capi debug";
+		e->usage = debug_usage;
+		return NULL;
+	} else if (cmd == CLI_GENERATE)
+		return NULL;
+	if (a->argc != e->args)
+		return CLI_SHOWUSAGE;
+#else
 	if (argc != 2)
 		return RESULT_SHOWUSAGE;
+#endif
 		
 	capidebug = 1;
 	ast_cli(fd, "CAPI Debugging Enabled\n");
 	
+#ifdef CC_AST_HAS_VERSION_1_6
+	return CLI_SUCCESS;
+#else
 	return RESULT_SUCCESS;
+#endif
 }
 
 /*
  * disable debugging
  */
+#ifdef CC_AST_HAS_VERSION_1_6
+static char *pbxcli_capi_no_debug(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+#else
 static int pbxcli_capi_no_debug(int fd, int argc, char *argv[])
+#endif
 {
+#ifdef CC_AST_HAS_VERSION_1_6
+	int fd = a->fd;
+
+	if (cmd == CLI_INIT) {
+		e->command = "capi no debug";
+		e->usage = no_debug_usage;
+		return NULL;
+	} else if (cmd == CLI_GENERATE)
+		return NULL;
+	if (a->argc != e->args)
+		return CLI_SHOWUSAGE;
+#else
 	if (argc != 3)
 		return RESULT_SHOWUSAGE;
+#endif
 
 	capidebug = 0;
 	ast_cli(fd, "CAPI Debugging Disabled\n");
 	
+#ifdef CC_AST_HAS_VERSION_1_6
+	return CLI_SUCCESS;
+#else
 	return RESULT_SUCCESS;
+#endif
 }
 
 /*
  * enable QSIG debugging
  */
+#ifdef CC_AST_HAS_VERSION_1_6
+static char *pbxcli_capi_qsig_do_debug(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+#else
 static int pbxcli_capi_qsig_do_debug(int fd, int argc, char *argv[])
+#endif
 {
+#ifdef CC_AST_HAS_VERSION_1_6
+	int fd = a->fd;
+
+	if (cmd == CLI_INIT) {
+		e->command = "capi qsig debug";
+		e->usage = qsig_debug_usage;
+		return NULL;
+	} else if (cmd == CLI_GENERATE)
+		return NULL;
+	if (a->argc != e->args)
+		return CLI_SHOWUSAGE;
+#else
 	if (argc != 3)
 		return RESULT_SHOWUSAGE;
+#endif
 		
 	capiqsigdebug = 1;
 	ast_cli(fd, "CAPI QSIG Debugging Enabled\n");
 	
+#ifdef CC_AST_HAS_VERSION_1_6
+	return CLI_SUCCESS;
+#else
 	return RESULT_SUCCESS;
+#endif
 }
 
 /*
  * disable QSIG debugging
  */
+#ifdef CC_AST_HAS_VERSION_1_6
+static char *pbxcli_capi_qsig_no_debug(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+#else
 static int pbxcli_capi_qsig_no_debug(int fd, int argc, char *argv[])
+#endif
 {
+#ifdef CC_AST_HAS_VERSION_1_6
+	int fd = a->fd;
+
+	if (cmd == CLI_INIT) {
+		e->command = "capi qsig no debug";
+		e->usage = qsig_no_debug_usage;
+		return NULL;
+	} else if (cmd == CLI_GENERATE)
+		return NULL;
+	if (a->argc != e->args)
+		return CLI_SHOWUSAGE;
+#else
 	if (argc != 4)
 		return RESULT_SHOWUSAGE;
+#endif
 
 	capiqsigdebug = 0;
 	ast_cli(fd, "CAPI QSIG Debugging Disabled\n");
 	
+#ifdef CC_AST_HAS_VERSION_1_6
+	return CLI_SUCCESS;
+#else
 	return RESULT_SUCCESS;
+#endif
 }
-
-/*
- * usages
- */
-static char info_usage[] = 
-"Usage: capi info\n"
-"       Show info about B channels on controllers.\n";
-
-static char show_channels_usage[] = 
-"Usage: capi show channels\n"
-"       Show info about B channels.\n";
-
-static char debug_usage[] = 
-"Usage: capi debug\n"
-"       Enables dumping of CAPI packets for debugging purposes\n";
-
-static char no_debug_usage[] = 
-"Usage: capi no debug\n"
-"       Disables dumping of CAPI packets for debugging purposes\n";
-
-static char qsig_debug_usage[] = 
-"Usage: capi qsig debug\n"
-"       Enables dumping of CAPI QSIG facilities for debugging purposes\n";
-
-static char qsig_no_debug_usage[] = 
-"Usage: capi qsig no debug\n"
-"       Disables dumping of CAPI QSIG facilities for debugging purposes\n";
-
-static char chatinfo_usage[] = 
-"Usage: capi chatinfo\n"
-"       Show info about chat status.\n";
 
 /*
  * define commands
  */
+#ifdef CC_AST_HAS_VERSION_1_6
+static struct ast_cli_entry cc_cli_cmd[] = {
+	AST_CLI_DEFINE(pbxcli_capi_info, CC_CLI_TEXT_INFO),
+	AST_CLI_DEFINE(pbxcli_capi_show_channels, CC_CLI_TEXT_SHOW_CHANNELS),
+	AST_CLI_DEFINE(pbxcli_capi_do_debug, CC_CLI_TEXT_DEBUG),
+	AST_CLI_DEFINE(pbxcli_capi_no_debug, CC_CLI_TEXT_NO_DEBUG),
+	AST_CLI_DEFINE(pbxcli_capi_qsig_do_debug, CC_CLI_TEXT_QSIG_DEBUG),
+	AST_CLI_DEFINE(pbxcli_capi_qsig_no_debug, CC_CLI_TEXT_QSIG_NO_DEBUG),
+	AST_CLI_DEFINE(pbxcli_capi_chatinfo, CC_CLI_TEXT_CHATINFO),
+};
+#else
 static struct ast_cli_entry  cli_info =
-	{ { "capi", "info", NULL }, pbxcli_capi_info, "Show CAPI info", info_usage };
+	{ { "capi", "info", NULL }, pbxcli_capi_info, CC_CLI_TEXT_INFO, info_usage };
 static struct ast_cli_entry  cli_show_channels =
-	{ { "capi", "show", "channels", NULL }, pbxcli_capi_show_channels, "Show B-channel info", show_channels_usage };
+	{ { "capi", "show", "channels", NULL }, pbxcli_capi_show_channels, CC_CLI_TEXT_SHOW_CHANNELS, show_channels_usage };
 static struct ast_cli_entry  cli_debug =
-	{ { "capi", "debug", NULL }, pbxcli_capi_do_debug, "Enable CAPI debugging", debug_usage };
+	{ { "capi", "debug", NULL }, pbxcli_capi_do_debug, CC_CLI_TEXT_DEBUG, debug_usage };
 static struct ast_cli_entry  cli_no_debug =
-	{ { "capi", "no", "debug", NULL }, pbxcli_capi_no_debug, "Disable CAPI debugging", no_debug_usage };
+	{ { "capi", "no", "debug", NULL }, pbxcli_capi_no_debug, CC_CLI_TEXT_NO_DEBUG, no_debug_usage };
 static struct ast_cli_entry  cli_qsig_debug =
-	{ { "capi", "qsig", "debug", NULL }, pbxcli_capi_qsig_do_debug, "Enable CAPI QSIG debugging", qsig_debug_usage };
+	{ { "capi", "qsig", "debug", NULL }, pbxcli_capi_qsig_do_debug, CC_CLI_TEXT_QSIG_DEBUG, qsig_debug_usage };
 static struct ast_cli_entry  cli_qsig_no_debug =
-	{ { "capi", "qsig", "no", "debug", NULL }, pbxcli_capi_qsig_no_debug, "Disable CAPI QSIG debugging", qsig_no_debug_usage };
+	{ { "capi", "qsig", "no", "debug", NULL }, pbxcli_capi_qsig_no_debug, CC_CLI_TEXT_QSIG_NO_DEBUG, qsig_no_debug_usage };
 static struct ast_cli_entry  cli_chatinfo =
-	{ { "capi", "chatinfo", NULL }, pbxcli_capi_chatinfo, "Show CAPI chat info", chatinfo_usage };
+	{ { "capi", "chatinfo", NULL }, pbxcli_capi_chatinfo, CC_CLI_TEXT_CHATINFO, chatinfo_usage };
+#endif
 
 const struct ast_channel_tech capi_tech = {
 	.type = channeltype,
@@ -6130,6 +6279,9 @@ int unload_module(void)
 
 	ast_unregister_application(commandapp);
 
+#ifdef CC_AST_HAS_VERSION_1_6
+	ast_cli_unregister_multiple(cc_cli_cmd, sizeof(cc_cli_cmd)/ sizeof(struct ast_cli_entry));
+#else
 	ast_cli_unregister(&cli_info);
 	ast_cli_unregister(&cli_show_channels);
 	ast_cli_unregister(&cli_debug);
@@ -6137,6 +6289,7 @@ int unload_module(void)
 	ast_cli_unregister(&cli_qsig_debug);
 	ast_cli_unregister(&cli_qsig_no_debug);
 	ast_cli_unregister(&cli_chatinfo);
+#endif
 
 #ifdef CC_AST_HAS_VERSION_1_4
 	ast_module_user_hangup_all();
@@ -6198,8 +6351,15 @@ int load_module(void)
 	struct ast_config *cfg;
 	char *config = "capi.conf";
 	int res = 0;
+#ifdef CC_AST_HAS_VERSION_1_6
+	struct ast_flags config_flags = { 0 };
+#endif
 
+#ifdef CC_AST_HAS_VERSION_1_6
+	cfg = ast_config_load(config, config_flags);
+#else
 	cfg = ast_config_load(config);
+#endif
 
 	/* We *must* have a config file otherwise stop immediately, well no */
 	if (!cfg) {
@@ -6239,6 +6399,9 @@ int load_module(void)
 		return -1;
 	}
 
+#ifdef CC_AST_HAS_VERSION_1_6
+	ast_cli_register_multiple(cc_cli_cmd, sizeof(cc_cli_cmd)/ sizeof(struct ast_cli_entry));
+#else
 	ast_cli_register(&cli_info);
 	ast_cli_register(&cli_show_channels);
 	ast_cli_register(&cli_debug);
@@ -6246,6 +6409,7 @@ int load_module(void)
 	ast_cli_register(&cli_qsig_debug);
 	ast_cli_register(&cli_qsig_no_debug);
 	ast_cli_register(&cli_chatinfo);
+#endif
 	
 	ast_register_application(commandapp, pbx_capicommand_exec, commandsynopsis, commandtdesc);
 

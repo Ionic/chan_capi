@@ -40,8 +40,8 @@
 #include <asterisk/devicestate.h>
 #ifdef CC_AST_HAS_VERSION_1_4
 #include "asterisk/abstract_jb.h"
-#include "asterisk/musiconhold.h"
 #endif
+#include "asterisk/musiconhold.h"
  
 #ifndef _PBX_CAPI_H
 #define _PBX_CAPI_H
@@ -603,5 +603,8 @@ extern void capi_wait_for_answered(struct capi_pvt *i);
 extern int capi_wait_for_b3_up(struct capi_pvt *i);
 extern void capi_activehangup(struct capi_pvt *i, int state);
 extern void capi_gains(struct cc_capi_gains *g, float rxgain, float txgain);
+#ifdef CC_AST_HAS_VERSION_1_6
+extern char chatinfo_usage[];
+#endif
 
 #endif

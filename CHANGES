@@ -9,6 +9,7 @@ HEAD
 - fixed numberingplan for 'connected number'.
 - added devicestate option.
 - capi-chat can play music-on-hold for first caller.
+- adapt to new asterisk 1.6 API
 
 chan_capi-1.0.2
 ------------------

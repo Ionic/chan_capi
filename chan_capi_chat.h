@@ -18,6 +18,10 @@
  * prototypes
  */
 extern int pbx_capi_chat(struct ast_channel *c, char *param);
+#ifdef CC_AST_HAS_VERSION_1_6
+extern char *pbxcli_capi_chatinfo(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a);
+#else
 extern int pbxcli_capi_chatinfo(int fd, int argc, char *argv[]);
+#endif
 
 #endif

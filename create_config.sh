@@ -28,7 +28,7 @@ fi
 
 echo -n "Checking Asterisk version... "
 if grep -q "ast_get_version_num" $INCLUDEDIR/version.h; then
-AVERSION=TRUNK
+AVERSION="not found, assuming 1.6.x"
 VER=1_6
 else
 AVERSION=`sed -n '/.*ASTERISK_VERSION /s/^.*ASTERISK_VERSION //p' $INCLUDEDIR/version.h`
@@ -55,87 +55,107 @@ else
 		VER=1_4
 	else
 		if [ "$VER" = "1_6" ]; then
-			echo "#define CC_AST_HAS_VERSION_1_4" >>$CONFIGFILE
 			echo "#define CC_AST_HAS_VERSION_1_6" >>$CONFIGFILE
-			echo " * assuming Asterisk trunk version (1.6)"
+			echo " * assuming Asterisk version 1.6"
 		else
 			echo "#undef CC_AST_HAS_VERSION_1_4" >>$CONFIGFILE
 		fi
 	fi
 fi
 
-if [ "$VER" = "1_2" ]; then
-	echo "Using Asterisk 1.2 API"
-else
-	if [ "$VER" = "1_6" ]; then
-		echo "Using Asterisk 1.6 API"
+check_two_and_four()
+{
+	if grep -q "AST_STRING_FIELD(name)" $INCLUDEDIR/channel.h; then
+		echo "#define CC_AST_HAS_STRINGFIELD_IN_CHANNEL" >>$CONFIGFILE
+		echo " * found stringfield in ast_channel"
 	else
-		echo "Using Asterisk 1.4 API"
+		echo "#undef CC_AST_HAS_STRINGFIELD_IN_CHANNEL" >>$CONFIGFILE
+		echo " * no stringfield in ast_channel"
 	fi
-fi
-
-if grep -q "AST_STRING_FIELD(name)" $INCLUDEDIR/channel.h; then
-	echo "#define CC_AST_HAS_STRINGFIELD_IN_CHANNEL" >>$CONFIGFILE
-	echo " * found stringfield in ast_channel"
-else
-	echo "#undef CC_AST_HAS_STRINGFIELD_IN_CHANNEL" >>$CONFIGFILE
-	echo " * no stringfield in ast_channel"
-fi
-
-if grep -q "const indicate.*datalen" $INCLUDEDIR/channel.h; then
-	echo "#define CC_AST_HAS_INDICATE_DATA" >>$CONFIGFILE
-	echo " * found 'indicate' with data"
-else
-	echo "#undef CC_AST_HAS_INDICATE_DATA" >>$CONFIGFILE
-	echo " * no data on 'indicate'"
-fi
-
-if grep -q "ast_channel_alloc.*name_fmt" $INCLUDEDIR/channel.h; then
-	echo "#define CC_AST_HAS_EXT_CHAN_ALLOC" >>$CONFIGFILE
-	echo " * found extended ast_channel_alloc"
-else
-	echo "#undef CC_AST_HAS_EXT_CHAN_ALLOC" >>$CONFIGFILE
-	echo " * no extended ast_channel_alloc"
-fi
-
-if grep -q "ast_channel_alloc.*amaflag" $INCLUDEDIR/channel.h; then
-	echo "#define CC_AST_HAS_EXT2_CHAN_ALLOC" >>$CONFIGFILE
-	echo " * found second extended ast_channel_alloc"
-else
-	echo "#undef CC_AST_HAS_EXT2_CHAN_ALLOC" >>$CONFIGFILE
-	echo " * no second extended ast_channel_alloc"
-fi
-
-
-if grep -q "send_digit_end.*duration" $INCLUDEDIR/channel.h; then
-	echo "#define CC_AST_HAS_SEND_DIGIT_END_DURATION" >>$CONFIGFILE
-	echo " * found send_digit_end with duration"
-else
-	echo "#undef CC_AST_HAS_SEND_DIGIT_END_DURATION" >>$CONFIGFILE
-	echo " * no duration with send_digit_end"
-fi
-
-if [ "$VER" = "1_2" ]; then
-if grep -q "AST_JB" $INCLUDEDIR/channel.h; then
-	if [ ! -f "$INCLUDEDIR/../../lib/asterisk/modules/chan_sip.so" ]; then
-		echo "/* AST_JB */" >>$CONFIGFILE
-		echo "#define CC_AST_HAS_JB_PATCH" >>$CONFIGFILE
-		echo " * assuming generic jitter-buffer patch"
+	
+	if grep -q "const indicate.*datalen" $INCLUDEDIR/channel.h; then
+		echo "#define CC_AST_HAS_INDICATE_DATA" >>$CONFIGFILE
+		echo " * found 'indicate' with data"
 	else
-		if grep -q "ast_jb" "$INCLUDEDIR/../../lib/asterisk/modules/chan_sip.so"; then
+		echo "#undef CC_AST_HAS_INDICATE_DATA" >>$CONFIGFILE
+		echo " * no data on 'indicate'"
+	fi
+	
+	if grep -q "ast_channel_alloc.*name_fmt" $INCLUDEDIR/channel.h; then
+		echo "#define CC_AST_HAS_EXT_CHAN_ALLOC" >>$CONFIGFILE
+		echo " * found extended ast_channel_alloc"
+	else
+		echo "#undef CC_AST_HAS_EXT_CHAN_ALLOC" >>$CONFIGFILE
+		echo " * no extended ast_channel_alloc"
+	fi
+
+	if grep -q "ast_channel_alloc.*amaflag" $INCLUDEDIR/channel.h; then
+		echo "#define CC_AST_HAS_EXT2_CHAN_ALLOC" >>$CONFIGFILE
+		echo " * found second extended ast_channel_alloc"
+	else
+		echo "#undef CC_AST_HAS_EXT2_CHAN_ALLOC" >>$CONFIGFILE
+		echo " * no second extended ast_channel_alloc"
+	fi
+
+	if grep -q "send_digit_end.*duration" $INCLUDEDIR/channel.h; then
+		echo "#define CC_AST_HAS_SEND_DIGIT_END_DURATION" >>$CONFIGFILE
+		echo " * found send_digit_end with duration"
+	else
+		echo "#undef CC_AST_HAS_SEND_DIGIT_END_DURATION" >>$CONFIGFILE
+		echo " * no duration with send_digit_end"
+	fi
+
+	if [ "$VER" = "1_2" ]; then
+	if grep -q "AST_JB" $INCLUDEDIR/channel.h; then
+		if [ ! -f "$INCLUDEDIR/../../lib/asterisk/modules/chan_sip.so" ]; then
 			echo "/* AST_JB */" >>$CONFIGFILE
 			echo "#define CC_AST_HAS_JB_PATCH" >>$CONFIGFILE
-			echo " * found generic jitter-buffer patch"
+			echo " * assuming generic jitter-buffer patch"
 		else
-			echo "#undef CC_AST_HAS_JB_PATCH" >>$CONFIGFILE
-			echo " * found DISABLED generic jitter-buffer patch"
+			if grep -q "ast_jb" "$INCLUDEDIR/../../lib/asterisk/modules/chan_sip.so"; then
+				echo "/* AST_JB */" >>$CONFIGFILE
+				echo "#define CC_AST_HAS_JB_PATCH" >>$CONFIGFILE
+				echo " * found generic jitter-buffer patch"
+			else
+				echo "#undef CC_AST_HAS_JB_PATCH" >>$CONFIGFILE
+				echo " * found DISABLED generic jitter-buffer patch"
+			fi
 		fi
+	else
+		echo "#undef CC_AST_HAS_JB_PATCH" >>$CONFIGFILE
+		echo " * without generic jitter-buffer patch"
 	fi
-else
-	echo "#undef CC_AST_HAS_JB_PATCH" >>$CONFIGFILE
-	echo " * without generic jitter-buffer patch"
-fi
-fi
+	fi
+}
+
+check_version_onesix()
+{
+	echo "#define CC_AST_HAS_VERSION_1_4" >>$CONFIGFILE
+	echo "#define CC_AST_HAS_STRINGFIELD_IN_CHANNEL" >>$CONFIGFILE
+	echo "#define CC_AST_HAS_INDICATE_DATA" >>$CONFIGFILE
+	echo "#define CC_AST_HAS_EXT_CHAN_ALLOC" >>$CONFIGFILE
+	echo "#define CC_AST_HAS_EXT2_CHAN_ALLOC" >>$CONFIGFILE
+	echo "#define CC_AST_HAS_SEND_DIGIT_END_DURATION" >>$CONFIGFILE
+}
+
+case $VER in
+	1_2)
+		echo "Using Asterisk 1.2 API"
+		check_two_and_four
+		;;
+	1_4)
+		echo "Using Asterisk 1.4 API"
+		check_two_and_four
+		;;
+	1_6)
+		echo "Using Asterisk 1.6 API"
+		check_version_onesix
+		;;
+	*)
+		echo >&2 "Asterisk version invalid."
+		exit 1
+		;;
+esac
 
 echo "" >>$CONFIGFILE
 echo "#endif /* CHAN_CAPI_CONFIG_H */" >>$CONFIGFILE

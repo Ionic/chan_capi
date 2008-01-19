@@ -233,7 +233,11 @@ static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i,
 	}
 
 	if ((flags & CHAT_FLAG_MOH) && (room->active < 2)) {
+#if defined(CC_AST_HAS_VERSION_1_6) || defined(CC_AST_HAS_VERSION_1_4)
 		ast_moh_start(chan, NULL, NULL);
+#else
+		ast_moh_start(chan, NULL);
+#endif
 		moh_active = 1;
 	}
 
@@ -385,13 +389,30 @@ out:
 /*
  * do command capi chatinfo
  */
+#ifdef CC_AST_HAS_VERSION_1_6
+char *pbxcli_capi_chatinfo(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+#else
 int pbxcli_capi_chatinfo(int fd, int argc, char *argv[])
+#endif
 {
 	struct capichat_s *room = NULL;
 	struct ast_channel *c;
+#ifdef CC_AST_HAS_VERSION_1_6
+	int fd = a->fd;
+
+	if (cmd == CLI_INIT) {
+		e->command = "capi chatinfo";
+		e->usage = chatinfo_usage;
+		return NULL;
+	} else if (cmd == CLI_GENERATE)
+		return NULL;
+	if (a->argc != e->args)
+		return CLI_SHOWUSAGE;
+#else
 	
 	if (argc != 2)
 		return RESULT_SHOWUSAGE;
+#endif
 
 	if (chat_list == NULL) {
 		ast_cli(fd, "There are no members in CAPI CHAT.\n");
@@ -421,6 +442,10 @@ int pbxcli_capi_chatinfo(int fd, int argc, char *argv[])
 	}
 	cc_mutex_unlock(&chat_lock);
 
+#ifdef CC_AST_HAS_VERSION_1_6
+	return CLI_SUCCESS;
+#else
 	return RESULT_SUCCESS;
+#endif
 }
 
