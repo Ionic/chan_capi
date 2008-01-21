@@ -5847,9 +5847,9 @@ static int cc_init_capi(void)
 	} 
 
 #if (CAPI_OS_HINT == 1)
-	capi_num_controllers = profile.wCtlr;
+	capi_num_controllers = read_capi_word(&profile.wCtlr);
 #else
-	capi_num_controllers = profile.ncontrollers;
+	capi_num_controllers = read_capi_word(&profile.ncontrollers);
 #endif
 
 	cc_verbose(3, 0, VERBOSE_PREFIX_2 "This box has %d capi controller(s).\n",
@@ -5873,12 +5873,12 @@ static int cc_init_capi(void)
 		memset(cp, 0, sizeof(struct cc_capi_controller));
 		cp->controller = controller;
 #if (CAPI_OS_HINT == 1)
-		cp->nbchannels = profile.wNumBChannels;
-		cp->nfreebchannels = profile.wNumBChannels;
+		cp->nbchannels = read_capi_word(&profile.wNumBChannels);
+		cp->nfreebchannels = read_capi_word(&profile.wNumBChannels);
 		if (profile.dwGlobalOptions & CAPI_PROFILE_DTMF_SUPPORT) {
 #else
-		cp->nbchannels = profile.nbchannels;
-		cp->nfreebchannels = profile.nbchannels;
+		cp->nbchannels = read_capi_word(&profile.nbchannels);
+		cp->nfreebchannels = read_capi_word(&profile.nbchannels);
 		if (profile.globaloptions & 0x08) {
 #endif
 			cc_verbose(3, 0, VERBOSE_PREFIX_3 "CAPI/contr%d supports DTMF\n",
