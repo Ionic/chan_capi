@@ -423,6 +423,8 @@ MESSAGE_EXCHANGE_ERROR capi_sendf(
 	capi_prestruct_t *s;
 	unsigned char msg[2048];
 
+	memset(msg, 0, sizeof(msg));
+
 	write_capi_word(&msg[2], capi_ApplID);
 	write_capi_word(&msg[4], ((command >> 8) & 0xff));
 	write_capi_word(&msg[5], (command & 0xff));
