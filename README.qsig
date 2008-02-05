@@ -1,4 +1,4 @@
-(CAPI*) chan_capi a Common ISDN API 2.0 implementation for Asterisk
+chan_capi a Common ISDN API 2.0 implementation for Asterisk
 
 QSIG Extension for chan_capi
 

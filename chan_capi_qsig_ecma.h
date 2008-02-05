@@ -1,7 +1,7 @@
 /*
  *  (QSIG)
  *
- *  Implementation of QSIG extensions for CHAN_CAPI
+ *  Implementation of QSIG extensions for chan_capi
  *  
  *  Copyright 2006-2007 (c) Mario Goegel
  *

@@ -1,11 +1,9 @@
 #
-# (CAPI*)
-#
 # An implementation of Common ISDN API 2.0 for Asterisk
 #
 # Makefile, based on the Asterisk Makefile, Coypright (C) 1999, Mark Spencer
 #
-# Copyright (C) 2005-2007 Cytronics & Melware
+# Copyright (C) 2005-2008 Cytronics & Melware
 # 
 # Armin Schindler <armin@melware.de>
 # 
