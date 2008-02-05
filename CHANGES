@@ -11,6 +11,7 @@ HEAD
 - capi-chat can play music-on-hold for first caller.
 - adapt to new asterisk 1.6 API
 - fixed reading capi profile on big-endian
+- increased maximum number of CAPI controllers to 64 (needed for big PBX).
 
 chan_capi-1.0.2
 ------------------

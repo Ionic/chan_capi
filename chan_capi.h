@@ -46,7 +46,7 @@
 #ifndef _PBX_CAPI_H
 #define _PBX_CAPI_H
 
-#define CAPI_MAX_CONTROLLERS             16
+#define CAPI_MAX_CONTROLLERS             64
 #define CAPI_MAX_B3_BLOCKS                7
 
 /* was : 130 bytes Alaw = 16.25 ms audio not suitable for VoIP */
