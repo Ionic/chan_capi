@@ -28,6 +28,9 @@ Mario Goegel <m.goegel@gmx.de>
 No support for Asterisk 1.0.x any more, you need at least
 Asterisk 1.2.x
 
+Note:
+Eicon DIVA Server cards are now named Dialogic(R) Diva(R).
+
 This chan_capi version includes:
 ================================
 - Multiple controller support
@@ -43,7 +46,7 @@ This chan_capi version includes:
 - Use asterisks internal DSP functions for DTMF
 - Alaw support 
 - Ulaw support! 
-- Eicon CAPI echo cancelation (echocancel=1)
+- Dialogic CAPI echo cancelation (echocancel=1)
 - Reject call waiting (ACO)
 - DID for Point to Point mode (a.k.a overlap receiving)
 - Rx/Tx gains using positive linar value (rxgain=1.0, txgain=1.0 means no change) 
@@ -62,7 +65,7 @@ This chan_capi version includes:
 - Support 'type of number'.
 - ISDN hold.
 - CAPI Line Interconnect.
-- Eicon DIVA Server VoIP/RTP
+- Dialogic Diva VoIP/RTP
 - CLI command "capi show channels" shows details on channel status.
 - Asterisk 1.4 jitterbuffer configuration.
 - some QSIG extensions (see README.qsig)
@@ -280,7 +283,7 @@ Deactivate CCBS:
 
 Chat (MeetMe/Conference):
     If the CAPI card/driver supports it, the caller can be put into a chat-room:
-    (This uses the DSPs onboard a Dialogic DIVA Server Rev.2 card.)
+    (This uses the DSPs onboard a Dialogic Diva Rev.2 card.)
         exten => s,1,capicommand(chat|<roomname>|<options>|controller)
 		Example:
             exten => s,1,capicommand(chat|salesmeeting|m|1,3-6)
@@ -345,8 +348,8 @@ exten => 12345678,2,Hangup
 
 Short HOWTO of capicommand(receivefax...) and capicommand(sendfax...):
 ==========================================================================
-For those of you who have a CAPI card with an on-board DSP (like some Eicon and
-DIVA Server), this allows you to receive/send faxes.
+For those of you who have a CAPI card with an on-board DSP (like Dialogic Diva),
+this allows you to receive/send faxes.
 
 capicommand(receivefax|<filename>[|<stationid>|<headline>|<options>]):
 ------------------------------------------------------------
@@ -379,7 +382,7 @@ exten => h,1,deadagi,fax.php // Run sfftobmp and mail it.
 
 The output of capicommand(receivefax|...) is a SFF file.
 Use sfftobmp to convert it.
-With a DIVA Server, following features are provided:
+With a Dialogic Diva, following features are provided:
  - fax up to 33600
  - high resolution
  - Color Fax 

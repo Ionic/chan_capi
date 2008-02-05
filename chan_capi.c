@@ -513,7 +513,6 @@ static void capi_facility_add_datetime(unsigned char *facilityarray)
 
 /*
  * Echo cancellation is for cards w/ integrated echo cancellation only
- * (i.e. Eicon active cards support it)
  */
 static void capi_echo_canceller(struct capi_pvt *i, int function)
 {
@@ -5931,7 +5930,7 @@ static int cc_init_capi(void)
 			supported_sservices(cp);
 		}
 
-		/* New profile options for e.g. RTP with Eicon DIVA */
+		/* New profile options for e.g. RTP with Dialogic Diva */
 		privateoptions = read_capi_dword(&profile.manufacturer[0]);
 		cc_verbose(3, 0, VERBOSE_PREFIX_3 "CAPI/contr%d private options=0x%08x\n",
 			controller, privateoptions);

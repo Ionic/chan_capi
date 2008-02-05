@@ -30,7 +30,7 @@ As example there can be a name of an extension transferred between different
 PBXs, which is with standard ISDN not possible.
 
 These extensions will be transmitted as encoded facility information elements.
-To use Q.SIG with asterisk, you'll need a card like Eicon DIVA Server 
+To use Q.SIG with asterisk, you'll need a card like Dialogic Diva 
 (BRI like PRI), which supports QSIG. Maybe others do also work, let me now.
 
 The QSIG support includes:
