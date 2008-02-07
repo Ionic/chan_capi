@@ -12,6 +12,7 @@ HEAD
 - adapt to new asterisk 1.6 API
 - fixed reading capi profile on big-endian
 - increased maximum number of CAPI controllers to 64 (needed for big PBX).
+- if immedіate=yes is set in DID mode, accept calls to empty DNID (needed for Austrian lines).
 
 chan_capi-1.0.2
 ------------------

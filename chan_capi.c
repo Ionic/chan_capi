@@ -3737,10 +3737,13 @@ static void capidev_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, un
 
 			/* Handle QSIG informations, if any */
 			cc_qsig_handle_capiind(CONNECT_IND_FACILITYDATAARRAY(CMSG), i);
-			
-			if ((i->isdnmode == CAPI_ISDNMODE_MSN) && (i->immediate)) {
-				/* if we don't want to wait for SETUP/SENDING-COMPLETE in MSN mode */
-				start_pbx_on_match(i, PLCI, HEADER_MSGNUM(CMSG));
+		
+			if (i->immediate) {	
+				if ((i->isdnmode == CAPI_ISDNMODE_MSN) || (!(strlen(i->dnid)))) {
+					/* if we don't want to wait for SETUP/SENDING-COMPLETE in MSN mode */
+					/* or if no DNID in DID mode is provided (e.g. Austrian line) */
+					start_pbx_on_match(i, PLCI, HEADER_MSGNUM(CMSG));
+				}
 			}
 			return;
 		}
