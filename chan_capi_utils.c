@@ -424,8 +424,8 @@ MESSAGE_EXCHANGE_ERROR capi_sendf(
 	memset(msg, 0, sizeof(msg));
 
 	write_capi_word(&msg[2], capi_ApplID);
-	write_capi_word(&msg[4], ((command >> 8) & 0xff));
-	write_capi_word(&msg[5], (command & 0xff));
+	msg[4] = (unsigned char)((command >> 8) & 0xff);
+	msg[5] = (unsigned char)(command & 0xff);
 	write_capi_word(&msg[6], Number);
 	write_capi_dword(&msg[8], Id);
 
