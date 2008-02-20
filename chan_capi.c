@@ -3955,8 +3955,12 @@ static void capidev_handle_msg(_cmsg *CMSG)
 
 	if ((wCmd == CAPI_P_IND(DATA_B3)) ||
 	    (wCmd == CAPI_P_CONF(DATA_B3))) {
+		cc_verbose(7, 1, "CAPI: ApplId=0x%04x Command=0x%02x SubCommand=0x%02x MsgNum=0x%04x NCCI=0x%08x\n",
+			CMSG->ApplId, CMSG->Command, CMSG->Subcommand, CMSG->Messagenumber, CMSG->adr.adrNCCI);
 		cc_verbose(7, 1, "%s\n", capi_cmsg2str(CMSG));
 	} else {
+		cc_verbose(4, 1, "CAPI: ApplId=0x%04x Command=0x%02x SubCommand=0x%02x MsgNum=0x%04x NCCI=0x%08x\n",
+			CMSG->ApplId, CMSG->Command, CMSG->Subcommand, CMSG->Messagenumber, CMSG->adr.adrNCCI);
 		cc_verbose(4, 1, "%s\n", capi_cmsg2str(CMSG));
 	}
 
