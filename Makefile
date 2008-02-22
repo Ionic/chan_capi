@@ -58,7 +58,7 @@ PROC=$(shell uname -m)
 
 AVERSION=$(shell if grep -q "VERSION_NUM 0104" $(ASTERISK_HEADER_DIR)/asterisk/version.h; then echo V1_4; fi)
 
-LIBLINUX=
+LIBLINUX=-lcapi20
 DEBUG=-g #-pg
 INCLUDE=-I$(ASTERISK_HEADER_DIR)
 ifndef C4B
@@ -73,7 +73,7 @@ endif
 endif #C4B
 
 ifdef C4B
-LIBLINUX=-L/usr/local/lib -llinuxcapi20
+LIBLINUX+=-L/usr/local/lib -llinuxcapi20
 endif
 
 CFLAGS=-pipe -fPIC -Wall -Wmissing-prototypes -Wmissing-declarations $(DEBUG) $(INCLUDE) -D_REENTRANT -D_GNU_SOURCE
@@ -119,13 +119,13 @@ config.h:
 	fi
 	@$(CC) $(CFLAGS) -c $*.c -o $*.o;
 
-chan_capi.so: $(OBJECTS)
+$(SHAREDOS): $(OBJECTS)
 	@if [ "$(V)" = "0" ]; then \
 		echo " [LD] $@ ($^)";	\
 	else	\
-		echo "$(CC) -shared -Xlinker -x -o $@ $^ $(LIBLINUX) -lcapi20";	\
+		echo "$(CC) -shared -Xlinker -x -o $@ $^ $(LIBLINUX)";	\
 	fi
-	@$(CC) -shared -Xlinker -x -o $@ $^ $(LIBLINUX) -lcapi20
+	@$(CC) -shared -Xlinker -x -o $@ $^ $(LIBLINUX)
 
 install: all
 	$(INSTALL) -d -m 755 $(MODULES_DIR)

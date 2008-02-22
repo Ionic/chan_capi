@@ -4,7 +4,7 @@ INSTALL
 Modify the Makefile to fit your system, especially the path to the Asterisk 
 include files.
 
-To build the driver you will need an installed CAPI system, including header 
+To build the driver you will need an installed Capi system, including header 
 files.
 
 To build the channel module:
