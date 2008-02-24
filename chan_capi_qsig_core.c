@@ -1164,7 +1164,7 @@ int pbx_capi_qsig_ssct(struct ast_channel *c, char *param)
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 
 	if (!param) { /* no data implies no Calling Number and Destination Number */
-		cc_log(LOG_WARNING, "capi qsig_ssct requires source number and destination number\n");
+		cc_log(LOG_WARNING, CC_MESSAGE_NAME " qsig_ssct requires source number and destination number\n");
 		return -1;
 	}
 
@@ -1190,7 +1190,7 @@ int pbx_capi_qsig_ct(struct ast_channel *c, char *param)
 	char *marker;
 
 	if (!param) { /* no data implies no Calling Number and Destination Number */
-		cc_log(LOG_WARNING, "capi qsig_ct requires call marker, source number, destination number and await_connect info\n");
+		cc_log(LOG_WARNING, CC_MESSAGE_NAME " qsig_ct requires call marker, source number, destination number and await_connect info\n");
 		return -1;
 	}
 
@@ -1205,7 +1205,7 @@ int pbx_capi_qsig_ct(struct ast_channel *c, char *param)
 	}
 	
 	if (!ii) {
-		cc_log(LOG_WARNING, "capi qsig_ct call marker not found!\n");
+		cc_log(LOG_WARNING, CC_MESSAGE_NAME " qsig_ct call marker not found!\n");
 		return -1;
 	}
 	

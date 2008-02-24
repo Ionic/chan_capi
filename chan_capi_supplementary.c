@@ -57,8 +57,8 @@ static void del_old_ccbsnr(void)
 	ccbsnr = ccbsnr_list;
 	while (ccbsnr) {
 		if ((ccbsnr->age + 86400) < time(NULL)) {
-			cc_verbose(1, 1, VERBOSE_PREFIX_3 "CAPI: CCBS/CCNR handle=%d timeout.\n",
-				ccbsnr->handle);
+			cc_verbose(1, 1, VERBOSE_PREFIX_3 CC_MESSAGE_NAME
+				": CCBS/CCNR handle=%d timeout.\n", ccbsnr->handle);
 			if (!tmp) {
 				ccbsnr_list = ccbsnr->next;
 			} else {
@@ -228,7 +228,8 @@ static unsigned int select_ccbsnr_id(unsigned int id, char type,
 			ccbsnr->priority = priority;
 			ccbsnr->state = CCBSNR_REQUESTED;
 			ret = ccbsnr->handle;
-			cc_verbose(1, 1, VERBOSE_PREFIX_3 "CAPI: request CCBS/NR id=0x%x handle=%d (%s,%s,%d)\n",
+			cc_verbose(1, 1, VERBOSE_PREFIX_3 CC_MESSAGE_NAME
+				": request CCBS/NR id=0x%x handle=%d (%s,%s,%d)\n",
 				id, ret, context, exten, priority);
 			break;
 		}
@@ -258,8 +259,8 @@ static void del_ccbsnr_ref(unsigned int plci, _cword ref)
 				tmp->next = ccbsnr->next;
 			}
 			free(ccbsnr);
-			cc_verbose(1, 1, VERBOSE_PREFIX_3 "CAPI: PLCI=%#x CCBS/CCNR removed "
-				"ref=0x%04x\n",	plci, ref);
+			cc_verbose(1, 1, VERBOSE_PREFIX_3 CC_MESSAGE_NAME
+				": PLCI=%#x CCBS/CCNR removed ref=0x%04x\n", plci, ref);
 			break;
 		}
 		tmp = ccbsnr;
@@ -318,12 +319,12 @@ static void del_ccbsnr_id(unsigned int plci, _cword id)
 					tmp->next = ccbsnr->next;
 				}
 				free(ccbsnr);
-				cc_verbose(1, 1, VERBOSE_PREFIX_3 "CAPI: PLCI=%#x CCBS/CCNR removed "
+				cc_verbose(1, 1, VERBOSE_PREFIX_3 CC_MESSAGE_NAME ": PLCI=%#x CCBS/CCNR removed "
 					"id=0x%04x state=%d\n",	plci, id, oldstate);
 			} else {
 				/* just deactivate the linkage id */
 				ccbsnr->id = 0xdead;
-				cc_verbose(1, 1, VERBOSE_PREFIX_3 "CAPI: PLCI=%#x CCBS/CCNR erase-only "
+				cc_verbose(1, 1, VERBOSE_PREFIX_3 CC_MESSAGE_NAME ": PLCI=%#x CCBS/CCNR erase-only "
 					"id=0x%04x state=%d\n",	plci, id, ccbsnr->state);
 			}
 			break;
@@ -358,7 +359,7 @@ static void	ccbsnr_remote_user_free(_cmsg *CMSG, char type, unsigned int PLCI, _
 	cc_mutex_unlock(&ccbsnr_lock);
 
 	if (!(ccbsnr)) {
-		cc_log(LOG_ERROR, "CAPI CCBS/CCBR reference not found!\n");
+		cc_log(LOG_ERROR, CC_MESSAGE_NAME " CCBS/CCBR reference not found!\n");
 		return;
 	}
 
@@ -412,7 +413,7 @@ static void	ccbsnr_remote_user_free(_cmsg *CMSG, char type, unsigned int PLCI, _
 #endif
 
 	if (ast_pbx_start(c)) {
-		cc_log(LOG_ERROR, "capi CCBS/CCNR: Unable to start pbx!\n");
+		cc_log(LOG_ERROR, CC_MESSAGE_NAME " CCBS/CCNR: Unable to start pbx!\n");
 	} else {
 		cc_verbose(2, 1, VERBOSE_PREFIX_2 "contr%d: started PBX for CCBS/CCNR callback (%s/%s/%d)\n",
 			PLCI & 0xff, ccbsnr->context, ccbsnr->exten, ccbsnr->priority);
@@ -484,7 +485,7 @@ int handle_facility_indication_supplementary(
 			PLCI & 0xff, PLCI, infoword, handle, mode, rbref);
 		show_capi_info(NULL, infoword);
 		if ((ccbsnrlink = get_ccbsnr_link(0, 0, handle, 0xffff, NULL, NULL)) == NULL) {
-			cc_log(LOG_WARNING, "capi ccbs request indication without request!\n");
+			cc_log(LOG_WARNING, CC_MESSAGE_NAME " ccbs request indication without request!\n");
 			break;
 		}
 		if (infoword == 0) {
@@ -503,7 +504,7 @@ int handle_facility_indication_supplementary(
 			PLCI & 0xff, PLCI, handle, infoword);
 		show_capi_info(NULL, infoword);
 		if ((ccbsnrlink = get_ccbsnr_link(0, 0, handle, 0xffff, NULL, NULL)) == NULL) {
-			cc_log(LOG_WARNING, "capi ccbs deactivate indication without request!\n");
+			cc_log(LOG_WARNING, CC_MESSAGE_NAME " ccbs deactivate indication without request!\n");
 			break;
 		}
 		if (infoword == 0) {
@@ -524,7 +525,7 @@ int handle_facility_indication_supplementary(
 		cc_verbose(1, 1, VERBOSE_PREFIX_3 "contr%d: PLCI=%#x CCBS status ref=0x%04x mode=0x%x\n",
 			PLCI & 0xff, PLCI, rbref, infoword);
 		if (get_ccbsnr_link(CCBSNR_TYPE_CCBS, PLCI, 0, rbref, NULL, &partybusy) == NULL) {
-			cc_log(LOG_WARNING, "capi CCBS status reference not found!\n");
+			cc_log(LOG_WARNING, CC_MESSAGE_NAME " CCBS status reference not found!\n");
 		}
 		capi_sendf(NULL, 0, CAPI_FACILITY_RESP, PLCI, HEADER_MSGNUM(CMSG),
 			"w(w(w))",
@@ -719,8 +720,8 @@ int pbx_capi_ccpartybusy(struct ast_channel *c, char *data)
 		if (((ccbsnr->plci & 0xff) == ((linkid >> 16) & 0xff)) &&
 		   (ccbsnr->id == (linkid & 0xffff))) {
 			ccbsnr->partybusy = partybusy;
-			cc_verbose(1, 1, VERBOSE_PREFIX_3 "CAPI: CCBS/NR id=0x%x busy set to %d\n",
-				linkid, partybusy);
+			cc_verbose(1, 1, VERBOSE_PREFIX_3 CC_MESSAGE_NAME
+				": CCBS/NR id=0x%x busy set to %d\n", linkid, partybusy);
 			break;
 		}
 		ccbsnr = ccbsnr->next;
@@ -748,7 +749,7 @@ int pbx_capi_ccbsstop(struct ast_channel *c, char *data)
 		linkid = (unsigned int)strtoul(slinkageid, NULL, 0);
 	}
 
-	cc_verbose(3, 1, VERBOSE_PREFIX_3 "capi ccbsstop: '%d'\n",
+	cc_verbose(3, 1, VERBOSE_PREFIX_3 CC_MESSAGE_NAME " ccbsstop: '%d'\n",
 		linkid);
 
 	cc_mutex_lock(&ccbsnr_lock);
@@ -776,8 +777,8 @@ int pbx_capi_ccbsstop(struct ast_channel *c, char *data)
 			ref /* CCBS reference */
 		);
 	} else {
-		cc_verbose(3, 1, VERBOSE_PREFIX_3, "capi ccbsstop: linkid %d not found in table.\n",
-			linkid);
+		cc_verbose(3, 1, VERBOSE_PREFIX_3, CC_MESSAGE_NAME
+			" ccbsstop: linkid %d not found in table.\n", linkid);
 	}
 
 	return 0;
@@ -806,11 +807,13 @@ int pbx_capi_ccbs(struct ast_channel *c, char *data)
 	}
 
 	if ((!context) || (!exten) || (!priority)) {
-		cc_log(LOG_WARNING, "capi ccbs requires <context>|<exten>|<priority>\n");
+		cc_log(LOG_WARNING, CC_MESSAGE_NAME
+			" ccbs requires <context>|<exten>|<priority>\n");
 		return -1;
 	}
 
-	cc_verbose(3, 1, VERBOSE_PREFIX_3 "capi ccbs: '%d' '%s' '%s' '%s'\n",
+	cc_verbose(3, 1, VERBOSE_PREFIX_3 CC_MESSAGE_NAME
+		" ccbs: '%d' '%s' '%s' '%s'\n",
 		linkid, context, exten, priority);
 
 	handle = select_ccbsnr_id(linkid, CCBSNR_TYPE_CCBS,
@@ -832,7 +835,7 @@ int pbx_capi_ccbs(struct ast_channel *c, char *data)
 			   (void *)handle) != 0) {
 				/* we got a hangup */
 				cc_verbose(3, 1,
-					VERBOSE_PREFIX_3 "capi ccbs: hangup.\n");
+					VERBOSE_PREFIX_3 CC_MESSAGE_NAME " ccbs: hangup.\n");
 				break;
 			}
 		}
@@ -842,8 +845,8 @@ int pbx_capi_ccbs(struct ast_channel *c, char *data)
 			}
 		}
 	} else {
-		cc_verbose(3, 1, VERBOSE_PREFIX_3, "capi ccbs: linkid %d not found in table.\n",
-			linkid);
+		cc_verbose(3, 1, VERBOSE_PREFIX_3, CC_MESSAGE_NAME
+			" ccbs: linkid %d not found in table.\n", linkid);
 	}
 
 	pbx_builtin_setvar_helper(c, "CCBSSTATUS", result);

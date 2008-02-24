@@ -91,6 +91,12 @@ static inline unsigned int read_capi_dword(void *m)
 }
 
 /*
+ * global name for messages and commands
+ */
+#define CC_MESSAGE_NAME "capi"
+#define CC_MESSAGE_BIGNAME "CAPI"
+
+/*
  * define some private functions
  */
 #define cc_mutex_t                ast_mutex_t

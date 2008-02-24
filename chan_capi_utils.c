@@ -345,7 +345,7 @@ static MESSAGE_EXCHANGE_ERROR _capi_put_msg(unsigned char *msg)
 	_cmsg CMSG;
 	
 	if (cc_mutex_lock(&capi_put_lock)) {
-		cc_log(LOG_WARNING, "Unable to lock capi put!\n");
+		cc_log(LOG_WARNING, "Unable to lock chan_capi put!\n");
 		return -1;
 	} 
 
@@ -355,7 +355,7 @@ static MESSAGE_EXCHANGE_ERROR _capi_put_msg(unsigned char *msg)
 	error = capi20_put_message(capi_ApplID, msg);
 	
 	if (cc_mutex_unlock(&capi_put_lock)) {
-		cc_log(LOG_WARNING, "Unable to unlock capi put!\n");
+		cc_log(LOG_WARNING, "Unable to unlock chan_capi put!\n");
 		return -1;
 	}
 
@@ -1023,8 +1023,8 @@ int cc_add_peer_link_id(struct ast_channel *c)
 			/* remove too old entries */
 			if ((peerlinkchannel[a].age + 60) < time(NULL)) {
 				peerlinkchannel[a].channel = NULL;
-				cc_verbose(3, 1, VERBOSE_PREFIX_4 "capi: peerlink %d timeout-erase\n",
-					a);
+				cc_verbose(3, 1, VERBOSE_PREFIX_4 CC_MESSAGE_NAME
+					": peerlink %d timeout-erase\n", a);
 			}
 		}
 	}
@@ -1052,8 +1052,8 @@ struct ast_channel *cc_get_peer_link_id(const char *p)
 		chan = peerlinkchannel[id].channel;
 		peerlinkchannel[id].channel = NULL;
 	}
-	cc_verbose(3, 1, VERBOSE_PREFIX_4 "capi: peerlink %d allocated, peer is %s\n",
-		id, (chan)?chan->name:"unlinked");
+	cc_verbose(3, 1, VERBOSE_PREFIX_4 CC_MESSAGE_NAME
+		": peerlink %d allocated, peer is %s\n", id, (chan)?chan->name:"unlinked");
 	cc_mutex_unlock(&peerlink_lock);
 	return chan;
 }

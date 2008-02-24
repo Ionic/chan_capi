@@ -48,8 +48,8 @@ static void update_capi_mixer(int remove, unsigned int roomnumber, struct capi_p
 	_cword j = 0;
 
 	if (i->PLCI == 0) {
-		cc_verbose(2, 0, VERBOSE_PREFIX_3 "capi mixer: %s: PLCI is unset, abort.\n",
-			i->vname);
+		cc_verbose(2, 0, VERBOSE_PREFIX_3 CC_MESSAGE_NAME
+			" mixer: %s: PLCI is unset, abort.\n", i->vname);
 		return;
 	}
 
@@ -77,8 +77,8 @@ static void update_capi_mixer(int remove, unsigned int roomnumber, struct capi_p
 			p_list[j++] = (_cbyte)(dest >> 8);
 			p_list[j++] = (_cbyte)(dest >> 16);
 			p_list[j++] = (_cbyte)(dest >> 24);
-			cc_verbose(3, 1, VERBOSE_PREFIX_3 "capi mixer: listed %s PLCI=0x%04x LI=0x%x\n",
-				ii->vname, ii->PLCI, dest);
+			cc_verbose(3, 1, VERBOSE_PREFIX_3 CC_MESSAGE_NAME
+				" mixer: listed %s PLCI=0x%04x LI=0x%x\n", ii->vname, ii->PLCI, dest);
 		}
 		room = room->next;
 	}
@@ -111,8 +111,8 @@ static void update_capi_mixer(int remove, unsigned int roomnumber, struct capi_p
 			}
 		}
 
-		cc_verbose(3, 1, VERBOSE_PREFIX_3 "capi mixer: %s PLCI=0x%04x LI=0x%x\n",
-			i->vname, i->PLCI, datapath);
+		cc_verbose(3, 1, VERBOSE_PREFIX_3 CC_MESSAGE_NAME
+			" mixer: %s PLCI=0x%04x LI=0x%x\n", i->vname, i->PLCI, datapath);
 
 		capi_sendf(NULL, 0, CAPI_FACILITY_REQ, i->PLCI, get_capi_MessageNumber(),
 			"w(w(dc))",
@@ -166,7 +166,7 @@ static struct capichat_s *add_chat_member(char *roomname, struct capi_pvt *i)
 
 	room = malloc(sizeof(struct capichat_s));
 	if (room == NULL) {
-		cc_log(LOG_ERROR, "Unable to allocate capi chat struct.\n");
+		cc_log(LOG_ERROR, "Unable to allocate chan_capi chat struct.\n");
 		return NULL;
 	}
 	memset(room, 0, sizeof(struct capichat_s));
@@ -319,7 +319,7 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 	controller = param;
 
 	if (!roomname) {
-		cc_log(LOG_WARNING, "capi chat requires room name.\n");
+		cc_log(LOG_WARNING, CC_MESSAGE_NAME " chat requires room name.\n");
 		return -1;
 	}
 	
@@ -344,7 +344,7 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 		options++;
 	}
 
-	cc_verbose(3, 1, VERBOSE_PREFIX_3 "capi chat: %s: roomname=%s "
+	cc_verbose(3, 1, VERBOSE_PREFIX_3 CC_MESSAGE_NAME " chat: %s: roomname=%s "
 		"options=%s controller=%s (0x%x)\n",
 		c->name, roomname, options, controller, contr);
 
@@ -369,7 +369,7 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 
 	room = add_chat_member(roomname, i);
 	if (!room) {
-		cc_log(LOG_WARNING, "Unable to open capi chat room.\n");
+		cc_log(LOG_WARNING, "Unable to open " CC_MESSAGE_NAME " chat room.\n");
 		return -1;
 	}
 
@@ -399,7 +399,7 @@ int pbxcli_capi_chatinfo(int fd, int argc, char *argv[])
 	int fd = a->fd;
 
 	if (cmd == CLI_INIT) {
-		e->command = "capi chatinfo";
+		e->command = CC_MESSAGE_NAME " chatinfo";
 		e->usage = chatinfo_usage;
 		return NULL;
 	} else if (cmd == CLI_GENERATE)
@@ -413,11 +413,11 @@ int pbxcli_capi_chatinfo(int fd, int argc, char *argv[])
 #endif
 
 	if (chat_list == NULL) {
-		ast_cli(fd, "There are no members in CAPI CHAT.\n");
+		ast_cli(fd, "There are no members in " CC_MESSAGE_NAME " chat.\n");
 		return RESULT_SUCCESS;
 	}
 
-	ast_cli(fd, "CAPI CHAT\n");
+	ast_cli(fd, CC_MESSAGE_NAME " chat\n");
 	ast_cli(fd, "Room# Roomname    Member                        Caller\n");
 
 	cc_mutex_lock(&chat_lock);
