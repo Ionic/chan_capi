@@ -27,12 +27,11 @@ if [ ! -d "$INCLUDEDIR" ]; then
 fi
 
 echo -n "Checking Asterisk version... "
-if grep -q "ast_get_version_num" $INCLUDEDIR/version.h; then
-AVERSION="not found, assuming 1.6.x"
-VER=1_6
-else
 AVERSION=`sed -n '/.*ASTERISK_VERSION /s/^.*ASTERISK_VERSION //p' $INCLUDEDIR/version.h`
 AVERSION=`echo $AVERSION | sed 's/\"//g'`
+if [ "$AVERSION" == "" ]; then
+	AVERSION="trunk"
+	VER="1_6"
 fi
 echo $AVERSION
 
