@@ -13,6 +13,7 @@ HEAD
 - fixed reading capi profile on big-endian
 - increased maximum number of CAPI controllers to 64 (needed for big PBX).
 - if immedіate=yes is set in DID mode, accept calls to empty DNID (needed for Austrian lines).
+- use own libcapi20 implementation by default (no library for capi is needed any more).
 
 chan_capi-1.0.2
 ------------------

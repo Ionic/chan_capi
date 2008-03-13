@@ -18,6 +18,8 @@
 
 OSNAME=${shell uname}
 
+USE_OWN_LIBCAPI=yes
+
 .EXPORT_ALL_VARIABLES:
 
 V=0
@@ -58,16 +60,23 @@ PROC=$(shell uname -m)
 
 AVERSION=$(shell if grep -q "VERSION_NUM 0104" $(ASTERISK_HEADER_DIR)/asterisk/version.h; then echo V1_4; fi)
 
+ifeq (${USE_OWN_LIBCAPI},yes)
+INCLUDE= -I./libcapi20 
+LIBLINUX= 
+else
+INCLUDE= 
 LIBLINUX=-lcapi20
+endif
+
 DEBUG=-g #-pg
-INCLUDE=-I$(ASTERISK_HEADER_DIR)
+INCLUDE+= -I$(ASTERISK_HEADER_DIR)
 ifndef C4B
 ifeq (${OSNAME},FreeBSD)
-INCLUDE+=$(shell [ -d /usr/include/i4b/include ] && \
+INCLUDE+= $(shell [ -d /usr/include/i4b/include ] && \
 	echo -n -I/usr/include/i4b/include)
 endif
 ifeq (${OSNAME},NetBSD)
-INCLUDE+=$(shell [ -d /usr/include/i4b/include ] && \
+INCLUDE+= $(shell [ -d /usr/include/i4b/include ] && \
         echo -n -I/usr/include/i4b/include)
 endif
 endif #C4B
@@ -92,6 +101,10 @@ OBJECTS=chan_capi.o chan_capi_utils.o chan_capi_rtp.o xlaw.o	\
 	chan_capi_qsig_core.o chan_capi_qsig_ecma.o chan_capi_qsig_asn197ade.o	\
 	chan_capi_qsig_asn197no.o chan_capi_supplementary.o chan_capi_chat.o
 
+ifeq (${USE_OWN_LIBCAPI},yes)
+OBJECTS += libcapi20/convert.o libcapi20/capi20.o libcapi20/capifunc.o
+endif
+
 CFLAGS+=-Wno-missing-prototypes -Wno-missing-declarations
 
 CFLAGS+=-DCRYPTO
@@ -107,6 +120,7 @@ all: config.h $(SHAREDOS)
 clean:
 	rm -f config.h
 	rm -f *.so *.o
+	rm -f libcapi20/*.o
 
 config.h:
 	./create_config.sh "$(ASTERISK_HEADER_DIR)"
