@@ -29,7 +29,7 @@ fi
 echo -n "Checking Asterisk version... "
 AVERSION=`sed -n '/.*ASTERISK_VERSION /s/^.*ASTERISK_VERSION //p' $INCLUDEDIR/version.h`
 AVERSION=`echo $AVERSION | sed 's/\"//g'`
-if [ "$AVERSION" == "" ]; then
+if [ "$AVERSION" = "" ]; then
 	AVERSION="trunk"
 	VER="1_6"
 fi
