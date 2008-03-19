@@ -2420,7 +2420,9 @@ static void capi_handle_dtmf_fax(struct capi_pvt *i)
 	}
 
 	if (!ast_exists_extension(c, c->context, "fax", 1, i->cid)) {
-		cc_verbose(3, 0, VERBOSE_PREFIX_3 "Fax tone detected, but no fax extension for %s\n", c->name);
+		cc_verbose(3, 0, VERBOSE_PREFIX_3
+			"Fax tone detected, but no fax extension for %s in context '%s'\n",
+			c->name, c->context);
 		return;
 	}
 
