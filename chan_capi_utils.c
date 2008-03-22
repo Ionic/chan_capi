@@ -136,6 +136,8 @@ struct capi_pvt *capi_mknullif(struct ast_channel *c, unsigned long controllerma
 	int contrcount;
 	int channelcount = 0xffff;
 
+	cc_verbose(3, 1, VERBOSE_PREFIX_4 "capi_mknullif: find controller for mask 0x%lx\n",
+		controllermask);
 	/* find the next controller of mask with least plcis used */	
 	for (contrcount = 0; contrcount < CAPI_MAX_CONTROLLERS; contrcount++) {
 		if ((controllermask & (1 << contrcount))) {
