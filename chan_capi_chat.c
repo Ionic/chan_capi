@@ -311,7 +311,7 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 	char *p;
 	struct capichat_s *room;
 	ast_group_t tmpcntr;
-	unsigned long contr = 0;
+	unsigned long long contr = 0;
 	unsigned int flags = 0;
 
 	roomname = strsep(&param, "|");
@@ -328,7 +328,7 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 			if (*p == '|') *p = ',';
 		}
 		tmpcntr = ast_get_group(controller);
-		contr = (unsigned long)(tmpcntr >> 1);
+		contr = (unsigned long long)(tmpcntr >> 1);
 	}
 
 	while ((options) && (*options)) {
@@ -345,7 +345,7 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 	}
 
 	cc_verbose(3, 1, VERBOSE_PREFIX_3 CC_MESSAGE_NAME " chat: %s: roomname=%s "
-		"options=%s controller=%s (0x%x)\n",
+		"options=%s controller=%s (0x%llx)\n",
 		c->name, roomname, options, controller, contr);
 
 	if (c->tech == &capi_tech) {

@@ -517,6 +517,8 @@ struct cc_capi_conf {
 struct cc_capi_controller {
 	/* which controller is this? */
 	int controller;
+	/* is this controller used? */
+	int used;
 	/* how many bchans? */
 	int nbchannels;
 	/* free bchans */

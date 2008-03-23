@@ -129,17 +129,19 @@ void capi_remove_nullif(struct capi_pvt *i)
 /*
  * create new null-interface
  */
-struct capi_pvt *capi_mknullif(struct ast_channel *c, unsigned long controllermask)
+struct capi_pvt *capi_mknullif(struct ast_channel *c, unsigned long long controllermask)
 {
 	struct capi_pvt *tmp;
 	unsigned int controller = 1;
 	int contrcount;
 	int channelcount = 0xffff;
+	int maxcontr = (CAPI_MAX_CONTROLLERS > sizeof(controllermask)) ?
+		sizeof(controllermask) : CAPI_MAX_CONTROLLERS;
 
 	cc_verbose(3, 1, VERBOSE_PREFIX_4 "capi_mknullif: find controller for mask 0x%lx\n",
 		controllermask);
 	/* find the next controller of mask with least plcis used */	
-	for (contrcount = 0; contrcount < CAPI_MAX_CONTROLLERS; contrcount++) {
+	for (contrcount = 0; contrcount < maxcontr; contrcount++) {
 		if ((controllermask & (1 << contrcount))) {
 			if (controller_nullplcis[contrcount] < channelcount) {
 				channelcount = controller_nullplcis[contrcount];

@@ -3,6 +3,8 @@ CHANGES
 
 HEAD
 ------------------
+- fixed controller count when creating NULL-PLCI interface.
+- simplified check for unused controller.
 
 
 chan_capi-1.1.0

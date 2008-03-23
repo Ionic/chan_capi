@@ -144,7 +144,6 @@ struct capi_pvt *capi_iflist = NULL;
 static struct cc_capi_controller *capi_controllers[CAPI_MAX_CONTROLLERS + 1];
 static int capi_num_controllers = 0;
 static unsigned int capi_counter = 0;
-static unsigned long capi_used_controllers = 0;
 
 static struct ast_channel *chan_for_task;
 static int channel_task;
@@ -5222,19 +5221,21 @@ int mkif(struct cc_capi_conf *conf)
 				unit = capi_num_controllers;
 			}
 
-		if (unit > capi_num_controllers){
+		/* always range check user input */
+		if (unit > CAPI_MAX_CONTROLLERS)
+			unit = CAPI_MAX_CONTROLLERS;
+
+		if ((unit > capi_num_controllers) ||
+		    (!(capi_controllers[unit]))) {
 			free(tmp);
 			cc_verbose(2, 0, VERBOSE_PREFIX_3 "controller %d invalid, ignoring interface.\n",
 				unit);
 			return 0;
 		}
 
-		/* always range check user input */
-		if (unit > CAPI_MAX_CONTROLLERS)
-			unit = CAPI_MAX_CONTROLLERS;
+		capi_controllers[unit]->used = 1;
 
 		tmp->controller = unit;
-		capi_used_controllers |= (1 << unit);
 		tmp->doEC = conf->echocancel;
 		tmp->doEC_global = conf->echocancel;
 		tmp->ecOption = conf->ecoption;
@@ -5590,9 +5591,10 @@ static int pbxcli_capi_info(int fd, int argc, char *argv[])
 		
 	for (i = 1; i <= capi_num_controllers; i++) {
 		if (capi_controllers[i] != NULL) {
-			ast_cli(fd, "Contr%d: %d B channels total, %d B channels free.\n",
+			ast_cli(fd, "Contr%d: %d B channels total, %d B channels free.%s\n",
 				i, capi_controllers[i]->nbchannels,
-				capi_controllers[i]->nfreebchannels);
+				capi_controllers[i]->nfreebchannels,
+				(capi_controllers[i]->used) ? "":" (unused)");
 		}
 	}
 #ifdef CC_AST_HAS_VERSION_1_6
@@ -5982,7 +5984,8 @@ static int cc_post_init_capi(void)
 		}
 	}
 	for (controller = 1; controller <= capi_num_controllers; controller++) {
-		if (capi_controllers[controller] != NULL) {
+		if ((capi_controllers[controller] != NULL) &&
+		    (capi_controllers[controller]->used)) {
 			needchannels += (capi_controllers[controller]->nbchannels + 1);
 		}
 	}
@@ -5990,7 +5993,7 @@ static int cc_post_init_capi(void)
 		return -1;
 
 	for (controller = 1; controller <= capi_num_controllers; controller++) {
-		if (capi_used_controllers & (1 << controller)) {
+		if (capi_controllers[controller]->used) {
 			if ((error = capi_ListenOnController(ALL_SERVICES, controller)) != 0) {
 				cc_log(LOG_ERROR,"Unable to listen on contr%d (error=0x%x)\n",
 					controller, error);
@@ -6322,11 +6325,9 @@ int unload_module(void)
 			cc_log(LOG_WARNING,"Unable to unregister from CAPI!\n");
 	}
 
-	for (controller = 1; controller <= capi_num_controllers; controller++) {
-		if (capi_used_controllers & (1 << controller)) {
-			if (capi_controllers[controller])
-				free(capi_controllers[controller]);
-		}
+	for (controller = 1; controller <= CAPI_MAX_CONTROLLERS; controller++) {
+		if (capi_controllers[controller])
+			free(capi_controllers[controller]);
 	}
 	
 	i = capi_iflist;
