@@ -1955,10 +1955,17 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 
 	if (i->doDTMF > 0) {
 		i->vad = ast_dsp_new();
+#ifdef CC_AST_HAS_DSP_SET_DIGITMODE
+		ast_dsp_set_features(i->vad, DSP_FEATURE_DIGIT_DETECT);
+		if (i->doDTMF > 1) {
+			ast_dsp_set_digitmode(i->vad, DSP_DIGITMODE_DTMF | DSP_DIGITMODE_RELAXDTMF);
+		}
+#else
 		ast_dsp_set_features(i->vad, DSP_FEATURE_DTMF_DETECT);
 		if (i->doDTMF > 1) {
 			ast_dsp_digitmode(i->vad, DSP_DIGITMODE_DTMF | DSP_DIGITMODE_RELAXDTMF);
 		}
+#endif
 	}
 
 	CC_CHANNEL_PVT(tmp) = i;

@@ -27,6 +27,7 @@ if [ ! -d "$INCLUDEDIR" ]; then
 fi
 
 echo -n "Checking Asterisk version... "
+AVERSIONNUM=`sed -n '/.*ASTERISK_VERSION_NUM /s/^.*ASTERISK_VERSION_NUM //p' $INCLUDEDIR/version.h`
 AVERSION=`sed -n '/.*ASTERISK_VERSION /s/^.*ASTERISK_VERSION //p' $INCLUDEDIR/version.h`
 AVERSION=`echo $AVERSION | sed 's/\"//g'`
 if [ "$AVERSION" = "" ]; then
@@ -43,24 +44,31 @@ echo "#ifndef CHAN_CAPI_CONFIG_H" >>$CONFIGFILE
 echo "#define CHAN_CAPI_CONFIG_H" >>$CONFIGFILE
 echo >>$CONFIGFILE
 
-if grep -q "ASTERISK_VERSION_NUM .*104" $INCLUDEDIR/version.h; then
-	echo "#define CC_AST_HAS_VERSION_1_4" >>$CONFIGFILE
-	echo " * found Asterisk version 1.4"
-	VER=1_4
-else
-	if grep -q "ASTERISK_VERSION_NUM 99999" $INCLUDEDIR/version.h; then
+case "$AVERSIONNUM" in
+	106*)
+		echo "#define CC_AST_HAS_VERSION_1_6" >>$CONFIGFILE
+		echo " * found Asterisk version 1.6"
+		VER=1_6
+		;;
+	104*)
+		echo "#define CC_AST_HAS_VERSION_1_4" >>$CONFIGFILE
+		echo " * found Asterisk version 1.4"
+		VER=1_4
+		;;
+	99999)
 		echo "#define CC_AST_HAS_VERSION_1_4" >>$CONFIGFILE
 		echo " * assuming Asterisk version 1.4"
 		VER=1_4
-	else
+		;;
+	*)
 		if [ "$VER" = "1_6" ]; then
 			echo "#define CC_AST_HAS_VERSION_1_6" >>$CONFIGFILE
 			echo " * assuming Asterisk version 1.6"
 		else
 			echo "#undef CC_AST_HAS_VERSION_1_4" >>$CONFIGFILE
 		fi
-	fi
-fi
+		;;
+esac
 
 check_two_and_four()
 {
@@ -135,6 +143,14 @@ check_version_onesix()
 	echo "#define CC_AST_HAS_EXT_CHAN_ALLOC" >>$CONFIGFILE
 	echo "#define CC_AST_HAS_EXT2_CHAN_ALLOC" >>$CONFIGFILE
 	echo "#define CC_AST_HAS_SEND_DIGIT_END_DURATION" >>$CONFIGFILE
+
+	if grep -q "int ast_dsp_set_digitmode" $INCLUDEDIR/dsp.h; then
+		echo "#define CC_AST_HAS_DSP_SET_DIGITMODE" >>$CONFIGFILE
+		echo " * found new 'ast_dsp_set_digitmode' function"
+	else
+		echo "#undef CC_AST_HAS_DSP_SET_DIGITMODE" >>$CONFIGFILE
+		echo " * no new 'ast_dsp_set_digitmode' function"
+	fi
 }
 
 case $VER in
