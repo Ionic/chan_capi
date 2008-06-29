@@ -448,6 +448,9 @@ CALLEDTON
     The 'type of number' value of the called number is saved in this variable on
     incomming call.
 
+CALLERTON
+    The 'type of number' value to overwrite for the caller number on outgoing call.
+
 _CALLERHOLDID
     If a call is put on hold (ISDN-HOLD), the reference id is saved in this variable.
     This variable is inherited as CALLERHOLDID to the dialed channel and will be used
