@@ -362,8 +362,10 @@ The parameter <filename> is mandatory and the parameters <stationid>,
 By default, if fax reception was not successful, the file is deleted. If you want even
 partly received or broken fax files, use 'k' for "keep bad fax" in the <options>:
   capicommand(receivefax|/tmp/${UNIQUEID}|+123456789||k)
+
 To enable fax tone detection and redirect to extension 'fax', use config variable
-'faxdetect' in capi.conf.
+'faxdetect' in capi.conf. This can be limited to the first 'n' seconds of a connection
+using the setting 'faxdetecttime' in capi.conf.
 
 Example of use :
 line number 123, play something, if a fax tone is detected, handle it

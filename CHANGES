@@ -3,6 +3,7 @@ CHANGES
 
 HEAD
 ------------------
+- added config setting 'faxdetecttime' to limit the fax detection for a given amount of seconds.
 
 
 chan_capi-1.1.1

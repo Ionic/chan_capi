@@ -2419,6 +2419,17 @@ static void capi_handle_dtmf_fax(struct capi_pvt *i)
 			i->vname);
 		return;
 	}
+	if ((i->faxdetecttime > 0) && (c->cdr)) {
+		struct timeval now;
+		gettimeofday(&now, NULL);
+		if ((c->cdr->start.tv_sec + i->faxdetecttime) < now.tv_sec) {
+			cc_verbose(3, 0, VERBOSE_PREFIX_3
+				"%s: Fax detected after %ld seconds, limit %u - ignored\n",
+				i->vname, (long) (now.tv_sec - c->cdr->start.tv_sec),
+				i->faxdetecttime);
+			return;
+		}
+	}
 	
 	if (!strcmp(c->exten, "fax")) {
 		cc_log(LOG_DEBUG, "Already in a fax extension, not redirecting\n");
@@ -5261,6 +5272,7 @@ int mkif(struct cc_capi_conf *conf)
 		tmp->ecSelector = conf->ecSelector;
 		tmp->bridge = conf->bridge;
 		tmp->FaxState = conf->faxsetting;
+		tmp->faxdetecttime = conf->faxdetecttime;
 		
 		tmp->smoother = ast_smoother_new(CAPI_MAX_B3_BLOCK_SIZE);
 
@@ -6133,6 +6145,7 @@ static int conf_interface(struct cc_capi_conf *conf, struct ast_variable *v)
 			else
 				conf->faxsetting &= ~(CAPI_FAX_DETECT_OUTGOING | CAPI_FAX_DETECT_INCOMING);
 		} else
+		CONF_INTEGER(conf->faxdetecttime, "faxdetecttime")
 		if (!strcasecmp(v->name, "echocancel")) {
 			if (ast_true(v->value)) {
 				conf->echocancel = 1;

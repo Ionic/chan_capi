@@ -404,6 +404,8 @@ struct capi_pvt {
 	FILE *fFax;
 	/* Fax status */
 	unsigned int FaxState;
+	/* Window for fax detection */
+	unsigned int faxdetecttime;
 
 	/* handle for CCBS/CCNR callback */
 	unsigned int ccbsnrhandle;
@@ -500,6 +502,7 @@ struct cc_capi_conf {
 	int qsigfeat;
 	struct cc_capi_qsig_conf qsigconf;
 	unsigned int faxsetting;
+	unsigned int faxdetecttime;
 	ast_group_t callgroup;
 	ast_group_t pickupgroup;
 	ast_group_t group;
