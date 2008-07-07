@@ -50,7 +50,7 @@ This chan_capi version includes:
 - Reject call waiting (ACO)
 - DID for Point to Point mode (a.k.a overlap receiving)
 - Rx/Tx gains using positive linar value (rxgain=1.0, txgain=1.0 means no change) 
-- (Inter)national dialing prefix (for callerid) configurable in capi.conf
+- (Inter)national/subscriber dialing prefix (for callerid) configurable in capi.conf
 - CLI command "capi info" shows B channel status of chan_capi
 - Catch all MSN (incomingmsn=*)
 - Some configuration enhancements (msn=123,124,125)

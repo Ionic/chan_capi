@@ -162,6 +162,7 @@ typedef struct fax3proto3 B3_PROTO_FAXG3;
 
 #define CAPI_NATIONAL_PREF               "0"
 #define CAPI_INTERNAT_PREF              "00"
+#define CAPI_SUBSCRIBER_PREF            ""
 
 #define ECHO_TX_COUNT                   5 /* 5 x 20ms = 100ms */
 #define ECHO_EFFECTIVE_TX_COUNT         3 /* 2 x 20ms = 40ms == 40-100ms  ... ignore first 40ms */
@@ -561,6 +562,7 @@ struct cc_capi_controller {
 #define CAPI_ETSI_DISCONNECT                    0x45
 
 /* ETSI 300 102-1 Numbering Plans */
+#define CAPI_ETSI_NPLAN_SUBSCRIBER              0x40
 #define CAPI_ETSI_NPLAN_NATIONAL                0x20
 #define CAPI_ETSI_NPLAN_INTERNAT                0x10
 

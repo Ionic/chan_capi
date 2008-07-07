@@ -160,6 +160,7 @@ static int interface_task;
 
 static char capi_national_prefix[AST_MAX_EXTENSION];
 static char capi_international_prefix[AST_MAX_EXTENSION];
+static char capi_subscriber_prefix[AST_MAX_EXTENSION];
 
 static char default_language[MAX_LANGUAGE] = "";
 
@@ -2933,6 +2934,8 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 				p2 = capi_national_prefix;
 			} else if (val == CAPI_ETSI_NPLAN_INTERNAT) {
 				p2 = capi_international_prefix;
+			} else if (val == CAPI_ETSI_NPLAN_SUBSCRIBER) {
+				p2 = capi_subscriber_prefix;
 			}
 		}
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element REDIRECTION NUMBER '(%s)%s'\n",
@@ -3703,6 +3706,9 @@ static void capidev_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, un
 				else if ((callernplan & 0x70) == CAPI_ETSI_NPLAN_INTERNAT)
 					snprintf(i->cid, (sizeof(i->cid)-1), "%s%s%s",
 						i->prefix, capi_international_prefix, CID);
+				else if ((callernplan & 0x70) == CAPI_ETSI_NPLAN_SUBSCRIBER)
+					snprintf(i->cid, (sizeof(i->cid)-1), "%s%s%s",
+						i->prefix, capi_subscriber_prefix, CID);
 				else
 					snprintf(i->cid, (sizeof(i->cid)-1), "%s%s",
 						i->prefix, CID);
@@ -6217,6 +6223,7 @@ static int capi_eval_config(struct ast_config *cfg)
 	/* prefix defaults */
 	cc_copy_string(capi_national_prefix, CAPI_NATIONAL_PREF, sizeof(capi_national_prefix));
 	cc_copy_string(capi_international_prefix, CAPI_INTERNAT_PREF, sizeof(capi_international_prefix));
+	cc_copy_string(capi_subscriber_prefix, CAPI_SUBSCRIBER_PREF, sizeof(capi_subscriber_prefix));
 
 #ifdef CC_AST_HAS_VERSION_1_4
 	/* Copy the default jb config over global_jbconf */
@@ -6238,6 +6245,8 @@ static int capi_eval_config(struct ast_config *cfg)
 			cc_copy_string(capi_national_prefix, v->value, sizeof(capi_national_prefix));
 		} else if (!strcasecmp(v->name, "internationalprefix")) {
 			cc_copy_string(capi_international_prefix, v->value, sizeof(capi_international_prefix));
+		} else if (!strcasecmp(v->name, "subscriberprefix")) {
+			cc_copy_string(capi_subscriber_prefix, v->value, sizeof(capi_subscriber_prefix));
 		} else if (!strcasecmp(v->name, "language")) {
 			cc_copy_string(default_language, v->value, sizeof(default_language));
 		} else if (!strcasecmp(v->name, "rxgain")) {
