@@ -3406,10 +3406,6 @@ static void capidev_handle_connect_b3_active_indication(_cmsg *CMSG, unsigned in
 
 	return_on_no_interface("CONNECT_ACTIVE_B3_IND");
 
-	if (i->channeltype != CAPI_CHANNELTYPE_NULL) {
-		capi_controllers[i->controller]->nfreebchannels--;
-	}
-
 	if (i->state == CAPI_STATE_DISCONNECTING) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: CONNECT_B3_ACTIVE_IND during disconnect for NCCI %#x\n",
 			i->vname, NCCI);
@@ -3527,6 +3523,10 @@ static void capidev_handle_connect_b3_indication(_cmsg *CMSG, unsigned int PLCI,
 
 	i->NCCI = NCCI;
 	i->B3count = 0;
+
+	if (i->channeltype != CAPI_CHANNELTYPE_NULL) {
+		capi_controllers[i->controller]->nfreebchannels--;
+	}
 
 	return;
 }
@@ -4049,6 +4049,9 @@ static void capidev_handle_msg(_cmsg *CMSG)
 		if(i == NULL) break;
 		if (wInfo == 0) {
 			i->NCCI = NCCI;
+			if (i->channeltype != CAPI_CHANNELTYPE_NULL) {
+				capi_controllers[i->controller]->nfreebchannels--;
+			}
 		} else {
 			i->isdnstate &= ~(CAPI_ISDN_STATE_B3_UP | CAPI_ISDN_STATE_B3_PEND);
 		}
