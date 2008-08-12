@@ -2694,6 +2694,10 @@ static void capidev_handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsig
 		cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s: Disconnect case 1\n",
 			i->vname);
 		if (i->state == CAPI_STATE_CONNECTED) {
+			if (i->FaxState & CAPI_FAX_STATE_ACTIVE) {
+				/* in fax mode, we wait for DISCONNECT_B3_IND */
+				return;
+			}
 			capi_queue_cause_control(i, 0);
 		} else {
 			if ((i->isdnstate & CAPI_ISDN_STATE_STAYONLINE)) {
