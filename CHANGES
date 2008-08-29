@@ -7,6 +7,7 @@ HEAD
 - added config option for subscriber prefix. Some lines may show local calls without area code
   signaled as subscriber-number. Here the complete prefix including area code must be added.
 - better counting of active b-channels.
+- make capicommand(progress) "early-B3" usable for non NT-mode incoming channels too.
 
 
 chan_capi-1.1.1

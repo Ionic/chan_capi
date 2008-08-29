@@ -4602,19 +4602,16 @@ static int pbx_capi_realhangup(struct ast_channel *c, char *param)
 
 /*
  * set early-B3 (progress) for incoming connections
- * (only for NT mode)
+ * (mainly for NT mode)
  */
 static int pbx_capi_signal_progress(struct ast_channel *c, char *param)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
-	unsigned char fac[] = "\x04\x1e\x02\x82\x88"; /* In-Band info available */
+	unsigned char fac[] = "\x04\x1e\x02\x82\x88"; /* In-Band info available (for NT-mode) */
 
-	if ((i->state != CAPI_STATE_DID) && (i->state != CAPI_STATE_INCALL)) {
+	if ((i->state != CAPI_STATE_DID) && (i->state != CAPI_STATE_INCALL) &&
+		(i->state != CAPI_STATE_ALERTING)) {
 		cc_log(LOG_DEBUG, "wrong channel state to signal PROGRESS\n");
-		return 0;
-	}
-	if (!(i->ntmode)) {
-		cc_log(LOG_WARNING, "PROGRESS sending for non NT-mode not possible\n");
 		return 0;
 	}
 	if ((i->isdnstate & CAPI_ISDN_STATE_B3_UP)) {
@@ -4627,15 +4624,22 @@ static int pbx_capi_signal_progress(struct ast_channel *c, char *param)
 			i->vname);
 		return 0;
 	}
+	if (!(i->ntmode)) {
+		if (i->state != CAPI_STATE_ALERTING) {
+			pbx_capi_alert(c);
+		}
+	}
 	i->isdnstate |= CAPI_ISDN_STATE_B3_PEND;
 
 	cc_select_b(i, NULL);
 
-	/* send facility for Progress 'In-Band info available' */
-	capi_sendf(NULL, 0, CAPI_INFO_REQ, i->PLCI, get_capi_MessageNumber(),
-		"()(()()()s())",
-		fac
-	);
+	if ((i->ntmode)) {
+		/* send facility for Progress 'In-Band info available' */
+		capi_sendf(NULL, 0, CAPI_INFO_REQ, i->PLCI, get_capi_MessageNumber(),
+			"()(()()()s())",
+			fac
+		);
+	}
 
 	return 0;
 }

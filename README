@@ -290,6 +290,12 @@ Chat (MeetMe/Conference):
     Possible options:
     'm' = The first caller will get music-on-hold until second caller arrives.
 
+Progress / early-B3 on incoming calls:
+    Activate early-B3 on incoming channels to signal progress tones
+    when in NT-mode or if the Telco-line supports this.
+        Example:
+        exten => s,1,capicommand(progress)
+
 
 Using CLIR
 ==========
