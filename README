@@ -102,6 +102,12 @@ The Dial string
          This is needed to give additional commands like CCBS after Hangup.
          To really hangup the CAPI connection, use either capicommand(hangup)
          or wait for chan_capi/network timeout (about 20 seconds).
+   'G' : early Line-Interconnect / bridge: Use Line-Interconnect as soon as
+         both b-channels are up. Both channels must be of type CAPI and
+         the incoming call may need 'capicommand(progress)' to enable early-B3
+         on it as well as dial option 'b' for the outgoing channel.
+         Before Dial(), the capicommand(peerlink) must be used to signal the
+         dialed channel its peer.
 
   If the <interface-name> is used in dialstring, be sure the name (specified
   in capi.conf) does not start with 'contr' or 'g'.

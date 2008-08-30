@@ -893,6 +893,7 @@ static void interface_cleanup(struct capi_pvt *i)
 
 	i->isdnstate = 0;
 	i->cause = 0;
+	i->fsetting = 0;
 
 	i->whentohangup = 0;
 	i->whentoqueuehangup = 0;
@@ -1061,7 +1062,7 @@ void capi_activehangup(struct capi_pvt *i, int state)
 		return;
 	}
 	
-	if ((i->isdnstate & CAPI_ISDN_STATE_STAYONLINE)) {
+	if ((i->fsetting & CAPI_FSETTING_STAYONLINE)) {
 		/* user has requested to leave channel online for further actions
 		   like CCBS */
 		cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: disconnect deferred, stay-online mode PLCI=%#x\n",
@@ -1217,9 +1218,14 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 			use_defaultcid = 1;
 			break;
 		case 's':	/* stay online */
-			if ((i->isdnstate & CAPI_ISDN_STATE_STAYONLINE))
+			if ((i->fsetting & CAPI_FSETTING_STAYONLINE))
 				cc_log(LOG_WARNING, "'stay-online' already set in '%s'\n", idest);
-			i->isdnstate |= CAPI_ISDN_STATE_STAYONLINE;
+			i->fsetting |= CAPI_FSETTING_STAYONLINE;
+			break;
+		case 'G':	/* early bridge */
+			if ((i->fsetting & CAPI_FSETTING_EARLY_BRIDGE))
+				cc_log(LOG_WARNING, "'early-bridge' already set in '%s'\n", idest);
+			i->fsetting |= CAPI_FSETTING_EARLY_BRIDGE;
 			break;
 		case 'q':	/* disable QSIG */
 			cc_verbose(4, 0, VERBOSE_PREFIX_4 "%s: QSIG extensions for this call disabled\n",
@@ -1557,15 +1563,6 @@ static int line_interconnect(struct capi_pvt *i0, struct capi_pvt *i1, int start
 	    (i1->isdnstate & CAPI_ISDN_STATE_DISCONNECT))
 		return -1;
 
-	if ((!(i0->isdnstate & CAPI_ISDN_STATE_B3_UP)) || 
-	    (!(i1->isdnstate & CAPI_ISDN_STATE_B3_UP))) {
-		cc_verbose(3, 1, VERBOSE_PREFIX_2
-			"%s:%s line interconnect aborted, at least "
-			"one channel is not connected.\n",
-			i0->vname, i1->vname);
-		return -1;
-	}
-
 	if (start) {
 		/* connect */
 		capi_sendf(i1, 0, CAPI_FACILITY_REQ, i0->PLCI, get_capi_MessageNumber(),
@@ -1789,6 +1786,44 @@ static int pbx_capi_bridge_transfer(
 }
 
 /*
+ * activate / deactivate b-channel bridge
+ */
+static int capi_bridge(int start, struct capi_pvt *i0, struct capi_pvt *i1, int flags)
+{
+	int ret = 0;
+
+	if (start) {
+		if ((i0->isdnstate & CAPI_ISDN_STATE_LI) ||
+		    (i1->isdnstate & CAPI_ISDN_STATE_LI)) {
+			/* already in bridge */
+			cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s/%s: already in bridge.\n",
+				i0->vname, i1->vname);
+			return 0;
+		}
+		if (!(flags & AST_BRIDGE_DTMF_CHANNEL_0))
+			capi_detect_dtmf(i0, 0);
+
+		if (!(flags & AST_BRIDGE_DTMF_CHANNEL_1))
+			capi_detect_dtmf(i1, 0);
+
+		capi_echo_canceller(i0, EC_FUNCTION_DISABLE);
+		capi_echo_canceller(i1, EC_FUNCTION_DISABLE);
+		cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s/%s: activating bridge.\n",
+			i0->vname, i1->vname);
+		ret = line_interconnect(i0, i1, 1);
+	} else {
+		cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s/%s: deactivating bridge.\n",
+			i0->vname, i1->vname);
+		line_interconnect(i0, i1, 0);
+		capi_detect_dtmf(i0, 1);
+		capi_detect_dtmf(i1, 1);
+		capi_echo_canceller(i0, EC_FUNCTION_ENABLE);
+		capi_echo_canceller(i1, EC_FUNCTION_ENABLE);
+	}
+	return ret;
+}
+
+/*
  * native bridging / line interconnect
  */
 static CC_BRIDGE_RETURN pbx_capi_bridge(
@@ -1833,18 +1868,8 @@ static CC_BRIDGE_RETURN pbx_capi_bridge(
 	capi_wait_for_b3_up(i0);
 	capi_wait_for_b3_up(i1);
 	
-	if (!(flags & AST_BRIDGE_DTMF_CHANNEL_0))
-		capi_detect_dtmf(i0, 0);
-
-	if (!(flags & AST_BRIDGE_DTMF_CHANNEL_1))
-		capi_detect_dtmf(i1, 0);
-
-	capi_echo_canceller(i0, EC_FUNCTION_DISABLE);
-	capi_echo_canceller(i1, EC_FUNCTION_DISABLE);
-
-	if (line_interconnect(i0, i1, 1)) {
-		ret = AST_BRIDGE_FAILED;
-		goto return_from_bridge;
+	if (capi_bridge(1, i0, i1, flags)) {
+		return AST_BRIDGE_FAILED;
 	}
 
 	for (;;) {
@@ -1881,18 +1906,7 @@ static CC_BRIDGE_RETURN pbx_capi_bridge(
 		priority = !priority;
 	}
 
-	line_interconnect(i0, i1, 0);
-
-return_from_bridge:
-
-	if (!(flags & AST_BRIDGE_DTMF_CHANNEL_0))
-		capi_detect_dtmf(i0, 1);
-
-	if (!(flags & AST_BRIDGE_DTMF_CHANNEL_1))
-		capi_detect_dtmf(i1, 1);
-
-	capi_echo_canceller(i0, EC_FUNCTION_ENABLE);
-	capi_echo_canceller(i1, EC_FUNCTION_ENABLE);
+	capi_bridge(0, i0, i1, 0);
 
 	return ret;
 }
@@ -2700,7 +2714,7 @@ static void capidev_handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsig
 			}
 			capi_queue_cause_control(i, 0);
 		} else {
-			if ((i->isdnstate & CAPI_ISDN_STATE_STAYONLINE)) {
+			if ((i->fsetting & CAPI_FSETTING_STAYONLINE)) {
 				cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: stay-online hangup frame queued.\n",
 					i->vname);
 				i->whentoqueuehangup = time(NULL) + 1;
@@ -3449,6 +3463,20 @@ static void capidev_handle_connect_b3_active_indication(_cmsg *CMSG, unsigned in
 		capi_detect_dtmf(i, 1);
 	}
 
+	if (i->fsetting & CAPI_FSETTING_EARLY_BRIDGE) {
+		if ((i->peer != NULL) && (i->peer->tech == &capi_tech)) {
+			struct capi_pvt *i1;
+			i1 = CC_CHANNEL_PVT(i->peer);
+			if ((capi_controllers[i->controller]->lineinterconnect) && 
+			    (capi_controllers[i1->controller]->lineinterconnect) &&
+			    (i->bridge) && (i1->bridge)) {
+				cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: activate early bridge to %s\n",
+					i->vname, i1->vname);
+				capi_bridge(1, i, i1, 0);
+			}
+		}
+	}
+
 	if (i->state == CAPI_STATE_CONNECTED) {
 		capi_signal_answer(i);
 	}
@@ -3499,7 +3527,7 @@ static void capidev_handle_disconnect_b3_indication(_cmsg *CMSG, unsigned int PL
 	}
 
 	if ((i->state == CAPI_STATE_DISCONNECTING)) {
-		if (!(i->isdnstate & CAPI_ISDN_STATE_STAYONLINE)) {
+		if (!(i->fsetting & CAPI_FSETTING_STAYONLINE)) {
 			/* active disconnect */
 			capi_send_disconnect(PLCI, NULL);
 		}
@@ -4567,7 +4595,7 @@ static void capi_disconnect(struct capi_pvt *i)
 {
 	cc_mutex_lock(&i->lock);
 
-	i->isdnstate &= ~CAPI_ISDN_STATE_STAYONLINE;
+	i->fsetting &= ~CAPI_FSETTING_STAYONLINE;
 	if ((i->isdnstate & CAPI_ISDN_STATE_B3_UP)) {
 		cc_disconnect_b3(i, 0);
 	} else {

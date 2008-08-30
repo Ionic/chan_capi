@@ -246,8 +246,7 @@ struct cc_capi_gains {
 #define CAPI_ISDN_STATE_EC            0x00002000
 #define CAPI_ISDN_STATE_DTMF          0x00004000
 #define CAPI_ISDN_STATE_B3_SELECT     0x00008000
-#define CAPI_ISDN_STATE_STAYONLINE    0x00010000
-#define CAPI_ISDN_STATE_ISDNPROGRESS  0x00020000
+#define CAPI_ISDN_STATE_ISDNPROGRESS  0x00010000
 #define CAPI_ISDN_STATE_3PTY          0x10000000
 #define CAPI_ISDN_STATE_PBX_DONT      0x40000000
 #define CAPI_ISDN_STATE_PBX           0x80000000
@@ -262,6 +261,10 @@ struct cc_capi_gains {
 #define CAPI_WAITEVENT_ANSWER_FINISH  0x00030000
 #define CAPI_WAITEVENT_HOLD_IND       0x00040000
 #define CAPI_WAITEVENT_ECT_IND        0x00050000
+
+/* Features and settings of current connection */
+#define CAPI_FSETTING_STAYONLINE      0x00000001
+#define CAPI_FSETTING_EARLY_BRIDGE    0x00000002
 
 /* Private qsig data for capi device */
 struct cc_qsig_data {
@@ -400,6 +403,9 @@ struct capi_pvt {
 	/* Common ISDN Profile (CIP) */
 	int cip;
 	unsigned short transfercapability;
+
+	/* Features and settings of current connection */
+	unsigned int fsetting;
 	
 	/* if not null, receiving a fax */
 	FILE *fFax;
