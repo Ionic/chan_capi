@@ -2653,12 +2653,14 @@ static void capidev_handle_did_digits(_cmsg *CMSG, unsigned int PLCI, unsigned i
 	update_channel_name(i);	
 	
 	if (i->owner->pbx != NULL) {
-		/* we are already in pbx, so we send the digits as dtmf */
-		for (a = 0; a < strlen(did); a++) {
-			fr.frametype = AST_FRAME_DTMF;
-			fr.subclass = did[a];
-			local_queue_frame(i, &fr);
-		} 
+		if (did) {
+			/* we are already in pbx, so we send the digits as dtmf */
+			for (a = 0; a < strlen(did); a++) {
+				fr.frametype = AST_FRAME_DTMF;
+				fr.subclass = did[a];
+				local_queue_frame(i, &fr);
+			} 
+		}
 		return;
 	}
 
