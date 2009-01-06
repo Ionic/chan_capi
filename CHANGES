@@ -11,6 +11,8 @@ HEAD
 - support early Line-Interconnect (bridge) as soon as both b-channels are up. This bridges b-channels
   from beginning of call-establishment, even before calls are connected and the bridge command is received.
   Dial() option 'G' is used to activate this feature.
+- fixed big-endian issue for DATA_B3 messages in internal libcapi code.
+- fixed NULL-pointer when no digits are signaled in DID mode.
 
 
 chan_capi-1.1.1
