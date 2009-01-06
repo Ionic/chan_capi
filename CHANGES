@@ -13,6 +13,7 @@ HEAD
   Dial() option 'G' is used to activate this feature.
 - fixed big-endian issue for DATA_B3 messages in internal libcapi code.
 - fixed NULL-pointer when no digits are signaled in DID mode.
+- adapt to new Asterisk 1.6.1 changes.
 
 
 chan_capi-1.1.1

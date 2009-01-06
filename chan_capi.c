@@ -668,8 +668,9 @@ static int local_queue_frame(struct capi_pvt *i, struct ast_frame *f)
 	wbuflen = sizeof(struct ast_frame) + f->datalen;
 	wbuf = alloca(wbuflen);
 	memcpy(wbuf, f, sizeof(struct ast_frame));
-	if (f->datalen)
-		memcpy(wbuf + sizeof(struct ast_frame), f->data, f->datalen);
+	if (f->datalen) {
+		memcpy(wbuf + sizeof(struct ast_frame), f->FRAME_DATA_PTR, f->datalen);
+	}
 
 	if (write(i->writerfd, wbuf, wbuflen) != wbuflen) {
 		cc_log(LOG_ERROR, "Could not write to pipe for %s\n",
@@ -3277,7 +3278,7 @@ static void capidev_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, un
 
 	fr.frametype = AST_FRAME_VOICE;
 	fr.subclass = capi_capability;
-	fr.data = b3buf;
+	fr.FRAME_DATA_PTR = b3buf;
 	fr.datalen = b3len;
 	fr.samples = b3len;
 	fr.offset = AST_FRIENDLY_OFFSET;

@@ -1113,7 +1113,7 @@ struct ast_frame *capi_read_pipeframe(struct capi_pvt *i)
 	}
 	
 	f->mallocd = 0;
-	f->data = NULL;
+	f->FRAME_DATA_PTR = NULL;
 
 	if ((f->frametype == AST_FRAME_CONTROL) && (f->subclass == AST_CONTROL_HANGUP)) {
 		return NULL;
@@ -1129,7 +1129,7 @@ struct ast_frame *capi_read_pipeframe(struct capi_pvt *i)
 		if (readsize != f->datalen) {
 			cc_log(LOG_ERROR, "did not read whole frame data\n");
 		}
-		f->data = i->frame_data + AST_FRIENDLY_OFFSET;
+		f->FRAME_DATA_PTR = i->frame_data + AST_FRIENDLY_OFFSET;
 	}
 	return f;
 }
@@ -1176,7 +1176,7 @@ int capi_write_frame(struct capi_pvt *i, struct ast_frame *f)
 			i->vname);
 		return 0;
 	}
-	if ((!f->data) || (!f->datalen)) {
+	if ((!f->FRAME_DATA_PTR) || (!f->datalen)) {
 		cc_log(LOG_DEBUG, "No data for FRAME_VOICE %s\n", i->vname);
 		return 0;
 	}
@@ -1209,11 +1209,11 @@ int capi_write_frame(struct capi_pvt *i, struct ast_frame *f)
 
 		if ((i->doES == 1) && (!capi_tcap_is_digital(i->transfercapability))) {
 			for (j = 0; j < fsmooth->datalen; j++) {
-				buf[j] = capi_reversebits[ ((unsigned char *)fsmooth->data)[j] ]; 
+				buf[j] = capi_reversebits[ ((unsigned char *)fsmooth->FRAME_DATA_PTR)[j] ]; 
 				if (capi_capability == AST_FORMAT_ULAW) {
-					txavg += abs( capiULAW2INT[capi_reversebits[ ((unsigned char*)fsmooth->data)[j]]] );
+					txavg += abs( capiULAW2INT[capi_reversebits[ ((unsigned char*)fsmooth->FRAME_DATA_PTR)[j]]] );
 				} else {
-					txavg += abs( capiALAW2INT[capi_reversebits[ ((unsigned char*)fsmooth->data)[j]]] );
+					txavg += abs( capiALAW2INT[capi_reversebits[ ((unsigned char*)fsmooth->FRAME_DATA_PTR)[j]]] );
 				}
 			}
 			txavg = txavg / j;
@@ -1224,11 +1224,11 @@ int capi_write_frame(struct capi_pvt *i, struct ast_frame *f)
 		} else {
 			if ((i->txgain == 1.0) || (capi_tcap_is_digital(i->transfercapability))) {
 				for (j = 0; j < fsmooth->datalen; j++) {
-					buf[j] = capi_reversebits[((unsigned char *)fsmooth->data)[j]];
+					buf[j] = capi_reversebits[((unsigned char *)fsmooth->FRAME_DATA_PTR)[j]];
 				}
 			} else {
 				for (j = 0; j < fsmooth->datalen; j++) {
-					buf[j] = i->g.txgains[capi_reversebits[((unsigned char *)fsmooth->data)[j]]];
+					buf[j] = i->g.txgains[capi_reversebits[((unsigned char *)fsmooth->FRAME_DATA_PTR)[j]]];
 				}
 			}
 		}

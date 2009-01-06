@@ -119,6 +119,12 @@ static inline unsigned int read_capi_dword(void *m)
 #define CC_CHANNEL_PVT(c) (c)->tech_pvt
 #define CC_BRIDGE_RETURN enum ast_bridge_result
 
+#ifdef CC_AST_HAS_UNION_DATA_IN_FRAME
+#define FRAME_DATA_PTR data.ptr
+#else
+#define FRAME_DATA_PTR data
+#endif
+
 /* */
 #define return_on_no_interface(x)                                       \
 	if (!i) {                                                       \

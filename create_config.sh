@@ -151,6 +151,13 @@ check_version_onesix()
 		echo "#undef CC_AST_HAS_DSP_SET_DIGITMODE" >>$CONFIGFILE
 		echo " * no new 'ast_dsp_set_digitmode' function"
 	fi
+	if grep -q "union .* data" $INCLUDEDIR/frame.h; then
+		echo "#define CC_AST_HAS_UNION_DATA_IN_FRAME" >>$CONFIGFILE
+		echo " * found new union data in ast_frame structure"
+	else
+		echo "#undef CC_AST_HAS_UNION_DATA_IN_FRAME" >>$CONFIGFILE
+		echo " * no new union data in ast_frame structure"
+	fi
 }
 
 case $VER in
