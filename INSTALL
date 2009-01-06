@@ -7,6 +7,19 @@ include files.
 To build the driver you will need an installed Capi system, including header 
 files.
 
+By default an internal version of libcapi20 is used (you don't need libcapi20 to
+be installed on your system). If you don't want this and the installed libcapi20
+shall be used, add the option
+  USE_OWN_LIBCAPI=no
+to the 'make' command.
+
+To build from/for other Asterisk sources (default is '/' where /usr/include/asterisk
+is expected), add option
+  INSTALL_PREFIX=<where your /usr/include/asterisk is>
+to 'make' command. This makes also sense when compiling for other targets or when
+cross compiling.
+
+
 To build the channel module:
 ---------------------------------
 make
