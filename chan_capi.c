@@ -4244,6 +4244,24 @@ static int pbx_capi_call_deflect(struct ast_channel *c, char *param)
 /*
  * store the peer for future actions 
  */
+static int pbx_capi_get_id(struct ast_channel *c, char *param)
+{
+	char buffer[32];
+
+	if ((!param) || (!(*param))) {
+		cc_log(LOG_WARNING, "Parameter for getid missing.\n");
+		return -1;
+	}
+
+	snprintf(buffer, sizeof(buffer) - 1, "%d", capi_ApplID);
+	pbx_builtin_setvar_helper(c, param, buffer);
+
+	return 0;
+}
+
+/*
+ * store the peer for future actions 
+ */
 static int pbx_capi_peer_link(struct ast_channel *c, char *param)
 {
 	char buffer[32];
@@ -4760,6 +4778,7 @@ static struct capicommands_s {
 	int (*cmd)(struct ast_channel *, char *);
 	int capionly;
 } capicommands[] = {
+	{ "getid",        pbx_capi_get_id,          0 },
 	{ "peerlink",     pbx_capi_peer_link,       0 },
 	{ "progress",     pbx_capi_signal_progress, 1 },
 	{ "deflect",      pbx_capi_call_deflect,    1 },
@@ -5150,7 +5169,7 @@ static void *capidev_loop(void *data)
 	time_t lastcall = 0;
 	time_t newtime;
 	
-	cc_log(LOG_NOTICE, "Started CAPI device thread.\n");
+	cc_log(LOG_NOTICE, "Started CAPI device thread for CAPI Appl-ID %d.\n", capi_ApplID);
 
 	for (/* for ever */;;) {
 		switch(Info = capidev_check_wait_get_cmsg(&monCMSG)) {

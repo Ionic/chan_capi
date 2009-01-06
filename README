@@ -302,6 +302,11 @@ Progress / early-B3 on incoming calls:
         Example:
         exten => s,1,capicommand(progress)
 
+Get CAPI application ID:
+    To store the CAPI application ID in an asterisk dialplan variable, use:
+        Example:
+            exten => s,1,capicommand(getid,CAPI_ID)
+            exten => s,2,NoOp(CAPI appl-id is ${CAPI_ID})
 
 Using CLIR
 ==========
