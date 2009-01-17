@@ -3,6 +3,10 @@ CHANGES
 
 HEAD
 ------------------
+
+
+chan_capi-1.1.2
+------------------
 - added config setting 'faxdetecttime' to limit the fax detection for a given amount of seconds.
 - added config option for subscriber prefix. Some lines may show local calls without area code
   signaled as subscriber-number. Here the complete prefix including area code must be added.
