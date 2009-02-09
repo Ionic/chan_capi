@@ -3,6 +3,7 @@ CHANGES
 
 HEAD
 ------------------
+- fixed possible pointer error in libcapi. receive-buffer is now cleared before using it.
 
 
 chan_capi-1.1.2
