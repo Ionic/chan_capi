@@ -440,7 +440,7 @@ MESSAGE_EXCHANGE_ERROR capi_sendf(
 	for (i = 0; format[i]; i++) {
 		if (((p - (&msg[0])) + 12) >= sizeof(msg)) {
 			cc_log(LOG_ERROR, "capi_sendf: message too big (%d)\n",
-				(p - (&msg[0])));
+				(int)(p - (&msg[0])));
 			return 0x1004;
 		}
 		switch(format[i]) {
