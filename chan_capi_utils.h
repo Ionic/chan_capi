@@ -27,6 +27,7 @@ extern MESSAGE_EXCHANGE_ERROR capidev_check_wait_get_cmsg(_cmsg *CMSG);
 extern char *capi_info_string(unsigned int info);
 extern void show_capi_info(struct capi_pvt *i, _cword info);
 extern unsigned capi_ListenOnController(unsigned int CIPmask, unsigned controller);
+extern unsigned capi_ManufacturerAllowOnController(unsigned controller);
 extern void capi_parse_dialstring(char *buffer, char **interface, char **dest, char **param, char **ocid);
 extern char *capi_number_func(unsigned char *data, unsigned int strip, char *buf);
 extern int cc_add_peer_link_id(struct ast_channel *c);

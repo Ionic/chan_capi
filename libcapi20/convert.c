@@ -343,7 +343,11 @@ static unsigned char *cpars[] = {
     /*15*/ 0,
     /*16 DISCONNECT_CONF*/      (unsigned char*)"\x03\x24\x01",
     /*17 LISTEN_CONF*/          (unsigned char*)"\x03\x24\x01",
+#if 0
     /*18 MANUFACTURER_REQ*/     (unsigned char*)"\x03\x2b\x15\x22\x2a\x01",
+#else /** \todo Need to treate manufacturer specific as plaint data */
+    /*18 MANUFACTURER_REQ dw(...) */     (unsigned char*)"\x03\x2b\x24\x2a\x01",
+#endif
     /*19*/ 0,
     /*1a INFO_CONF*/            (unsigned char*)"\x03\x24\x01",
     /*1b FACILITY_CONF*/        (unsigned char*)"\x03\x24\x20\x1b\x01",
@@ -365,7 +369,11 @@ static unsigned char *cpars[] = {
     /*27 CONNECT_ACTIVE_IND*/   (unsigned char*)"\x03\x16\x17\x29\x01",
     /*28 DISCONNECT_IND*/       (unsigned char*)"\x03\x2d\x01",
     /*29*/ 0,
+#if 0 
     /*2a MANUFACTURER_CONF*/    (unsigned char*)"\x03\x2b\x15\x22\x2a\x01",
+#else /** \todo Need to treate manufacturer specific as plaint data */
+    /*2a MANUFACTURER_CONF*/    (unsigned char*)"\x03\x2b\x15\x01",
+#endif
     /*2b*/ 0,
     /*2c INFO_IND*/             (unsigned char*)"\x03\x27\x25\x01",
     /*2d FACILITY_IND*/         (unsigned char*)"\x03\x20\x1d\x01",

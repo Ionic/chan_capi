@@ -932,6 +932,39 @@ unsigned capi_ListenOnController(unsigned int CIPmask, unsigned controller)
 }
 
 /*
+ * Activate access to vendor specific extensions
+ */
+unsigned capi_ManufacturerAllowOnController(unsigned controller)
+{
+  MESSAGE_EXCHANGE_ERROR error;
+  int waitcount = 50;
+  _cmsg CMSG;
+
+  error = capi_sendf (NULL, 0, CAPI_MANUFACTURER_REQ, controller, get_capi_MessageNumber(),
+                      "dw(d)", _DI_MANU_ID, _DI_OPTIONS_REQUEST, 0x00000020L);
+
+  if (error)
+    goto done;
+
+  while (waitcount) {
+    error = capidev_check_wait_get_cmsg(&CMSG);
+
+    if (IS_MANUFACTURER_CONF(&CMSG) && CMSG.ManuID == _DI_MANU_ID && (CMSG.Class & 0xffff) == _DI_OPTIONS_REQUEST) {
+      error = (MESSAGE_EXCHANGE_ERROR)(CMSG.Class >> 16);
+      break;
+    }
+    usleep(30000);
+    waitcount--;
+  }
+  if (!waitcount)
+    error = 0x100F;
+
+ done:
+  return error;
+}
+
+
+/*
  * convert a number
  */
 char *capi_number_func(unsigned char *data, unsigned int strip, char *buf)
@@ -1122,7 +1155,7 @@ struct ast_frame *capi_read_pipeframe(struct capi_pvt *i)
 	if ((f->frametype == AST_FRAME_VOICE) && (f->datalen > 0)) {
 		if (f->datalen > sizeof(i->frame_data)) {
 			cc_log(LOG_ERROR, "f.datalen(%d) greater than space of frame_data(%d)\n",
-				f->datalen, sizeof(i->frame_data));
+				f->datalen, (int)sizeof(i->frame_data));
 			f->datalen = sizeof(i->frame_data);
 		}
 		readsize = read(i->readerfd, i->frame_data + AST_FRIENDLY_OFFSET, f->datalen);

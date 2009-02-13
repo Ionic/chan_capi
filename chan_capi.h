@@ -40,6 +40,7 @@
 #include "asterisk/abstract_jb.h"
 #endif
 #include "asterisk/musiconhold.h"
+#include "dlist.h"
  
 #ifndef _PBX_CAPI_H
 #define _PBX_CAPI_H
@@ -437,6 +438,21 @@ struct capi_pvt {
 	float rxmin;
 	float txmin;
 
+	unsigned short divaAudioFlags;
+	unsigned short divaDigitalRxGain;
+	float divaDigitalRxGainDB;
+	unsigned short divaDigitalTxGain;
+	float divaDigitalTxGainDB;
+	unsigned short rxPitch;
+	unsigned short txPitch;
+	char special_tone_extension[AST_MAX_EXTENSION+1];
+
+	char   channel_command_digits[AST_MAX_EXTENSION+1];
+	time_t channel_command_timestamp;
+	int channel_command_digit;
+	int command_pass_digits;
+	diva_entity_queue_t channel_command_q;
+
 #ifdef CC_AST_HAS_VERSION_1_4
 	struct ast_jb_conf jbconf;
 	char mohinterpret[MAX_MUSICCLASS];
@@ -559,6 +575,8 @@ struct cc_capi_controller {
 	int CONF;
 	/* RTP */
 	int rtpcodec;
+
+  int divaExtendedFeaturesAvailable;
 };
 
 
@@ -629,5 +647,13 @@ extern void capi_gains(struct cc_capi_gains *g, float rxgain, float txgain);
 #ifdef CC_AST_HAS_VERSION_1_6
 extern char chatinfo_usage[];
 #endif
+
+typedef int (*pbx_capi_command_proc_t)(struct ast_channel *, char *);
+pbx_capi_command_proc_t pbx_capi_lockup_command_by_name (const char* name);
+
+#define _DI_MANU_ID         0x44444944
+#define _DI_DSP_CTRL        0x0003
+#define _DI_OPTIONS_REQUEST 0x0009
+
 
 #endif
