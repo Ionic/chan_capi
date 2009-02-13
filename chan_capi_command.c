@@ -308,8 +308,6 @@ static pbx_capi_voice_command_t* pbx_capi_voicecommand_find_digit_command (diva_
 			 link = diva_q_get_next (link)) {
 		pbx_capi_voice_command_t* cmd = (pbx_capi_voice_command_t*)link;
 
-		cc_verbose(2, 0, VERBOSE_PREFIX_4 "check digit: %s to %s\n", digits, cmd->channel_command_digits);
-
 		if (memcmp (digits, cmd->channel_command_digits, length) == 0) {
 			*info = 1;
 			if (length == cmd->length) {
