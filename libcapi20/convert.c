@@ -345,7 +345,7 @@ static unsigned char *cpars[] = {
     /*17 LISTEN_CONF*/          (unsigned char*)"\x03\x24\x01",
 #if 0
     /*18 MANUFACTURER_REQ*/     (unsigned char*)"\x03\x2b\x15\x22\x2a\x01",
-#else /** \todo Need to treate manufacturer specific as plaint data */
+#else /** \todo Need to treate manufacturer specific as plain data */
     /*18 MANUFACTURER_REQ dw(...) */     (unsigned char*)"\x03\x2b\x24\x2a\x01",
 #endif
     /*19*/ 0,
@@ -371,7 +371,7 @@ static unsigned char *cpars[] = {
     /*29*/ 0,
 #if 0 
     /*2a MANUFACTURER_CONF*/    (unsigned char*)"\x03\x2b\x15\x22\x2a\x01",
-#else /** \todo Need to treate manufacturer specific as plaint data */
+#else /** \todo Need to treate manufacturer specific as plain data */
     /*2a MANUFACTURER_CONF*/    (unsigned char*)"\x03\x2b\x15\x01",
 #endif
     /*2b*/ 0,

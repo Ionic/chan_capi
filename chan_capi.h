@@ -576,7 +576,7 @@ struct cc_capi_controller {
 	/* RTP */
 	int rtpcodec;
 
-  int divaExtendedFeaturesAvailable;
+	int divaExtendedFeaturesAvailable;
 };
 
 
@@ -649,7 +649,7 @@ extern char chatinfo_usage[];
 #endif
 
 typedef int (*pbx_capi_command_proc_t)(struct ast_channel *, char *);
-pbx_capi_command_proc_t pbx_capi_lockup_command_by_name (const char* name);
+pbx_capi_command_proc_t pbx_capi_lockup_command_by_name(const char* name);
 
 #define _DI_MANU_ID         0x44444944
 #define _DI_DSP_CTRL        0x0003
