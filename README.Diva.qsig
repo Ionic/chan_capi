@@ -135,11 +135,11 @@ and parties A and C are connected directly.
 
 ECT Example:
 /////////////////////////////////////////////////////////////////////
-[macro-dialogicdivaect]
+[macro-capiect]
 ; Activate suppressor of ambient noise for consultation call
-exten => s,1,dialogicdivacommand(noisesuppressor|yes)
+exten => s,1,capicommand(noisesuppressor|yes)
 ; Invoke ECT command
-exten => s,n,dialogicdivacommand(ect)
+exten => s,n,capicommand(ect)
 
 [isdn-in]
 ; Send progress message on incoming call
@@ -151,16 +151,16 @@ exten => 12345,n,Playback(demo-enterkeywords,noanswer,us)
 ; Accept incoming call
 exten => 12345,n,Answer
 ; Activate suppressor of ambient noises for incoming call
-exten => 12345,n,dialogicdivacommand(noisesuppressor|yes)
+exten => 12345,n,capicommand(noisesuppressor|yes)
 ; Save PLCI of incoming call to CAPIPLCI variable
-exten => 12345,n,dialogicdivacommand(getplci)
+exten => 12345,n,capicommand(getplci)
 ; Set CAPIECTPLCI variable to PLCI of incoming call
 ; and allow to export this variable to consultation call
 exten => 12345,n,Set(_CAPIECTPLCI=${CAPIPLCI})
 ; Create consultation call and invoke ECT
 ; ECT procedure will detect CAPIECTPLCI is set and use saved in this variable value
 ; to identify the ECT party and invoke ECT independent from the state of the primary call
-exten => 12345,n,Dial(DIALOGICDIVA/ISDN1/100,10,M(dialogicdivaect))
+exten => 12345,n,Dial(DIALOGICDIVA/ISDN1/100,10,M(capiect))
 exten => 12345,n,Hangup()
 /////////////////////////////////////////////////////////////////////
 
