@@ -160,7 +160,7 @@ exten => 12345,n,Set(_CAPIECTPLCI=${CAPIPLCI})
 ; Create consultation call and invoke ECT
 ; ECT procedure will detect CAPIECTPLCI is set and use saved in this variable value
 ; to identify the ECT party and invoke ECT independent from the state of the primary call
-exten => 12345,n,Dial(DIALOGICDIVA/ISDN1/100,10,M(capiect))
+exten => 12345,n,Dial(CAPI/ISDN1/100,10,M(capiect))
 exten => 12345,n,Hangup()
 /////////////////////////////////////////////////////////////////////
 
