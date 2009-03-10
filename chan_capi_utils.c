@@ -45,9 +45,9 @@ static struct peerlink_s {
 } peerlinkchannel[CAPI_MAX_PEERLINKCHANNELS];
 
 /*
- * helper for <pbx>_verbose with different verbose settings
+ * helper for <pbx>_verbose
  */
-void cc_verbose(int o_v, int c_d, char *text, ...)
+void cc_verbose_internal(char *text, ...)
 {
 	char line[4096];
 	va_list ap;
@@ -55,6 +55,7 @@ void cc_verbose(int o_v, int c_d, char *text, ...)
 	va_start(ap, text);
 	vsnprintf(line, sizeof(line), text, ap);
 	va_end(ap);
+	line[sizeof(line)-1]=0;
 
 #if 0
 	{
@@ -66,13 +67,9 @@ void cc_verbose(int o_v, int c_d, char *text, ...)
 	}
 #endif
 
-	if ((o_v == 0) || (option_verbose > o_v)) {
-		if ((!c_d) || ((c_d) && (capidebug))) {	
-			cc_mutex_lock(&verbose_lock);
-			cc_pbx_verbose(line);
-			cc_mutex_unlock(&verbose_lock);	
-		}
-	}
+	cc_mutex_lock(&verbose_lock);
+	cc_pbx_verbose(line);
+	cc_mutex_unlock(&verbose_lock);	
 }
 
 /*

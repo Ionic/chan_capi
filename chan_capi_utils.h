@@ -18,7 +18,19 @@
 extern int capidebug;
 extern char *emptyid;
 
-extern void cc_verbose(int o_v, int c_d, char *text, ...);
+extern void cc_verbose_internal(char *text, ...);
+
+/*
+ * helper for <pbx>_verbose with different verbose settings
+ */
+#define cc_verbose(o_v,c_d,text, args...) do { \
+	if ((o_v == 0) || (option_verbose > o_v)) { \
+		if ((!c_d) || ((c_d) && (capidebug))) { \
+			cc_verbose_internal(text , ## args); \
+		} \
+	} \
+}while(0)
+
 extern _cword get_capi_MessageNumber(void);
 extern struct capi_pvt *capi_find_interface_by_msgnum(unsigned short msgnum);
 extern struct capi_pvt *capi_find_interface_by_plci(unsigned int plci);
