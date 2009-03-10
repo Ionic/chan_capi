@@ -194,7 +194,7 @@ static struct ccbsnr_s *get_ccbsnr_link(char type, unsigned int plci,
  */
 static int ccbsnr_tell_activated(void *data)
 {
-	unsigned int handle = (unsigned int)data;
+	unsigned int handle = (unsigned int)(unsigned long)data;
 	int ret = 0;
 	unsigned int state;
 
@@ -832,7 +832,7 @@ int pbx_capi_ccbs(struct ast_channel *c, char *data)
 		for (a = 0; a < 7; a++) {
 		/* Wait for CCBS request indication */
 			if (ast_safe_sleep_conditional(c, 500, ccbsnr_tell_activated,
-			   (void *)handle) != 0) {
+			   (void *)(unsigned long)handle) != 0) {
 				/* we got a hangup */
 				cc_verbose(3, 1,
 					VERBOSE_PREFIX_3 CC_MESSAGE_NAME " ccbs: hangup.\n");
