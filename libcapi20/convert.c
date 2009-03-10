@@ -556,7 +556,7 @@ unsigned capi_cmsg2message(_cmsg * cmsg, _cbyte * msg)
 	if (   cmsg->Command == CAPI_DATA_B3
 	    && (cmsg->Subcommand == CAPI_REQ || cmsg->Subcommand == CAPI_IND)) {
 		if (sizeof(void *) == 4) {
-			cmsg->Data32 = (_cdword) cmsg->Data;
+			cmsg->Data32 = (_cdword)(unsigned long)cmsg->Data;
 			cmsg->Data64 = 0;
 		} else {
 			cmsg->Data32 = 0;
@@ -642,7 +642,7 @@ unsigned capi_message2cmsg(_cmsg * cmsg, _cbyte * msg)
 	if (   cmsg->Command == CAPI_DATA_B3
 	    && (cmsg->Subcommand == CAPI_REQ || cmsg->Subcommand == CAPI_IND)) {
 		if (sizeof(void *) == 4) {
-				cmsg->Data = (void *) cmsg->Data32;
+				cmsg->Data = (void *)(unsigned long)cmsg->Data32;
 		} else {
 				cmsg->Data = (void *)(unsigned long)cmsg->Data64;
 		}
