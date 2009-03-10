@@ -825,7 +825,7 @@ capi20_get_message (unsigned ApplID, unsigned char **Buf)
 				CAPIMSG_U32(rcvbuf, 8));
 			capimsg_setu16(rcvbuf, 18, offset); /* patch datahandle */
 			if (sizeof(void *) == 4) {
-				u_int32_t data = (u_int32_t)rcvbuf + CAPIMSG_LEN(rcvbuf);
+				u_int32_t data = (u_int32_t)(unsigned long)rcvbuf + CAPIMSG_LEN(rcvbuf);
 				rcvbuf[12] = data & 0xff;
 				rcvbuf[13] = (data >> 8) & 0xff;
 				rcvbuf[14] = (data >> 16) & 0xff;
