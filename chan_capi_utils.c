@@ -350,8 +350,10 @@ static MESSAGE_EXCHANGE_ERROR _capi_put_msg(unsigned char *msg)
 		return -1;
 	} 
 
-	capi_message2cmsg(&CMSG, msg);
-	log_capi_message(&CMSG);
+	if (cc_verbose_check(4, 1) != 0) {
+		capi_message2cmsg(&CMSG, msg);
+		log_capi_message(&CMSG);
+	}
 
 	error = capi20_put_message(capi_ApplID, msg);
 	
@@ -421,8 +423,6 @@ MESSAGE_EXCHANGE_ERROR capi_sendf(
 	va_list ap;
 	capi_prestruct_t *s;
 	unsigned char msg[2048];
-
-	memset(msg, 0, sizeof(msg));
 
 	write_capi_word(&msg[2], capi_ApplID);
 	msg[4] = (unsigned char)((command >> 8) & 0xff);
