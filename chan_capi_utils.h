@@ -20,14 +20,21 @@ extern char *emptyid;
 
 extern void cc_verbose_internal(char *text, ...);
 
+static inline int cc_verbose_check(int o_v, int c_d) {
+	if ((o_v == 0) || (option_verbose > o_v)) {
+		if ((!c_d) || ((c_d) && (capidebug))) {
+			return (1);
+		}
+	}
+	return (0);
+}
+
 /*
  * helper for <pbx>_verbose with different verbose settings
  */
 #define cc_verbose(o_v,c_d,text, args...) do { \
-	if ((o_v == 0) || (option_verbose > o_v)) { \
-		if ((!c_d) || ((c_d) && (capidebug))) { \
+  if (cc_verbose_check(o_v, c_d) != 0) { \
 			cc_verbose_internal(text , ## args); \
-		} \
 	} \
 }while(0)
 
