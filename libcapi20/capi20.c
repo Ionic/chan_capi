@@ -472,8 +472,6 @@ static unsigned char *get_buffer(unsigned applid, size_t *sizep, unsigned *handl
 	*sizep = ap->recvbuffersize;
 	*handle  = (buf->buf-ap->bufferstart)/ap->recvbuffersize;
 
-	memset(buf->buf, 0, ap->recvbuffersize);
-
 	return buf->buf;
 }
 

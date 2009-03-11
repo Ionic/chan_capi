@@ -578,7 +578,9 @@ unsigned capi_cmsg2message(_cmsg * cmsg, _cbyte * msg)
 /*-------------------------------------------------------*/
 static void message_2_pars(_cmsg * cmsg)
 {
-	for (; TYP != _CEND; cmsg->p++) {
+	_cword message_length = CAPIMSG_LEN(cmsg->m);
+
+	for (; TYP != _CEND && cmsg->l < message_length; cmsg->p++) {
 
 		switch (TYP) {
 		case _CBYTE:
@@ -629,11 +631,15 @@ static void message_2_pars(_cmsg * cmsg)
 /*-------------------------------------------------------*/
 unsigned capi_message2cmsg(_cmsg * cmsg, _cbyte * msg)
 {
-	memset(cmsg, 0, sizeof(_cmsg));
+	_cbyte Command;
+
+	byteTRcpy(msg + 4, &Command);
+	if (Command != CAPI_DATA_B3)
+		memset(cmsg, 0, sizeof(_cmsg));
 	cmsg->m = msg;
 	cmsg->l = 8;
 	cmsg->p = 0;
-	byteTRcpy(cmsg->m + 4, &cmsg->Command);
+	cmsg->Command = Command;
 	byteTRcpy(cmsg->m + 5, &cmsg->Subcommand);
 	cmsg->par = cpars[command_2_index(cmsg->Command, cmsg->Subcommand)];
 
