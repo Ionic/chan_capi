@@ -21,7 +21,7 @@ extern char *emptyid;
 extern void cc_verbose_internal(char *text, ...);
 
 static inline int cc_verbose_check(int o_v, int c_d) {
-	if ((o_v == 0) || (option_verbose > o_v)) {
+	if (unlikely((o_v == 0) || (option_verbose > o_v))) {
 		if ((!c_d) || ((c_d) && (capidebug))) {
 			return (1);
 		}

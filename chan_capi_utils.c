@@ -17,6 +17,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/types.h>
+#include "chan_capi_platform.h"
 #include "xlaw.h"
 #include "chan_capi20.h"
 #include "chan_capi.h"
@@ -239,7 +240,7 @@ struct capi_pvt *capi_find_interface_by_plci(unsigned int plci)
 {
 	struct capi_pvt *i;
 
-	if (plci == 0)
+	if (unlikely(plci == 0))
 		return NULL;
 
 	for (i = capi_iflist; i; i = i->next) {
@@ -435,7 +436,7 @@ MESSAGE_EXCHANGE_ERROR capi_sendf(
 
 	va_start(ap, format);
 	for (i = 0; format[i]; i++) {
-		if (((p - (&msg[0])) + 12) >= sizeof(msg)) {
+		if (unlikely(((p - (&msg[0])) + 12) >= sizeof(msg))) {
 			cc_log(LOG_ERROR, "capi_sendf: message too big (%d)\n",
 				(int)(p - (&msg[0])));
 			return 0x1004;

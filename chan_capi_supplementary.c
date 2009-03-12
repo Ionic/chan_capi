@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include "chan_capi_platform.h"
 #include "chan_capi20.h"
 #include "chan_capi.h"
 #include "chan_capi_supplementary.h"

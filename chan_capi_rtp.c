@@ -19,6 +19,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
+#include "chan_capi_platform.h"
 #include "chan_capi20.h"
 #include "chan_capi.h"
 #include "chan_capi_rtp.h"
