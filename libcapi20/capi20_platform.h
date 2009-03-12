@@ -13,7 +13,7 @@
 #else /* } { */
 
 #ifndef likely
-#define likely(x) (!!(__x__))
+#define likely(__x__) (!!(__x__))
 #endif
 #ifndef unlikely
 #define unlikely(__x__) (!!(__x__))
