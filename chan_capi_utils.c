@@ -1177,13 +1177,13 @@ int capi_write_frame(struct capi_pvt *i, struct ast_frame *f)
 	int txavg=0;
 	int ret = 0;
 
-	if (!i) {
+	if (unlikely(!i)) {
 		cc_log(LOG_ERROR, "channel has no interface\n");
 		return -1;
 	}
 	 
-	if ((!(i->isdnstate & CAPI_ISDN_STATE_B3_UP)) || (!i->NCCI) ||
-	    ((i->isdnstate & (CAPI_ISDN_STATE_B3_CHANGE | CAPI_ISDN_STATE_LI)))) {
+	if (unlikely((!(i->isdnstate & CAPI_ISDN_STATE_B3_UP)) || (!i->NCCI) ||
+	    ((i->isdnstate & (CAPI_ISDN_STATE_B3_CHANGE | CAPI_ISDN_STATE_LI))))) {
 		return 0;
 	}
 
@@ -1191,36 +1191,36 @@ int capi_write_frame(struct capi_pvt *i, struct ast_frame *f)
 		return 0;
 	}
 
-	if (f->frametype == AST_FRAME_NULL) {
+	if (unlikely(f->frametype == AST_FRAME_NULL)) {
 		return 0;
 	}
-	if (f->frametype == AST_FRAME_DTMF) {
+	if (unlikely(f->frametype == AST_FRAME_DTMF)) {
 		cc_log(LOG_ERROR, "dtmf frame should be written\n");
 		return 0;
 	}
-	if (f->frametype != AST_FRAME_VOICE) {
+	if (unlikely(f->frametype != AST_FRAME_VOICE)) {
 		cc_log(LOG_ERROR,"not a voice frame\n");
 		return 0;
 	}
-	if (i->FaxState & CAPI_FAX_STATE_ACTIVE) {
+	if (unlikely(i->FaxState & CAPI_FAX_STATE_ACTIVE)) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: write on fax activity?\n",
 			i->vname);
 		return 0;
 	}
-	if ((!f->FRAME_DATA_PTR) || (!f->datalen)) {
+	if (unlikely((!f->FRAME_DATA_PTR) || (!f->datalen))) {
 		cc_log(LOG_DEBUG, "No data for FRAME_VOICE %s\n", i->vname);
 		return 0;
 	}
 	if (i->isdnstate & CAPI_ISDN_STATE_RTP) {
-		if ((!(f->subclass & i->codec)) &&
-		    (f->subclass != capi_capability)) {
+		if (unlikely((!(f->subclass & i->codec)) &&
+		    (f->subclass != capi_capability))) {
 			cc_log(LOG_ERROR, "don't know how to write subclass %s(%d)\n",
 				ast_getformatname(f->subclass), f->subclass);
 			return 0;
 		}
 		return capi_write_rtp(i, f);
 	}
-	if (i->B3count >= CAPI_MAX_B3_BLOCKS) {
+	if (unlikely(i->B3count >= CAPI_MAX_B3_BLOCKS)) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: B3count is full, dropping packet.\n",
 			i->vname);
 		return 0;
@@ -1273,7 +1273,7 @@ int capi_write_frame(struct capi_pvt *i, struct ast_frame *f)
 				i->vname, i->NCCI);
 		}
 
-		if (!error) {
+		if (unlikely(!error)) {
 			cc_mutex_lock(&i->lock);
 			i->B3count++;
 			i->B3q -= fsmooth->datalen;
