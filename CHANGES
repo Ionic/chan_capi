@@ -3,7 +3,8 @@ CHANGES
 
 HEAD
 ------------------
-- fixed possible pointer error in libcapi. receive-buffer is now cleared before using it.
+- fixed buffer length error with internal libcapi debug code.
+- performance optimizations, use debug code when needed only.
 - added commands for media features supported by Dialogic Diva cards.
 
 
