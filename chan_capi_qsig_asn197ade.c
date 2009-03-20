@@ -128,10 +128,10 @@ unsigned int cc_qsig_asn197ade_get_pns(unsigned char *data, int *idx, struct asn
 	char buf[ASN197ADE_NUMDIGITS_STRSIZE+1];
 	unsigned int buflen = sizeof(buf);
 	unsigned res;
+	int numtype;
 	
 	ns->partyNumber = NULL;
 	ns->screeningInd = userProvidedNotScreened;
-	int numtype;
 	
 	numtype = (data[myidx++] & 0x0F);	/* defines type of Number */
 	
