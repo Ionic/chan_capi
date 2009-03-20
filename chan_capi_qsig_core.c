@@ -575,13 +575,15 @@ signed int cc_qsig_identifyinvoke(struct cc_qsig_invokedata *invoke, int protoco
 					invokedescrtype = 2;
 					datalen = invoke->oid_len;
 					
-					unsigned char *oidstr = NULL;
-					oidstr = cc_qsig_asn1_oid2str(invoke->oid_bin, invoke->oid_len);
-					if (oidstr) {
-						cc_qsig_verbose( 1, VERBOSE_PREFIX_3 "QSIG: INVOKE OP (%s)\n", oidstr);
-						free(oidstr);
-					} else {
-						cc_qsig_verbose( 1, VERBOSE_PREFIX_3 "QSIG: INVOKE OP (unknown - OID not displayable)\n");
+					{
+						unsigned char *oidstr = NULL;
+						oidstr = cc_qsig_asn1_oid2str(invoke->oid_bin, invoke->oid_len);
+						if (oidstr) {
+							cc_qsig_verbose( 1, VERBOSE_PREFIX_3 "QSIG: INVOKE OP (%s)\n", oidstr);
+							free(oidstr);
+						} else {
+							cc_qsig_verbose( 1, VERBOSE_PREFIX_3 "QSIG: INVOKE OP (unknown - OID not displayable)\n");
+						}
 					}
 					
 					if ((datalen) == 4) {
@@ -607,13 +609,15 @@ signed int cc_qsig_identifyinvoke(struct cc_qsig_invokedata *invoke, int protoco
 					invokedescrtype = 2;
 					datalen = invoke->oid_len;
 					
-					unsigned char *oidstr = NULL;
-					oidstr = cc_qsig_asn1_oid2str(invoke->oid_bin, invoke->oid_len);
-					if (oidstr) {
-						cc_qsig_verbose( 1, VERBOSE_PREFIX_3 "QSIG: INVOKE OP (%s)\n", oidstr);
-						free(oidstr);
-					} else {
-						cc_qsig_verbose( 1, VERBOSE_PREFIX_3 "QSIG: INVOKE OP (unknown - OID not displayable)\n");
+					{
+						unsigned char *oidstr = NULL;
+						oidstr = cc_qsig_asn1_oid2str(invoke->oid_bin, invoke->oid_len);
+						if (oidstr) {
+							cc_qsig_verbose( 1, VERBOSE_PREFIX_3 "QSIG: INVOKE OP (%s)\n", oidstr);
+							free(oidstr);
+						} else {
+							cc_qsig_verbose( 1, VERBOSE_PREFIX_3 "QSIG: INVOKE OP (unknown - OID not displayable)\n");
+						}
 					}
 					
 					if ((datalen) == 4) {
@@ -945,9 +949,11 @@ unsigned int cc_qsig_add_call_setup_data(unsigned char *data, struct capi_pvt *i
 								i->qsig_data.calltransfer = 1;
 								i->qsig_data.partner_plci = atoi(pp);
 								/* set the other channel as partner to me */
-								struct capi_pvt *ii = capi_find_interface_by_plci(i->qsig_data.partner_plci);
-								if (ii)
-									ii->qsig_data.partner_plci = i->PLCI;
+								{
+									struct capi_pvt *ii = capi_find_interface_by_plci(i->qsig_data.partner_plci);
+									if (ii)
+										ii->qsig_data.partner_plci = i->PLCI;
+								}
 								
 								cc_qsig_verbose( 1, " for plci %#x\n", i->qsig_data.partner_plci);
 							}
@@ -961,9 +967,11 @@ unsigned int cc_qsig_add_call_setup_data(unsigned char *data, struct capi_pvt *i
 								i->qsig_data.calltransfer_onring = 1;
 								i->qsig_data.partner_plci = atoi(pp);
 								/* set the other channel as partner to me */
-								struct capi_pvt *ii = capi_find_interface_by_plci(i->qsig_data.partner_plci);
-								if (ii)
-									ii->qsig_data.partner_plci = i->PLCI;
+								{
+									struct capi_pvt *ii = capi_find_interface_by_plci(i->qsig_data.partner_plci);
+									if (ii)
+										ii->qsig_data.partner_plci = i->PLCI;
+								}
 								
 								cc_qsig_verbose( 1, " for plci %#x\n", i->qsig_data.partner_plci);
 							}
