@@ -1273,7 +1273,7 @@ int capi_write_frame(struct capi_pvt *i, struct ast_frame *f)
 				i->vname, i->NCCI);
 		}
 
-		if (unlikely(!error)) {
+		if (likely(!error)) {
 			cc_mutex_lock(&i->lock);
 			i->B3count++;
 			i->B3q -= fsmooth->datalen;
