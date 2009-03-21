@@ -685,7 +685,7 @@ stoptonedetection
 
       Tone identifier:
         0x82 - Dial tone detected
-	0x83 - PABX internal dial tone detected
+        0x83 - PABX internal dial tone detected
         0x84 - Special dial tone (stutter dial tone) detected
         0x85 - Second dial tone detected
         0x86 - Ringing tone detected
@@ -787,7 +787,7 @@ Description:
   independent from dialplan.
 
 Syntax:
-vc|command|key|param|param1|...|paranN
+vc|command|key|param|param1|...|paramN
   Add to menu: on detection of key Execute command using parameters param1|...|paramN
 
 vc|command|key
