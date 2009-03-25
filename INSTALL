@@ -4,12 +4,12 @@ INSTALL
 Modify the Makefile to fit your system, especially the path to the Asterisk 
 include files.
 
-To build the driver you will need an installed Capi system, including header 
+To build the driver you will need an installed CAPI system, including header 
 files.
 
-By default an internal version of libcapi20 is used (you don't need libcapi20 to
-be installed on your system). If you don't want this and the installed libcapi20
-shall be used, add the option
+By default, an internal version of libcapi20 is used (you do not need libcapi20 to
+be installed on your system). If you do not want this and the installed libcapi20
+should be used, add the option
   USE_OWN_LIBCAPI=no
 to the 'make' command.
 
