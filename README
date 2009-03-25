@@ -481,6 +481,11 @@ CALLINGSUBADDRESS
 CALLEDSUBADDRESS
     If set on dial(), the called subaddress will be set to the content.
 
+CAPI_CIP
+    The real CIP value, not the transformed 'transfercapability'.
+    Set on incoming call automatically. If set on outgoing call, it is used
+    instead of transfercapability.
+
 CCBSSTATUS
     When using capicommand(ccbs|....), this variable is set to either "ERROR" or
     "ACTIVATED".

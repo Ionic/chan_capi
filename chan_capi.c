@@ -1294,6 +1294,7 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 	int CLIR;
 	int callernplan = 0;
 	int use_defaultcid = 0;
+	_cword cip;
 	const char *ton, *p;
 	char *osa = NULL;
 	char *dsa = NULL;
@@ -1373,9 +1374,9 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 
 	/* if this is a CCBS/CCNR callback call */
 	if (i->ccbsnrhandle) {
-		_cword cip = (_cword)tcap2cip(i->transfercapability);
 		_cword rbref;
 
+		cip = (_cword)tcap2cip(i->transfercapability);
 		i->doOverlap = 0;
 		rbref = capi_ccbsnr_take_ref(i->ccbsnrhandle);
 
@@ -1431,6 +1432,13 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 		dsa = calledsubaddress;
 	}
 
+	if ((p = pbx_builtin_getvar_helper(c, "CAPI_CIP"))) {
+		cip = (_cword)atoi(p);
+		i->transfercapability = cip2tcap(cip);
+	} else {
+		cip = tcap2cip(i->transfercapability);
+	}
+
 	if (capi_tcap_is_digital(i->transfercapability)) {
 		i->bproto = CC_BPROTO_TRANSPARENT;
 		cc_verbose(4, 0, VERBOSE_PREFIX_2 "%s: is digital call, set proto to TRANSPARENT\n",
@@ -1476,7 +1484,7 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 
 	error = capi_sendf(NULL, 0, CAPI_CONNECT_REQ, i->controller, i->MessageNumber,
 		"wssss(wwwsss())()()()((w)()()ss)",
-		tcap2cip(i->transfercapability), /* CIP value */
+		cip, /* CIP value */
 		called, /* called party number */
 		calling, /* calling party number */
 		dsa, /* called party subaddress */
@@ -4033,6 +4041,8 @@ static void capidev_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, un
 			pbx_builtin_setvar_helper(i->owner, "BCHANNELINFO", bchannelinfo);
 			sprintf(buffer, "%d", callednplan);
 			pbx_builtin_setvar_helper(i->owner, "CALLEDTON", buffer);
+			sprintf(buffer, "%d", i->cip);
+			pbx_builtin_setvar_helper(i->owner, "CAPI_CIP", buffer);
 			/*
 			pbx_builtin_setvar_helper(i->owner, "CALLINGSUBADDRESS",
 				CONNECT_IND_CALLINGPARTYSUBADDRESS(CMSG));
