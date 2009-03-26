@@ -140,7 +140,7 @@ struct capi_pvt *capi_mknullif(struct ast_channel *c, unsigned long long control
 		controllermask);
 	/* find the next controller of mask with least plcis used */	
 	for (contrcount = 0; contrcount < maxcontr; contrcount++) {
-		if ((controllermask & (1 << contrcount))) {
+		if ((controllermask & (1ULL << contrcount)) != 0) {
 			if (controller_nullplcis[contrcount] < channelcount) {
 				channelcount = controller_nullplcis[contrcount];
 				controller = contrcount + 1;
