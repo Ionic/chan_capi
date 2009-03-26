@@ -133,8 +133,8 @@ struct capi_pvt *capi_mknullif(struct ast_channel *c, unsigned long long control
 	unsigned int controller = 1;
 	int contrcount;
 	int channelcount = 0xffff;
-	int maxcontr = (CAPI_MAX_CONTROLLERS > sizeof(controllermask)) ?
-		sizeof(controllermask) : CAPI_MAX_CONTROLLERS;
+	int maxcontr = (CAPI_MAX_CONTROLLERS > (sizeof(controllermask)*8)) ?
+		(sizeof(controllermask)*8) : CAPI_MAX_CONTROLLERS;
 
 	cc_verbose(3, 1, VERBOSE_PREFIX_4 "capi_mknullif: find controller for mask 0x%lx\n",
 		controllermask);
