@@ -313,9 +313,12 @@ MESSAGE_EXCHANGE_ERROR capi_wait_conf(struct capi_pvt *i, unsigned short wCmd)
 /*
  * log an error in sending capi message
  */
-static void log_capi_error_message(MESSAGE_EXCHANGE_ERROR err, _cmsg *CMSG)
+static void log_capi_error_message(MESSAGE_EXCHANGE_ERROR err, unsigned char* msg)
 {
 	if (err) {
+		_cmsg _CMSG, *CMSG = &_CMSG;
+
+		capi_message2cmsg(CMSG, msg);
 		cc_log(LOG_ERROR, "CAPI error sending %s (NCCI=%#x) (error=%#x %s)\n",
 			capi_cmsg2str(CMSG), (unsigned int)HEADER_CID(CMSG),
 			err, capi_info_string((unsigned int)err));
@@ -363,7 +366,7 @@ static MESSAGE_EXCHANGE_ERROR _capi_put_msg(unsigned char *msg)
 		return -1;
 	}
 
-	log_capi_error_message(error, &CMSG);
+	log_capi_error_message(error, msg);
 
 	return error;
 }
