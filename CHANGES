@@ -7,6 +7,7 @@ HEAD
 - performance optimizations, use debug code when needed only.
 - added commands for media features supported by Dialogic(R) Diva(R) Media Boards
 - added variable CAPI_CIP for full access to all bearer capabilities.
+- fixed CAPI 'chat' for using more than 8 controllers.
 
 
 chan_capi-1.1.2
