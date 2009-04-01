@@ -877,12 +877,22 @@ exten => s,n,Set(TIMEOUT(response)=10)  ; Set Response Timeout to 10 seconds
 exten => s,n(restart),BackGround(demo-instruct) ; Play some instructions
 exten => s,n,WaitExten      ; Wait for an extension to be dialed, use to select conference room
 
+; You can create macro to set up vc menu
 exten => 1,1,capicommand(clamping|100)         ; Activate suppression of DTMF tones
 exten => 1,n,capicommand(vc|incrxdgain|0|1.5)  ; Install voice command menu for volume control, '0' to increase volume
 exten => 1,n,capicommand(vc|incrxdgain|1|-1.5) ; Install voice command menu for volume control, '1' to decrease volume
+exten => 1,n,capicommand(vc|txdgain|2|-128) ; Install voice command menu for volume control, '2' to mute tx path
+exten => 1,n,capicommand(vc|txdgain|3|0) ; Install voice command menu for volume control, '3' to activate tx path
 exten => 1,n,capicommand(chat|test1|m|1-4)     ; Create/enter conference room 'test1'
 
-exten => 2,1,capicommand(chat|test2|m|1-4)     ; Create/enter conference room 'test2'
+exten => 2,1,capicommand(clamping|100)         ; Activate suppression of DTMF tones
+exten => 2,1,capicommand(txdgain|-128)         ; Deactivate tx path
+exten => 2,n,capicommand(vc|incrxdgain|0|1.5)  ; Install voice command menu for volume control, '0' to increase volume
+exten => 2,n,capicommand(vc|incrxdgain|1|-1.5) ; Install voice command menu for volume control, '1' to decrease volume
+exten => 2,n,capicommand(vc|txdgain|2|-128) ; Install voice command menu for volume control, '2' to mute tx path
+exten => 2,n,capicommand(vc|txdgain|3|0) ; Install voice command menu for volume control, '3' to activate tx path
+exten => 2,n,capicommand(chat|test1|m|1-4)     ; Create/enter conference room 'test1
+exten => 2,n,capicommand(chat|test2|m|1-4)     ; Create/enter conference room 'test2'
 
 exten => i,1,Playback(invalid)
 exten => i,n,Goto(s,restart)
