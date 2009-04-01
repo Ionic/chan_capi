@@ -837,3 +837,133 @@ exten => s,n,Goto(s,restart)
 exten => s,n,Hangup
 /////////////////////////////////////////////////////////////////////
 
++-------------------------------------------------------------------+
+|  chat (MeetMe/Conference)                                         |
++-------------------------------------------------------------------+
+
+Description:
+  Used to enter (create) chat (conference room). New conference room is created
+  if necessary.
+
+Direction:
+  Creates one Any-to-Any conference room. Conference AGC (evaluation of active talker) receives active as
+  soon as more then two members are added to conference.
+
+Supported hardware:
+  Diva
+
+Syntax:
+capicommand(chat|<roomname>|<options>|controller)
+  roomname - conference room name
+  options
+      m - The first caller will get music-on-hold until second caller arrives
+  controller - CAPI controller
+
+
+Syntax example:
+exten => s,n,capicommand(chat|test|m|1)
+exten => s,n,capicommand(chat|test|m|1,3)
+exten => s,n,capicommand(chat|test|m|1-4)
+exten => s,n,capicommand(chat|test|m|1-4,7)
+exten => s,n,capicommand(chat|test|m|1-4,7-10)
+
+IVR example:
+/////////////////////////////////////////////////////////////////////
+[isdn-in]
+exten => _X.,1,Answer     ; Answer the line
+exten => _X.,n,Goto(s,1)
+exten => s,1,Set(TIMEOUT(digit)=5)  ; Set Digit Timeout to 5 seconds
+exten => s,n,Set(TIMEOUT(response)=10)  ; Set Response Timeout to 10 seconds
+exten => s,n(restart),BackGround(demo-instruct) ; Play some instructions
+exten => s,n,WaitExten      ; Wait for an extension to be dialed, use to select conference room
+
+exten => 1,1,capicommand(clamping|100)         ; Activate suppression of DTMF tones
+exten => 1,n,capicommand(vc|incrxdgain|0|1.5)  ; Install voice command menu for volume control, '0' to increase volume
+exten => 1,n,capicommand(vc|incrxdgain|1|-1.5) ; Install voice command menu for volume control, '1' to decrease volume
+exten => 1,n,capicommand(chat|test1|m|1-4)     ; Create/enter conference room 'test1'
+
+exten => 2,1,capicommand(chat|test2|m|1-4)     ; Create/enter conference room 'test2'
+
+exten => i,1,Playback(invalid)
+exten => i,n,Goto(s,restart)
+exten => h,1,Hangup
+/////////////////////////////////////////////////////////////////////
+
++-------------------------------------------------------------------+
+|  echocancel                                                       |
++-------------------------------------------------------------------+
+
+Description:
+  Used to activate or to deactivate echo cancellation in accordance with G.168
+  The vast majority of the public telephone system local loop wiring is done using
+  two-wire connections whereby the same pair of wires carries voice signals in both
+  directions. In the telephone company's central office or in an office PBX,
+  a two-to-four wire conversion is done using a hybrid circuit. Hybrid circuits do
+  not perform perfect impedance matches. The imperfection results in echo. The echo
+  canceller's goal is to detect and remove echo as quickly and effectively, thereby
+  minimizing any loss in voice quality due to the echo. The echo canceller must
+  perform this function under all conditions including double-talk (when both parties
+  are speaking at the same time) and in the presence of background noise. Furthermore,
+  the echo canceller must not cause detriment to signaling tones (DTMF etc.) or fax and
+  modem transmissions.
+
+  Diva supports echo cancellation (in accordance G.168 with NLP) with tail length up to 256 mSec.
+  256 mSec tail length is required to ensure the operation in the environments where the signal
+  is carried over the packet network. This is not always the case at customer site and can be done
+  by transit network which does not provides own echo cancellation capabilities.
+
+  'echocancelnlp' configuration parameter (capi.conf) is used to activate (deactivate) NLP
+  (Non Linear Processor which removes the residual echo at the output of the echo cancellation unit).
+  You can use Diva chan_capi configuration to change this capi.conf configuration parameter.
+
+  Diva automatically deactivates echo cancellation upon detection of fax ro modem transmission.
+
+Direction:
+  Aplies on TDM interface (E.1/T.1/S0) only
+
+Supported hardware:
+  Equipped with DSP Diva hardware
+
+Syntax:
+echocancel|yes,no
+
+Syntax example:
+s,n,capicommand(echocancel|yes)
+s,n,capicommand(echocancel|no)
+
+IVR example:
+/////////////////////////////////////////////////////////////////////
+[isdn-in]
+exten => _X.,1,Answer     ; Answer the line
+exten => _X.,n,Goto(s,1)
+exten => s,1,Set(TIMEOUT(digit)=5)  ; Set Digit Timeout to 5 seconds
+exten => s,n,Set(TIMEOUT(response)=10)  ; Set Response Timeout to 10 seconds
+exten => s,n(restart),BackGround(demo-instruct) ; Play some instructions
+exten => s,n,WaitExten      ; Wait for an extension to be dialed.
+exten => 1,1,capicommand(echocancel|yes)
+exten => 1,n,Goto(s,restart)
+exten => 2,1,capicommand(echocancel|no)
+exten => 2,n,Goto(s,restart)
+exten => 99,1,Echo
+exten => i,1,Playback(invalid)
+exten => i,n,Goto(s,restart)
+exten => h,1,Hangup
+/////////////////////////////////////////////////////////////////////
+
+PBX Example:
+/////////////////////////////////////////////////////////////////////
+[macro-capiechocancel]
+exten => s,1,capicommand(echocancel|yes)
+
+[isdn-in]
+exten => 12345,1,Progress()
+exten => 12345,n,Set(TIMEOUT(digit)=1)    ; Set Digit Timeout to 5 seconds
+exten => 12345,n,Set(TIMEOUT(response)=5) ; Set Response Timeout to 10 seconds
+exten => 12345,n,capicommand(echocancel|yes)
+exten => 12345,n,Playback(demo-enterkeywords,noanswer,us)
+exten => 12345,n,Answer
+exten => 12345,n,Wait(2)
+exten => 12345,n,Dial(DIALOGICDIVA/ISDN1/100,10,M(capiechocancel))
+exten => 12345,n,Hangup()
+/////////////////////////////////////////////////////////////////////
+
