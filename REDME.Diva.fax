@@ -1,0 +1,152 @@
++===================================================================+
+|       Diva fax support                                            |
++-------------------------------------------------------------------+
+|                                                                   |
+|       Intelligent fax processing                                  |
+|       FoIP/VoIP (Fax/Voice over IP) T.38 fax support              |
+|       FoIP/VoIP clear channel fax support                         |
+|       Color fax                                                   |
+|       High resolution fax, non standard paper size                |
+|                                                                   |
++===================================================================+
+
++-------------------------------------------------------------------+
+| INTELLIGENT FAX PROCESSING                                        |
++-------------------------------------------------------------------+
+
+The fax chan_capi command set provides an easy way to access fax-related functionality.
+
+If you use fax document processing, you need to be aware of the following problems,
+that might occur:
+  * It is necessary to maintain a constant data stream between the application and the fax device.
+    Any interruption in this data stream will affect the quality of the fax document.
+  * It is necessary to deal with various low-level T.30 protocol settings like scan line time,
+    compression, error correction, etc.
+  * Not every application or device supports the command-set features provided by T.30 fax protocol.
+    This limits the functionality and may require modification of the existing application.
+  * The usage of fax document compression forces you to deal with compressed data (reception),
+    or to be able to generate compressed data stream on demand, or to provide documents in different
+    compression formats (transmission).
+  * The "classic" fax application is unable to deal with transmission speeds higher than 14400 bps.
+    To be able use V.34 fax transmission speeds of up to 33600 bps, the application needs to be modified.
+
+This section explains how the Dialogic(R) Diva(R) Media Board can overcome these drawbacks and
+allows you to use the chan_capi to process fax documents with a comparable level of reliability and
+flexibility as a sophisticated high-level fax API.
+
+Reliable data transfer between application and Dialogic(R) Diva(R) Media Board
+------------------------------------------------------------------------------
+
+Dialogic(R) Diva(R) Media Boards provide a high-performance block-oriented IDI (ISDN Direct Interface)
+between the board hardware and the host CPU. The data transfer is performed via a BUS master DMA.
+This enables a reliable data transfer between the host CPU and the Diva Media Board memory that is not
+affected by the host CPU load. At the same time, using the BUS master DMA reduces the host CPU load.
+The Dialogic(R) Diva(R) chan_capi/CAPI interface/drivers does not perform data processing. It is only
+used to forward the data stream between the application and the IDI interface.
+The entire data processing is performed on the RISC CPU of the Diva Media Board.
+The reliability of the data stream is ensured by the board hardware through buffering
+(up to 64 Kbytes for every channel) and block-oriented data transfer (blocks of up to 2 Kbytes)
+via the BUS master DMA.
+
+Automatic T.30 protocol parameter adjustment
+--------------------------------------------
+
+The chan_capi can ignore low-level T.30 protocol settings. The T.30 protocol stack that runs on the RISC CPU
+of the Dialogic(R) Diva(R) Media Board is able to perform the required adjustment of transmission parameters
+to provide reliable and fast document transmission without requiring application intervention.
+You can overrule the automatic T.30 protocol parameter adjustment with Global Dialogic(R) Diva(R) fax
+configuration options to overrule the automatic parameter adjustment.
+
+ECM (Error Correction Mode) support
+-----------------------------------
+
+You can control ECM support via Global Dialogic(R) Diva(R) fax configuration options.
+If you use global Diva configuration options to enable ECM support, the Dialogic(R) Diva(R) Media Board will use
+ECM mode for document transfer, if supported by the opposite side.
+Diva Media Boards use their internal memory to store document data. They retrieve data for ECM re-transmissions
+from this internal buffer (up to 64 Kbytes for every channel). This reduces the host CPU load and increases
+the reliability of the fax transmission.
+
+Document compression support
+----------------------------
+
+Dialogic(R) Diva(R) Media Boards use MR, MMR, T.6 fax document compression. In order to reduce transmission time,
+Diva Media Boards select the best compression algorithm supported by the opposite side. The Diva Media Board's
+RISC CPU is used to re-compress 1D-coded page data from the application to the format requested by the opposite
+side (transmission) and to convert received data to 1D-coded page data that is sent to the application (reception).
+The re-compression process is handled internally by the board's RISC CPU and happens fully transparent to the
+application that deals only with 1D (MH) coded data.
+You can adjust the compression-related T.30 protocol settings via Global fax configuration options.
+
+V.34 (33600 bps) fax support
+----------------------------
+
+The V.34 fax support can be controlled via Global Dialogic(R) Diva(R) fax configuration options.
+If the Dialogic(R) Diva(R) Media Board is able to establish a connection with a transmission speed higher
+than 14400 bps (V.34), it handles this transparent to the application.
+
+You can use the "divalogd" accounting utility that uses the Diva Media Board Management interface to get
+information on the transmission speed and the used compression algorithm.
+
++-------------------------------------------------------------------+
+| FoIP/VoIP (Fax/Voice over IP) T.38 FAX SUPPORT                    |
++-------------------------------------------------------------------+
+
+You can use Dialogic(R) Diva(R) softIP to access T.38 functionality.
+
+This is no need to change your chan_capi configuration. Dialogic(R) Diva(R) softIP exposes
+CAPI interface towards chan_capi and SIP interface towards IP network.
+All T.38 and SIP related configuration is handled using Diva WEB configuration interface.
+
+This is no limitation of the voice and supplementary services functionality of chan_capi.
+You can change the call flow between voice and fax or invoke the supplementary services at CAPI interface
+and Diva softIP handles all necessary media and SIP negotiation.
+
+You can use Diva hardware and Diva softIP parallel on the one system.
+This is possible to use line interconnect (conferencing) features between Diva hardware and
+softIP without any limitations.
+
+You can use softIP in virtual environment (VMWare, XEN, ...).
+
++-------------------------------------------------------------------+
+| FoIP/VoIP CLEAR CHANNEL FAX SUPPORT                               |
++-------------------------------------------------------------------+
+
+Together with Diva(R) Dialogic(R) hardware you can use Dialogic(R) Diva(R) softIP to access T.38 and
+Clear Channel Fax functionality.
+
+This is no need to change your chan_capi configuration. Dialogic(R) Diva(R) softIP exposes
+CAPI interface towards chan_capi and SIP interface towards IP network.
+All T.38 and SIP related configuration is handled using Diva WEB configuration interface.
+To activate Clear Channel Fax support Diva hardware should be switched in Resource Board mode.
+
+This is no limitation of the voice and supplementory services functionality of chan_capi.
+You can change the call flow between voice and fax or invoke the supplementary services at CAPI interface
+and Diva softIP will handle all necessary media and SIP negotiation.
+
+Using Diva hardware in Resource Board mode is possible to use G.729, G.723, iLBC, GSM and other
+supported by Diva hardware vocoders. Diva softIP will automatically negotiate the format
+of the media stream.
+
+You can use Diva hardware in TDM (E.1/T.1/S0), in Resource Board moda and Diva softIP
+parallel on the one system.
+This is possible to use line interconnect (conferencing) features between Diva hardware and
+softIP without any limitations.
+
+You cann use Diva hardware and softIP in virtual environment if access by software is supported (XEN).
+
++-------------------------------------------------------------------+
+| COLOR FAX                                                         |
++-------------------------------------------------------------------+
+
+Dialogic (R) Diva(R) hardware and softIP supports color fax and allows to send/receive
+fax document in JPEG format.
+
++-------------------------------------------------------------------+
+| High resolution fax, non standard paper size                      |
++-------------------------------------------------------------------+
+
+Dialogic (R) Diva(R) hardware and ssoftIP provides access to following T.30 features:
+  Ultra/Super fine resolution
+  Non standard paper formats
+
