@@ -7,6 +7,7 @@
 |       FoIP/VoIP clear channel fax support                         |
 |       Color fax                                                   |
 |       High resolution fax, non standard paper size                |
+|       Use of fax with chan_capi                                   |
 |                                                                   |
 +===================================================================+
 
@@ -149,4 +150,96 @@ fax document in JPEG format.
 Dialogic (R) Diva(R) hardware and ssoftIP provides access to following T.30 features:
   Ultra/Super fine resolution
   Non standard paper formats
+
++-------------------------------------------------------------------+
+|       Use of fax with chan_capi                                   |
++-------------------------------------------------------------------+
+
+Based on information from README
+
+Reception of fax documents
+--------------------------
+
+You can use Diva chan_capi configuration to activate fax support ("Fax detection" and "Fax detection time") options.
+The reception of the fax message is started using 'receivefax' capi command:
+
+  capicommand(receivefax|<filename>[|<stationid>|<headline>|<options>])
+
+  Parameters:
+    'filename'  - Contains the full path and file name for the resulting fax file, mandatory
+    'stationid' - station ID, optional
+    'headline'  - head line, optional
+    'options'   - fax options, optional
+                  'k' - keep fax document in case of errors (by default document is removed
+                        if fax transmission was not completed with success).
+
+This is possible to answer the incomming call using 'receivefax' command and start reception of
+the fax document directly.
+This is possible to answer call using 'Answer' in voice mode and change to reception (transmission) of the fax by
+'receivefax' later, for example after detection of the fax calling tone or after user entered password
+using DTMF digits.
+
+Example:
+[isdn-in]
+exten => _X.,1,Answer()                   ; Answer in voice mode
+exten => _X.,n,Set(TIMEOUT(digit)=5)      ; Set Digit Timeout to 5 seconds
+exten => _X.,n,Set(TIMEOUT(response)=10)  ; Set Response Timeout to 10 seconds
+exten => _X.,n,BackGround(jpop)           ; play message and wait until detection of fax calling tone
+
+exten => 124,1,Goto(handle_fax,s,1)       ; Extension 124 is dedicated to fax, answer in fax mode
+
+exten => fax,1,Goto(handle_fax,s,1)       ; Fax calling tone detected, change to fax mode
+exten => i,1,Hangup()                     ; Received unexpected event
+
+[handle_fax]
+exten => s,1,capicommand(receivefax|/tmp/${UNIQUEID}[|<stationid>|<headline>|<options>])
+exten => s,2,Hangup()
+exten => h,1,deadagi,fax.php ; Run sfftobmp and mail it
+
+Transmission of fax documents
+-----------------------------
+
+The transmission of fax message is started using 'sendfax' capi command:
+
+  capicommand(sendfax|<filename>[|<stationid>|<headline>])
+
+  Parameters:
+    'filename'  - Contains the full path and file name to be sent, mandatory
+                  Supported formats:
+                    .sff - SFF file
+                    .txt - text file
+                    .jpg - JPEG file
+    'stationid' - station ID, optional
+    'headline'  - head line, optional
+
+You need to start call using 'Dial' command in voice mode and change to transmission (reception)
+of the fax by 'sendfax'. Optionally you can wait until user entered password using DTMF digits.
+
+Example:
+
+[dial_fax]
+exten => 1,1,Dial(capi/ISDN1/1234512345,20,G(handle_sendfax,s,1))
+
+[handle_sendfax]
+exten => s,1,capicommand(sendfax|/tmp/sendfax001.sff|1234 1234 1234|Outgoing Fax)
+exten => s,n,deadagi,faxlog.php ; Log result and schedule restart if necessary
+exten => s,n,Hangup
+
+Results of fax transmission
+---------------------------
+
+After chan_capi completed the processing of 'receivefax' or 'sendfax' command following variables are set:
+  FAXSTATUS     - Status of fax transmission
+                  0 - OK
+                  1 - Error
+  FAXREASON     - Value of B3 disconnect reason
+  FAXREASONTEXT - Decoded text of FAXREASON value
+  FAXRATE       - The baud rate of the fax connection
+  FAXRESOLUTION - Resolution of received fax message
+                  0 - standard
+                  1 - high
+  FAXFORMAT     - Format of received fax document
+                  0 - SFF
+  FAXPAGES      - Number of pages received
+  FAXID         - The ID of the remote fax maschine
 
