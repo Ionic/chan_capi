@@ -1,4 +1,4 @@
-﻿+===================================================================+
++===================================================================+
 |       Media control commands                                      |
 +===================================================================+
 
@@ -7,18 +7,18 @@
 +-------------------------------------------------------------------+
 
 Description:
-  Used to activate or to deactivate suppression of ambient noise.
-  Can be used to remove caused by fans, air cooling systems, cars,
-  trains and other sources of ambient noises from speech.
+  Noise Suppressor is used to activate or to deactivate suppression of ambient noise, 
+  which can be used to remove noise from speech caused by fans, air cooling systems, 
+  cars, trains and other sources of ambient noises from speech.
 
 Direction:
   Applies to Rx path only.
-  In case of line interconnect can be activated for multiple parties.
+  In case of line interconnect, it can be activated for multiple parties.
 
 Supported hardware:
-  Diva 4PRI PCI, Diva 2PRI PCI, Diva 4PRI PCIe HS
-  Other equipped with DSP Diva hardware can use this feature only
-  together with RTP
+  Dialogic(R) Diva(R) 4PRI PCI, 2PRI PCI, 4PRI PCIe HS Media Board
+  Other Dialogic(R) Diva(R) Media Boards equipped with DSP Diva hardware can use this 
+  feature only together with RTP.
 
 Syntax:
 noisesuppressor|yes,no
@@ -68,16 +68,15 @@ exten => 12345,n,Hangup()
 +-------------------------------------------------------------------+
 
 Description:
-  Used to activate or to deactivate suppression
+  Clamping is used to activate or to deactivate suppression
   (removal from voice stream) of DTMF tones.
 
 Direction:
   Applies to Rx path only.
-  In case of line interconnect can be activated for
-  multiple parties.
+  In case of line interconnect, it can be activated for multiple parties.
 
 Supported hardware:
-  Requires one equipped with DSP Diva hardware
+  Requires one Dialogic(R) Diva(R) Media Board equipped with DSPs
 
 Syntax:
 clamping|N
@@ -220,11 +219,11 @@ Description:
   Allows to set gain in the range from -127 dBm to +6 dBm.
 
 Diection:
-  Applies to Rx path only. In case of line interconnect can be activated
+  Applies to Rx path only. In case of line interconnect, it can be activated
   for multiple parties.
 
 Supported hardware:
-  Requires one equipped with DSP Diva hardware
+  Requires one Diva Media Board equipped with DSPs.
 
 Syntax:
 rxdgain|N
@@ -264,11 +263,11 @@ Description:
   Allows to change gain in the range from -127 dBm to +6 dBm
 
 Diection:
-  Applies to Rx path only. In case of line interconnect can be activated
+  Applies to Rx path only. In case of line interconnect, it can be activated
   for multiple parties.
 
 Supported hardware:
-  Requires one equipped with DSP Diva hardware
+  Requires one Diva Media Board equipped with DSPs.
 
 incSyntax:
 rxdgain|N
@@ -303,14 +302,14 @@ exten => h,1,Hangup
 
 Description:
   Used to access Digital Gain Control for Tx direction.
-  Allows to set gain in the range from -127 dBm to +6 dBm.
+  Allows to set gain control in the range from -127 dBm to +6 dBm.
 
 Diection:
-  Applies to Tx path only. In case of line interconnect can be activated
+  Applies to Tx path only. In case of line interconnect, it can be activated
   for multiple parties.
 
 Supported hardware:
-  Requires one equipped with DSP Diva hardware
+  Requires one Diva Media Board equipped with DSPs.
 
 Syntax:
 txdgain|N
@@ -350,11 +349,11 @@ Description:
   Allows to change gain in the range from -127 dBm to +6 dBm
 
 Diection:
-  Applies to Tx path only. In case of line interconnect can be activated
+  Applies to Tx path only. In case of line interconnect, it can be activated
   for multiple parties.
 
 Supported hardware:
-  Requires one equipped with DSP Diva hardware
+  Requires one Diva Media Board equipped with DSPs.
 
 incSyntax:
 rxtgain|N
@@ -391,18 +390,18 @@ Description:
   Used to set recording (Rx direction) and playback (Tx direction)
   rate in the range between 1250 ... 51200 Hz.
 
-  Using pitch control this is possible to play (record) voice message faster
+  Using pitch control, it is possible to play (record) voice message faster
   (rate > 8000 Hz) or slower (rate < 8000 Hz).
-  This is useful if playing voice mail messages and this is necessary to decrease the
-  playback speed to achieve better understanding or to increase playback speed to
-  rewind over the part of voice mail message.
+  This is useful if the playback speed of voice mail messages needs to be decreased
+  to achieve better understanding or to increase playback speed to
+  rewind over a certain part of the voice mail message.
 
 Diection:
   Applies to Rx and to Tx path. Can be used only for playback and for
   recoring of voice data. Not available with line interconnect and RTP.
 
 Supported hardware:
-  Requires one equipped with DSP Diva hardware
+  Requires one Diva Media Board equipped with DSPs.
 
 Syntax:
 pitchcontrol|RxN|TxN - set Rx and Tx rate to different values
@@ -439,21 +438,21 @@ exten => h,1,Hangup
 +-------------------------------------------------------------------+
 
 Description:
-  Used to change recording (Rx direction) and playback (Tx direction)
-  rate in the range between 1250 ... 51200 Hz.
+  Used to change the recording (Rx direction) and playback (Tx direction)
+  rate in the range from 1250 ... 51200 Hz.
 
-  Using pitch control this is possible to play (record) voice message faster
+  With pitch control it is possible to play (record) voice message faster
   (rate > 8000 Hz) or slower (rate < 8000 Hz).
-  This is useful if playing voice mail messages and this is necessary to decrease the
-  playback speed to achieve better understanding or to increase playback speed to
-  rewind over the part of voice mail message.
+  This is useful if the playback speed of voice mail messages needs to be decreased
+  to achieve better understanding or to increase playback speed to
+  rewind over a certain part of the voice mail message.
 
 Diection:
   Applies to Rx and to Tx path. Can be used only for playback and for
   recoring of voice data. Not available with line interconnect and RTP.
 
 Supported hardware:
-  Requires one equipped with DSP Diva hardware
+  Requires one Diva Media Board equipped with DSPs.
 
 Syntax:
 incpitchcontrol|RxN|TxN - change Rx and Tx rate using different values
@@ -489,17 +488,17 @@ exten => h,1,Hangup
 +-------------------------------------------------------------------+
 
 Description:
-  Used to activate or to deactivate MF listen on B channel data
+  Used to activate or to deactivate MF listen on B-channel data.
   Detected MF tones are mapped to appropriate DTMF digits.
-  MF digits K1, K2, KP, S1 and ST are mapped to DTMF digits
+  MF digits K1, K2, KP, S1, and ST are mapped to DTMF digits
   A, B, C, D, and * respectively.
 
 Direction:
-  Applies to Rx path only. In case of line interconnect can be activated
+  Applies to Rx path only. In case of line interconnect, it can be activated
   for multiple parties.
 
 Supported hardware:
-  Requires one equipped with DSP Diva hardware
+  Requires one Diva Media Board equipped with DSPs.
 
 Syntax:
 mftonedetection|yes,no
@@ -536,11 +535,11 @@ Description:
   Detected dialing pulses are mapped to appropriate DTMF digits.
 
 Direction:
-  Applies to Rx path only. In case of line interconnect can be activated
+  Applies to Rx path only. In case of line interconnect, it can be activated
   for multiple parties.
 
 Supported hardware:
-  Requires one equipped with DSP Diva hardware
+  Requires one Diva Media Board equipped with DSPs.
 
 Syntax:
 pulsedetection|yes,no
@@ -582,7 +581,7 @@ Path:
   Applies to Tx path only.
 
 Supported hardware:
-  Requires one equipped with DSP Diva hardware.
+  Requires one Diva Media Board equipped with DSPs.
 
 Syntax:
 sendtone|N
@@ -666,26 +665,26 @@ Description:
   Stop tone detection (stoptonedetection)
 
 Direction:
-  Applies to Rx path only. In case of line interconnect can be activated
+  Applies to Rx path only. In case of line interconnect, it can be activated
   for multiple parties.
 
 Supported hardware:
-  Requires one equipped with DSP Diva hardware
-  Not available if RTP is active
+  Requires one Diva Media Board equipped with DSPs.
+  Not available if RTP is active.
 
 Syntax:
 starttonedetection|N
 stoptonedetection
 
-  N - extension number to be used in case tone detected.
+  N - Extension number to be used in case a tone is detected.
       The reception of appropriate DTMF digits will be simulated after the
-      detection of tone. At same time variable CAPIDETECTEDTONE will be set
-      to identifier of detected tone in decimal format and variable
-      CAPIDETECTEDTONEVISUAL will be set to user friendly name of detected tone.
+      detection of the tone. At same time, the variable CAPIDETECTEDTONE will be set
+      to identify the detected tone in decimal format and the variable
+      CAPIDETECTEDTONEVISUAL will be set to a user friendly name of the detected tone.
 
       Tone identifier:
         0x82 - Dial tone detected
-        0x83 - PABX internal dial tone detected
+	0x83 - PABX internal dial tone detected
         0x84 - Special dial tone (stutter dial tone) detected
         0x85 - Second dial tone detected
         0x86 - Ringing tone detected
@@ -769,25 +768,25 @@ exten => h,1,Hangup
 +-------------------------------------------------------------------+
 
 Description:
-  In the time voice message played back this is usefule to be able to apply
+  While a voice message is played back it is useful to be able to apply
   media control commands to voice stream without interrupting the playback
   of the voice stream.
   The same is true for the conference and for connection between two parties.
 
-  The "vc" command allows to provide this functionality. Using this command
+  The "vc" command allows to provide this functionality. With this command
   it is possible to bind arbitrary chan_capi commands to sequences of
-  events (DTMF digits, ...). Once events are detected the appropriate command
+  events (DTMF digits, ...). Once the events are detected, the appropriate command
   is executed without interruption of the voice stream.
-  "vc" allows to create menu which is executing in background and allows to
+  "vc" allows to create a menu that is executed in the background and allows to
   control voice stream by activation or deactivation of AGC, noise suppression,
-  control the level of the signal, playback speed.
+  control the level of the signal, and playback speed.
   "vc" allows to use any supported by channel driver command, but please note
-  that commands are executed not in the context of the dial plan. The commands
-  are executed using context of detected events parallel to dialplan and
-  independent from dialplan.
+  that commands are not executed in the context of the dial plan. The commands
+  are executed using the context of the detected events parallel to the dialplan and
+  independent from the dialplan.
 
 Syntax:
-vc|command|key|param|param1|...|paramN
+vc|command|key|param|param1|...|paranN
   Add to menu: on detection of key Execute command using parameters param1|...|paramN
 
 vc|command|key
@@ -799,8 +798,8 @@ vc|command
 vc
   Cleanup menu
 
-In case one command will use key which is already in use then new command will overwrite
-one already existing:
+In case one command will use a key that is already in use then a new command will overwrite
+the existing command:
 exten => s,n,capicommand(vc|txagc|3|yes)
 exten => s,n,capicommand(vc|inctxdgain|3|1.5)
 
@@ -808,11 +807,11 @@ is equivalent to:
 
 exten => s,n,capicommand(vc|inctxdgain|3|1.5)
 
-This is better to use only one digit as key for commands in menu
-if using menu for IVR and voice mailbox. This provides short response time.
+It is better to use only one digit as key for commands in menu if using the menu for IVR and
+voice mailbox. This provides short response time.
 
-In case menu is used for conference or for connection between two parties it may be useful to use
-two or three digits for key. This will prevent one activation by occasional pressing of keys.
+In case, the menu is used for conference or for connection between two parties it may be useful to use
+two or three digits for the key. This will prevent an activation by accidentally pressing of keys.
 
 Syntax example:
 exten => s,n,capicommand(vc|inctxdgain|5|1.5) ; Execute inctxdgain|1.5 if received DTMF digit 5
