@@ -141,6 +141,14 @@ static void update_capi_mixer(int remove, unsigned int roomnumber, struct capi_p
 		overall_found += ((room->number == roomnumber) && (room->i != i));
 	}
 
+	room = chat_list;
+	while (room != 0) {
+		if (room->number == roomnumber) {
+			room->active = overall_found + ((remove != 0) ? 0 : 1);
+		}
+		room = room->next;
+	}
+
 	nr_segments = overall_found/PLCI_PER_LX_REQUEST + (overall_found%PLCI_PER_LX_REQUEST != 0);
 	if (nr_segments != 0) {
 		deffered_chat_capi_message_t segments[nr_segments];
@@ -150,14 +158,6 @@ static void update_capi_mixer(int remove, unsigned int roomnumber, struct capi_p
 		for (segment_nr = 0, chat_start = chat_list; segment_nr < nr_segments && chat_start != 0; segment_nr++) {
 			segments[segment_nr].busy = 0;
 			chat_start = update_capi_mixer_part(chat_start, overall_found, &segments[segment_nr], remove, roomnumber, i);
-		}
-
-		room = chat_list;
-		while (room != 0) {
-			if (room->number == roomnumber) {
-				room->active = overall_found + ((remove != 0) ? 0 : 1);
-			}
-			room = room->next;
 		}
 
 		cc_mutex_unlock(&chat_lock);
