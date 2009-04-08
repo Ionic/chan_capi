@@ -9,7 +9,8 @@ HEAD
 - added variable CAPI_CIP for full access to all bearer capabilities.
 - fixed CAPI 'chat' for using more than 8 controllers.
 - fixed CAPI 'chat' for not exceeding maximal size of CAPI message
-- add color fax for rx direction
+- add color fax
+- add autodetection of fax file format for sendfax command (SFF, CFF JPEG, CFF T.43, TEXT)
 
 
 chan_capi-1.1.2

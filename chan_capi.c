@@ -100,7 +100,7 @@ static char *commandtdesc = CC_MESSAGE_BIGNAME " command interface.\n"
 "FAXREASONTEXT :FAXREASON as text\n"
 "FAXRATE       :baud rate of fax connection\n"
 "FAXRESOLUTION :0=standard, 1=high\n"
-"FAXFORMAT     :0=SFF\n"
+"FAXFORMAT     :0=SFF, 8=native\n"
 "FAXPAGES      :Number of pages received\n"
 "FAXID         :ID of the remote fax machine\n"
 "Asterisk variables used/set by chan_capi:\n"
@@ -2389,6 +2389,11 @@ static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 				"file won't be deleted.\n");
 			keepbadfax = 1;
 			break;
+		case 'f':	/* use Fine resolution */
+			cc_verbose(3, 1,
+				VERBOSE_PREFIX_3 CC_MESSAGE_NAME " receivefax: Allow Fine resolution");
+      b3_protocol_options |= 0x0001;
+			break;
 		case 'j':	/* enable JPEG encoding */
 			cc_verbose(3, 1,
 				VERBOSE_PREFIX_3 CC_MESSAGE_NAME " receivefax: enable JPEG coding");
@@ -2508,9 +2513,11 @@ static int pbx_capi_send_fax(struct ast_channel *c, char *data)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	int res = 0;
-	char *filename, *stationid, *headline;
+	char *filename, *stationid, *headline, *options;
 	B3_PROTO_FAXG3 b3conf;
 	char buffer[CAPI_MAX_STRING];
+	int file_format;
+	unsigned short b3_protocol_options = 0;
 
 	if (!data) { /* no data implies no filename or anything is present */
 		cc_log(LOG_WARNING, CC_MESSAGE_NAME " sendfax requires a filename\n");
@@ -2519,12 +2526,15 @@ static int pbx_capi_send_fax(struct ast_channel *c, char *data)
 
 	filename = strsep(&data, "|");
 	stationid = strsep(&data, "|");
-	headline = data;
+	headline = strsep(&data, "|");
+	options = data;
 
 	if (!stationid)
 		stationid = emptyid;
 	if (!headline)
 		headline = emptyid;
+	if (!options)
+		options = emptyid;
 
 	cc_verbose(3, 1, VERBOSE_PREFIX_3 CC_MESSAGE_NAME " sendfax: '%s' '%s' '%s'\n",
 		filename, stationid, headline);
@@ -2536,8 +2546,72 @@ static int pbx_capi_send_fax(struct ast_channel *c, char *data)
 		return -1;
 	}
 
+	/*
+		Get file format
+		*/
+	{
+		unsigned char tmp[2] = { 0, 0 };
+
+		if (fread (tmp, 1, 2, i->fFax) != 2) {
+			cc_log(LOG_WARNING, "can't read fax file (%s)\n", strerror(errno));
+			fclose (i->fFax);
+			i->fFax = 0;
+			return (-1);
+		}
+
+		if (tmp[0] == 0x53 && tmp[1] == 0x66) { /* SFF */
+			file_format = FAX_SFF_FORMAT;
+		} else if (tmp[0] == 0xff && tmp[1] == 0xd8) { /* JPEG */
+			file_format = FAX_NATIVE_FILE_TRANSFER_FORMAT;
+			b3_protocol_options |= 0x0400;
+		} else if (tmp[0] == 0xff && tmp[1] == 0xa8) { /* T.43 */
+			file_format = FAX_NATIVE_FILE_TRANSFER_FORMAT;
+			b3_protocol_options |= 0x0800;
+		} else { /* TXT */
+			file_format = FAX_ASCII_FORMAT;
+		}
+	}
+
+	rewind (i->fFax);
+
+	/* parse the options */
+	while ((options) && (*options)) {
+		switch (*options) {
+		case 'f':	/* use Fine resolution */
+			cc_verbose(3, 1,
+				VERBOSE_PREFIX_3 CC_MESSAGE_NAME " receivefax: Use Fine resolution");
+      b3_protocol_options |= 0x0001;
+			break;
+		case 't':	/* diasble T.85 encoding */
+			cc_verbose(3, 1,
+				VERBOSE_PREFIX_3 CC_MESSAGE_NAME " receivefax: Do not use T.85 coding");
+      b3_protocol_options |= 0x1000;
+			break;
+		case 'e':	/* disable ECM encoding */
+			cc_verbose(3, 1,
+				VERBOSE_PREFIX_3 CC_MESSAGE_NAME " receivefax: Do not use ECM");
+      b3_protocol_options |= 0x8000;
+			break;
+		case 'm':	/* disable MMR encoding */
+			cc_verbose(3, 1,
+				VERBOSE_PREFIX_3 CC_MESSAGE_NAME " receivefax: do not use MMR (T.6) coding");
+      b3_protocol_options |= 0x4000;
+			break;
+		case 'd':	/* disable MR encoding */
+			cc_verbose(3, 1,
+				VERBOSE_PREFIX_3 CC_MESSAGE_NAME " receivefax: do not use MR (2D) coding");
+      b3_protocol_options |= 0x2000;
+			break;
+
+		default:
+			cc_log(LOG_WARNING, "Unknown option '%c' for receivefax.\n",
+				*options);
+		}
+		options++;
+	}
+
 	i->FaxState |= (CAPI_FAX_STATE_ACTIVE | CAPI_FAX_STATE_SENDMODE);
-	setup_b3_fax_config(&b3conf, FAX_SFF_FORMAT, stationid, headline, 0);
+	setup_b3_fax_config(&b3conf, file_format, stationid, headline, b3_protocol_options);
 
 	i->bproto = CC_BPROTO_FAXG3;
 
