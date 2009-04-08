@@ -89,7 +89,7 @@ static char *commandtdesc = CC_MESSAGE_BIGNAME " command interface.\n"
 "\"retrieve|${MYHOLDVAR}\" gets back the held call\n"
 "\"ect|${MYHOLDVAR})\" explicit call transfer of call on hold\n"
 "\"3pty_begin|${MYHOLDVAR})\" Three-Party-Conference (3PTY) with active and held call\n"
-"\"receivefax|filename|stationID|headline\" receive a " CC_MESSAGE_BIGNAME " fax\n"
+"\"receivefax|filename|stationID|headline|options\" receive a " CC_MESSAGE_BIGNAME " fax\n"
 "\"sendfax|filename.sff|stationID|headline\" send a " CC_MESSAGE_BIGNAME " fax\n"
 "\"qsig_ssct|cidsrc|ciddst\" QSIG single step call transfer\n"
 "\"qsig_ct|cidsrc|ciddst|marker|waitconnect\" QSIG call transfer\n"
@@ -218,7 +218,7 @@ static struct {
 		NULL,
 		NULL
 	},
-	{ 0x04, 0x04, 0x04,	/* 1 */
+	{ 0x04, 0x04, 0x05,	/* 1 */
 		NULL,
 		NULL,
 		NULL
@@ -2303,15 +2303,26 @@ pbx_capi_request(const char *type, int format, void *data, int *cause)
 
 /*
  * fill out fax conf struct
+ *
+ * b3_protocol_options:
+ * [Bit 0] : Enable high resolution
+ * [Bit 1] : Accept incoming fax-polling requests
+ * [Bit 10]: Enable JPEG negotiation (continuous-tone colour mode according to T.4 Annex E) (see note 1)
+ * [Bit 11]: Enable JBIG colour and gray-scale negotiation according to T.43 (see note 1)
+ * [Bit 12]: Do not use JBIG progressive bi-level image compression
+ * [Bit 13]: Do not use MR compression
+ * [Bit 14]: Do not use MMR compression
+ * [Bit 15]: Do not use ECM
+ *
  */
-static void setup_b3_fax_config(B3_PROTO_FAXG3 *b3conf, int fax_format, char *stationid, char *headline)
+static void setup_b3_fax_config(B3_PROTO_FAXG3 *b3conf, int fax_format, char *stationid, char *headline, unsigned short b3_protocol_options)
 {
 	int len1;
 	int len2;
 
-	cc_verbose(3, 1, VERBOSE_PREFIX_3 "Setup fax b3conf fmt=%d, stationid='%s' headline='%s'\n",
-		fax_format, stationid, headline);
-	b3conf->resolution = 0;
+	cc_verbose(3, 1, VERBOSE_PREFIX_3 "Setup fax b3conf fmt=%d, stationid='%s' headline='%s' options=%04x\n",
+		fax_format, stationid, headline, b3_protocol_options);
+	b3conf->resolution = b3_protocol_options;
 	b3conf->format = (unsigned short)fax_format;
 	len1 = strlen(stationid);
 	b3conf->Infos[0] = (unsigned char)len1;
@@ -2347,6 +2358,7 @@ static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 	char *filename, *stationid, *headline, *options;
 	B3_PROTO_FAXG3 b3conf;
 	char buffer[CAPI_MAX_STRING];
+	unsigned short b3_protocol_options = 0;
 
 	if (!data) { /* no data implies no filename or anything is present */
 		cc_log(LOG_WARNING, CC_MESSAGE_NAME " receivefax requires a filename\n");
@@ -2377,6 +2389,37 @@ static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 				"file won't be deleted.\n");
 			keepbadfax = 1;
 			break;
+		case 'j':	/* enable JPEG encoding */
+			cc_verbose(3, 1,
+				VERBOSE_PREFIX_3 CC_MESSAGE_NAME " receivefax: enable JPEG coding");
+			b3_protocol_options |= 0x0400;
+			break;
+		case 'b':	/* enable T.43 encoding */
+			cc_verbose(3, 1,
+				VERBOSE_PREFIX_3 CC_MESSAGE_NAME " receivefax: enable T.43 coding");
+			b3_protocol_options |= 0x0800;
+			break;
+		case 't':	/* diasble T.85 encoding */
+			cc_verbose(3, 1,
+				VERBOSE_PREFIX_3 CC_MESSAGE_NAME " receivefax: Do not use T.85 coding");
+      b3_protocol_options |= 0x1000;
+			break;
+		case 'e':	/* disable ECM encoding */
+			cc_verbose(3, 1,
+				VERBOSE_PREFIX_3 CC_MESSAGE_NAME " receivefax: Do not use ECM");
+      b3_protocol_options |= 0x8000;
+			break;
+		case 'm':	/* disable MMR encoding */
+			cc_verbose(3, 1,
+				VERBOSE_PREFIX_3 CC_MESSAGE_NAME " receivefax: do not use MMR (T.6) coding");
+      b3_protocol_options |= 0x4000;
+			break;
+		case 'd':	/* disable MR encoding */
+			cc_verbose(3, 1,
+				VERBOSE_PREFIX_3 CC_MESSAGE_NAME " receivefax: do not use MR (2D) coding");
+      b3_protocol_options |= 0x2000;
+			break;
+
 		default:
 			cc_log(LOG_WARNING, "Unknown option '%c' for receivefax.\n",
 				*options);
@@ -2393,7 +2436,7 @@ static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 	}
 
 	i->FaxState |= CAPI_FAX_STATE_ACTIVE;
-	setup_b3_fax_config(&b3conf, FAX_SFF_FORMAT, stationid, headline);
+	setup_b3_fax_config(&b3conf, FAX_SFF_FORMAT, stationid, headline, b3_protocol_options);
 
 	i->bproto = CC_BPROTO_FAXG3;
 
@@ -2494,7 +2537,7 @@ static int pbx_capi_send_fax(struct ast_channel *c, char *data)
 	}
 
 	i->FaxState |= (CAPI_FAX_STATE_ACTIVE | CAPI_FAX_STATE_SENDMODE);
-	setup_b3_fax_config(&b3conf, FAX_SFF_FORMAT, stationid, headline);
+	setup_b3_fax_config(&b3conf, FAX_SFF_FORMAT, stationid, headline, 0);
 
 	i->bproto = CC_BPROTO_FAXG3;
 
@@ -3775,10 +3818,21 @@ static void capidev_handle_disconnect_b3_indication(_cmsg *CMSG, unsigned int PL
 		if (ncpi) {
 			snprintf(buffer, CAPI_MAX_STRING-1, "%d", read_capi_word(&ncpi[1]));
 			pbx_builtin_setvar_helper(i->owner, "FAXRATE", buffer);
-			snprintf(buffer, CAPI_MAX_STRING-1, "%d", read_capi_word(&ncpi[3]));
+			snprintf(buffer, CAPI_MAX_STRING-1, "%d", read_capi_word(&ncpi[3]) & 1);
 			pbx_builtin_setvar_helper(i->owner, "FAXRESOLUTION", buffer);
 			snprintf(buffer, CAPI_MAX_STRING-1, "%d", read_capi_word(&ncpi[5]));
 			pbx_builtin_setvar_helper(i->owner, "FAXFORMAT", buffer);
+			strcpy (buffer, "0");
+			if (read_capi_word(&ncpi[5]) == 8) {
+				unsigned short options = read_capi_word(&ncpi[3]);
+
+				if (options & 0x0400) {
+					strcpy (buffer, "1");
+				} else if (options & 0x0800) {
+					strcpy (buffer, "2");
+				}
+			}
+			pbx_builtin_setvar_helper(i->owner, "FAXCFFFORMAT", buffer);
 			snprintf(buffer, CAPI_MAX_STRING-1, "%d", read_capi_word(&ncpi[7]));
 			pbx_builtin_setvar_helper(i->owner, "FAXPAGES", buffer);
 			memcpy(buffer, &ncpi[10], ncpi[9]);

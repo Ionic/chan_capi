@@ -141,7 +141,9 @@ You cann use Diva hardware and softIP in virtual environment if access by softwa
 +-------------------------------------------------------------------+
 
 Dialogic (R) Diva(R) hardware and softIP supports color fax and allows to send/receive
-fax document in JPEG format.
+fax document using
+  Continuous tone color and gray-scale mode according to T.4 Annex E using JPEG coding
+  Lossless color and gray-scale mode according to T.43 using JBIG coding
 
 +-------------------------------------------------------------------+
 | High resolution fax, non standard paper size                      |
@@ -172,6 +174,12 @@ The reception of the fax message is started using 'receivefax' capi command:
     'options'   - fax options, optional
                   'k' - keep fax document in case of errors (by default document is removed
                         if fax transmission was not completed with success).
+                  'j' - enable JPEG coding
+                  'b' - enable T.43 coding
+                  't' - do not use T.85
+                  'e' - do not use ECM
+                  'm' - do not use MMR (T.6) coding
+                  'd' - do not use MR (2D) coding
 
 This is possible to answer the incomming call using 'receivefax' command and start reception of
 the fax document directly.
@@ -208,7 +216,7 @@ The transmission of fax message is started using 'sendfax' capi command:
                   Supported formats:
                     .sff - SFF file
                     .txt - text file
-                    .jpg - JPEG file
+                    .cff - JPEG/T.43 (color/gray tone) coded file
     'stationid' - station ID, optional
     'headline'  - head line, optional
 
@@ -239,7 +247,20 @@ After chan_capi completed the processing of 'receivefax' or 'sendfax' command fo
                   0 - standard
                   1 - high
   FAXFORMAT     - Format of received fax document
-                  0 - SFF
+                  0 - SFF (default, description in Annex B)
+                  1 - Plain fax format (modified Huffman coding)
+                  2 - PCX
+                  3 - DCX
+                  4 - TIFF
+                  5 - ASCII
+                  6 - Extended ANSI
+                  7 - Binary-File transfer
+                  8 - Native (CFF
+                              continuous-tone color and gray-scale T.4 Annex E using JPEG coding
+                              lossless color and gray-scale mode according to T.43)
+  FAXCFFFORMAT  - Valid if FAXFORMAT is set to 8 (native)
+                  1 - continuous tone color and gray-scale mode according to T.4 Annex E using JPEG coding
+                  2 - lossless color and gray-scale mode according to T.43 [7] using JBIG coding
   FAXPAGES      - Number of pages received
   FAXID         - The ID of the remote fax maschine
 

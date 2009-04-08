@@ -153,6 +153,7 @@ static inline unsigned int read_capi_dword(void *m)
 #define FAX_ASCII_FORMAT                5
 #define FAX_EXTENDED_ASCII_FORMAT       6
 #define FAX_BINARY_FILE_TRANSFER_FORMAT 7
+#define FAX_NATIVE_FILE_TRANSFER_FORMAT 8
 
 /* Fax struct */
 struct fax3proto3 {

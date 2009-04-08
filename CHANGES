@@ -9,6 +9,7 @@ HEAD
 - added variable CAPI_CIP for full access to all bearer capabilities.
 - fixed CAPI 'chat' for using more than 8 controllers.
 - fixed CAPI 'chat' for not exceeding maximal size of CAPI message
+- add color fax for rx direction
 
 
 chan_capi-1.1.2
