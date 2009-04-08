@@ -79,6 +79,16 @@ The re-compression process is handled internally by the board's RISC CPU and hap
 application that deals only with 1D (MH) coded data.
 You can adjust the compression-related T.30 protocol settings via Global fax configuration options.
 
+Automatic detection of document format
+--------------------------------------
+
+chan_capi uses the context of the file to determine the format of the document and to apply 
+all necessary for transmission of the document settings.
+Following media formats are detected:
+  SFF, CFF (Color Fax in JPEG or T.43 format), text file
+
+Diva supports media stream consisting from pages with different media types.
+
 V.34 (33600 bps) fax support
 ----------------------------
 
@@ -151,6 +161,13 @@ Each of these data formats starts with a unique pattern:
   0xFF 0xD8 - T.4  - Annex E SOI marker
   0xFF 0xA8 0 T.43 - Start marker 0xFFA8
 
+It is possible to change between different media types in the time of fax transmission. This
+allows to change media between black and white and color for every page.
+
+After completion of transmission or reception of fax CFF (color/greyscale image format)
+variable FAXFORMAT is set to 8 (native format, CFF image) and variable FAXCFFFORMAT
+provides information about the image format.
+
 +-------------------------------------------------------------------+
 | High resolution fax, non standard paper size                      |
 +-------------------------------------------------------------------+
@@ -180,6 +197,7 @@ The reception of the fax message is started using 'receivefax' capi command:
     'options'   - fax options, optional
                   'k' - keep fax document in case of errors (by default document is removed
                         if fax transmission was not completed with success).
+                  'f' - allow Fine resolution
                   'j' - enable JPEG coding
                   'b' - enable T.43 coding
                   't' - do not use T.85
@@ -215,16 +233,25 @@ Transmission of fax documents
 
 The transmission of fax message is started using 'sendfax' capi command:
 
-  capicommand(sendfax|<filename>[|<stationid>|<headline>])
+  capicommand(sendfax|<filename>[|<stationid>|<headline>|<options>])
 
   Parameters:
     'filename'  - Contains the full path and file name to be sent, mandatory
+                  sendfax command automatically detects the type of file
+                  using the context of file.
                   Supported formats:
                     .sff - SFF file
                     .txt - text file
                     .cff - JPEG/T.43 (color/gray tone) coded file
     'stationid' - station ID, optional
     'headline'  - head line, optional
+    'options'   - fax options, optional
+                  'f' - use Fine resolution
+                  't' - do not use T.85
+                  'e' - do not use ECM
+                  'm' - do not use MMR (T.6) coding
+                  'd' - do not use MR (2D) coding
+
 
 You need to start call using 'Dial' command in voice mode and change to transmission (reception)
 of the fax by 'sendfax'. Optionally you can wait until user entered password using DTMF digits.
