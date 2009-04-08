@@ -145,6 +145,12 @@ fax document using
   Continuous tone color and gray-scale mode according to T.4 Annex E using JPEG coding
   Lossless color and gray-scale mode according to T.43 using JBIG coding
 
+Color fax documents are processed using CFF.
+Each of these data formats starts with a unique pattern:
+  0x53 0x66 - SFF  - First bytes of magic number in SFF document header, CAPI 2.0 Annex B
+  0xFF 0xD8 - T.4  - Annex E SOI marker
+  0xFF 0xA8 0 T.43 - Start marker 0xFFA8
+
 +-------------------------------------------------------------------+
 | High resolution fax, non standard paper size                      |
 +-------------------------------------------------------------------+
