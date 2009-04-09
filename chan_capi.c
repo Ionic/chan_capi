@@ -2359,6 +2359,7 @@ static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 	B3_PROTO_FAXG3 b3conf;
 	char buffer[CAPI_MAX_STRING];
 	unsigned short b3_protocol_options = 0;
+	int extended_resolution = 0;
 
 	if (!data) { /* no data implies no filename or anything is present */
 		cc_log(LOG_WARNING, CC_MESSAGE_NAME " receivefax requires a filename\n");
@@ -2393,6 +2394,12 @@ static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 			cc_verbose(3, 1,
 				VERBOSE_PREFIX_3 CC_MESSAGE_NAME " receivefax: Allow Fine resolution");
       b3_protocol_options |= 0x0001;
+			break;
+		case 'u':	/* use Fine resolution */
+			cc_verbose(3, 1,
+				VERBOSE_PREFIX_3 CC_MESSAGE_NAME " receivefax: Allow Super/Ultra fine resolution");
+      b3_protocol_options |= 0x0001;
+			extended_resolution = 1;
 			break;
 		case 'j':	/* enable JPEG encoding */
 			cc_verbose(3, 1,
@@ -2438,6 +2445,15 @@ static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 	if ((i->fFax = fopen(filename, "wb")) == NULL) {
 		cc_log(LOG_WARNING, "can't create fax output file (%s)\n", strerror(errno));
 		return -1;
+	}
+
+	if (capi_controllers[i->controller]->divaExtendedFeaturesAvailable != 0 && extended_resolution != 0) {
+		/*
+			Per PLCI control is available only starting with Diva 9.0 SU1
+			Without per PLCI control setting is applied to controller
+			*/
+		capi_sendf (NULL, 0, CAPI_MANUFACTURER_REQ, i->PLCI, get_capi_MessageNumber(),
+                      "dw(d)", _DI_MANU_ID, _DI_OPTIONS_REQUEST, 0x00000040L);
 	}
 
 	i->FaxState |= CAPI_FAX_STATE_ACTIVE;
@@ -2518,6 +2534,7 @@ static int pbx_capi_send_fax(struct ast_channel *c, char *data)
 	char buffer[CAPI_MAX_STRING];
 	int file_format;
 	unsigned short b3_protocol_options = 0;
+	int extended_resolution = 0;
 
 	if (!data) { /* no data implies no filename or anything is present */
 		cc_log(LOG_WARNING, CC_MESSAGE_NAME " sendfax requires a filename\n");
@@ -2582,6 +2599,13 @@ static int pbx_capi_send_fax(struct ast_channel *c, char *data)
 				VERBOSE_PREFIX_3 CC_MESSAGE_NAME " receivefax: Use Fine resolution");
       b3_protocol_options |= 0x0001;
 			break;
+		case 'u':	/* use Fine resolution */
+			cc_verbose(3, 1,
+				VERBOSE_PREFIX_3 CC_MESSAGE_NAME " receivefax: Allow Super/Ultra fine resolution");
+      b3_protocol_options |= 0x0001;
+			extended_resolution = 1;
+			break;
+		case 'j':	/* enable JPEG encoding */
 		case 't':	/* diasble T.85 encoding */
 			cc_verbose(3, 1,
 				VERBOSE_PREFIX_3 CC_MESSAGE_NAME " receivefax: Do not use T.85 coding");
@@ -2608,6 +2632,15 @@ static int pbx_capi_send_fax(struct ast_channel *c, char *data)
 				*options);
 		}
 		options++;
+	}
+
+	if (capi_controllers[i->controller]->divaExtendedFeaturesAvailable != 0 && extended_resolution != 0) {
+		/*
+			Per PLCI control is available only starting with Diva 9.0 SU1
+			Without per PLCI control setting is applied to controller
+			*/
+		capi_sendf (NULL, 0, CAPI_MANUFACTURER_REQ, i->PLCI, get_capi_MessageNumber(),
+                      "dw(d)", _DI_MANU_ID, _DI_OPTIONS_REQUEST, 0x00000040L);
 	}
 
 	i->FaxState |= (CAPI_FAX_STATE_ACTIVE | CAPI_FAX_STATE_SENDMODE);
