@@ -3812,7 +3812,7 @@ static void capidev_handle_connect_active_indication(_cmsg *CMSG, unsigned int P
 					"w(w(d()))",
 					FACILITYSELECTOR_LINE_INTERCONNECT,
 					0x0001, /* CONNECT */
-					0x0000000c /* mask */
+					0x00000030 /* mask */
 				);
 			}
 			cc_start_b3(i);

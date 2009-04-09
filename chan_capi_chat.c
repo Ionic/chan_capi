@@ -54,7 +54,7 @@ static struct capichat_s* update_capi_mixer_part(struct capichat_s *chat_start,
 																								unsigned int roomnumber,
 																								struct capi_pvt *i)
 {
-	struct capi_pvt *ii;
+	struct capi_pvt *ii, *ii_last = 0;
 	struct capichat_s *room;
 	unsigned char* p_list = &capi_msg->p_list[0];
 	_cdword dest;
@@ -75,6 +75,7 @@ static struct capichat_s* update_capi_mixer_part(struct capichat_s *chat_start,
 			}
 			found++;
 			ii = room->i;
+			ii_last = ii;
 			p_list[j++] = 8;
 			p_list[j++] = (_cbyte)(ii->PLCI);
 			p_list[j++] = (_cbyte)(ii->PLCI >> 8);
@@ -102,10 +103,18 @@ static struct capichat_s* update_capi_mixer_part(struct capichat_s *chat_start,
 		datapath = 0x00000000;
 		if (remove) {
 			/* now we need DATA_B3 again */
-			datapath = 0x0000000c;
+			if (i->channeltype != CAPI_CHANNELTYPE_NULL) {
+				datapath = 0x0000000c;
+			} else {
+				datapath = 0x00000030;
+			}
 			if (overall_found == 1) {
 				/* only one left, enable DATA_B3 too */
-				p_list[5] |= 0x0c;
+        if (ii_last->channeltype != CAPI_CHANNELTYPE_NULL) {
+					p_list[5] |= 0x0c;
+				} else {
+					p_list[5] |= 0x30;
+				}
 			}
 		}
 		if (i->channeltype == CAPI_CHANNELTYPE_NULL) {
