@@ -211,6 +211,99 @@ struct capi_pvt *capi_mknullif(struct ast_channel *c, unsigned long long control
 	return tmp;
 }
 
+struct capi_pvt *capi_mkresourceif(struct ast_channel *c, unsigned long long controllermask)
+{
+  struct capi_pvt *data_ifc /*, *line_ifc */;
+	unsigned int controller = 1;
+	int contrcount;
+	int channelcount = 0xffff;
+	int maxcontr = (CAPI_MAX_CONTROLLERS > (sizeof(controllermask)*8)) ?
+		(sizeof(controllermask)*8) : CAPI_MAX_CONTROLLERS;
+
+	cc_verbose(3, 1, VERBOSE_PREFIX_4 "capi_mkresourceif: find controller for mask 0x%lx\n",
+		controllermask);
+	/* find the next controller of mask with least plcis used */	
+	for (contrcount = 0; contrcount < maxcontr; contrcount++) {
+		if ((controllermask & (1ULL << contrcount)) != 0) {
+			if (controller_nullplcis[contrcount] < channelcount) {
+				channelcount = controller_nullplcis[contrcount];
+				controller = contrcount + 1;
+			}
+		}
+	}
+
+	data_ifc = malloc(sizeof(struct capi_pvt));
+	if (data_ifc == 0) {
+		return NULL;
+	}
+	memset(data_ifc, 0, sizeof(struct capi_pvt));
+	
+	cc_mutex_init(&data_ifc->lock);
+	ast_cond_init(&data_ifc->event_trigger, NULL);
+	
+	snprintf(data_ifc->name, sizeof(data_ifc->name) - 1, "%s-NULLPLCI", c->name);
+	snprintf(data_ifc->vname, sizeof(data_ifc->vname) - 1, "%s", data_ifc->name);
+
+	data_ifc->channeltype = CAPI_CHANNELTYPE_NULL;
+
+	data_ifc->used = c;
+	data_ifc->peer = c;
+
+	data_ifc->cip = CAPI_CIPI_SPEECH;
+	data_ifc->transfercapability = PRI_TRANS_CAP_SPEECH;
+	data_ifc->controller = controller;
+	data_ifc->doEC = 1;
+	data_ifc->doEC_global = 1;
+	data_ifc->ecOption = EC_OPTION_DISABLE_NEVER;
+	data_ifc->ecTail = EC_DEFAULT_TAIL;
+	data_ifc->isdnmode = CAPI_ISDNMODE_MSN;
+	data_ifc->ecSelector = FACILITYSELECTOR_ECHO_CANCEL;
+	data_ifc->capability = capi_capability;
+
+	data_ifc->rxgain = 1.0;
+	data_ifc->txgain = 1.0;
+	capi_gains(&data_ifc->g, 1.0, 1.0);
+
+	if (!(capi_create_reader_writer_pipe(data_ifc))) {
+		free(data_ifc);
+		return NULL;
+	}
+
+	data_ifc->bproto = CC_BPROTO_TRANSPARENT;	
+	data_ifc->doB3 = CAPI_B3_DONT;
+	data_ifc->smoother = ast_smoother_new(CAPI_MAX_B3_BLOCK_SIZE);
+	data_ifc->isdnstate |= CAPI_ISDN_STATE_PBX;
+		
+	cc_mutex_lock(&nullif_lock);
+	data_ifc->next = nulliflist; /* prepend */
+	nulliflist = data_ifc;
+	controller_nullplcis[data_ifc->controller - 1]++;
+	cc_mutex_unlock(&nullif_lock);
+
+	/* connect to driver */
+	data_ifc->outgoing = 1;
+	data_ifc->state = CAPI_STATE_CONNECTPENDING;
+	data_ifc->MessageNumber = get_capi_MessageNumber();
+
+	capi_sendf(NULL,
+							0,
+							CAPI_MANUFACTURER_REQ,
+							controller,
+							data_ifc->MessageNumber,
+							"dw(wbb(www()()()()))",
+							_DI_MANU_ID,
+							_DI_ASSIGN_PLCI,
+							4, /* data */
+							0, /* bchannel */
+							1, /* connect */
+							1,1,0);
+
+	cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: created resource-interface on controller %d.\n",
+		data_ifc->vname, data_ifc->controller);
+
+  return (data_ifc);
+}
+
 /*
  * get a new capi message number atomically
  */
