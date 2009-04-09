@@ -4574,6 +4574,11 @@ static void capidev_handle_msg(_cmsg *CMSG)
 			case _DI_DSP_CTRL:
 				wInfo = (unsigned short)(CMSG->Class >> 16);
 				break;
+			case _DI_ASSIGN_PLCI:
+				wInfo = (unsigned short)(CMSG->Class >> 16);
+				capidev_handle_connection_conf(&i, PLCI, wInfo, wMsgNum);
+				break;
+
 			default:
 				cc_log(LOG_ERROR, CC_MESSAGE_BIGNAME ": unknown manufacturer command: %04x",
 					CMSG->Class & 0xffff);
