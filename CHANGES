@@ -11,6 +11,7 @@ HEAD
 - fixed CAPI 'chat' for not exceeding maximal size of CAPI message
 - add color fax
 - add autodetection of fax file format for sendfax command (SFF, CFF JPEG, CFF T.43, TEXT)
+- add extension for FAX paper formats and resolutions
 
 
 chan_capi-1.1.2
