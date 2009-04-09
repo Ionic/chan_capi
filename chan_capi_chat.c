@@ -424,7 +424,10 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 		i = CC_CHANNEL_PVT(c); 
 	} else {
 		/* virtual CAPI channel */
-		i = capi_mknullif(c, contr);
+		i = pbx_check_resource_plci (c);
+
+		if (i == 0)
+			i = capi_mknullif(c, contr);
 		if (!i) {
 			return -1;
 		}
@@ -454,6 +457,48 @@ out:
 	capi_remove_nullif(i);
 
 	return 0;
+}
+
+struct capi_pvt* pbx_check_resource_plci (struct ast_channel *c)
+{
+	struct capi_pvt *i = NULL; 
+	const char* id = pbx_builtin_getvar_helper(c, "RESOURCEPLCI");
+
+	if (id != 0) {
+		i = (struct capi_pvt*)strtoul(id, NULL, 0);
+	}
+
+	return (i);
+}
+
+int pbx_capi_chat_associate_resource_plci(struct ast_channel *c, char *param)
+{
+	struct capi_pvt *i = NULL; 
+	char *controller;
+	char *p;
+	ast_group_t tmpcntr;
+	unsigned long long contr = 0;
+
+	controller = param;
+
+	if (controller) {
+		for (p = controller; p && *p; p++) {
+			if (*p == '|') *p = ',';
+		}
+		tmpcntr = ast_get_group(controller);
+		contr = (unsigned long long)(tmpcntr >> 1);
+	}
+
+	if (c->tech != &capi_tech) {
+		i = capi_mkresourceif(c, contr);
+		if (i != 0) {
+			char buffer[24];
+			snprintf(buffer, sizeof(buffer)-1, "%p", i);
+			pbx_builtin_setvar_helper(c, "RESOURCEPLCI", buffer);
+		}
+	}
+
+	return ((i != 0) ? 0 : -1);
 }
 
 /*

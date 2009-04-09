@@ -245,6 +245,7 @@ struct capi_pvt *capi_mkresourceif(struct ast_channel *c, unsigned long long con
 	snprintf(data_ifc->vname, sizeof(data_ifc->vname) - 1, "%s", data_ifc->name);
 
 	data_ifc->channeltype = CAPI_CHANNELTYPE_NULL;
+	data_ifc->resource_plci_type = CAPI_RESOURCE_PLCI_DATA;
 
 	data_ifc->used = c;
 	data_ifc->peer = c;

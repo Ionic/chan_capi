@@ -263,6 +263,10 @@ struct cc_capi_gains {
 #define CAPI_CHANNELTYPE_D            1
 #define CAPI_CHANNELTYPE_NULL         2
 
+#define CAPI_RESOURCE_PLCI_NULL       0
+#define CAPI_RESOURCE_PLCI_DATA       1
+#define CAPI_RESOURCE_PLCI_LINE       2
+
 /* the lower word is reserved for capi commands */
 #define CAPI_WAITEVENT_B3_UP          0x00010000
 #define CAPI_WAITEVENT_B3_DOWN        0x00020000
@@ -483,6 +487,9 @@ struct capi_pvt {
 	/* Q.SIG features */
 	int qsigfeat;
 	struct cc_qsig_data qsig_data;
+
+	/* Resource PLCI data */
+	int resource_plci_type; /* NULL PLCI, DATA, LINE */
 	
 	/*! Next channel in list */
 	struct capi_pvt *next;
