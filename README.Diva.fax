@@ -176,6 +176,28 @@ Dialogic (R) Diva(R) hardware and ssoftIP provides access to following T.30 feat
   Ultra/Super fine resolution
   Non standard paper formats
 
+  The current COMMON-ISDN-API specification defines paper formats ISO A4, ISO B4 and ISO A3
+  at standard resolution (R8 x 3.85) and high resolution (R8 x 7.7).
+  Support for B4 and A3 is even optional.
+	Diva supports a COMMON-ISDN-API extension that enables FAX document transmission and
+  reception with paper formats ISO A4, ISO B4 and ISO A3 and these resolutions as specified in T.30:
+    R8   x 3.85
+    R8   x 7.7
+    R8   x 15.4
+    R16  x 15.4
+    200  x 200  dpi
+    300  x 300  dpi
+    400  x 400  dpi
+    300  x 600  dpi
+    400  x 800  dpi
+    600  x 1200 dpi
+    600  x 600  dpi
+    1200 x 1200 dpi
+
+  The page format and resolution information is passed via appropriate fields in the SFF page header.
+  Dialogic(R) Diva(R) SFF2TIFF utility provides conversion from SFF to TIFF format for all basic and
+  extended resolutions and paper formats.
+
 +-------------------------------------------------------------------+
 |       Use of fax with chan_capi                                   |
 +-------------------------------------------------------------------+
@@ -198,6 +220,7 @@ The reception of the fax message is started using 'receivefax' capi command:
                   'k' - keep fax document in case of errors (by default document is removed
                         if fax transmission was not completed with success).
                   'f' - allow Fine resolution
+                  'u' - activate support for Super/Ultra fine resolutions and paper formats
                   'j' - enable JPEG coding
                   'b' - enable T.43 coding
                   't' - do not use T.85
@@ -247,11 +270,11 @@ The transmission of fax message is started using 'sendfax' capi command:
     'headline'  - head line, optional
     'options'   - fax options, optional
                   'f' - use Fine resolution
+                  'u' - activate support for Super/Ultra fine resolutions and paper formats
                   't' - do not use T.85
                   'e' - do not use ECM
                   'm' - do not use MMR (T.6) coding
                   'd' - do not use MR (2D) coding
-
 
 You need to start call using 'Dial' command in voice mode and change to transmission (reception)
 of the fax by 'sendfax'. Optionally you can wait until user entered password using DTMF digits.
