@@ -286,8 +286,9 @@ struct capi_pvt *capi_mkresourceif(struct ast_channel *c, unsigned long long con
 	data_ifc->state = CAPI_STATE_CONNECTPENDING;
 	data_ifc->MessageNumber = get_capi_MessageNumber();
 
-	capi_sendf(NULL,
-		0,
+	cc_mutex_lock(&data_ifc->lock);
+	capi_sendf(data_ifc,
+		1,
 		CAPI_MANUFACTURER_REQ,
 		controller,
 		data_ifc->MessageNumber,
@@ -298,6 +299,7 @@ struct capi_pvt *capi_mkresourceif(struct ast_channel *c, unsigned long long con
 		0, /* bchannel */
 		1, /* connect */
 		1, 1, 0);
+	cc_mutex_unlock(&data_ifc->lock);
 
 	cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: created resource-interface on controller %d.\n",
 		data_ifc->vname, data_ifc->controller);
