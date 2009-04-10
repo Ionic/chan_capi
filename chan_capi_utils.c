@@ -213,7 +213,7 @@ struct capi_pvt *capi_mknullif(struct ast_channel *c, unsigned long long control
 
 struct capi_pvt *capi_mkresourceif(struct ast_channel *c, unsigned long long controllermask)
 {
-  struct capi_pvt *data_ifc /*, *line_ifc */;
+	struct capi_pvt *data_ifc /*, *line_ifc */;
 	unsigned int controller = 1;
 	int contrcount;
 	int channelcount = 0xffff;
@@ -287,22 +287,22 @@ struct capi_pvt *capi_mkresourceif(struct ast_channel *c, unsigned long long con
 	data_ifc->MessageNumber = get_capi_MessageNumber();
 
 	capi_sendf(NULL,
-							0,
-							CAPI_MANUFACTURER_REQ,
-							controller,
-							data_ifc->MessageNumber,
-							"dw(wbb(www()()()()))",
-							_DI_MANU_ID,
-							_DI_ASSIGN_PLCI,
-							4, /* data */
-							0, /* bchannel */
-							1, /* connect */
-							1,1,0);
+		0,
+		CAPI_MANUFACTURER_REQ,
+		controller,
+		data_ifc->MessageNumber,
+		"dw(wbb(www()()()()))",
+		_DI_MANU_ID,
+		_DI_ASSIGN_PLCI,
+		4, /* data */
+		0, /* bchannel */
+		1, /* connect */
+		1, 1, 0);
 
 	cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: created resource-interface on controller %d.\n",
 		data_ifc->vname, data_ifc->controller);
 
-  return (data_ifc);
+	return data_ifc;
 }
 
 /*
@@ -324,7 +324,7 @@ _cword get_capi_MessageNumber(void)
 
 	cc_mutex_unlock(&messagenumber_lock);
 
-	return(mn);
+	return mn;
 }
 
 /*
@@ -627,7 +627,7 @@ MESSAGE_EXCHANGE_ERROR capi_sendf(
 		ret = capi_wait_conf(capii, (command & 0xff00) | CAPI_CONF);
 	}
 
-	return (ret);
+	return ret;
 }
 
 /*
@@ -986,7 +986,6 @@ void show_capi_info(struct capi_pvt *i, _cword info)
 	
 	cc_verbose(3, 0, VERBOSE_PREFIX_4 "%s: CAPI INFO 0x%04x: %s\n",
 		name, info, p);
-	return;
 }
 
 /*
@@ -1031,33 +1030,33 @@ unsigned capi_ListenOnController(unsigned int CIPmask, unsigned controller)
  */
 unsigned capi_ManufacturerAllowOnController(unsigned controller)
 {
-  MESSAGE_EXCHANGE_ERROR error;
-  int waitcount = 50;
-  _cmsg CMSG;
+	MESSAGE_EXCHANGE_ERROR error;
+	int waitcount = 50;
+	_cmsg CMSG;
 
-  error = capi_sendf (NULL, 0, CAPI_MANUFACTURER_REQ, controller, get_capi_MessageNumber(),
-                      "dw(d)", _DI_MANU_ID, _DI_OPTIONS_REQUEST, 0x00000020L);
+	error = capi_sendf (NULL, 0, CAPI_MANUFACTURER_REQ, controller, get_capi_MessageNumber(),
+		"dw(d)", _DI_MANU_ID, _DI_OPTIONS_REQUEST, 0x00000020L);
 
-  if (error)
-    goto done;
+	if (error)
+		goto done;
 
-  while (waitcount) {
-    error = capidev_check_wait_get_cmsg(&CMSG);
+	while (waitcount) {
+		error = capidev_check_wait_get_cmsg(&CMSG);
 
-    if (IS_MANUFACTURER_CONF(&CMSG) && CMSG.ManuID == _DI_MANU_ID && (CMSG.Class & 0xffff) == _DI_OPTIONS_REQUEST) {
-      error = (MESSAGE_EXCHANGE_ERROR)(CMSG.Class >> 16);
-      break;
-    }
-    usleep(30000);
-    waitcount--;
-  }
-  if (!waitcount)
-    error = 0x100F;
+		if (IS_MANUFACTURER_CONF(&CMSG) && (CMSG.ManuID == _DI_MANU_ID) &&
+			((CMSG.Class & 0xffff) == _DI_OPTIONS_REQUEST)) {
+			error = (MESSAGE_EXCHANGE_ERROR)(CMSG.Class >> 16);
+			break;
+		}
+		usleep(30000);
+		waitcount--;
+	}
+	if (!waitcount)
+		error = 0x100F;
 
- done:
-  return error;
+done:
+	return error;
 }
-
 
 /*
  * convert a number

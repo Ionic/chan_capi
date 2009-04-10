@@ -71,18 +71,19 @@ static void pbx_capi_voicecommand_insert_command (diva_entity_queue_t* q, pbx_ca
  * voicecommand|key|param1|param2|...
  *
  */
-int pbx_capi_voicecommand (struct ast_channel *c, char *param) {
+int pbx_capi_voicecommand(struct ast_channel *c, char *param)
+{
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	pbx_capi_voice_command_t* cmd;
 	const char* command[2];
 	const char* key[2];
 	size_t length;
 
-	if (param == 0 || *param == 0) { /* Remove all voice commands */
+	if ((param == NULL) || (*param == 0)) { /* Remove all voice commands */
 		cc_mutex_lock(&i->lock);
-		pbx_capi_voicecommand_cleanup (i);
+		pbx_capi_voicecommand_cleanup(i);
 		cc_mutex_unlock(&i->lock);
-		return (0);
+		return 0;
 	}
 
 	command[0] = param;
@@ -103,7 +104,7 @@ int pbx_capi_voicecommand (struct ast_channel *c, char *param) {
 		if ((command[1] - command[0]) < 2 || (command[1] - command[0]) >= sizeof(cmd->command_name) ||
 				strchr(pbx_capi_voicecommand_digits, command[1][1]) == 0) {
 			cc_log(LOG_WARNING, CC_MESSAGE_NAME" voicecommand requires an argument im format 'voicecommand[|key[|param1|param2|...]]'\n");
-			return (-1);
+			return -1;
 		}
 		key[0] = &command[1][1];
 		key[1] = strchr (key[0], '|');
@@ -113,8 +114,8 @@ int pbx_capi_voicecommand (struct ast_channel *c, char *param) {
 				key[1][1] == 0 || (length = strlen (&key[1][1])) >= sizeof(cmd->command_parameters)))) {
 
 			cc_log(LOG_WARNING, CC_MESSAGE_NAME
-							" voicecommand requires an argument im format 'voicecommand[|key[|param1|param2|...]]'\n");
-			return (-1);
+				" voicecommand requires an argument im format 'voicecommand[|key[|param1|param2|...]]'\n");
+			return -1;
 		}
 		if (key[1] == 0) {
 			key[1] = key[0] + strlen(key[0]);
@@ -127,16 +128,16 @@ int pbx_capi_voicecommand (struct ast_channel *c, char *param) {
 			for (p = key[0]; p < key[1]; p++) {
 				if (strchr(pbx_capi_voicecommand_digits, *p) == 0) {
 					cc_log(LOG_WARNING, CC_MESSAGE_NAME
-									" voicecommand key can use only '%s'\n", pbx_capi_voicecommand_digits);
-					return (-1);
+						" voicecommand key can use only '%s'\n", pbx_capi_voicecommand_digits);
+					return -1;
 				}
 			}
 		}
 
-		cmd = malloc (sizeof(*cmd));
-		if (cmd == 0) {
+		cmd = malloc(sizeof(*cmd));
+		if (cmd == NULL) {
 			cc_log(LOG_WARNING, CC_MESSAGE_NAME " can not allocate memory for voice command\n");
-			return (-1);
+			return -1;
 		}
 
 		memcpy (cmd->command_parameters, &key[1][1], length);
@@ -158,8 +159,8 @@ int pbx_capi_voicecommand (struct ast_channel *c, char *param) {
 
 
 		cc_verbose(2, 0, VERBOSE_PREFIX_4 "%s: %svoicecommand:%s|%s|%s\n",
-								i->vname, (cmd->pbx_capi_command == pbx_capi_command_nop) ? "dummy " : "",
-								cmd->command_name, cmd->channel_command_digits, cmd->command_parameters);
+			i->vname, (cmd->pbx_capi_command == pbx_capi_command_nop) ? "dummy " : "",
+			cmd->command_name, cmd->channel_command_digits, cmd->command_parameters);
 
 		{
 			pbx_capi_voice_command_t* present_cmd;
@@ -177,15 +178,16 @@ int pbx_capi_voicecommand (struct ast_channel *c, char *param) {
 		}
 	}
 
-	return (0);
+	return 0;
 }
 
-int pbx_capi_voicecommand_transparency (struct ast_channel *c, char *param) {
+int pbx_capi_voicecommand_transparency(struct ast_channel *c, char *param)
+{
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 
-	if (param == 0 || *param == 0) {
+	if ((param == NULL) || (*param == 0)) {
 		cc_log(LOG_WARNING, "Parameter for voicecommand transparency missing.\n");
-		return (-1);
+		return -1;
 	}
 
 	if (ast_true(param)) {
@@ -194,51 +196,54 @@ int pbx_capi_voicecommand_transparency (struct ast_channel *c, char *param) {
 		i->command_pass_digits = 0;
 	} else {
 		cc_log(LOG_WARNING, "Wrong parameter for voicecommand transparency.\n");
-		return (-1);
+		return -1;
 	}
 
-	return (0);
+	return 0;
 }
 
-int pbx_capi_voicecommand_cleanup (struct capi_pvt *i) {
+int pbx_capi_voicecommand_cleanup(struct capi_pvt *i)
+{
 	diva_entity_link_t* link;
 
-	while ((link = diva_q_get_head (&i->channel_command_q)) != 0) {
-		diva_q_remove (&i->channel_command_q, link);
-		free (link);
+	while ((link = diva_q_get_head(&i->channel_command_q)) != NULL) {
+		diva_q_remove(&i->channel_command_q, link);
+		free(link);
 	}
 
 	i->channel_command_digit      = 0;
 	i->channel_command_timestamp  = 0;
 	i->command_pass_digits        = 0;
 
-	return (0);
+	return 0;
 }
 
-static pbx_capi_voice_command_t* pbx_capi_find_command (struct ast_channel *c, const char* name) {
+static pbx_capi_voice_command_t* pbx_capi_find_command(struct ast_channel *c, const char* name)
+{
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	diva_entity_link_t* link;
 
-	for (link = diva_q_get_head (&i->channel_command_q); link != 0; link = diva_q_get_next (link)) {
-		if (strcmp (((pbx_capi_voice_command_t*)link)->command_name, name) == 0) {
+	for (link = diva_q_get_head (&i->channel_command_q); link != 0; link = diva_q_get_next(link)) {
+		if (strcmp(((pbx_capi_voice_command_t*)link)->command_name, name) == 0) {
 			return ((pbx_capi_voice_command_t*)link);
 		}
 	}
 
-	return (0);
+	return 0;
 }
 
-static pbx_capi_voice_command_t* pbx_capi_find_command_by_key (struct ast_channel *c, const char* key) {
+static pbx_capi_voice_command_t* pbx_capi_find_command_by_key(struct ast_channel *c, const char* key)
+{
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	diva_entity_link_t* link;
 
-	for (link = diva_q_get_head (&i->channel_command_q); link != 0; link = diva_q_get_next (link)) {
+	for (link = diva_q_get_head (&i->channel_command_q); link != 0; link = diva_q_get_next(link)) {
 		if (strcmp (((pbx_capi_voice_command_t*)link)->channel_command_digits, key) == 0) {
 			return ((pbx_capi_voice_command_t*)link);
 		}
 	}
 
-	return (0);
+	return 0;
 }
 
 /*
@@ -247,7 +252,8 @@ static pbx_capi_voice_command_t* pbx_capi_find_command_by_key (struct ast_channe
  * returs zero if digit should be processed as usually
  * returns -1 if digit should be discarded
  */
-int pbx_capi_voicecommand_process_digit (struct capi_pvt *i, char digit) {
+int pbx_capi_voicecommand_process_digit(struct capi_pvt *i, char digit)
+{
 	struct ast_channel *c = i->owner;
 	pbx_capi_voice_command_t* cmd;
 	int info;
@@ -256,15 +262,15 @@ int pbx_capi_voicecommand_process_digit (struct capi_pvt *i, char digit) {
 	/*
     Simple algorithm due to low amount of entries, moreover all sequences will be short, only 1 ... 2 digits
     */
-	if (c == 0 || diva_q_get_head (&i->channel_command_q) == 0      ||
-			strchr (pbx_capi_voicecommand_digits, digit) == 0) {
+	if ((c == NULL) || (diva_q_get_head(&i->channel_command_q) == 0) ||
+			(strchr(pbx_capi_voicecommand_digits, digit) == 0)) {
 		i->channel_command_digit = 0;
-		return (0);
+		return 0;
 	}
 
 	t = time(0);
-	if ((i->channel_command_digit != 0 && difftime (t, i->channel_command_timestamp) > 2) ||
-			i->channel_command_digit >= (sizeof(i->channel_command_digits) - 1)) {
+	if (((i->channel_command_digit != 0) && (difftime(t, i->channel_command_timestamp) > 2)) ||
+			(i->channel_command_digit >= (sizeof(i->channel_command_digits) - 1))) {
 		i->channel_command_digit = 0;
 	}
 
@@ -272,59 +278,65 @@ int pbx_capi_voicecommand_process_digit (struct capi_pvt *i, char digit) {
 
 	i->channel_command_digits[i->channel_command_digit++] = digit;
 	i->channel_command_digits[i->channel_command_digit]   = 0;
-	cmd = pbx_capi_voicecommand_find_digit_command (&i->channel_command_q,
-																									i->channel_command_digits,
-																									i->channel_command_digit,
-																									&info);
+	cmd = pbx_capi_voicecommand_find_digit_command(
+		&i->channel_command_q,
+		i->channel_command_digits,
+		i->channel_command_digit,
+		&info);
+
 	if (cmd != 0) {
 		char command_parameters_copy[sizeof( cmd->command_parameters)];
 
 		i->channel_command_digit = 0;
 
 		cc_verbose(2, 0, VERBOSE_PREFIX_4 "%s: call voicecommand:%s|%s|%s\n",
-								i->vname, cmd->command_name, cmd->channel_command_digits, cmd->command_parameters);
+			i->vname, cmd->command_name, cmd->channel_command_digits, cmd->command_parameters);
 
 		strcpy (command_parameters_copy, cmd->command_parameters);
 		info = ((*(cmd->pbx_capi_command))(c, command_parameters_copy));
 
 		cc_verbose(2, 0, VERBOSE_PREFIX_4 "%s: voicecommand:%s|%s|%s %s\n",
-								i->vname, cmd->command_name, cmd->channel_command_digits, cmd->command_parameters, info == 0 ? "OK" : "ERROR");
+			i->vname, cmd->command_name, cmd->channel_command_digits, cmd->command_parameters, info == 0 ? "OK" : "ERROR");
 
 	} else if (info == 0) {
 		i->channel_command_digit = 0;
-		return (0);
+		return 0;
 	}
 
 	return ((i->command_pass_digits != 0) ? 0 : -1);
 }
 
-static pbx_capi_voice_command_t* pbx_capi_voicecommand_find_digit_command (diva_entity_queue_t* q,
-																																					 const char* digits,
-																																					 int length,
-																																					 int* info) {
+static pbx_capi_voice_command_t* pbx_capi_voicecommand_find_digit_command(
+	diva_entity_queue_t* q,
+	const char* digits,
+	int length,
+	int* info)
+{
 	diva_entity_link_t* link;
 
-	for (*info = 0, link = diva_q_get_head (q);
+	for (*info = 0, link = diva_q_get_head(q);
 			 link != 0 && length <= ((pbx_capi_voice_command_t*)link)->length;
 			 link = diva_q_get_next (link)) {
 		pbx_capi_voice_command_t* cmd = (pbx_capi_voice_command_t*)link;
 
-		if (memcmp (digits, cmd->channel_command_digits, length) == 0) {
+		if (memcmp(digits, cmd->channel_command_digits, length) == 0) {
 			*info = 1;
 			if (length == cmd->length) {
-				return (cmd);
+				return cmd;
 			}
 		}
   }
 
-  return (0);
+  return 0;
 }
 
-static int pbx_capi_command_nop (struct ast_channel *c, char *param) {
-	return (0);
+static int pbx_capi_command_nop(struct ast_channel *c, char *param)
+{
+	return 0;
 }
 
-static void pbx_capi_voicecommand_insert_command (diva_entity_queue_t* q, pbx_capi_voice_command_t* cmd) {
+static void pbx_capi_voicecommand_insert_command(diva_entity_queue_t* q, pbx_capi_voice_command_t* cmd)
+{
 	diva_entity_link_t* link;
 
 	for (link = diva_q_get_head (q); link != 0; link = diva_q_get_next (link)) {
@@ -334,7 +346,7 @@ static void pbx_capi_voicecommand_insert_command (diva_entity_queue_t* q, pbx_ca
 		}
 	}
 
-	diva_q_add_tail (q, &cmd->link);
+	diva_q_add_tail(q, &cmd->link);
 }
 
 

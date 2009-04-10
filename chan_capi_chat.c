@@ -47,14 +47,15 @@ AST_MUTEX_DEFINE_STATIC(chat_lock);
 /*
  * partial update the capi mixer for the given char room
  */
-static struct capichat_s* update_capi_mixer_part(struct capichat_s *chat_start,
-																								int overall_found,
-																								deffered_chat_capi_message_t* capi_msg,
-																								int remove,
-																								unsigned int roomnumber,
-																								struct capi_pvt *i)
+static struct capichat_s* update_capi_mixer_part(
+	struct capichat_s *chat_start,
+	int overall_found,
+	deffered_chat_capi_message_t* capi_msg,
+	int remove,
+	unsigned int roomnumber,
+	struct capi_pvt *i)
 {
-	struct capi_pvt *ii, *ii_last = 0;
+	struct capi_pvt *ii, *ii_last = NULL;
 	struct capichat_s *room;
 	unsigned char* p_list = &capi_msg->p_list[0];
 	_cdword dest;
@@ -62,15 +63,15 @@ static struct capichat_s* update_capi_mixer_part(struct capichat_s *chat_start,
 	capi_prestruct_t* p_struct = &capi_msg->p_struct;
 	unsigned int found = 0;
 	_cword j = 0;
-	struct capichat_s *new_chat_start = 0;
+	struct capichat_s *new_chat_start = NULL;
 
 	room = chat_start;
 	while (room) {
 		if ((room->number == roomnumber) &&
 		    (room->i != i)) {
-			if (found >= PLCI_PER_LX_REQUEST || j + 9 > sizeof(capi_msg->p_list)) {
+			if ((found >= PLCI_PER_LX_REQUEST) || ((j + 9) > sizeof(capi_msg->p_list))) {
 				/* maybe we need to split capi messages here */
-        new_chat_start = room;
+				new_chat_start = room;
 				break;
 			}
 			found++;
@@ -145,7 +146,7 @@ static void update_capi_mixer(int remove, unsigned int roomnumber, struct capi_p
 	cc_mutex_lock(&chat_lock);
 	/*
 		Get overall amount of parties
-		*/
+	*/
 	for (room = chat_list, overall_found = 0; room != 0; room = room->next) {
 		overall_found += ((room->number == roomnumber) && (room->i != i));
 	}
@@ -178,14 +179,14 @@ static void update_capi_mixer(int remove, unsigned int roomnumber, struct capi_p
 		for (nr = 0; nr < segment_nr; nr++) {
 			if (segments[nr].busy != 0) {
 				cc_verbose(3, 1, VERBOSE_PREFIX_3 CC_MESSAGE_NAME
-									" mixer: %s PLCI=0x%04x LI=0x%x\n", i->vname, i->PLCI, segments[nr].datapath);
+					" mixer: %s PLCI=0x%04x LI=0x%x\n", i->vname, i->PLCI, segments[nr].datapath);
 
 				capi_sendf(NULL, 0, CAPI_FACILITY_REQ, i->PLCI, get_capi_MessageNumber(),
-									"w(w(dc))",
-									FACILITYSELECTOR_LINE_INTERCONNECT,
-									0x0001, /* CONNECT */
-									segments[nr].datapath,
-									&segments[nr].p_struct);
+					"w(w(dc))",
+					FACILITYSELECTOR_LINE_INTERCONNECT,
+					0x0001, /* CONNECT */
+					segments[nr].datapath,
+					&segments[nr].p_struct);
 			}
 		}
 
@@ -424,11 +425,12 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 		i = CC_CHANNEL_PVT(c); 
 	} else {
 		/* virtual CAPI channel */
-		i = pbx_check_resource_plci (c);
+		i = pbx_check_resource_plci(c);
 
-		if (i == 0)
+		if (i == NULL) {
 			i = capi_mknullif(c, contr);
-		if (!i) {
+		}
+		if (i == NULL) {
 			return -1;
 		}
 	}
@@ -459,7 +461,7 @@ out:
 	return 0;
 }
 
-struct capi_pvt* pbx_check_resource_plci (struct ast_channel *c)
+struct capi_pvt* pbx_check_resource_plci(struct ast_channel *c)
 {
 	struct capi_pvt *i = NULL; 
 	const char* id = pbx_builtin_getvar_helper(c, "RESOURCEPLCI");
@@ -491,14 +493,14 @@ int pbx_capi_chat_associate_resource_plci(struct ast_channel *c, char *param)
 
 	if (c->tech != &capi_tech) {
 		i = capi_mkresourceif(c, contr);
-		if (i != 0) {
+		if (i != NULL) {
 			char buffer[24];
 			snprintf(buffer, sizeof(buffer)-1, "%p", i);
 			pbx_builtin_setvar_helper(c, "RESOURCEPLCI", buffer);
 		}
 	}
 
-	return ((i != 0) ? 0 : -1);
+	return ((i != NULL) ? 0 : -1);
 }
 
 /*

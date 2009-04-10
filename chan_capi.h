@@ -659,6 +659,7 @@ extern char chatinfo_usage[];
 typedef int (*pbx_capi_command_proc_t)(struct ast_channel *, char *);
 pbx_capi_command_proc_t pbx_capi_lockup_command_by_name(const char* name);
 
+/* DIVA specific MANUFACTURER definitions */
 #define _DI_MANU_ID         0x44444944
 #define _DI_ASSIGN_PLCI     0x0001
 #define _DI_DSP_CTRL        0x0003

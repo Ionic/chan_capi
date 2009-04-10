@@ -20,21 +20,24 @@ extern char *emptyid;
 
 extern void cc_verbose_internal(char *text, ...);
 
-static inline int cc_verbose_check(int o_v, int c_d) {
-	if (unlikely(((o_v == 0) || (option_verbose > o_v)) && ((!c_d) || ((c_d) && (capidebug)))))
-		return (1);
+static inline int cc_verbose_check(int o_v, int c_d)
+{
+	if (unlikely(((o_v == 0) || (option_verbose > o_v)) &&
+		((!c_d) || ((c_d) && (capidebug))))) {
+		return 1;
+	}
 
-	return (0);
+	return 0;
 }
 
 /*
  * helper for <pbx>_verbose with different verbose settings
  */
 #define cc_verbose(o_v,c_d,text, args...) do { \
-  if (cc_verbose_check(o_v, c_d) != 0) { \
-			cc_verbose_internal(text , ## args); \
+	if (cc_verbose_check(o_v, c_d) != 0) { \
+		cc_verbose_internal(text , ## args); \
 	} \
-}while(0)
+} while(0)
 
 extern _cword get_capi_MessageNumber(void);
 extern struct capi_pvt *capi_find_interface_by_msgnum(unsigned short msgnum);
@@ -71,6 +74,6 @@ typedef struct capi_prestruct_s {
  */
 extern MESSAGE_EXCHANGE_ERROR capi_sendf(
 	struct capi_pvt *capii, int waitconf,
-    _cword command, _cdword Id, _cword Number, char * format, ...);
+	_cword command, _cdword Id, _cword Number, char * format, ...);
 
 #endif
