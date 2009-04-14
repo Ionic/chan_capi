@@ -86,10 +86,17 @@ void capi_remove_nullif(struct capi_pvt *i)
 		return;
 	}
 
+	cc_mutex_lock(&i->lock);
+	if (i->line_plci != 0) {
+		ii = i->line_plci;
+		i->line_plci = 0;
+		capi_remove_nullif(ii);
+	}
+	cc_mutex_unlock(&i->lock);
+
 	if (i->PLCI != 0) {
 		/* if the interface is in use, hangup first */
 		cc_mutex_lock(&i->lock);
-
 		state = i->state;
 		i->state = CAPI_STATE_DISCONNECTING;
 		capi_activehangup(i, state);
@@ -211,25 +218,30 @@ struct capi_pvt *capi_mknullif(struct ast_channel *c, unsigned long long control
 	return tmp;
 }
 
-struct capi_pvt *capi_mkresourceif(struct ast_channel *c, unsigned long long controllermask)
-{
+struct capi_pvt *capi_mkresourceif(struct ast_channel *c, unsigned long long controllermask, struct capi_pvt *data_plci_ifc) {
 	struct capi_pvt *data_ifc /*, *line_ifc */;
 	unsigned int controller = 1;
-	int contrcount;
-	int channelcount = 0xffff;
-	int maxcontr = (CAPI_MAX_CONTROLLERS > (sizeof(controllermask)*8)) ?
-		(sizeof(controllermask)*8) : CAPI_MAX_CONTROLLERS;
 
-	cc_verbose(3, 1, VERBOSE_PREFIX_4 "capi_mkresourceif: find controller for mask 0x%lx\n",
-		controllermask);
-	/* find the next controller of mask with least plcis used */	
-	for (contrcount = 0; contrcount < maxcontr; contrcount++) {
-		if ((controllermask & (1ULL << contrcount)) != 0) {
-			if (controller_nullplcis[contrcount] < channelcount) {
-				channelcount = controller_nullplcis[contrcount];
-				controller = contrcount + 1;
+	if (data_plci_ifc == 0) {
+		int contrcount;
+		int channelcount = 0xffff;
+		int maxcontr = (CAPI_MAX_CONTROLLERS > (sizeof(controllermask)*8)) ?
+			(sizeof(controllermask)*8) : CAPI_MAX_CONTROLLERS;
+
+		cc_verbose(3, 1, VERBOSE_PREFIX_4 "capi_mkresourceif: find controller for mask 0x%lx\n",
+			controllermask);
+
+		/* find the next controller of mask with least plcis used */	
+		for (contrcount = 0; contrcount < maxcontr; contrcount++) {
+			if ((controllermask & (1ULL << contrcount)) != 0) {
+				if (controller_nullplcis[contrcount] < channelcount) {
+					channelcount = controller_nullplcis[contrcount];
+					controller = contrcount + 1;
+				}
 			}
 		}
+	} else {
+		controller = data_plci_ifc->controller;
 	}
 
 	data_ifc = malloc(sizeof(struct capi_pvt));
@@ -241,11 +253,11 @@ struct capi_pvt *capi_mkresourceif(struct ast_channel *c, unsigned long long con
 	cc_mutex_init(&data_ifc->lock);
 	ast_cond_init(&data_ifc->event_trigger, NULL);
 	
-	snprintf(data_ifc->name, sizeof(data_ifc->name) - 1, "%s-NULLPLCI", c->name);
+	snprintf(data_ifc->name, sizeof(data_ifc->name) - 1, "%s-%sPLCI", c->name, (data_plci_ifc == 0) ? "DATA" : "LINE");
 	snprintf(data_ifc->vname, sizeof(data_ifc->vname) - 1, "%s", data_ifc->name);
 
 	data_ifc->channeltype = CAPI_CHANNELTYPE_NULL;
-	data_ifc->resource_plci_type = CAPI_RESOURCE_PLCI_DATA;
+	data_ifc->resource_plci_type = (data_plci_ifc == 0) ? CAPI_RESOURCE_PLCI_DATA : CAPI_RESOURCE_PLCI_LINE;
 
 	data_ifc->used = c;
 	data_ifc->peer = c;
@@ -265,9 +277,14 @@ struct capi_pvt *capi_mkresourceif(struct ast_channel *c, unsigned long long con
 	data_ifc->txgain = 1.0;
 	capi_gains(&data_ifc->g, 1.0, 1.0);
 
-	if (!(capi_create_reader_writer_pipe(data_ifc))) {
-		free(data_ifc);
-		return NULL;
+	if (data_plci_ifc == 0) {
+		if (!(capi_create_reader_writer_pipe(data_ifc))) {
+			free(data_ifc);
+			return NULL;
+		}
+	} else {
+		data_ifc->readerfd = -1;
+		data_ifc->writerfd = -1;
 	}
 
 	data_ifc->bproto = CC_BPROTO_TRANSPARENT;	
@@ -295,14 +312,39 @@ struct capi_pvt *capi_mkresourceif(struct ast_channel *c, unsigned long long con
 		"dw(wbb(www()()()()))",
 		_DI_MANU_ID,
 		_DI_ASSIGN_PLCI,
-		4, /* data */
-		0, /* bchannel */
+		(data_plci_ifc == 0) ? 4 : 5, /* data */
+		(data_plci_ifc == 0) ? 0 : (unsigned char)(data_plci_ifc->PLCI >> 8), /* bchannel */
 		1, /* connect */
 		1, 1, 0);
 	cc_mutex_unlock(&data_ifc->lock);
 
-	cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: created resource-interface on controller %d.\n",
-		data_ifc->vname, data_ifc->controller);
+	if (data_plci_ifc != 0) {
+		if (data_ifc->PLCI == 0) {
+			cc_log(LOG_WARNING, "%s: failed to create\n", data_ifc->vname);
+			capi_remove_nullif(data_ifc);
+			data_ifc = 0;
+		} else {
+			cc_mutex_lock(&data_plci_ifc->lock);
+			data_plci_ifc->line_plci = data_ifc;
+			capi_sendf(data_plci_ifc, 1, CAPI_FACILITY_REQ, data_plci_ifc->PLCI, get_capi_MessageNumber(),
+				"w(w(d()))",
+				FACILITYSELECTOR_LINE_INTERCONNECT,
+				0x0001, /* CONNECT */
+				0x00000000 /* mask */
+			);
+			cc_mutex_unlock(&data_plci_ifc->lock);
+
+			data_ifc->data_plci      = data_plci_ifc;
+
+			data_ifc->writerfd = data_plci_ifc->writerfd;
+			data_plci_ifc->writerfd = -1;
+		}
+	}
+
+	if (data_ifc != 0) {
+		cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: created %s-resource-interface on controller %d.\n",
+			data_ifc->vname, (data_plci_ifc == 0) ? "data" : "line", data_ifc->controller);
+	}
 
 	return data_ifc;
 }
@@ -1278,6 +1320,17 @@ int capi_write_frame(struct capi_pvt *i, struct ast_frame *f)
 	if (unlikely(!i)) {
 		cc_log(LOG_ERROR, "channel has no interface\n");
 		return -1;
+	}
+
+	{
+		struct capi_pvt *ii = i;
+
+		cc_mutex_lock(&ii->lock);
+
+		if (i->line_plci != 0)
+			i = i->line_plci;
+
+		cc_mutex_unlock(&ii->lock);
 	}
 	 
 	if (unlikely((!(i->isdnstate & CAPI_ISDN_STATE_B3_UP)) || (!i->NCCI) ||

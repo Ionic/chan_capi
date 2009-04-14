@@ -490,6 +490,11 @@ struct capi_pvt {
 
 	/* Resource PLCI data */
 	int resource_plci_type; /* NULL PLCI, DATA, LINE */
+
+	/* Resource PLCI line if data */
+	struct capi_pvt *line_plci;
+	/* Resource PLCI data data if line */
+	struct capi_pvt *data_plci;
 	
 	/*! Next channel in list */
 	struct capi_pvt *next;

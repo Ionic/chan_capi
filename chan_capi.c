@@ -3811,13 +3811,16 @@ static void capidev_handle_connect_active_indication(_cmsg *CMSG, unsigned int P
 		if (i->outgoing == 1) {
 			/* outgoing call */
 			if (i->channeltype == CAPI_CHANNELTYPE_NULL) {
-				/* NULL-PLCI needs a virtual connection */
-				capi_sendf(NULL, 0, CAPI_FACILITY_REQ, PLCI, get_capi_MessageNumber(),
-					"w(w(d()))",
-					FACILITYSELECTOR_LINE_INTERCONNECT,
-					0x0001, /* CONNECT */
-					0x00000030 /* mask */
-				);
+				if (i->resource_plci_type != CAPI_RESOURCE_PLCI_LINE) {
+					/* NULL-PLCI needs a virtual connection */
+					capi_sendf(NULL, 0, CAPI_FACILITY_REQ, PLCI, get_capi_MessageNumber(),
+						"w(w(d()))",
+						FACILITYSELECTOR_LINE_INTERCONNECT,
+						0x0001, /* CONNECT */
+						(i->line_plci == 0) ? 0x00000030 : 0x00000000 /* mask */
+					);
+
+				}
 			}
 			cc_start_b3(i);
 		} else {

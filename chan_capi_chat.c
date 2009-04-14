@@ -83,7 +83,7 @@ static struct capichat_s* update_capi_mixer_part(
 			p_list[j++] = (_cbyte)(ii->PLCI >> 16);
 			p_list[j++] = (_cbyte)(ii->PLCI >> 24);
 			dest = (remove) ? 0x00000000 : 0x00000003;
-			if (ii->channeltype == CAPI_CHANNELTYPE_NULL) {
+			if (ii->channeltype == CAPI_CHANNELTYPE_NULL && ii->line_plci == 0) {
 				dest |= 0x00000030;
 			}
 			p_list[j++] = (_cbyte)(dest);
@@ -104,21 +104,26 @@ static struct capichat_s* update_capi_mixer_part(
 		datapath = 0x00000000;
 		if (remove) {
 			/* now we need DATA_B3 again */
-			if (i->channeltype != CAPI_CHANNELTYPE_NULL) {
-				datapath = 0x0000000c;
-			} else {
-				datapath = 0x00000030;
+			if (i->line_plci == 0) {
+				if (i->channeltype != CAPI_CHANNELTYPE_NULL) {
+					datapath = 0x0000000c;
+				} else {
+					datapath = 0x00000030;
+				}
 			}
+
 			if (overall_found == 1) {
 				/* only one left, enable DATA_B3 too */
-        if (ii_last->channeltype != CAPI_CHANNELTYPE_NULL) {
-					p_list[5] |= 0x0c;
-				} else {
-					p_list[5] |= 0x30;
+				if (ii_last->line_plci == 0) {
+	        if (ii_last->channeltype != CAPI_CHANNELTYPE_NULL) {
+						p_list[5] |= 0x0c;
+					} else {
+						p_list[5] |= 0x30;
+					}
 				}
 			}
 		}
-		if (i->channeltype == CAPI_CHANNELTYPE_NULL) {
+		if (i->channeltype == CAPI_CHANNELTYPE_NULL && i->line_plci == 0) {
 			if (!remove) {
 				datapath |= 0x00000030;
 			}
@@ -492,15 +497,16 @@ int pbx_capi_chat_associate_resource_plci(struct ast_channel *c, char *param)
 	}
 
 	if (c->tech != &capi_tech) {
-		i = capi_mkresourceif(c, contr);
+		i = capi_mkresourceif(c, contr, 0);
 		if (i != NULL) {
 			char buffer[24];
 			snprintf(buffer, sizeof(buffer)-1, "%p", i);
 			pbx_builtin_setvar_helper(c, "RESOURCEPLCI", buffer);
+			capi_mkresourceif(c, contr, i);
 		}
 	}
 
-	return ((i != NULL) ? 0 : -1);
+	return (0); /* Always return success in case c->tech == &capi_tech or to fallback to NULL PLCI */
 }
 
 /*
