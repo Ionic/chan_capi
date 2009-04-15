@@ -791,7 +791,7 @@ static int local_queue_frame(struct capi_pvt *i, struct ast_frame *f)
 	}
 
 	if (i->writerfd == -1) {
-		if (i->resource_plci_type == 0 || (i->line_plci == 0 && i->data_plci == 0)) {
+		if (i->resource_plci_type == 0) {
 			cc_log(LOG_ERROR, "No writerfd in local_queue_frame for %s\n",
 				i->vname);
 			return -1;
