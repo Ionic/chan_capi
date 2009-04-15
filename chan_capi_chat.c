@@ -473,6 +473,10 @@ struct capi_pvt* pbx_check_resource_plci(struct ast_channel *c)
 
 	if (id != 0) {
 		i = (struct capi_pvt*)strtoul(id, NULL, 0);
+		if (i != 0 && capi_verify_resource_plci(i) != 0) {
+			cc_log(LOG_ERROR, "resource PLCI lost\n");
+			i = 0;
+		}
 	}
 
 	return (i);
@@ -501,7 +505,18 @@ int pbx_capi_chat_associate_resource_plci(struct ast_channel *c, char *param)
 		if (i != NULL) {
 			char buffer[24];
 			snprintf(buffer, sizeof(buffer)-1, "%p", i);
+			/**
+				Not sure ast_channel pointer does not change across the
+				use of resource PLCI. For this reason use variable to provide
+				the pointer to resource PLCI to resource PLCI user
+
+				\todo This is still possible that resource PLCI will be lost.
+							In case this happens this will be necessary to maintain one
+							live time stamp on resource PLCI and automatically remove
+							resource LCI if time stamp exceeds certail limit.
+				*/
 			pbx_builtin_setvar_helper(c, "RESOURCEPLCI", buffer);
+
 			capi_mkresourceif(c, contr, i);
 		}
 	}

@@ -58,6 +58,7 @@ struct capi_pvt *capi_mkresourceif(struct ast_channel *c, unsigned long long con
 extern int capi_create_reader_writer_pipe(struct capi_pvt *i);
 extern struct ast_frame *capi_read_pipeframe(struct capi_pvt *i);
 extern int capi_write_frame(struct capi_pvt *i, struct ast_frame *f);
+extern int capi_verify_resource_plci(const struct capi_pvt *i);
 
 #define capi_number(data, strip) \
   capi_number_func(data, strip, alloca(AST_MAX_EXTENSION))

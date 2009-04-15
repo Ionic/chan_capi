@@ -200,6 +200,7 @@ static int pbx_capi_indicate(struct ast_channel *c, int condition, const void *d
 #else
 static int pbx_capi_indicate(struct ast_channel *c, int condition);
 #endif
+static struct capi_pvt* get_active_plci (struct ast_channel *c);
 
 /*
  * B protocol settings
@@ -532,7 +533,8 @@ static void capi_echo_canceller(struct capi_pvt *i, int function)
 	if ((i->isdnstate & CAPI_ISDN_STATE_DISCONNECT))
 		return;
 
-	if (i->channeltype == CAPI_CHANNELTYPE_NULL && i->resource_plci_type != CAPI_RESOURCE_PLCI_DATA) {
+	if ((i->channeltype == CAPI_CHANNELTYPE_NULL) &&
+			(i->line_plci == 0)) {
 		return;
 	}
 
@@ -594,7 +596,7 @@ static int capi_check_diva_tone_function_allowed(struct capi_pvt *i)
 		return -1;
 
 	if ((i->channeltype == CAPI_CHANNELTYPE_NULL) &&
-		(i->resource_plci_type != CAPI_RESOURCE_PLCI_DATA)) {
+			(i->line_plci == 0)) {
 		return -1;
 	}
 
@@ -703,7 +705,7 @@ static int capi_detect_dtmf(struct capi_pvt *i, int flag)
 		return 0;
 
 	if ((i->channeltype == CAPI_CHANNELTYPE_NULL) &&
-		(i->resource_plci_type != CAPI_RESOURCE_PLCI_DATA)) {
+		(i->line_plci == 0)) {
 		return 0;
 	}
 
@@ -777,9 +779,13 @@ static int local_queue_frame(struct capi_pvt *i, struct ast_frame *f)
 	}
 
 	if (i->writerfd == -1) {
-		cc_log(LOG_ERROR, "No writerfd in local_queue_frame for %s\n",
-			i->vname);
-		return -1;
+		if (i->resource_plci_type == 0 || i->line_plci == 0 || i->data_plci == 0) {
+			cc_log(LOG_ERROR, "No writerfd in local_queue_frame for %s\n",
+				i->vname);
+			return -1;
+		} else {
+			return (0);
+		}
 	}
 
 	if (f->frametype != AST_FRAME_VOICE)
@@ -4620,6 +4626,16 @@ static void capidev_handle_msg(_cmsg *CMSG)
 	return;
 }
 
+
+static struct capi_pvt* get_active_plci (struct ast_channel *c) {
+	struct capi_pvt* i = pbx_check_resource_plci (c);
+
+	if (i == NULL)
+		i = CC_CHANNEL_PVT(c);
+
+	return (i);
+}
+
 /*
  * deflect a call
  */
@@ -5014,7 +5030,7 @@ static int pbx_capi_malicious(struct ast_channel *c, char *param)
  */
 static int pbx_capi_echocancel(struct ast_channel *c, char *param)
 {
-	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+	struct capi_pvt *i = get_active_plci (c);
 
 	if (!param) {
 		cc_log(LOG_WARNING, "Parameter for echocancel missing.\n");
@@ -5040,7 +5056,7 @@ static int pbx_capi_echocancel(struct ast_channel *c, char *param)
  */
 static int pbx_capi_noisesuppressor(struct ast_channel *c, char *param)
 {
-	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+	struct capi_pvt *i = get_active_plci (c);
 
 	if (param == NULL) {
 		cc_log(LOG_WARNING, "Parameter for noise suppressor missing.\n");
@@ -5087,7 +5103,7 @@ static unsigned short dbGain2DivaGain(float dbGain)
 
 static int pbx_capi_rxdgain(struct ast_channel *c, char *param)
 {
-	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+	struct capi_pvt *i = get_active_plci (c);
 	float dbGain;
 
 	if (param == NULL) {
@@ -5112,7 +5128,7 @@ static int pbx_capi_rxdgain(struct ast_channel *c, char *param)
 
 static int pbx_capi_incrxdgain(struct ast_channel *c, char *param)
 {
-	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+	struct capi_pvt *i = get_active_plci (c);
 	float dbGainInc;
 
 	if (param == NULL) {
@@ -5136,7 +5152,7 @@ static int pbx_capi_incrxdgain(struct ast_channel *c, char *param)
 
 static int pbx_capi_txdgain(struct ast_channel *c, char *param)
 {
-	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+	struct capi_pvt *i = get_active_plci (c);
 	float dbGain;
 
 	if (param == NULL) {
@@ -5160,7 +5176,7 @@ static int pbx_capi_txdgain(struct ast_channel *c, char *param)
 
 static int pbx_capi_inctxdgain(struct ast_channel *c, char *param)
 {
-	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+	struct capi_pvt *i = get_active_plci (c);
 	float dbGainInc;
 
 	if ((param == 0) || (*param == 0)) {
@@ -5187,7 +5203,7 @@ static int pbx_capi_inctxdgain(struct ast_channel *c, char *param)
 
 static int pbx_capi_rxagc(struct ast_channel *c, char *param)
 {
-	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+	struct capi_pvt *i = get_active_plci (c);
 
 	if (!param) {
 		cc_log(LOG_WARNING, "Parameter for rx agc missing.\n");
@@ -5213,7 +5229,7 @@ static int pbx_capi_rxagc(struct ast_channel *c, char *param)
 
 static int pbx_capi_txagc(struct ast_channel *c, char *param)
 {
-	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+	struct capi_pvt *i = get_active_plci (c);
 
 	if (!param) {
 		cc_log(LOG_WARNING, "Parameter for tx agc missing.\n");
@@ -5257,12 +5273,8 @@ static int pbx_capi_getplci(struct ast_channel *c, char *param)
  */
 static int pbx_capi_clamping(struct ast_channel *c, char *param)
 {
-	struct capi_pvt *i;
+	struct capi_pvt *i = get_active_plci (c);
 	int duration = 0;
-
-	i = pbx_check_resource_plci (c);
-	if (i == NULL)
-		i = CC_CHANNEL_PVT(c);
 
 	if (param != NULL) {
 		duration = atoi(param);
@@ -5280,7 +5292,7 @@ static int pbx_capi_clamping(struct ast_channel *c, char *param)
 
 static int pbx_capi_mftonedetection(struct ast_channel *c, char *param)
 {
-	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+	struct capi_pvt *i = get_active_plci (c);
 	unsigned char function;
 
 	if (!param) {
@@ -5307,7 +5319,7 @@ static int pbx_capi_mftonedetection(struct ast_channel *c, char *param)
 
 static int pbx_capi_pulsedetection(struct ast_channel *c, char *param)
 {
-	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+	struct capi_pvt *i = get_active_plci (c);
 	unsigned char function;
 
 	if (!param) {
@@ -5379,7 +5391,7 @@ static int pbx_capi_sendtone(struct ast_channel *c, char *param)
 		{ 0xCA, "Answering Machine Tone (390 Hz)" },
 		{ 0xCB, "Tone Alerting Signal (for Caller ID in PSTN)" },
 	};
-	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+	struct capi_pvt *i = get_active_plci (c);
 	unsigned char tone;
 	unsigned int n;
 
@@ -5406,7 +5418,7 @@ static int pbx_capi_sendtone(struct ast_channel *c, char *param)
 
 static int pbx_capi_stoptone(struct ast_channel *c, char *param)
 {
-	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+	struct capi_pvt *i = get_active_plci (c);
 
 	capi_diva_send_tone_function(i, 0x80);
 	cc_verbose(2, 0, VERBOSE_PREFIX_4 "%s: stopped transmission of tones\n",
@@ -5478,7 +5490,7 @@ static const char* pbx_capi_map_detected_tone (unsigned char tone)
 
 static int pbx_capi_starttonedetection(struct ast_channel *c, char *param)
 {
-	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+	struct capi_pvt *i = get_active_plci (c);
 
 	if ((param == 0) || (*param == 0)) {
 		cc_log(LOG_WARNING, "Parameter for starttonedetection missing.\n");
@@ -5503,7 +5515,7 @@ static int pbx_capi_starttonedetection(struct ast_channel *c, char *param)
 
 static int pbx_capi_stoptonedetection(struct ast_channel *c, char *param)
 {
-	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+	struct capi_pvt *i = get_active_plci (c);
 
 	cc_mutex_lock(&i->lock);
 	i->special_tone_extension[0] = 0;
@@ -5519,7 +5531,7 @@ static int pbx_capi_stoptonedetection(struct ast_channel *c, char *param)
 
 static int pbx_capi_pitchcontrol(struct ast_channel *c, char *param)
 {
-	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+	struct capi_pvt *i = get_active_plci (c);
 	unsigned short rxpitch = 0, txpitch = 0;
 	int enabled = 1;
 
@@ -5572,7 +5584,7 @@ static int pbx_capi_pitchcontrol(struct ast_channel *c, char *param)
 
 static int pbx_capi_incpitchcontrol(struct ast_channel *c, char *param)
 {
-	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+	struct capi_pvt *i = get_active_plci (c);
 	signed short rxpitchinc = 0, txpitchinc = 0;
 	int rxPitch = i->rxPitch, txPitch = i->txPitch;
 	char* p = NULL;
@@ -5950,16 +5962,23 @@ static int pbx_capicommand_exec(struct ast_channel *chan, void *data)
 		return -1;
 	}
 
-	if (((capicmd->capionly != 0) && (capicmd->resourceplcisupported == 0)) &&
-		(chan->tech != &capi_tech)) {
+	if (chan->tech != &capi_tech) {
+		if (capicmd->capionly != 0) {
+			struct capi_pvt* resource_plci = pbx_check_resource_plci (chan);
+
+			if ((capicmd->resourceplcisupported == 0) ||
+					(resource_plci == 0) ||
+					(resource_plci->line_plci == 0)) {
 #ifdef CC_AST_HAS_VERSION_1_4
-		ast_module_user_remove(u);
+				ast_module_user_remove(u);
 #else
-		LOCAL_USER_REMOVE(u);
+				LOCAL_USER_REMOVE(u);
 #endif
-		cc_log(LOG_WARNING, "This capicommand works on " CC_MESSAGE_NAME
-			" channels only, check your extensions.conf!\n");
-		return -1;
+				cc_log(LOG_WARNING, "This capicommand works on " CC_MESSAGE_NAME
+					" channels only, check your extensions.conf!\n");
+				return -1;
+			}
+		}
 	}
 
 	res = (capicmd->cmd)(chan, params);

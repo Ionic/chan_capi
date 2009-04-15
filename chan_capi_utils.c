@@ -131,6 +131,16 @@ void capi_remove_nullif(struct capi_pvt *i)
 	cc_mutex_unlock(&nullif_lock);
 }
 
+int capi_verify_resource_plci(const struct capi_pvt *i) {
+	const struct capi_pvt *ii;
+
+	cc_mutex_lock(&nullif_lock);
+	for (ii = nulliflist; ii != 0 && ii != i; ii = ii->next);
+	cc_mutex_unlock(&nullif_lock);
+
+	return ((ii == i) ? 0 : -1);
+}
+
 /*
  * create new null-interface
  */
