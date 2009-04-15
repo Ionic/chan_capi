@@ -556,6 +556,18 @@ static void capi_echo_canceller(struct capi_pvt *i, int function)
 		ecAvail = 1;
 	}
 
+	if ((i->channeltype == CAPI_CHANNELTYPE_NULL) &&
+			(i->line_plci == 0)) {
+		return;
+	}
+
+	if ((i->channeltype == CAPI_CHANNELTYPE_NULL) && (capi_controllers[i->controller]->ecPath & EC_ECHOCANCEL_PATH_IP) == 0) {
+		return;
+	}
+	if ((i->channeltype != CAPI_CHANNELTYPE_NULL) && (capi_controllers[i->controller]->ecPath & EC_ECHOCANCEL_PATH_IFC) == 0) {
+		return;
+	}
+
 	/* If echo cancellation is not requested or supported, don't attempt to enable it */
 	if (!ecAvail || !i->doEC) {
 		return;
@@ -779,7 +791,7 @@ static int local_queue_frame(struct capi_pvt *i, struct ast_frame *f)
 	}
 
 	if (i->writerfd == -1) {
-		if (i->resource_plci_type == 0 || i->line_plci == 0 || i->data_plci == 0) {
+		if (i->resource_plci_type == 0 || (i->line_plci == 0 && i->data_plci == 0)) {
 			cc_log(LOG_ERROR, "No writerfd in local_queue_frame for %s\n",
 				i->vname);
 			return -1;
@@ -6435,6 +6447,7 @@ int mkif(struct cc_capi_conf *conf)
 		}
 
 		capi_controllers[unit]->used = 1;
+		capi_controllers[unit]->ecPath = conf->echocancelpath;
 
 		tmp->controller = unit;
 		tmp->doEC = conf->echocancel;
@@ -7115,6 +7128,8 @@ static int cc_init_capi(void)
 			cp->broadband = 1;
 		}
 
+		cp->ecPath = EC_ECHOCANCEL_PATH_IFC;
+
 #if (CAPI_OS_HINT == 1)
 		if (profile.dwGlobalOptions & CAPI_PROFILE_ECHO_CANCELLATION) {
 #else
@@ -7361,6 +7376,13 @@ static int conf_interface(struct cc_capi_conf *conf, struct ast_variable *v)
 			continue;
 		} else
 		CONF_TRUE(conf->ecnlp, "echocancelnlp", 1)
+		if (!strcasecmp(v->name, "echocancelpath")) {
+			conf->echocancelpath  = atoi(v->value);
+			conf->echocancelpath &= EC_ECHOCANCEL_PATH_BITS;
+			if (conf->echocancelpath == 0)
+				conf->echocancelpath = EC_ECHOCANCEL_PATH_BITS;
+		}
+
 		if (!strcasecmp(v->name, "echotail")) {
 			conf->ectail = atoi(v->value);
 			if (conf->ectail > 255) {
@@ -7465,6 +7487,7 @@ static int capi_eval_config(struct ast_config *cfg)
 		conf.ecoption = EC_OPTION_DISABLE_G165;
 		conf.ectail = EC_DEFAULT_TAIL;
 		conf.ecSelector = FACILITYSELECTOR_ECHO_CANCEL;
+		conf.echocancelpath = EC_ECHOCANCEL_PATH_IFC;
 		cc_copy_string(conf.name, cat, sizeof(conf.name));
 		cc_copy_string(conf.language, default_language, sizeof(conf.language));
 #ifdef CC_AST_HAS_VERSION_1_4

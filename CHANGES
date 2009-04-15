@@ -14,6 +14,7 @@ HEAD
 - add extension for FAX paper formats and resolutions
 - adjust NULL PLCI LI path
 - add resource PLCI
+- add echocancelpath configuration option
 
 
 chan_capi-1.1.2

@@ -193,6 +193,13 @@ typedef struct fax3proto3 B3_PROTO_FAXG3;
 #define EC_OPTION_DISABLE_G164_OR_G165  (1<<1 | 1<<2)
 #define EC_DEFAULT_TAIL                 0 /* maximum */
 
+/*
+	EC path mask
+	*/
+#define EC_ECHOCANCEL_PATH_IFC          1 /* Default, activate EC for E.1/T.1/S0 only */
+#define EC_ECHOCANCEL_PATH_IP           2 /* Activate EC for IP */
+#define EC_ECHOCANCEL_PATH_BITS         (EC_ECHOCANCEL_PATH_IFC | EC_ECHOCANCEL_PATH_IP)
+
 #define CC_HOLDTYPE_LOCAL               0
 #define CC_HOLDTYPE_HOLD                1
 #define CC_HOLDTYPE_NOTIFY              2
@@ -557,6 +564,7 @@ struct cc_capi_conf {
 	struct ast_jb_conf jbconf;
 	char mohinterpret[MAX_MUSICCLASS];
 #endif
+	int echocancelpath;
 };
 
 struct cc_capi_controller {
@@ -590,6 +598,7 @@ struct cc_capi_controller {
 	int rtpcodec;
 
 	int divaExtendedFeaturesAvailable;
+	int ecPath;
 };
 
 
