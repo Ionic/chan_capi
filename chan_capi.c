@@ -1158,16 +1158,12 @@ static void send_progress(struct capi_pvt *i)
 /*
  * send disconnect_req
  */
-static void capi_send_disconnect(unsigned int PLCI, struct capi_pvt *i)
+static void capi_send_disconnect(unsigned int PLCI)
 {
 	if (PLCI == 0) {
 		return;
 	}
-	if (i) {
-		capi_sendf(i, 1, CAPI_DISCONNECT_REQ, PLCI, get_capi_MessageNumber(), "()");
-	} else {
-		capi_sendf(NULL, 0, CAPI_DISCONNECT_REQ, PLCI, get_capi_MessageNumber(), "()");
-	}
+	capi_sendf(NULL, 0, CAPI_DISCONNECT_REQ, PLCI, get_capi_MessageNumber(), "()");
 }
 
 /*
@@ -1231,7 +1227,7 @@ void capi_activehangup(struct capi_pvt *i, int state)
 			/* CONNECT_CONF not received yet? */
 			capi_wait_conf(i, CAPI_CONNECT_CONF);
 		}
-		capi_send_disconnect(i->PLCI, i);
+		capi_send_disconnect(i->PLCI);
 	}
 	return;
 }
@@ -3009,7 +3005,7 @@ static void capidev_handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsig
 			i->vname);
 		/* the caller onhold hung up (or ECTed away) */
 		/* send a disconnect_req , we cannot hangup the channel here!!! */
-		capi_send_disconnect(PLCI, NULL);
+		capi_send_disconnect(PLCI);
 		return;
 	}
 
@@ -3054,7 +3050,7 @@ static void capidev_handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsig
 			i->vname);
 		if (i->FaxState & CAPI_FAX_STATE_ACTIVE) {
 			/* in fax mode, we just hangup */
-			capi_send_disconnect(i->PLCI, NULL);
+			capi_send_disconnect(i->PLCI);
 			return;
 		}
 		capi_queue_cause_control(i, 0);
@@ -3976,11 +3972,11 @@ static void capidev_handle_disconnect_b3_indication(_cmsg *CMSG, unsigned int PL
 	if ((i->state == CAPI_STATE_DISCONNECTING)) {
 		if (!(i->fsetting & CAPI_FSETTING_STAYONLINE)) {
 			/* active disconnect */
-			capi_send_disconnect(PLCI, NULL);
+			capi_send_disconnect(PLCI);
 		}
 	} else if ((!(i->isdnstate & CAPI_ISDN_STATE_B3_SELECT)) &&
 	           (i->FaxState & CAPI_FAX_STATE_SENDMODE)) {
-		capi_send_disconnect(PLCI, NULL);
+		capi_send_disconnect(PLCI);
 	}
 
 	if (i->channeltype != CAPI_CHANNELTYPE_NULL) {
@@ -5702,7 +5698,7 @@ static void capi_disconnect(struct capi_pvt *i)
 	if ((i->isdnstate & CAPI_ISDN_STATE_B3_UP)) {
 		cc_disconnect_b3(i, 0);
 	} else {
-		capi_send_disconnect(i->PLCI, NULL);
+		capi_send_disconnect(i->PLCI);
 	}
 	
 	cc_mutex_unlock(&i->lock);

@@ -15,6 +15,7 @@ HEAD
 - adjust NULL PLCI LI path
 - add resource PLCI
 - add echocancelpath configuration option
+- fixed possible race condition while waiting for DISCONNECT_CONF
 
 
 chan_capi-1.1.2
