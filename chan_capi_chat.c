@@ -23,12 +23,24 @@
 
 #define CHAT_FLAG_MOH      0x0001
 
+typedef enum {
+	RoomMemberDefault  = 0, /* Rx/Tx by default, muted by operator */
+	RoomMemberListener = 1, /* Rx only, always muted */
+	RoomMemberOperator = 2  /* Rx/Tx, newer muted */
+} room_member_type_t;
+
+typedef enum {
+	RoomModeDefault = 0,
+	RoomModeMuted   = 0,
+} room_mode_t;
+
 #define PLCI_PER_LX_REQUEST 8
 
 struct capichat_s {
 	char name[16];
 	unsigned int number;
 	int active;
+	room_member_type_t room_member_type;
 	struct capi_pvt *i;
 	struct capichat_s *next;
 };
@@ -43,6 +55,11 @@ typedef struct _deffered_chat_capi_message {
 
 static struct capichat_s *chat_list = NULL;
 AST_MUTEX_DEFINE_STATIC(chat_lock);
+
+/*
+	LOCALS
+	*/
+const char* room_member_type_2_name (room_member_type_t room_member_type);
 
 /*
  * partial update the capi mixer for the given char room
@@ -64,6 +81,17 @@ static struct capichat_s* update_capi_mixer_part(
 	unsigned int found = 0;
 	_cword j = 0;
 	struct capichat_s *new_chat_start = NULL;
+	room_member_type_t main_member_type = RoomMemberDefault;
+
+	room = chat_start;
+	while (room != 0) {
+		if (room->i == i) {
+			main_member_type = room->room_member_type;
+			break;
+		}
+
+		room = room->next;
+	}
 
 	room = chat_start;
 	while (room) {
@@ -86,6 +114,18 @@ static struct capichat_s* update_capi_mixer_part(
 			if (ii->channeltype == CAPI_CHANNELTYPE_NULL && ii->line_plci == 0) {
 				dest |= 0x00000030;
 			}
+			if (remove == 0) {
+				room_member_type_t room_member_type = room->room_member_type;
+
+				if (main_member_type == RoomMemberListener && room_member_type == RoomMemberListener) {
+					dest &= ~3U; /* Disable data transmission between two listener */
+				} else if (main_member_type == RoomMemberListener && room_member_type != RoomMemberListener) {
+					dest &= ~1U; /* Disable data transmission from main PLCI to member PLCI */
+				} else if (main_member_type != RoomMemberListener && room_member_type == RoomMemberListener) {
+					dest &= ~2U; /* Disable data transmission from member PLCI to main PLCI */
+				}
+			}
+
 			p_list[j++] = (_cbyte)(dest);
 			p_list[j++] = (_cbyte)(dest >> 8);
 			p_list[j++] = (_cbyte)(dest >> 16);
@@ -236,7 +276,7 @@ static void del_chat_member(struct capichat_s *room)
 /*
  * add a new chat member
  */
-static struct capichat_s *add_chat_member(char *roomname, struct capi_pvt *i)
+static struct capichat_s *add_chat_member(char *roomname, struct capi_pvt *i, room_member_type_t room_member_type)
 {
 	struct capichat_s *room = NULL;
 	struct capichat_s *tmproom;
@@ -252,7 +292,8 @@ static struct capichat_s *add_chat_member(char *roomname, struct capi_pvt *i)
 	strncpy(room->name, roomname, sizeof(room->name));
 	room->name[sizeof(room->name) - 1] = 0;
 	room->i = i;
-	
+	room->room_member_type = room_member_type;
+
 	cc_mutex_lock(&chat_lock);
 
 	tmproom = chat_list;
@@ -275,8 +316,8 @@ static struct capichat_s *add_chat_member(char *roomname, struct capi_pvt *i)
 
 	cc_mutex_unlock(&chat_lock);
 
-	cc_verbose(3, 0, VERBOSE_PREFIX_3 "%s: added new chat member to room '%s' (%d)\n",
-		i->vname, roomname, roomnumber);
+	cc_verbose(3, 0, VERBOSE_PREFIX_3 "%s: added new chat member to room '%s' %s(%d)\n",
+		i->vname, roomname, room_member_type_2_name (room_member_type), roomnumber);
 
 	update_capi_mixer(0, roomnumber, i);
 
@@ -391,6 +432,7 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 	ast_group_t tmpcntr;
 	unsigned long long contr = 0;
 	unsigned int flags = 0;
+	room_member_type_t room_member_type = RoomMemberDefault;
 
 	roomname = strsep(&param, "|");
 	options = strsep(&param, "|");
@@ -414,6 +456,13 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 		case 'm':
 			flags |= CHAT_FLAG_MOH;
 			break;
+		case 'l':
+			room_member_type = RoomMemberListener;
+			break;
+		case 'o':
+			room_member_type = RoomMemberOperator;
+			break;
+
 		default:
 			cc_log(LOG_WARNING, "Unknown chat option '%c'.\n",
 				*options);
@@ -449,7 +498,7 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 		goto out;
 	}
 
-	room = add_chat_member(roomname, i);
+	room = add_chat_member(roomname, i, room_member_type);
 	if (!room) {
 		cc_log(LOG_WARNING, "Unable to open " CC_MESSAGE_NAME " chat room.\n");
 		return -1;
@@ -585,5 +634,17 @@ int pbxcli_capi_chatinfo(int fd, int argc, char *argv[])
 #else
 	return RESULT_SUCCESS;
 #endif
+}
+
+const char* room_member_type_2_name (room_member_type_t room_member_type) {
+	switch (room_member_type) {
+		case RoomMemberListener:
+			return("in listener mode ");
+		case RoomMemberOperator:
+			return("in operator mode ");
+
+		default:
+			return("");
+	}
 }
 
