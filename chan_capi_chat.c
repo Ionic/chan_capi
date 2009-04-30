@@ -57,9 +57,9 @@ static struct capichat_s *chat_list = NULL;
 AST_MUTEX_DEFINE_STATIC(chat_lock);
 
 /*
-	LOCALS
-	*/
-const char* room_member_type_2_name (room_member_type_t room_member_type);
+ * LOCALS
+ */
+static const char* room_member_type_2_name(room_member_type_t room_member_type);
 
 /*
  * partial update the capi mixer for the given char room
@@ -117,11 +117,11 @@ static struct capichat_s* update_capi_mixer_part(
 			if (remove == 0) {
 				room_member_type_t room_member_type = room->room_member_type;
 
-				if (main_member_type == RoomMemberListener && room_member_type == RoomMemberListener) {
+				if ((main_member_type == RoomMemberListener) && (room_member_type == RoomMemberListener)) {
 					dest &= ~3U; /* Disable data transmission between two listener */
-				} else if (main_member_type == RoomMemberListener && room_member_type != RoomMemberListener) {
+				} else if ((main_member_type == RoomMemberListener) && (room_member_type != RoomMemberListener)) {
 					dest &= ~1U; /* Disable data transmission from main PLCI to member PLCI */
-				} else if (main_member_type != RoomMemberListener && room_member_type == RoomMemberListener) {
+				} else if ((main_member_type != RoomMemberListener) && (room_member_type == RoomMemberListener)) {
 					dest &= ~2U; /* Disable data transmission from member PLCI to main PLCI */
 				}
 			}
@@ -163,7 +163,7 @@ static struct capichat_s* update_capi_mixer_part(
 				}
 			}
 		}
-		if (i->channeltype == CAPI_CHANNELTYPE_NULL && i->line_plci == 0) {
+		if ((i->channeltype == CAPI_CHANNELTYPE_NULL) && (i->line_plci == 0)) {
 			if (!remove) {
 				datapath |= 0x00000030;
 			}
@@ -317,7 +317,7 @@ static struct capichat_s *add_chat_member(char *roomname, struct capi_pvt *i, ro
 	cc_mutex_unlock(&chat_lock);
 
 	cc_verbose(3, 0, VERBOSE_PREFIX_3 "%s: added new chat member to room '%s' %s(%d)\n",
-		i->vname, roomname, room_member_type_2_name (room_member_type), roomnumber);
+		i->vname, roomname, room_member_type_2_name(room_member_type), roomnumber);
 
 	update_capi_mixer(0, roomnumber, i);
 
@@ -528,7 +528,7 @@ struct capi_pvt* pbx_check_resource_plci(struct ast_channel *c)
 		}
 	}
 
-	return (i);
+	return i;
 }
 
 int pbx_capi_chat_associate_resource_plci(struct ast_channel *c, char *param)
@@ -570,7 +570,7 @@ int pbx_capi_chat_associate_resource_plci(struct ast_channel *c, char *param)
 		}
 	}
 
-	return (0); /* Always return success in case c->tech == &capi_tech or to fallback to NULL PLCI */
+	return 0; /* Always return success in case c->tech == &capi_tech or to fallback to NULL PLCI */
 }
 
 /*
@@ -636,16 +636,16 @@ int pbxcli_capi_chatinfo(int fd, int argc, char *argv[])
 #endif
 }
 
-const char* room_member_type_2_name (room_member_type_t room_member_type)
+static const char* room_member_type_2_name(room_member_type_t room_member_type)
 {
 	switch (room_member_type) {
-		case RoomMemberListener:
-			return("in listener mode ");
-		case RoomMemberOperator:
-			return("in operator mode ");
+	case RoomMemberListener:
+		return("in listener mode ");
+	case RoomMemberOperator:
+		return("in operator mode ");
 
-		default:
-			return("");
+	default:
+		return("");
 	}
 }
 
