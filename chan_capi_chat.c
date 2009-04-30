@@ -636,7 +636,8 @@ int pbxcli_capi_chatinfo(int fd, int argc, char *argv[])
 #endif
 }
 
-const char* room_member_type_2_name (room_member_type_t room_member_type) {
+const char* room_member_type_2_name (room_member_type_t room_member_type)
+{
 	switch (room_member_type) {
 		case RoomMemberListener:
 			return("in listener mode ");
