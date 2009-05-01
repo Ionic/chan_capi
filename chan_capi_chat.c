@@ -261,7 +261,8 @@ static void update_capi_mixer(int remove, unsigned int roomnumber, struct capi_p
 	}
 }
 
-static void update_all_capi_mixers(unsigned int roomnumber) {
+static void update_all_capi_mixers(unsigned int roomnumber)
+{
 	struct capichat_s *room;
 	unsigned int overall_found;
 	unsigned int nr_segments;
@@ -715,7 +716,7 @@ int pbxcli_capi_chatinfo(int fd, int argc, char *argv[])
 #endif
 }
 
-static const char* room_member_type_2_name (room_member_type_t room_member_type)
+static const char* room_member_type_2_name(room_member_type_t room_member_type)
 {
 	switch (room_member_type) {
 	case RoomMemberListener:
