@@ -844,6 +844,24 @@ Description:
   Used to enter (create) chat (conference room). New conference room is created
   if necessary.
 
+  This is three types of conference members:
+    Regular users
+    Operators
+    Listeners
+
+  Regular users can receive voise stream from conference and send voice stream to conference.
+  Outgoing (from user to conference) voice stream from regular users can be muted (deactivated)
+  and unmuted (activated) if necessary by 'chat_mute' command.
+
+  Operators can receive voise stream from conference and send voice stream to conference.
+  Outgoing (from user to conference) voice stream from operators can not be muted (deactivated)
+  by 'chat_mute' command.
+
+	Listeners can only receive voice stream from conference.
+  Outgoing (from user to conference) voice stream is muted (decativated) and can not be unmuted (activated)
+  by 'chat_mute' command.
+
+
 Direction:
   Creates one Any-to-Any conference room. Conference AGC (evaluation of active talker) receives active as
   soon as more then two members are added to conference.
@@ -856,8 +874,9 @@ capicommand(chat|<roomname>|<options>|controller)
   roomname - conference room name
   options
       m - The first caller will get music-on-hold until second caller arrives
+      l - The caller is listener (passive) conference member, can not be unmuted by 'chat_mute' command
+      o - The caller is conference operator, can not be muted by 'chat_mute' command
   controller - CAPI controller
-
 
 Syntax example:
 exten => s,n,capicommand(chat|test|m|1)
@@ -913,6 +932,24 @@ Description:
   by IP network connection before proceeding with 'chat' chan_capi command. This
   allows use of provided by DSP resources media processing for connected by IP
   network conference members.
+
+  This is three types of conference members:
+    Regular users
+    Operators
+    Listeners
+
+  Regular users can receive voise stream from conference and send voice stream to conference.
+  Outgoing (from user to conference) voice stream from regular users can be muted (deactivated)
+  and unmuted (activated) if necessary by 'chat_mute' command.
+
+  Operators can receive voise stream from conference and send voice stream to conference.
+  Outgoing (from user to conference) voice stream from operators can not be muted (deactivated)
+  by 'chat_mute' command.
+
+	Listeners can only receive voice stream from conference.
+  Outgoing (from user to conference) voice stream is muted (decativated) and can not be unmuted (activated)
+  by 'chat_mute' command.
+
 
 Note:
   Certain problems arrive if processing send in band DTMF events for
@@ -989,6 +1026,96 @@ exten => s,n,capicommand(vc|txdgain|3|0) ; Install voice command menu for volume
 exten => s,n,capicommand(chat|test1|m|1-4)     ; Craete/enter conference toom 'test1', controller field is ignored if
                                                ; media processing resource is assigned by 'resource' command or for
                                                ; E.1/T.1/S0/POTS members
+
+/////////////////////////////////////////////////////////////////////
+
++-------------------------------------------------------------------+
+|  chat_mute (Manage conference)                                    |
++-------------------------------------------------------------------+
+
+Description:
+  Used to manage chat (conference room). This is three types of conference members:
+    Regular users
+    Operators
+    Listeners
+
+  Regular users can receive voise stream from conference and send voice stream to conference.
+  Outgoing (from user to conference) voice stream from regular users can be muted (deactivated)
+  and unmuted (activated) if necessary by 'chat_mute' command.
+
+  Operators can receive voise stream from conference and send voice stream to conference.
+  Outgoing (from user to conference) voice stream from operators can not be muted (deactivated)
+  by 'chat_mute' command.
+
+	Listeners can only receive voice stream from conference.
+  Outgoing (from user to conference) voice stream is muted (decativated) and can not be unmuted (activated)
+  by 'chat_mute' command.
+
+	'chat_mute' command allows to manage conference switching regular users between active (voice stream from
+   user to conference is active and used in conference) and passive (voice stream from user to conference
+   is deactivated and not used in conference) mode. 'chat_mute' command apply to regular users only.
+   The state of operators and listeners is not changed by this commmand. Independent from changed by this
+   command state of conference operators will remain active members and listeners will remain passive members
+   of conference.
+
+Direction:
+  Used to control (deactivate and activate) voice stream from regular users to conference.
+
+Note:
+	Voice stream of regular users is active by default. If conference mode was changed to half duplex
+  ('chat_mute|yes') then new regular users are created with voice stream deactivated until conference
+  mode is not changed back to full duplex ('chat_mute|no')
+
+Supported hardware:
+  Diva
+
+Syntax:
+capicommand(chat_mute|<action>[|<roomname>])
+  action - mandatory
+           yes - change conference mode to half duplex, deactivate voice stream from regular
+                 users to conference
+           no  - change conference mode back to full duplex, activate voice stream from regular
+                 users to conference
+  roomname - conference room name. This parameter is necessary if caller is not a member of conference.
+             It allows the control of conference by one user which not member of conference. Using
+             this parameter one user can control multiple conferences. This allows to implement
+             functionality of common conference operator.
+
+Syntax example:
+exten => s,n,capicommand(chat_mute|yes)
+exten => s,n,capicommand(char_mute|no)
+exten => s,n,capicommand(chat_mute|yes|test_room)
+exten => s,n,capicommand(char_mute|no|test_room)
+
+Conference example:
+/////////////////////////////////////////////////////////////////////
+[isdn-in]
+exten => 1291,1,Answer                             ; Accept call
+exten => 1291,n,capicommand(resource|1-4)          ; assign resource PLCI if call from IP
+exten => 1291,n,capicommand(clamping|200)          ; Activate DTMF suppression
+exten => 1291,n,capicommand(vc|chat_mute|0|yes)    ; Voice command, key 0 - change to half duplex mode
+exten => 1291,n,capicommand(vc|chat_mute|1|no)     ; Voice command, key 0 - change to full duplex mode
+exten => 1291,n,capicommand(chat|test_chat|mo|1-4) ; Add to conference as operator
+exten => 1291,n,Hangup()
+
+exten => 1292,1,Answer                             ; Accept call
+exten => 1292,n,capicommand(resource|1-4)          ; Assign resource PLCI if call from IP
+exten => 1292,n,capicommand(clamping|200)          ; Activate DTMF suppression
+exten => 1292,n,capicommand(chat|test_chat|m|1-4)  ; Add to conference as regular user
+exten => 1292,n,Hangup()
+
+exten => 1293,1,Answer                             ; Accept call
+exten => 1293,n,capicommand(resource|1-4)          ; Assign resource PLCI if call from IP
+exten => 1293,n,capicommand(clamping|200)          ; Activate DTMF suppression
+exten => 1293,n,capicommand(chat|test_chat|m|1-4)  ; Add to conference as listener
+exten => 1293,n,Hangup()
+
+exten => _X.,1,Answer
+exten => _X.,n,Goto(s,1)
+exten => s,1,Wait(1)
+exten => s,n(restart),Playback(demo-instruct)
+exten => s,n,Goto(s,restart)
+exten => s,n,Hangup
 
 /////////////////////////////////////////////////////////////////////
 
