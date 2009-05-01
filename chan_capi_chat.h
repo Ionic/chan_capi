@@ -23,5 +23,6 @@ extern char *pbxcli_capi_chatinfo(struct ast_cli_entry *e, int cmd, struct ast_c
 #else
 extern int pbxcli_capi_chatinfo(int fd, int argc, char *argv[]);
 #endif
+extern int pbx_capi_chat_mute(struct ast_channel *c, char *param);
 
 #endif

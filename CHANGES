@@ -17,6 +17,7 @@ HEAD
 - add echocancelpath configuration option
 - fixed possible race condition while waiting for DISCONNECT_CONF
 - add static half duplex conference
+- add dynamic half duplex conference
 
 
 chan_capi-1.1.2

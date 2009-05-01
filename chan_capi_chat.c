@@ -31,7 +31,7 @@ typedef enum {
 
 typedef enum {
 	RoomModeDefault = 0,
-	RoomModeMuted   = 0,
+	RoomModeMuted   = 1
 } room_mode_t;
 
 #define PLCI_PER_LX_REQUEST 8
@@ -41,6 +41,7 @@ struct capichat_s {
 	unsigned int number;
 	int active;
 	room_member_type_t room_member_type;
+	room_mode_t        room_mode;
 	struct capi_pvt *i;
 	struct capichat_s *next;
 };
@@ -82,15 +83,20 @@ static struct capichat_s* update_capi_mixer_part(
 	_cword j = 0;
 	struct capichat_s *new_chat_start = NULL;
 	room_member_type_t main_member_type = RoomMemberDefault;
+	room_mode_t room_mode = RoomModeDefault;
 
 	room = chat_start;
 	while (room != 0) {
 		if (room->i == i) {
 			main_member_type = room->room_member_type;
+			room_mode        = room->room_mode;
 			break;
 		}
-
 		room = room->next;
+	}
+
+	if ((room_mode == RoomModeMuted) && (main_member_type == RoomMemberDefault)) {
+		main_member_type = RoomMemberListener;
 	}
 
 	room = chat_start;
@@ -116,6 +122,10 @@ static struct capichat_s* update_capi_mixer_part(
 			}
 			if (remove == 0) {
 				room_member_type_t room_member_type = room->room_member_type;
+
+				if ((room_mode == RoomModeMuted) && (room_member_type == RoomMemberDefault)) {
+					room_member_type = RoomMemberListener;
+				}
 
 				if ((main_member_type == RoomMemberListener) && (room_member_type == RoomMemberListener)) {
 					dest &= ~3U; /* Disable data transmission between two listener */
@@ -176,7 +186,7 @@ static struct capichat_s* update_capi_mixer_part(
 	return (new_chat_start);
 }
 
-static void update_capi_mixer(int remove, unsigned int roomnumber, struct capi_pvt *i)
+static void update_capi_mixer(int remove, unsigned int roomnumber, struct capi_pvt *i, deffered_chat_capi_message_t* update_segment)
 {
 	struct capichat_s *room;
 	unsigned int overall_found;
@@ -188,7 +198,10 @@ static void update_capi_mixer(int remove, unsigned int roomnumber, struct capi_p
 		return;
 	}
 
-	cc_mutex_lock(&chat_lock);
+	if (update_segment == 0) {
+		cc_mutex_lock(&chat_lock);
+	}
+
 	/*
 		Get overall amount of parties
 	*/
@@ -206,7 +219,8 @@ static void update_capi_mixer(int remove, unsigned int roomnumber, struct capi_p
 
 	nr_segments = overall_found/PLCI_PER_LX_REQUEST + (overall_found%PLCI_PER_LX_REQUEST != 0);
 	if (nr_segments != 0) {
-		deffered_chat_capi_message_t segments[nr_segments];
+		deffered_chat_capi_message_t __segments[nr_segments];
+		deffered_chat_capi_message_t* segments = update_segment == 0 ? __segments : update_segment;
 		struct capichat_s *chat_start;
 		int segment_nr, nr;
 
@@ -215,32 +229,94 @@ static void update_capi_mixer(int remove, unsigned int roomnumber, struct capi_p
 			chat_start = update_capi_mixer_part(chat_start, overall_found, &segments[segment_nr], remove, roomnumber, i);
 		}
 
-		cc_mutex_unlock(&chat_lock);
+		if (update_segment == 0) {
+			cc_mutex_unlock(&chat_lock);
+		}
 
 		if (chat_start != 0) {
 			cc_log(LOG_ERROR, "%s:%s at %d.\n", __FILE__, __FUNCTION__, __LINE__);
 		}
 
-		for (nr = 0; nr < segment_nr; nr++) {
-			if (segments[nr].busy != 0) {
-				cc_verbose(3, 1, VERBOSE_PREFIX_3 CC_MESSAGE_NAME
-					" mixer: %s PLCI=0x%04x LI=0x%x\n", i->vname, i->PLCI, segments[nr].datapath);
+		if (update_segment == 0) {
+			for (nr = 0; nr < segment_nr; nr++) {
+				if (segments[nr].busy != 0) {
+					cc_verbose(3, 1, VERBOSE_PREFIX_3 CC_MESSAGE_NAME
+						" mixer: %s PLCI=0x%04x LI=0x%x\n", i->vname, i->PLCI, segments[nr].datapath);
 
-				capi_sendf(NULL, 0, CAPI_FACILITY_REQ, i->PLCI, get_capi_MessageNumber(),
-					"w(w(dc))",
-					FACILITYSELECTOR_LINE_INTERCONNECT,
-					0x0001, /* CONNECT */
-					segments[nr].datapath,
-					&segments[nr].p_struct);
+					capi_sendf(NULL, 0, CAPI_FACILITY_REQ, i->PLCI, get_capi_MessageNumber(),
+						"w(w(dc))",
+						FACILITYSELECTOR_LINE_INTERCONNECT,
+						0x0001, /* CONNECT */
+						segments[nr].datapath,
+						&segments[nr].p_struct);
+				}
 			}
 		}
 
 		return;
 	}
 
-	cc_mutex_unlock(&chat_lock);
+	if (update_segment == 0) {
+		cc_mutex_unlock(&chat_lock);
+	}
 }
 
+static void update_all_capi_mixers(unsigned int roomnumber) {
+	struct capichat_s *room;
+	unsigned int overall_found;
+	unsigned int nr_segments;
+
+	for (room = chat_list, overall_found = 0; room != 0; room = room->next) {
+		overall_found += (room->number == roomnumber);
+	}
+
+	nr_segments = overall_found/PLCI_PER_LX_REQUEST + (overall_found%PLCI_PER_LX_REQUEST != 0);
+
+	{
+		deffered_chat_capi_message_t *segments, *segment;
+		unsigned int PLCIS[overall_found];
+		int i, j, nr;
+
+		segments = malloc (sizeof(*segments)*overall_found*nr_segments);
+		if (segments == 0) {
+			cc_mutex_unlock(&chat_lock);
+			return;
+		}
+
+		for (room = chat_list, i = 0; room != 0; room = room->next) {
+			if (room->number == roomnumber && room->i && room->i->PLCI != 0) {
+			  segment = segments + i*nr_segments;
+				for (nr = 0; nr < nr_segments; nr++) {
+					segment[nr].busy = 0;
+				}
+				update_capi_mixer(0, roomnumber, room->i, segment);
+				if (segment[0].busy != 0) {
+					PLCIS[i++] = room->i->PLCI;
+				}
+			}
+		}
+
+		cc_mutex_unlock(&chat_lock);
+
+		for (j = 0; j < i; j++) {
+			segment = segments + j*nr_segments;
+			for (nr = 0; nr < nr_segments; nr++) {
+				if (segment[nr].busy != 0) {
+					cc_verbose(3, 1, VERBOSE_PREFIX_3 CC_MESSAGE_NAME
+						" mixer: PLCI=0x%04x LI=0x%x\n", PLCIS[j], segment[nr].datapath);
+					capi_sendf(NULL, 0, CAPI_FACILITY_REQ, PLCIS[j], get_capi_MessageNumber(),
+						"w(w(dc))",
+						FACILITYSELECTOR_LINE_INTERCONNECT,
+						0x0001, /* CONNECT */
+						segment[nr].datapath,
+						&segment[nr].p_struct);
+				}
+			}
+		}
+
+		free (segments);
+	}
+}
 
 /*
  * delete a chat member
@@ -270,7 +346,7 @@ static void del_chat_member(struct capichat_s *room)
 	}
 	cc_mutex_unlock(&chat_lock);
 
-	update_capi_mixer(1, roomnumber, i);
+	update_capi_mixer(1, roomnumber, i, 0);
 }
 
 /*
@@ -281,6 +357,7 @@ static struct capichat_s *add_chat_member(char *roomname, struct capi_pvt *i, ro
 	struct capichat_s *room = NULL;
 	struct capichat_s *tmproom;
 	unsigned int roomnumber = 1;
+	room_mode_t room_mode = RoomModeDefault;
 
 	room = malloc(sizeof(struct capichat_s));
 	if (room == NULL) {
@@ -300,6 +377,7 @@ static struct capichat_s *add_chat_member(char *roomname, struct capi_pvt *i, ro
 	while (tmproom) {
 		if (!strcmp(tmproom->name, roomname)) {
 			roomnumber = tmproom->number;
+			room_mode  = tmproom->room_mode;
 			break;
 		} else {
 			if (tmproom->number == roomnumber) {
@@ -310,6 +388,7 @@ static struct capichat_s *add_chat_member(char *roomname, struct capi_pvt *i, ro
 	}
 
 	room->number = roomnumber;
+	room->room_mode = room_mode;
 	
 	room->next = chat_list;
 	chat_list = room;
@@ -319,7 +398,7 @@ static struct capichat_s *add_chat_member(char *roomname, struct capi_pvt *i, ro
 	cc_verbose(3, 0, VERBOSE_PREFIX_3 "%s: added new chat member to room '%s' %s(%d)\n",
 		i->vname, roomname, room_member_type_2_name(room_member_type), roomnumber);
 
-	update_capi_mixer(0, roomnumber, i);
+	update_capi_mixer(0, roomnumber, i, 0);
 
 	return room;
 }
@@ -636,16 +715,70 @@ int pbxcli_capi_chatinfo(int fd, int argc, char *argv[])
 #endif
 }
 
-static const char* room_member_type_2_name(room_member_type_t room_member_type)
+static const char* room_member_type_2_name (room_member_type_t room_member_type)
 {
 	switch (room_member_type) {
 	case RoomMemberListener:
-		return("in listener mode ");
+		return "in listener mode ";
 	case RoomMemberOperator:
-		return("in operator mode ");
+		return "in operator mode ";
 
 	default:
-		return("");
+		return "";
 	}
+}
+
+int pbx_capi_chat_mute(struct ast_channel *c, char *param)
+{
+	struct capichat_s *room;
+	unsigned int roomnumber;
+	room_mode_t room_mode;
+	const char* roommode = strsep(&param, "|");
+	const char* roomname  = param;
+	struct capi_pvt *i;
+
+	if (roommode == 0 || *roommode == 0) {
+		cc_log(LOG_WARNING, CC_MESSAGE_NAME " chat_mute requires room mode.\n");
+		return -1;
+	}
+
+	if (ast_true(roommode)) {
+		room_mode = RoomModeMuted;
+	} else if (ast_false(roommode)) {
+		room_mode = RoomModeDefault;
+	} else {
+		cc_log(LOG_WARNING, CC_MESSAGE_NAME " false parameter for chat_mute.\n");
+		cc_log(LOG_WARNING, "Parameter for chat_mute invalid.\n");
+		return -1;
+	}
+
+	if (roomname == 0 && *roomname == 0) {
+		roomname = 0;
+	}
+
+	i = pbx_check_resource_plci(c);
+
+	cc_mutex_lock(&chat_lock);
+
+	for (room = chat_list; room != 0; room = room->next) {
+		if ((roomname != 0 && strcmp(room->name, roomname) == 0) ||
+				(i != 0 && room->i == i) ||
+				(room->i != 0 && (room->i->used == c || room->i->peer == c))) {
+			roomnumber = room->number;
+			cc_verbose(3, 0, VERBOSE_PREFIX_3 "%s: change mode to %s (%d)\n",
+									room->name, room_mode == RoomModeDefault ? "full duplex" : "half duplex", roomnumber);
+			for (room = chat_list; room != 0; room = room->next) {
+				if (room->number == roomnumber) {
+					room->room_mode = room_mode;
+				}
+			}
+			update_all_capi_mixers(roomnumber);
+			return 0;
+		}
+	}
+
+	cc_mutex_unlock(&chat_lock);
+
+	return -1;
 }
 
