@@ -918,11 +918,17 @@ exten => h,1,Hangup
 /////////////////////////////////////////////////////////////////////
 
 +-------------------------------------------------------------------+
-| IP chat (MeetMe/Conference) with access to DSP resources          |
+| IP clear channel fax and chat (MeetMe/Conference)                 |
+| with access to DSP resources                                      |
 +-------------------------------------------------------------------+
 
 Description:
-  Used to assign DSP resources to connected by IP conference member.
+  Used to assign DSP resources to connected by IP user.
+  Assigned DSP resources can be used for:
+    Transmission of clear channel fax with up to 33600Bps (V.34), please read 'sendfax' in README.Diva.fax for details
+    Reception    of clear channel fax with up to 33600Bps (V.34), please read 'receivefax' in README.Diva.fax for details
+		Create conference member with media processing capabilities
+
   If conference member is connected by IP network using 'chat' chan_capi command
   then this peer can not allocate and use required for media processing DSP resources.
   This results in processing of IP partipiants as simple conferencing member without
