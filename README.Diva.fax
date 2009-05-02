@@ -123,28 +123,30 @@ You can use softIP in virtual environment (VMWare, XEN, ...).
 | FoIP/VoIP CLEAR CHANNEL FAX SUPPORT                               |
 +-------------------------------------------------------------------+
 
-Together with Diva(R) Dialogic(R) hardware you can use Dialogic(R) Diva(R) softIP to access T.38 and
-Clear Channel Fax functionality.
+Together with Diva(R) Dialogic(R) hardware you can use Dialogic(R) Diva(R) softIP or chan_capi to
+access T.38 (softIP only) and Clear Channel Fax functionality.
 
-This is no need to change your chan_capi configuration. Dialogic(R) Diva(R) softIP exposes
-CAPI interface towards chan_capi and SIP interface towards IP network.
-All T.38 and SIP related configuration is handled using Diva WEB configuration interface.
+If you using softIP this is no need to change your chan_capi configuration.
+Dialogic(R) Diva(R) softIP exposes CAPI interface towards chan_capi and SIP interface towards
+IP network.  All T.38 and SIP related configuration is handled using Diva WEB configuration interface.
 To activate Clear Channel Fax support Diva hardware should be switched in Resource Board mode.
-
 This is no limitation of the voice and supplementory services functionality of chan_capi.
 You can change the call flow between voice and fax or invoke the supplementary services at CAPI interface
 and Diva softIP will handle all necessary media and SIP negotiation.
-
-Using Diva hardware in Resource Board mode is possible to use G.729, G.723, iLBC, GSM and other
-supported by Diva hardware vocoders. Diva softIP will automatically negotiate the format
-of the media stream.
-
 You can use Diva hardware in TDM (E.1/T.1/S0), in Resource Board moda and Diva softIP
-parallel on the one system.
-This is possible to use line interconnect (conferencing) features between Diva hardware and
+parallel on the one system. This is possible to use line interconnect (conferencing) features between Diva hardware and
 softIP without any limitations.
 
-You cann use Diva hardware and softIP in virtual environment if access by software is supported (XEN).
+If you use chan_capi then you can use 'resource' command to assign DSP resources to connected
+by IP users. Resource PLCI allows to send and to receive fax documents over IP using
+clear channel fax and to use DSP resources for processing of IP media and for conferencing.
+This is possible to use line interconnect (conferencing) features between E.1/T.1/S0/PSTN and
+IP peers without any limitations.
+
+Both softIP and chan_capi allow to use G.729, G.723, iLBC, GSM and other
+supported by Diva hardware vocoders.
+
+You cann use Diva hardware, chan_capi and softIP in virtual environment if access by software is supported (XEN).
 
 +-------------------------------------------------------------------+
 | COLOR FAX                                                         |
@@ -234,6 +236,10 @@ This is possible to answer call using 'Answer' in voice mode and change to recep
 'receivefax' later, for example after detection of the fax calling tone or after user entered password
 using DTMF digits.
 
+Use of resource ('resource' command) PLCI allows to receive fax documents over IP using clear channel fax.
+'resource' command allocates one resource PLCI for IP connections only and does not performs any actions for
+E.1/T.1/S0/PSTN connectiosn. This allows safe use of 'resource' command in any context.
+
 Example:
 [isdn-in]
 exten => _X.,1,Answer()                   ; Answer in voice mode
@@ -250,6 +256,15 @@ exten => i,1,Hangup()                     ; Received unexpected event
 exten => s,1,capicommand(receivefax|/tmp/${UNIQUEID}[|<stationid>|<headline>|<options>])
 exten => s,2,Hangup()
 exten => h,1,deadagi,fax.php ; Run sfftobmp and mail it
+
+Example with clear channel fax support:
+
+[handle_fax]
+exten => s,1,capicommand(resource|1-4) ; Assign resource PLCI
+exten => s,1,capicommand(receivefax|/tmp/${UNIQUEID}[|<stationid>|<headline>|<options>])
+exten => s,2,Hangup()
+exten => h,1,deadagi,fax.php ; Run sfftobmp and mail it
+
 
 Transmission of fax documents
 -----------------------------
@@ -279,6 +294,10 @@ The transmission of fax message is started using 'sendfax' capi command:
 You need to start call using 'Dial' command in voice mode and change to transmission (reception)
 of the fax by 'sendfax'. Optionally you can wait until user entered password using DTMF digits.
 
+Use of resource ('resource' command) PLCI allows to transmit fax documents over IP using clear channel fax.
+'resource' command allocates one resource PLCI for IP connections only and does not performs any actions for
+E.1/T.1/S0/PSTN connectiosn. This allows safe use of 'resource' command in any context.
+
 Example:
 
 [dial_fax]
@@ -286,6 +305,15 @@ exten => 1,1,Dial(capi/ISDN1/1234512345,20,G(handle_sendfax,s,1))
 
 [handle_sendfax]
 exten => s,1,capicommand(sendfax|/tmp/sendfax001.sff|1234 1234 1234|Outgoing Fax)
+exten => s,n,deadagi,faxlog.php ; Log result and schedule restart if necessary
+exten => s,n,Hangup
+
+
+Example with clear channel fax support:
+
+[handle_sendfax]
+exten => s,1,capicommand(resource|1-4) ; Assign resource PLCI
+exten => s,n,capicommand(sendfax|/tmp/sendfax001.sff|1234 1234 1234|Outgoing Fax)
 exten => s,n,deadagi,faxlog.php ; Log result and schedule restart if necessary
 exten => s,n,Hangup
 
