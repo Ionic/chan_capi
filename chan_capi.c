@@ -201,6 +201,7 @@ static int pbx_capi_indicate(struct ast_channel *c, int condition, const void *d
 static int pbx_capi_indicate(struct ast_channel *c, int condition);
 #endif
 static struct capi_pvt* get_active_plci (struct ast_channel *c);
+static void clear_channel_fax_loop (struct ast_channel *c,  struct capi_pvt *i);
 
 /*
  * B protocol settings
@@ -811,8 +812,8 @@ static int local_queue_frame(struct capi_pvt *i, struct ast_frame *f)
 	}
 
 	if (write(i->writerfd, wbuf, wbuflen) != wbuflen) {
-		cc_log(LOG_ERROR, "Could not write to pipe for %s\n",
-			i->vname);
+		cc_log(LOG_ERROR, "Could not write to pipe for %s fd:%d errno:%d\n",
+			i->vname, i->writerfd, errno);
 	}
 	return 0;
 }
@@ -2354,10 +2355,8 @@ static void setup_b3_fax_config(B3_PROTO_FAXG3 *b3conf, int fax_format, char *st
 /*
  * change b protocol to fax
  */
-static void capi_change_bchan_fax(struct ast_channel *c, B3_PROTO_FAXG3 *b3conf) 
+static void capi_change_bchan_fax(struct capi_pvt *i, B3_PROTO_FAXG3 *b3conf) 
 {
-	struct capi_pvt *i = CC_CHANNEL_PVT(c);
-
 	i->isdnstate |= CAPI_ISDN_STATE_B3_SELECT;
 	cc_disconnect_b3(i, 1);
 	cc_select_b(i, (_cstruct)b3conf);
@@ -2369,7 +2368,7 @@ static void capi_change_bchan_fax(struct ast_channel *c, B3_PROTO_FAXG3 *b3conf)
  */
 static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 {
-	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+	struct capi_pvt *i = get_active_plci (c);
 	int res = 0;
 	int keepbadfax = 0;
 	char *filename, *stationid, *headline, *options;
@@ -2378,8 +2377,14 @@ static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 	unsigned short b3_protocol_options = 0;
 	int extended_resolution = 0;
 
+	if ((i == 0) || ((i->channeltype == CAPI_CHANNELTYPE_NULL) && (i->line_plci == 0))) {
+		cc_log(LOG_WARNING, CC_MESSAGE_NAME " receivefax requires resource PLCI\n");
+		return -1;
+	}
+
 	if (!data) { /* no data implies no filename or anything is present */
 		cc_log(LOG_WARNING, CC_MESSAGE_NAME " receivefax requires a filename\n");
+		capi_remove_nullif(i);
 		return -1;
 	}
 
@@ -2461,6 +2466,7 @@ static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 	i->FaxState &= ~CAPI_FAX_STATE_CONN;
 	if ((i->fFax = fopen(filename, "wb")) == NULL) {
 		cc_log(LOG_WARNING, "can't create fax output file (%s)\n", strerror(errno));
+		capi_remove_nullif(i);
 		return -1;
 	}
 
@@ -2485,22 +2491,30 @@ static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 		capi_send_answer(c, (_cstruct)&b3conf);
 		break;
 	case CAPI_STATE_CONNECTED:
-		capi_change_bchan_fax(c, &b3conf);
+		if (i->channeltype == CAPI_CHANNELTYPE_NULL) {
+			capi_wait_for_b3_up(i);
+		}
+		capi_change_bchan_fax(i, &b3conf);
 		break;
 	default:
 		i->FaxState &= ~CAPI_FAX_STATE_ACTIVE;
 		cc_log(LOG_WARNING, CC_MESSAGE_NAME " receive fax in wrong state (%d)\n",
 			i->state);
+		capi_remove_nullif(i);
 		return -1;
 	}
 
-	while (capi_tell_fax_finish(i)) {
-		if (ast_safe_sleep_conditional(c, 1000, capi_tell_fax_finish, i) != 0) {
-			/* we got a hangup */
-			cc_verbose(3, 1,
-				VERBOSE_PREFIX_3 CC_MESSAGE_NAME " receivefax: hangup.\n");
-			break;
+	if (i->channeltype != CAPI_CHANNELTYPE_NULL) {
+		while (capi_tell_fax_finish(i)) {
+			if (ast_safe_sleep_conditional(c, 1000, capi_tell_fax_finish, i) != 0) {
+				/* we got a hangup */
+				cc_verbose(3, 1,
+					VERBOSE_PREFIX_3 CC_MESSAGE_NAME " receivefax: hangup.\n");
+				break;
+			}
 		}
+	} else {
+		clear_channel_fax_loop (c, i);
 	}
 
 	cc_mutex_lock(&i->lock);
@@ -2536,7 +2550,82 @@ static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 	snprintf(buffer, CAPI_MAX_STRING-1, "%d", res);
 	pbx_builtin_setvar_helper(c, "FAXSTATUS", buffer);
 	
+	capi_remove_nullif(i);
+
 	return 0;
+}
+
+static void clear_channel_fax_loop (struct ast_channel *c,  struct capi_pvt *i)
+{
+	struct ast_frame *f;
+	int ms;
+	int exception;
+	int ready_fd;
+	int waitfd;
+	int nfds = 1;
+	struct ast_channel *rchan;
+	struct ast_channel *chan = c;
+
+	ast_indicate(chan, -1);
+
+	waitfd = i->readerfd;
+	ast_set_read_format(chan, capi_capability);
+	ast_set_write_format(chan, capi_capability);
+
+	while (capi_tell_fax_finish(i)) {
+		ready_fd = 0;
+		ms = 10;
+		errno = 0;
+		exception = 0;
+
+		rchan = ast_waitfor_nandfds(&chan, 1, &waitfd, nfds, &exception, &ready_fd, &ms);
+
+		if (rchan) {
+			f = ast_read(chan);
+			if (!f) {
+				cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: clear channel fax: no frame, hangup.\n",
+					i->vname);
+				break;
+			}
+			if ((f->frametype == AST_FRAME_CONTROL) && (f->subclass == AST_CONTROL_HANGUP)) {
+				cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: clear channel fax: hangup frame.\n",
+					i->vname);
+				ast_frfree(f);
+				break;
+			} else if (f->frametype == AST_FRAME_VOICE) {
+				cc_verbose(5, 1, VERBOSE_PREFIX_3 "%s: clear channel fax: voice frame.\n",
+					i->vname);
+				capi_write_frame(i, f);
+			} else if (f->frametype == AST_FRAME_NULL) {
+				/* ignore NULL frame */
+				cc_verbose(5, 1, VERBOSE_PREFIX_3 "%s: cler channel fax: NULL frame, ignoring.\n",
+					i->vname);
+			} else {
+				cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: cler channel fax: unhandled frame %d/%d.\n",
+					i->vname, f->frametype, f->subclass);
+			}
+			ast_frfree(f);
+		} else if (ready_fd == i->readerfd) {
+			if (exception) {
+				cc_verbose(1, 0, VERBOSE_PREFIX_3 "%s: cler channel fax: exception on readerfd\n",
+					i->vname);
+				break;
+			}
+			f = capi_read_pipeframe(i);
+			if (f->frametype == AST_FRAME_VOICE) {
+				ast_write(chan, f);
+			}
+			/* ignore other nullplci frames */
+		} else {
+			if ((ready_fd < 0) && ms) { 
+				if (errno == 0 || errno == EINTR)
+					continue;
+				cc_log(LOG_WARNING, "%s: Wait failed (%s).\n",
+					chan->name, strerror(errno));
+				break;
+			}
+		}
+	}
 }
 
 /*
@@ -2544,7 +2633,7 @@ static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
  */
 static int pbx_capi_send_fax(struct ast_channel *c, char *data)
 {
-	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+	struct capi_pvt *i = get_active_plci (c);
 	int res = 0;
 	char *filename, *stationid, *headline, *options;
 	B3_PROTO_FAXG3 b3conf;
@@ -2553,8 +2642,14 @@ static int pbx_capi_send_fax(struct ast_channel *c, char *data)
 	unsigned short b3_protocol_options = 0;
 	int extended_resolution = 0;
 
+	if ((i == 0) || ((i->channeltype == CAPI_CHANNELTYPE_NULL) && (i->line_plci == 0))) {
+		cc_log(LOG_WARNING, CC_MESSAGE_NAME " receivefax requires resource PLCI\n");
+		return -1;
+	}
+
 	if (!data) { /* no data implies no filename or anything is present */
 		cc_log(LOG_WARNING, CC_MESSAGE_NAME " sendfax requires a filename\n");
+		capi_remove_nullif(i);
 		return -1;
 	}
 
@@ -2577,6 +2672,7 @@ static int pbx_capi_send_fax(struct ast_channel *c, char *data)
 
 	if ((i->fFax = fopen(filename, "rb")) == NULL) {
 		cc_log(LOG_WARNING, "can't open fax file (%s)\n", strerror(errno));
+		capi_remove_nullif(i);
 		return -1;
 	}
 
@@ -2590,6 +2686,7 @@ static int pbx_capi_send_fax(struct ast_channel *c, char *data)
 			cc_log(LOG_WARNING, "can't read fax file (%s)\n", strerror(errno));
 			fclose(i->fFax);
 			i->fFax = 0;
+			capi_remove_nullif(i);
 			return -1;
 		}
 
@@ -2659,7 +2756,9 @@ static int pbx_capi_send_fax(struct ast_channel *c, char *data)
 			"dw(d)", _DI_MANU_ID, _DI_OPTIONS_REQUEST, 0x00000040L);
 	}
 
-	i->FaxState |= (CAPI_FAX_STATE_ACTIVE | CAPI_FAX_STATE_SENDMODE);
+	if (i->channeltype != CAPI_CHANNELTYPE_NULL) {
+		i->FaxState |= (CAPI_FAX_STATE_ACTIVE | CAPI_FAX_STATE_SENDMODE);
+	}
 	setup_b3_fax_config(&b3conf, file_format, stationid, headline, b3_protocol_options);
 
 	i->bproto = CC_BPROTO_FAXG3;
@@ -2671,21 +2770,31 @@ static int pbx_capi_send_fax(struct ast_channel *c, char *data)
 		capi_send_answer(c, (_cstruct)&b3conf);
 		break;
 	case CAPI_STATE_CONNECTED:
-		capi_change_bchan_fax(c, &b3conf);
+		if (i->channeltype == CAPI_CHANNELTYPE_NULL) {
+			capi_wait_for_b3_up(i);
+			i->FaxState |= (CAPI_FAX_STATE_ACTIVE | CAPI_FAX_STATE_SENDMODE);
+		}
+		capi_change_bchan_fax(i, &b3conf);
 		break;
 	default:
 		i->FaxState &= ~CAPI_FAX_STATE_ACTIVE;
 		cc_log(LOG_WARNING, CC_MESSAGE_NAME " send fax in wrong state (%d)\n",
 			i->state);
+		capi_remove_nullif(i);
 		return -1;
 	}
-	while (capi_tell_fax_finish(i)) {
-		if (ast_safe_sleep_conditional(c, 1000, capi_tell_fax_finish, i) != 0) {
-			/* we got a hangup */
-			cc_verbose(3, 1,
-				VERBOSE_PREFIX_3 CC_MESSAGE_NAME " sendfax: hangup.\n");
-			break;
+
+	if (i->channeltype != CAPI_CHANNELTYPE_NULL) {
+		while (capi_tell_fax_finish(i)) {
+			if (ast_safe_sleep_conditional(c, 1000, capi_tell_fax_finish, i) != 0) {
+				/* we got a hangup */
+				cc_verbose(3, 1,
+					VERBOSE_PREFIX_3 CC_MESSAGE_NAME " sendfax: hangup.\n");
+				break;
+			}
 		}
+	} else {
+		clear_channel_fax_loop (c, i);
 	}
 
 	cc_mutex_lock(&i->lock);
@@ -2710,7 +2819,30 @@ static int pbx_capi_send_fax(struct ast_channel *c, char *data)
 	}
 	snprintf(buffer, CAPI_MAX_STRING-1, "%d", res);
 	pbx_builtin_setvar_helper(c, "FAXSTATUS", buffer);
-	
+
+	if (i->channeltype == CAPI_CHANNELTYPE_NULL) {
+		struct timespec abstime;
+
+		cc_mutex_lock(&i->lock);
+		/* wait for the B3 layer to go down */
+		if ((i->isdnstate & (CAPI_ISDN_STATE_B3_UP | CAPI_ISDN_STATE_B3_PEND))) {
+			i->waitevent = CAPI_WAITEVENT_B3_DOWN;
+			abstime.tv_sec = time(NULL) + 2;
+			abstime.tv_nsec = 0;
+			cc_verbose(4, 1, "%s: wait for b3 down.\n",
+				i->vname);
+			if (ast_cond_timedwait(&i->event_trigger, &i->lock, &abstime) != 0) {
+				cc_log(LOG_WARNING, "%s: timed out waiting for b3 down.\n",
+					i->vname);
+			} else {
+				cc_verbose(4, 1, "%s: cond signal received for b3 down.\n",
+					i->vname);
+			}
+		}
+		cc_mutex_unlock(&i->lock);
+	}
+	capi_remove_nullif(i);
+
 	return 0;
 }
 
@@ -5861,8 +5993,8 @@ static struct capicommands_s {
 	{ "peerlink",     pbx_capi_peer_link,       0, 0 },
 	{ "progress",     pbx_capi_signal_progress, 1, 0 },
 	{ "deflect",      pbx_capi_call_deflect,    1, 0 },
-	{ "receivefax",   pbx_capi_receive_fax,     1, 0 },
-	{ "sendfax",      pbx_capi_send_fax,        1, 0 },
+	{ "receivefax",   pbx_capi_receive_fax,     1, 1 },
+	{ "sendfax",      pbx_capi_send_fax,        1, 1 },
 	{ "echosquelch",  pbx_capi_echosquelch,     1, 0 },
 	{ "echocancel",   pbx_capi_echocancel,      1, 1 },
 

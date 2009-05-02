@@ -18,6 +18,7 @@ HEAD
 - fixed possible race condition while waiting for DISCONNECT_CONF
 - add static half duplex conference
 - add dynamic half duplex conference
+- add clear channel fax
 
 
 chan_capi-1.1.2
