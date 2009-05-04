@@ -9,7 +9,7 @@
 Description:
   Noise Suppressor is used to activate or to deactivate suppression of ambient noise, 
   which can be used to remove noise from speech caused by fans, air cooling systems, 
-  cars, trains and other sources of ambient noises from speech.
+  cars, trains, and other sources of ambient noises from speech.
 
 Direction:
   Applies to Rx path only.
@@ -17,7 +17,7 @@ Direction:
 
 Supported hardware:
   Dialogic(R) Diva(R) 4PRI PCI, 2PRI PCI, 4PRI PCIe HS Media Board
-  Other Dialogic(R) Diva(R) Media Boards equipped with DSP Diva hardware can use this 
+  Other Dialogic(R) Diva(R) Media Boards equipped with DSPs can use this 
   feature only together with RTP.
 
 Syntax:
@@ -76,11 +76,11 @@ Direction:
   In case of line interconnect, it can be activated for multiple parties.
 
 Supported hardware:
-  Requires one Dialogic(R) Diva(R) Media Board equipped with DSPs
+  Requires one Dialogic(R) Diva(R) Media Board equipped with DSPs.
 
 Syntax:
 clamping|N
-  N - estimated duration of DTMF tones to be suppressed in mSec
+  N - estimated duration of DTMF tones to be suppressed in ms
     0         - deactivate clamping
     1 ... 250 - activate clamping
 
@@ -134,10 +134,10 @@ Description:
 
 Direction:
   Applies to Rx path only.
-  In case of line interconnect can be activated for multiple parties.
+  In case of line interconnect, it can be activated for multiple parties.
 
 Supported hardware:
-  Requires one equipped with DSP Diva hardware.
+  Requires one Diva Media Board equipped with DSPs.
 
 Syntax:
 rxagc|yes,no
@@ -191,11 +191,11 @@ Description:
   for Tx direction. AGC level is -6 dBm.
 
 Path:
-  Applies to Tx path only. In case of line interconnect can be activated
+  Applies to Tx path only. In case of line interconnect, it can be activated
   for multiple parties.
 
 Supported hardware:
-  Requires one equipped with DSP Diva hardware
+  Requires one Diva Media Board equipped with DSPs.
 
 Syntax:
 txagc|yes,no
@@ -390,7 +390,7 @@ Description:
   Used to set recording (Rx direction) and playback (Tx direction)
   rate in the range between 1250 ... 51200 Hz.
 
-  Using pitch control, it is possible to play (record) voice message faster
+  Using pitch control, it is possible to play (record) a voice message faster
   (rate > 8000 Hz) or slower (rate < 8000 Hz).
   This is useful if the playback speed of voice mail messages needs to be decreased
   to achieve better understanding or to increase playback speed to
@@ -398,7 +398,7 @@ Description:
 
 Diection:
   Applies to Rx and to Tx path. Can be used only for playback and for
-  recoring of voice data. Not available with line interconnect and RTP.
+  recording of voice data. Not available with line interconnect and RTP.
 
 Supported hardware:
   Requires one Diva Media Board equipped with DSPs.
@@ -441,7 +441,7 @@ Description:
   Used to change the recording (Rx direction) and playback (Tx direction)
   rate in the range from 1250 ... 51200 Hz.
 
-  With pitch control it is possible to play (record) voice message faster
+  With pitch control it is possible to play (record) a voice message faster
   (rate > 8000 Hz) or slower (rate < 8000 Hz).
   This is useful if the playback speed of voice mail messages needs to be decreased
   to achieve better understanding or to increase playback speed to
@@ -729,8 +729,8 @@ stoptonedetection
         0xCB - Tone Alerting Signal detected (for Caller ID in PSTN)
 
 Syntax example:
-s,n,capicommand(starttonedetection|98) ; Change to extension 98 after the detection of the tone
-s,n,capicommand(stoptonedetection)     ; Disable detection of the tones
+s,n,capicommand(starttonedetection|98) ; Change to extension 98 after detection of tone
+s,n,capicommand(stoptonedetection)     ; Disable detection of tones
 
 IVR example:
 
@@ -768,26 +768,26 @@ exten => h,1,Hangup
 +-------------------------------------------------------------------+
 
 Description:
-  While a voice message is played back it is useful to be able to apply
-  media control commands to voice stream without interrupting the playback
+  While a voice message is played back, it is useful to be able to apply
+  media control commands to the voice stream without interrupting the playback
   of the voice stream.
-  The same is true for the conference and for connection between two parties.
+  The same is true for conference and for connection between two parties.
 
   The "vc" command allows to provide this functionality. With this command
   it is possible to bind arbitrary chan_capi commands to sequences of
   events (DTMF digits, ...). Once the events are detected, the appropriate command
-  is executed without interruption of the voice stream.
+  is executed without interrupting the voice stream.
   "vc" allows to create a menu that is executed in the background and allows to
-  control voice stream by activation or deactivation of AGC, noise suppression,
+  control the voice stream by activation or deactivation of AGC, noise suppression,
   control the level of the signal, and playback speed.
-  "vc" allows to use any supported by channel driver command, but please note
+  "vc" allows to use any command supported by the channel driver, but please note
   that commands are not executed in the context of the dial plan. The commands
   are executed using the context of the detected events parallel to the dialplan and
   independent from the dialplan.
 
 Syntax:
 vc|command|key|param|param1|...|paranN
-  Add to menu: on detection of key Execute command using parameters param1|...|paramN
+  Add to menu: on detection of key execute command using parameters param1|...|paramN
 
 vc|command|key
   Add to menu: on detection of key execute command without parameters
@@ -798,7 +798,7 @@ vc|command
 vc
   Cleanup menu
 
-In case one command will use a key that is already in use then a new command will overwrite
+In case one command will use a key that is already in use, then a new command will overwrite
 the existing command:
 exten => s,n,capicommand(vc|txagc|3|yes)
 exten => s,n,capicommand(vc|inctxdgain|3|1.5)
@@ -810,8 +810,8 @@ exten => s,n,capicommand(vc|inctxdgain|3|1.5)
 It is better to use only one digit as key for commands in menu if using the menu for IVR and
 voice mailbox. This provides short response time.
 
-In case, the menu is used for conference or for connection between two parties it may be useful to use
-two or three digits for the key. This will prevent an activation by accidentally pressing of keys.
+In case the menu is used for conference or for connection between two parties, it may be useful to use
+two or three digits for the key. This will prevent an activation by accidentally pressing a key.
 
 Syntax example:
 exten => s,n,capicommand(vc|inctxdgain|5|1.5) ; Execute inctxdgain|1.5 if received DTMF digit 5
@@ -841,30 +841,30 @@ exten => s,n,Hangup
 +-------------------------------------------------------------------+
 
 Description:
-  Used to enter (create) chat (conference room). New conference room is created
+  Used to enter (create) chat (conference room). A new conference room is created
   if necessary.
 
-  This is three types of conference members:
+  There are three types of conference members:
     Regular users
     Operators
     Listeners
 
-  Regular users can receive voice stream from conference and send voice stream to conference.
-  Outgoing (from user to conference) voice stream from regular users can be muted (deactivated)
+  Regular users can receive the voice stream from the conference and send the voice stream to the conference.
+  The outgoing (from user to conference) voice stream from regular users can be muted (deactivated)
   and unmuted (activated) if necessary by 'chat_mute' command.
 
-  Operators can receive voice stream from conference and send voice stream to conference.
-  Outgoing (from user to conference) voice stream from operators can not be muted (deactivated)
+  Operators can receive the voice stream from the conference and send the voice stream to the conference.
+  The outgoing (from user to conference) voice stream from operators cannot be muted (deactivated)
   by 'chat_mute' command.
 
-	Listeners can only receive voice stream from conference.
-  Outgoing (from user to conference) voice stream is muted (decativated) and can not be unmuted (activated)
-  by 'chat_mute' command.
+  Listeners can only receive the voice stream from the conference.
+  The outgoing (from user to conference) voice stream is muted (decativated) and cannot be unmuted (activated)
+  by the 'chat_mute' command.
 
 
 Direction:
   Creates one Any-to-Any conference room. Conference AGC (evaluation of active talker) receives active as
-  soon as more then two members are added to conference.
+  soon as more then two members are added to the conference.
 
 Supported hardware:
   Diva
@@ -873,9 +873,9 @@ Syntax:
 capicommand(chat|<roomname>|<options>|controller)
   roomname - conference room name
   options
-      m - The first caller will get music-on-hold until second caller arrives
-      l - The caller is listener (passive) conference member, can not be unmuted by 'chat_mute' command
-      o - The caller is conference operator, can not be muted by 'chat_mute' command
+      m - The first caller will get music-on-hold until the second caller arrives
+      l - The caller is listener (passive) conference member and cannot be unmuted by 'chat_mute' command
+      o - The caller is conference operator and cannot be muted by 'chat_mute' command
   controller - CAPI controller
 
 Syntax example:
@@ -918,73 +918,73 @@ exten => h,1,Hangup
 /////////////////////////////////////////////////////////////////////
 
 +-------------------------------------------------------------------+
-| IP clear channel fax and chat (MeetMe/Conference)                 |
+| IP Clear Channel fax and chat (MeetMe/Conference)                 |
 | with access to DSP resources                                      |
 +-------------------------------------------------------------------+
 
 Description:
-  Used to assign DSP resources to connected by IP user.
+  Used to assign DSP resources to connected IP users.
   Assigned DSP resources can be used for:
-    Transmission of clear channel fax with up to 33600Bps (V.34), please read 'sendfax' in README.Diva.fax for details
-    Reception    of clear channel fax with up to 33600Bps (V.34), please read 'receivefax' in README.Diva.fax for details
-		Create conference member with media processing capabilities
+    Transmission of Clear Channel fax with up to 33600Bps (V.34), please read 'sendfax' in README.Diva.fax for details.
+    Reception    of Clear Channel fax with up to 33600Bps (V.34), please read 'receivefax' in README.Diva.fax for details.
+    Create conference member with media processing capabilities.
 
-  If conference member is connected by IP network using 'chat' chan_capi command
-  then this peer can not allocate and use required for media processing DSP resources.
+  If the conference member is connected to the IP network using 'chat' chan_capi command,
+  then this peer cannot allocate and use the DSP resources required for media processing.
   This results in processing of IP partipiants as simple conferencing member without
   any media processing capabilities except line interconnect (conferencing) and
   conferencing AGC (active talker evaluation).
-  Using 'resource' chan_capi command this is possible to assign DSP resources to
-  by IP network connection before proceeding with 'chat' chan_capi command. This
-  allows use of provided by DSP resources media processing for connected by IP
+  With the 'resource' chan_capi command it is possible to assign DSP resources to
+  the IP network connection before proceeding with 'chat' chan_capi command. This
+  allows for using the provided DSP resources for media processing for the connected IP
   network conference members.
 
-  This is three types of conference members:
+  There are three types of conference members:
     Regular users
     Operators
     Listeners
 
-  Regular users can receive voice stream from conference and send voice stream to conference.
-  Outgoing (from user to conference) voice stream from regular users can be muted (deactivated)
+  Regular users can receive voice streams from the conference and send voice streams to the conference.
+  The outgoing (from user to conference) voice stream from regular users can be muted (deactivated)
   and unmuted (activated) if necessary by 'chat_mute' command.
 
-  Operators can receive voice stream from conference and send voice stream to conference.
-  Outgoing (from user to conference) voice stream from operators can not be muted (deactivated)
+  Operators can receive voice streams from the conference and send voice streams to the conference.
+  The outgoing (from user to conference) voice stream from operators cannot be muted (deactivated)
   by 'chat_mute' command.
 
-	Listeners can only receive voice stream from conference.
-  Outgoing (from user to conference) voice stream is muted (decativated) and can not be unmuted (activated)
+  Listeners can only receive the voice stream from the conference.
+  The outgoing (from user to conference) voice stream is muted (decativated) and cannot be unmuted (activated)
   by 'chat_mute' command.
 
 
 Note:
-  Certain problems arrive if processing send in band DTMF events for
+  Certain problems may occur if processing sent in-band DTMF events for
   IP connections.
-  chan_diva can use sent in band DTMF events to control media
+  chan_diva can use sent in-band DTMF events to control media
   processing (chan_capi 'vc' command). This works without problems for
-  E.1/T.1/S0/Analog connections. But in case of IP connections media
-  stream is processed by gateway or is originated by IP device.
-  Most of gateways will remove in band DTMF events from media stream and
+  E.1/T.1/S0/Analog connections. But in case of IP connections, the media
+  stream is processed by the gateway or is originated by the IP device.
+  Most of the gateways will remove in-band DTMF events from the media stream and
   forward detected DTMF events as RTP payloads. IP devices will not use
-  in band DTMF signaling and send DTMF events as RTP payloads.
-  In both cases DTMF events are not sent in band and processed by signaling
+  in-band DTMF signaling and send DTMF events as RTP payloads.
+  In both cases, DTMF events are not sent in-band and processed by signaling
   before reaching the chan_capi.
   The solution is to configure gateways and IP devices to send DTMF events
-  in band in addition to sending as RTP payloads or use in band MF signaling.
+  in-band in addition to sending them as RTP payloads or use in-band MF signaling.
 
 Supported hardware:
-  Assign DSP resources to connected by IP network conference member. This feature is available
-  for equipped with DSP Diva hardware only.
+  Assign DSP resources to connected IP network conference members. This feature is available
+  only for Diva hardware equipped with DSPs.
 
-  For Diva 2PRI PCI, Diva 4PRI PCI, Diva 1PRI PCIe HS, Diva 2PRI PCIe HS and Diva 4PRI PCIe HS no
-  restrictions apply for this feature and this is possible to access N x 30 DSP resources
+  For Diva 2PRI PCI, Diva 4PRI PCI, Diva 1PRI PCIe HS, Diva 2PRI PCIe HS, and Diva 4PRI PCIe HS no
+  restrictions apply for this feature and it is possible to access N x 30 DSP resources
   (N - amount of interfaces, 1 - 1PRI, 2 - 2PRI, 4 - 4PRI) in addition to used for E.1/T.1
   DSP resources.
 
-  For Diva PRI Rev.3 PCI and Diva PRI Rev.3 PCIe this is possible to reserve two DSPs for processing
-  of E.1/T.1 without media processing features and share remainding DSPs between E.1/T.1 and IP
+  For Diva PRI Rev.3 PCI and Diva PRI Rev.3 PCIe, it is possible to reserve two DSPs for processing
+  of E.1/T.1 without media processing features and share remaining DSPs between E.1/T.1 and IP
   for connections with media processing features.
-  Using hardware with 30 DSPs and E.1 this is possible to create:
+  Using hardware with 30 DSPs and E.1 it is possible to create:
     From:  2 x E.1 without media processing + 28 x E.1 with media processing
     To:   30 x E.1 without media processing + 28 x IP with media processing
   Using hardware with 30 DSPs and T.1 this is possible to create:
@@ -992,14 +992,14 @@ Supported hardware:
     To:   23 x T.1 without media processing + 28 x IP with media processing
 
   For Diva BRI-2M Rev.2 PCI, Diva BRI-2M PCIe, Diva 4BRI Rev.2 PCI and for Diva 4BRI PCIe
-  this is not possible to reserve DSPs for processing of ISDN connections and to share
-  DSPs between ISDN and IP connection. In case DSP resources are assigned to connected
-  by IP conference member then appropriate DSP resources receive not available
-  for processing of ISDN connections. As result ISDN connections can not be processed.
-  To resolve this problem please use Diva configuration to change the configuration
-  of Diva board to resourceboardmode. In resourceboard mode ISDN interface is deactivated
+  it is not possible to reserve DSPs for processing of ISDN connections and to share
+  DSPs between ISDN and IP connection. If DSP resources are assigned to connected
+  IP conference members, then the appropriate DSP resources receive not available
+  for processing of ISDN connections. As result ISDN connections cannot be processed.
+  To resolve this problem please use the Diva configuration to change the configuration
+  of Diva board to resource board mode. In resource board mode, the ISDN interface is deactivated
   and all available DSP resources (two DSPs for Diva BRI-2M and eight DSPs for Diva 4BRI)
-  can be used for connected by IP conference members (two members for Diva BRI-2M and
+  can be used for connected IP conference members (two members for Diva BRI-2M and
   eight members for Diva 4BRI).
   
 
@@ -1040,37 +1040,37 @@ exten => s,n,capicommand(chat|test1|m|1-4)     ; Craete/enter conference toom 't
 +-------------------------------------------------------------------+
 
 Description:
-  Used to manage chat (conference room). This is three types of conference members:
+  Used to manage chat (conference room). There are three types of conference members:
     Regular users
     Operators
     Listeners
 
-  Regular users can receive voice stream from conference and send voice stream to conference.
-  Outgoing (from user to conference) voice stream from regular users can be muted (deactivated)
+  Regular users can receive the voice stream from the conference and send the voice stream to the conference.
+  The outgoing (from user to conference) voice stream from regular users can be muted (deactivated)
   and unmuted (activated) if necessary by 'chat_mute' command.
 
-  Operators can receive voice stream from conference and send voice stream to conference.
-  Outgoing (from user to conference) voice stream from operators can not be muted (deactivated)
+  Operators can receive the voice stream from the conference and send the voice stream to the conference.
+  The outgoing (from user to conference) voice stream from operators cannot be muted (deactivated)
   by 'chat_mute' command.
 
-	Listeners can only receive voice stream from conference.
-  Outgoing (from user to conference) voice stream is muted (decativated) and can not be unmuted (activated)
+  Listeners can only receive the voice stream from the conference.
+  The outgoing (from user to conference) voice stream is muted (decativated) and cannot be unmuted (activated)
   by 'chat_mute' command.
 
-	'chat_mute' command allows to manage conference switching regular users between active (voice stream from
+   'chat_mute' command allows to manage conference switching of regular users between active (voice stream from
    user to conference is active and used in conference) and passive (voice stream from user to conference
-   is deactivated and not used in conference) mode. 'chat_mute' command apply to regular users only.
-   The state of operators and listeners is not changed by this commmand. Independent from changed by this
-   command state of conference operators will remain active members and listeners will remain passive members
-   of conference.
+   is deactivated and not used in conference) mode. 'chat_mute' command applies to regular users only.
+   The state of operators and listeners is not changed by this commmand. Independent from changes to this
+   command state, conference operators will remain active members and listeners will remain passive members
+   of the conference.
 
 Direction:
-  Used to control (deactivate and activate) voice stream from regular users to conference.
+  Used to control (deactivate and activate) the voice stream from regular users to the conference.
 
 Note:
-	Voice stream of regular users is active by default. If conference mode was changed to half duplex
-  ('chat_mute|yes') then new regular users are created with voice stream deactivated until conference
-  mode is not changed back to full duplex ('chat_mute|no')
+	The voice stream of regular users is active by default. If the conference mode was changed to half duplex
+  ('chat_mute|yes'), then new regular users are created with a deactivated voice stream until the conference
+  mode is changed back to full duplex ('chat_mute|no')
 
 Supported hardware:
   Diva
@@ -1078,14 +1078,14 @@ Supported hardware:
 Syntax:
 capicommand(chat_mute|<action>[|<roomname>])
   action - mandatory
-           yes - change conference mode to half duplex, deactivate voice stream from regular
-                 users to conference
-           no  - change conference mode back to full duplex, activate voice stream from regular
-                 users to conference
-  roomname - conference room name. This parameter is necessary if caller is not a member of conference.
-             It allows the control of conference by one user which not member of conference. Using
-             this parameter one user can control multiple conferences. This allows to implement
-             functionality of common conference operator.
+           yes - Change conference mode to half duplex, deactivate voice stream from regular
+                 users to conference.
+           no  - Change conference mode back to full duplex, activate voice stream from regular
+                 users to conference.
+  roomname - Conference room name. This parameter is necessary if a caller is not a member of the conference.
+             It allows the control of the conference by one user, who not member of conference. Using
+             this parameter, one user can control multiple conferences. This allows to implement the 
+             functionality of a common conference operator.
 
 Syntax example:
 exten => s,n,capicommand(chat_mute|yes)
@@ -1130,7 +1130,7 @@ exten => s,n,Hangup
 +-------------------------------------------------------------------+
 
 Description:
-  Used to activate or to deactivate echo cancellation in accordance with G.168
+  Used to activate or to deactivate echo cancellation in accordance with G.168.
   The vast majority of the public telephone system local loop wiring is done using
   two-wire connections whereby the same pair of wires carries voice signals in both
   directions. In the telephone company's central office or in an office PBX,
@@ -1143,22 +1143,22 @@ Description:
   the echo canceller must not cause detriment to signaling tones (DTMF etc.) or fax and
   modem transmissions.
 
-  Diva supports echo cancellation (in accordance G.168 with NLP) with tail length up to 256 mSec.
-  256 mSec tail length is required to ensure the operation in the environments where the signal
+  Diva supports echo cancellation (in accordance G.168 with NLP) with tail length up to 256 ms.
+  256 ms tail length is required to ensure the operation in the environments where the signal
   is carried over the packet network. This is not always the case at customer site and can be done
-  by transit network which does not provides own echo cancellation capabilities.
+  by the transit network, wich does not provide own echo cancellation capabilities.
 
   'echocancelnlp' configuration parameter (capi.conf) is used to activate (deactivate) NLP
   (Non Linear Processor which removes the residual echo at the output of the echo cancellation unit).
   You can use Diva chan_capi configuration to change this capi.conf configuration parameter.
 
-  Diva automatically deactivates echo cancellation upon detection of fax ro modem transmission.
+  The Diva software automatically deactivates echo cancellation upon the detection of fax or modem transmission.
 
 Direction:
-  Aplies on TDM interface (E.1/T.1/S0) only
+  Aplies to TDM interface (E.1/T.1/S0) only
 
 Supported hardware:
-  Equipped with DSP Diva hardware
+  Diva Media Boards equipped with DSPs. 
 
 Syntax:
 echocancel|yes,no
