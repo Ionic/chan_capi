@@ -179,6 +179,8 @@ static char default_language[MAX_LANGUAGE] = "";
 
 int capi_capability = AST_FORMAT_ALAW;
 
+static int null_plci_dtmf_support = 1;
+
 #ifdef CC_AST_HAS_VERSION_1_4
 /* Global jitterbuffer configuration - by default, jb is disabled */
 static struct ast_jb_conf default_jbconf =
@@ -718,7 +720,8 @@ static int capi_detect_dtmf(struct capi_pvt *i, int flag)
 		return 0;
 
 	if ((i->channeltype == CAPI_CHANNELTYPE_NULL) &&
-		(i->line_plci == 0)) {
+		(i->line_plci == 0) &&
+		(null_plci_dtmf_support == 0)) {
 		return 0;
 	}
 
@@ -745,7 +748,7 @@ static int capi_detect_dtmf(struct capi_pvt *i, int flag)
 
 	error = capi_sendf(i, 0, CAPI_FACILITY_REQ, i->PLCI, get_capi_MessageNumber(),
 		"w(www()())",
-		FACILITYSELECTOR_DTMF,
+		((i->channeltype != CAPI_CHANNELTYPE_NULL) || (i->line_plci != 0)) ?  FACILITYSELECTOR_DTMF : PRIV_SELECTOR_DTMF_ONDATA,
 		(flag == 1) ? 1:2,  /* start/stop DTMF listen */
 		CAPI_DTMF_DURATION,
 		CAPI_DTMF_DURATION
@@ -3561,6 +3564,8 @@ static int handle_facility_indication_dtmf(
 		dtmflen = read_capi_word(FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG) + 1);
 		FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG) += 3;
 	}
+
+
 	while (dtmflen) {
 		dtmf = (FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG))[dtmfpos];
 		cc_verbose(1, 1, VERBOSE_PREFIX_4 "%s: c_dtmf = %c\n",
@@ -3716,6 +3721,7 @@ static void capidev_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, u
 		resp_done = handle_facility_indication_line_interconnect(CMSG, PLCI, NCCI, i);
 		break;
 	case FACILITYSELECTOR_DTMF:
+	case PRIV_SELECTOR_DTMF_ONDATA:
 		return_on_no_interface("FACILITY_IND DTMF");
 		resp_done = handle_facility_indication_dtmf(CMSG, PLCI, NCCI, i);
 		break;
@@ -4413,6 +4419,18 @@ static void capidev_handle_facility_confirmation(_cmsg *CMSG, unsigned int PLCI,
 	if (*i == NULL)
 		return;
 
+	if ((selector == PRIV_SELECTOR_DTMF_ONDATA) && (i[0]->channeltype == CAPI_CHANNELTYPE_NULL) && (i[0]->line_plci == 0)) {
+		if (FACILITY_CONF_INFO(CMSG)) {
+			if (FACILITY_CONF_INFO(CMSG) == 0x300b) {
+				null_plci_dtmf_support = 0;
+				cc_log(LOG_WARNING, "no support for DTMF detection on NULL PLCI in this CAPI version. Please update CAPI driver.\n");
+			}
+			return;
+		}
+		cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: NULL PLCI DTMF conf(PLCI=%#x)\n",
+			(*i)->vname, PLCI);
+		return;
+	}
 	if (selector == FACILITYSELECTOR_DTMF) {
 		cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: DTMF conf(PLCI=%#x)\n",
 			(*i)->vname, PLCI);

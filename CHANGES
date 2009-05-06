@@ -19,6 +19,7 @@ HEAD
 - add static half duplex conference
 - add dynamic half duplex conference
 - add clear channel fax
+- add DTMF detection for NULL PLCI
 
 
 chan_capi-1.1.2
