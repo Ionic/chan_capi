@@ -904,7 +904,6 @@ static int capi_send_dtmf_digits(struct capi_pvt *i, char digit)
 
 	if ((capi_controllers[i->controller]->dtmf == 0) || (i->doDTMF > 0)) {
 		/* let * fake it */
-		cc_mutex_unlock(&i->lock);
 		return -1;
 	}
 
