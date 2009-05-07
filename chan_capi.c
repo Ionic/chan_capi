@@ -720,8 +720,7 @@ static int capi_detect_dtmf(struct capi_pvt *i, int flag)
 		return 0;
 
 	if ((i->channeltype == CAPI_CHANNELTYPE_NULL) &&
-		(i->line_plci == 0) &&
-		(null_plci_dtmf_support == 0)) {
+		(((i->line_plci == 0) && (null_plci_dtmf_support == 0)) || (i->resource_plci_type == CAPI_RESOURCE_PLCI_LINE))) {
 		return 0;
 	}
 
