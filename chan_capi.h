@@ -139,6 +139,7 @@ static inline unsigned int read_capi_dword(void *m)
 #define CC_BPROTO_TRANSPARENT   0
 #define CC_BPROTO_FAXG3         1
 #define CC_BPROTO_RTP           2
+#define CC_BPROTO_VOCODER       3
 
 /* FAX Resolutions */
 #define FAX_STANDARD_RESOLUTION         0

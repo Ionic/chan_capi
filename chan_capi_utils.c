@@ -1387,6 +1387,27 @@ int capi_write_frame(struct capi_pvt *i, struct ast_frame *f)
 		return 0;
 	}
 
+	if (i->bproto == CC_BPROTO_VOCODER) {
+		buf = &(i->send_buffer[(i->send_buffer_handle % CAPI_MAX_B3_BLOCKS) *
+			(CAPI_MAX_B3_BLOCK_SIZE + AST_FRIENDLY_OFFSET)]);
+		i->send_buffer_handle++;
+
+		memcpy (buf, f->FRAME_DATA_PTR, f->datalen);
+
+		error = capi_sendf(NULL, 0, CAPI_DATA_B3_REQ, i->NCCI, get_capi_MessageNumber(),
+			"dwww", buf, f->datalen, i->send_buffer_handle, 0);
+		if (likely(error == 0)) {
+			cc_mutex_lock(&i->lock);
+			i->B3count++;
+			i->B3q -= f->datalen;
+			if (i->B3q < 0)
+				i->B3q = 0;
+			cc_mutex_unlock(&i->lock);
+		}
+
+		return 0;
+	}
+
 	if ((!i->smoother) || (ast_smoother_feed(i->smoother, f) != 0)) {
 		cc_log(LOG_ERROR, "%s: failed to fill smoother\n", i->vname);
 		return 0;

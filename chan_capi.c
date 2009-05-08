@@ -203,6 +203,7 @@ static int pbx_capi_indicate(struct ast_channel *c, int condition, const void *d
 static int pbx_capi_indicate(struct ast_channel *c, int condition);
 #endif
 static struct capi_pvt* get_active_plci (struct ast_channel *c);
+static _cstruct diva_get_b1_conf (struct capi_pvt *i);
 static void clear_channel_fax_loop (struct ast_channel *c,  struct capi_pvt *i);
 
 /*
@@ -232,6 +233,11 @@ static struct {
 		/* (_cstruct) "\x04\x01\x00\x00\x02", */
 		(_cstruct) "\x06\x01\x00\x58\x02\x32\x00",
 		(_cstruct) "\x00"
+	},
+	{ 0x1f, 1, 0,	/* 3 */
+		NULL,
+		NULL,
+		NULL
 	}
 };
 
@@ -1512,7 +1518,7 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 		b_protocol_table[i->bproto].b1protocol,
 		b_protocol_table[i->bproto].b2protocol,
 		b_protocol_table[i->bproto].b3protocol,
-		b_protocol_table[i->bproto].b1configuration,
+		diva_get_b1_conf (i),
 		b_protocol_table[i->bproto].b2configuration,
 		b_protocol_table[i->bproto].b3configuration,
 		 /* BC */
@@ -1536,6 +1542,42 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 	return 0;
 }
 
+static _cstruct diva_get_b1_conf (struct capi_pvt *i) {
+	_cstruct b1conf = b_protocol_table[i->bproto].b1configuration;
+
+	if (i->bproto == CC_BPROTO_VOCODER) {
+		switch(i->codec) {
+		case AST_FORMAT_ALAW:
+			b1conf = (_cstruct)"\x06\x08\x04\x03\x00\xa0\x00";
+			break;
+		case AST_FORMAT_ULAW:
+			b1conf = (_cstruct)"\x06\x00\x04\x03\x00\xa0\x00";
+			break;
+		case AST_FORMAT_GSM:
+			b1conf = (_cstruct)"\x06\x03\x04\x0f\x00\xa0\x00";
+			break;
+		case AST_FORMAT_G723_1:
+			b1conf = (_cstruct)"\x06\x04\x04\x01\x00\xa0\x00";
+			break;
+		case AST_FORMAT_G726:
+			b1conf = (_cstruct)"\x06\x02\x04\x0f\x00\xa0\x00";
+			break;
+		case AST_FORMAT_ILBC: /* 30 mSec 240 samples */
+			b1conf = (_cstruct)"\x06\x1b\x04\x03\x00\xf0\x00";
+			break;
+		case AST_FORMAT_G729A:
+			b1conf = (_cstruct)"\x06\x12\x04\x0f\x00\xa0\x00";
+			break;
+		default:
+			cc_log(LOG_ERROR, "%s: format %s(%d) invalid.\n",
+				i->vname, ast_getformatname(i->codec), i->codec);
+			break;
+		}
+	}
+
+	return (b1conf);
+}
+
 /*
  * answer a capi call
  */
@@ -1546,6 +1588,7 @@ static int capi_send_answer(struct ast_channel *c, _cstruct b3conf)
 	const char *dnid;
 	const char *connectednumber;
 	unsigned char *facilityarray = NULL;
+	_cstruct b1conf;
     
 	if (i->state == CAPI_STATE_DISCONNECTED) {
 		cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: Not answering disconnected call.\n",
@@ -1576,6 +1619,8 @@ static int capi_send_answer(struct ast_channel *c, _cstruct b3conf)
 		b3conf = b_protocol_table[i->bproto].b3configuration;
 	}
 
+	b1conf = diva_get_b1_conf (i);
+
 	cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: Answering for %s\n",
 		i->vname, dnid);
 		
@@ -1594,7 +1639,7 @@ static int capi_send_answer(struct ast_channel *c, _cstruct b3conf)
 		b_protocol_table[i->bproto].b1protocol,
 		b_protocol_table[i->bproto].b2protocol,
 		b_protocol_table[i->bproto].b3protocol,
-		b_protocol_table[i->bproto].b1configuration,
+		b1conf,
 		b_protocol_table[i->bproto].b2configuration,
 		b3conf,
 		capi_set_global_configuration(i),
@@ -1622,7 +1667,7 @@ static int pbx_capi_answer(struct ast_channel *c)
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	int ret;
 
-	i->bproto = CC_BPROTO_TRANSPARENT;
+	i->bproto = ((i->bproto == CC_BPROTO_VOCODER) && (i->codec != 0)) ? i->bproto : CC_BPROTO_TRANSPARENT;
 
 	if (i->rtp) {
 		if (!capi_tcap_is_digital(i->transfercapability))
@@ -2146,7 +2191,9 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 	tmp->pickupgroup = i->pickupgroup;
 	tmp->nativeformats = capi_capability;
 	i->bproto = CC_BPROTO_TRANSPARENT;
+
 	if ((i->rtpcodec = (capi_controllers[i->controller]->rtpcodec & i->capability))) {
+#if 0 /* VOCODER */
 		if (capi_alloc_rtp(i)) {
 			/* error on rtp alloc */
 			i->rtpcodec = 0;
@@ -2155,6 +2202,10 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 			tmp->nativeformats = i->rtpcodec;
 			i->bproto = CC_BPROTO_RTP;
 		}
+#else
+		tmp->nativeformats = i->rtpcodec;
+		i->bproto = CC_BPROTO_VOCODER;
+#endif
 	}
 	fmt = ast_best_codec(tmp->nativeformats);
 	i->codec = fmt;
@@ -2169,7 +2220,7 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 		i->vname, ast_getformatname(fmt),
 		ast_getformatname_multiple(alloca(80), 80,
 		tmp->nativeformats),
-		(i->rtp) ? " (RTP)" : "");
+		(i->bproto == CC_BPROTO_VOCODER) ? "VOCODER" : ((i->rtp) ? " (RTP)" : ""));
 
 	if (!ast_strlen_zero(i->cid)) {
 		if (tmp->cid.cid_num) {
@@ -3802,44 +3853,48 @@ static void capidev_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, un
 		i->B3q += b3len;
 	}
 
-	if ((i->doES == 1) && (!capi_tcap_is_digital(i->transfercapability))) {
-		for (j = 0; j < b3len; j++) {
-			*(b3buf + j) = capi_reversebits[*(b3buf + j)]; 
-			if (capi_capability == AST_FORMAT_ULAW) {
-				rxavg += abs(capiULAW2INT[ capi_reversebits[*(b3buf + j)]]);
-			} else {
-				rxavg += abs(capiALAW2INT[ capi_reversebits[*(b3buf + j)]]);
-			}
-		}
-		rxavg = rxavg / j;
-		for (j = 0; j < ECHO_EFFECTIVE_TX_COUNT; j++) {
-			txavg += i->txavg[j];
-		}
-		txavg = txavg / j;
-			    
-		if ( (txavg / ECHO_TXRX_RATIO) > rxavg) {
-			if (capi_capability == AST_FORMAT_ULAW) {
-				memset(b3buf, 255, b3len);
-			} else {
-				memset(b3buf, 85, b3len);
-			}
-			cc_verbose(6, 1, VERBOSE_PREFIX_3 "%s: SUPPRESSING ECHO rx=%d, tx=%d\n",
-					i->vname, rxavg, txavg);
-		}
-	} else {
-		if ((i->rxgain == 1.0) || (capi_tcap_is_digital(i->transfercapability))) {
+	if (i->bproto != CC_BPROTO_VOCODER) {
+		if ((i->doES == 1) && (!capi_tcap_is_digital(i->transfercapability))) {
 			for (j = 0; j < b3len; j++) {
-				*(b3buf + j) = capi_reversebits[*(b3buf + j)];
+				*(b3buf + j) = capi_reversebits[*(b3buf + j)]; 
+				if (capi_capability == AST_FORMAT_ULAW) {
+					rxavg += abs(capiULAW2INT[ capi_reversebits[*(b3buf + j)]]);
+				} else {
+					rxavg += abs(capiALAW2INT[ capi_reversebits[*(b3buf + j)]]);
+				}
+			}
+			rxavg = rxavg / j;
+			for (j = 0; j < ECHO_EFFECTIVE_TX_COUNT; j++) {
+				txavg += i->txavg[j];
+			}
+			txavg = txavg / j;
+				    
+			if ( (txavg / ECHO_TXRX_RATIO) > rxavg) {
+				if (capi_capability == AST_FORMAT_ULAW) {
+					memset(b3buf, 255, b3len);
+				} else {
+					memset(b3buf, 85, b3len);
+				}
+				cc_verbose(6, 1, VERBOSE_PREFIX_3 "%s: SUPPRESSING ECHO rx=%d, tx=%d\n",
+						i->vname, rxavg, txavg);
 			}
 		} else {
-			for (j = 0; j < b3len; j++) {
-				*(b3buf + j) = capi_reversebits[i->g.rxgains[*(b3buf + j)]];
+			if ((i->rxgain == 1.0) || (capi_tcap_is_digital(i->transfercapability))) {
+				for (j = 0; j < b3len; j++) {
+					*(b3buf + j) = capi_reversebits[*(b3buf + j)];
+				}
+			} else {
+				for (j = 0; j < b3len; j++) {
+					*(b3buf + j) = capi_reversebits[i->g.rxgains[*(b3buf + j)]];
+				}
 			}
 		}
+		fr.subclass = capi_capability;
+	} else {
+		fr.subclass = i->codec;
 	}
 
 	fr.frametype = AST_FRAME_VOICE;
-	fr.subclass = capi_capability;
 	fr.FRAME_DATA_PTR = b3buf;
 	fr.datalen = b3len;
 	fr.samples = b3len;
@@ -6747,6 +6802,8 @@ static char *show_bproto(int bproto)
 		return " fax ";
 	case CC_BPROTO_RTP:
 		return " rtp ";
+	case CC_BPROTO_VOCODER:
+		return " vocoder ";
 	}
 	return " ??? ";
 }
