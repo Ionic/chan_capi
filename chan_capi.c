@@ -1417,7 +1417,7 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 			b_protocol_table[i->bproto].b1protocol,
 			b_protocol_table[i->bproto].b2protocol,
 			b_protocol_table[i->bproto].b3protocol,
-			b_protocol_table[i->bproto].b1configuration,
+			diva_get_b1_conf(i),
 			b_protocol_table[i->bproto].b2configuration,
 			b_protocol_table[i->bproto].b3configuration
 			/* */ /* BC */
@@ -1739,7 +1739,7 @@ static void cc_select_b(struct capi_pvt *i, _cstruct b3conf)
 		b_protocol_table[i->bproto].b1protocol,
 		b_protocol_table[i->bproto].b2protocol,
 		b_protocol_table[i->bproto].b3protocol,
-		b_protocol_table[i->bproto].b1configuration,
+		diva_get_b1_conf (i),
 		b_protocol_table[i->bproto].b2configuration,
 		b3conf,
 		capi_set_global_configuration(i)

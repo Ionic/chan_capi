@@ -20,6 +20,7 @@ HEAD
 - add dynamic half duplex conference
 - add clear channel fax
 - add DTMF detection for NULL PLCI
+- use direct access to vocoders without RTP framing
 
 
 chan_capi-1.1.2
