@@ -408,7 +408,7 @@ static struct capichat_s *add_chat_member(char *roomname, struct capi_pvt *i, ro
  * loop during chat
  */
 static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i,
-	struct capichat_s *room, unsigned int flags)
+	struct capichat_s *room, unsigned int flags, FILE* voice_message)
 {
 	struct ast_frame *f;
 	int ms;
@@ -418,24 +418,33 @@ static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i,
 	int nfds = 0;
 	struct ast_channel *rchan;
 	struct ast_channel *chan = c;
-	int moh_active = 0;
+	int moh_active = 0, voice_message_moh_active = 0;
+	int write_block_nr = 2;
 
-	ast_indicate(chan, -1);
+	if (voice_message == NULL) {
+		ast_indicate(chan, -1);
+	}
 
 	waitfd = i->readerfd;
 	if (i->channeltype == CAPI_CHANNELTYPE_NULL) {
 		nfds = 1;
-		ast_set_read_format(chan, capi_capability);
-		ast_set_write_format(chan, capi_capability);
+		if (voice_message == NULL) {
+			ast_set_read_format(chan, capi_capability);
+			ast_set_write_format(chan, capi_capability);
+		}
 	}
 
-	if ((flags & CHAT_FLAG_MOH) && (room->active < 2)) {
+	if ((flags & CHAT_FLAG_MOH) && ((room->active < 2) || (voice_message != 0))) {
 #if defined(CC_AST_HAS_VERSION_1_6) || defined(CC_AST_HAS_VERSION_1_4)
 		ast_moh_start(chan, NULL, NULL);
 #else
 		ast_moh_start(chan, NULL);
 #endif
-		moh_active = 1;
+		if (voice_message == 0) {
+			moh_active = 1;
+		} else {
+			voice_message_moh_active = 1;
+		}
 	}
 
 	while (1) {
@@ -461,7 +470,7 @@ static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i,
 			} else if (f->frametype == AST_FRAME_VOICE) {
 				cc_verbose(5, 1, VERBOSE_PREFIX_3 "%s: chat: voice frame.\n",
 					i->vname);
-				if (i->channeltype == CAPI_CHANNELTYPE_NULL) {
+				if ((voice_message == 0) && (i->channeltype == CAPI_CHANNELTYPE_NULL)) {
 					capi_write_frame(i, f);
 				}
 			} else if (f->frametype == AST_FRAME_NULL) {
@@ -481,7 +490,28 @@ static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i,
 			}
 			f = capi_read_pipeframe(i);
 			if (f->frametype == AST_FRAME_VOICE) {
-				ast_write(chan, f);
+				if (voice_message == 0) {
+					ast_write(chan, f);
+				} else {
+					char* p = f->FRAME_DATA_PTR;
+					int len;
+
+					do {
+						if ((len = fread(p, 1, f->datalen, voice_message)) > 0) {
+							if (len < f->datalen) {
+								memset (&p[len], 0x00, f->datalen-len);
+								len = 0;
+							}
+							capi_write_frame(i, f);
+						}
+					} while ((write_block_nr-- != 0) && (len > 0));
+
+					if (len <= 0) {
+						break;
+					}
+
+					write_block_nr = 0;
+				}
 			}
 			/* ignore other nullplci frames */
 		} else {
@@ -497,6 +527,9 @@ static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i,
 			ast_moh_stop(chan);
 			moh_active = 0;
 		}
+	}
+	if (voice_message_moh_active != 0) {
+		ast_moh_stop(chan);
 	}
 }
 
@@ -581,15 +614,120 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 	room = add_chat_member(roomname, i, room_member_type);
 	if (!room) {
 		cc_log(LOG_WARNING, "Unable to open " CC_MESSAGE_NAME " chat room.\n");
+		capi_remove_nullif(i);
 		return -1;
 	}
 
 	/* main loop */
-	chat_handle_events(c, i, room, flags);
+	chat_handle_events(c, i, room, flags, 0);
 
 	del_chat_member(room);
 
 out:
+	capi_remove_nullif(i);
+
+	return 0;
+}
+
+int pbx_capi_chat_play(struct ast_channel *c, char *param)
+{
+	struct capi_pvt *i = NULL; 
+	char *roomname, *controller, *file_name;
+	char *p;
+	struct capichat_s *room;
+	ast_group_t tmpcntr;
+	unsigned long long contr = 0;
+	room_member_type_t room_member_type = RoomMemberOperator;
+	FILE* f;
+
+	roomname = strsep(&param, "|");
+	file_name = strsep(&param, "|");
+	controller = param;
+
+	if (!roomname) {
+		cc_log(LOG_WARNING, CC_MESSAGE_NAME " chat_play requires room name.\n");
+		return -1;
+	}
+	if (!file_name || !*file_name) {
+		cc_log(LOG_WARNING, CC_MESSAGE_NAME " chat_play requires file name.\n");
+		return -1;
+	}
+
+	{
+		int chat_members;
+
+		cc_mutex_lock(&chat_lock);
+		for (room = chat_list, chat_members = 0; room != 0 && chat_members == 0; room = room->next) {
+			chat_members += (strcmp(room->name, roomname) == 0);
+		}
+		cc_mutex_unlock(&chat_lock);
+
+		if (chat_members == 0) {
+			return 0;
+		}
+	}
+
+	f = fopen(file_name, "rb");
+	if (f == NULL) {
+		cc_log(LOG_WARNING, "can't open voice file (%s)\n", strerror(errno));
+		return -1;
+	}
+
+	{
+		unsigned char tmp[2] = { 0, 0 };
+
+		if (fread(tmp, 1, 2, f) != 2) {
+			cc_log(LOG_WARNING, "can't read voice file (%s)\n", strerror(errno));
+			fclose(f);
+			return -1;
+		}
+	}
+
+	rewind(f);
+
+	if (controller) {
+		for (p = controller; p && *p; p++) {
+			if (*p == '|') *p = ',';
+		}
+		tmpcntr = ast_get_group(controller);
+		contr = (unsigned long long)(tmpcntr >> 1);
+	}
+
+	cc_verbose(3, 1, VERBOSE_PREFIX_3 CC_MESSAGE_NAME " chat_play: %s: roomname=%s "
+		"message=%s controller=%s (0x%llx)\n",
+		c->name, roomname, file_name, controller, contr);
+
+	i = capi_mknullif(c, contr);
+	if (i == NULL) {
+		fclose (f);
+		cc_log(LOG_WARNING, "Unable to play %s to chat room %s", file_name, roomname);
+		return (-1);
+	}
+
+	if (c->_state != AST_STATE_UP) {
+		ast_answer(c);
+	}
+
+	capi_wait_for_answered(i);
+	if (!(capi_wait_for_b3_up(i))) {
+		goto out;
+	}
+
+	room = add_chat_member(roomname, i, room_member_type);
+	if (!room) {
+		capi_remove_nullif(i);
+		fclose (f);
+		cc_log(LOG_WARNING, "Unable to open " CC_MESSAGE_NAME " chat room.\n");
+		return -1;
+	}
+
+	/* main loop */
+	chat_handle_events(c, i, room, CHAT_FLAG_MOH, f);
+
+	del_chat_member(room);
+
+out:
+	fclose (f);
 	capi_remove_nullif(i);
 
 	return 0;

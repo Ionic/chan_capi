@@ -6102,6 +6102,7 @@ static struct capicommands_s {
 	{ "ccpartybusy",  pbx_capi_ccpartybusy,     0, 0 },
 	{ "chat",         pbx_capi_chat,            0, 0 },
 	{ "chat_mute",    pbx_capi_chat_mute,       0, 0 },
+	{ "chat_play",    pbx_capi_chat_play,       0, 0 },
 	{ "resource",         pbx_capi_chat_associate_resource_plci, 0, 0 },
 	{ "hangup",       pbx_capi_realhangup,      0, 0 },
  	{ "qsig_ssct",	  pbx_capi_qsig_ssct,	    1, 0 },
