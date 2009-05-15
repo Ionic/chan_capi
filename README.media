@@ -1126,6 +1126,48 @@ exten => s,n,Hangup
 /////////////////////////////////////////////////////////////////////
 
 +-------------------------------------------------------------------+
+|  chat_play (play message to Conference)                           |
++-------------------------------------------------------------------+
+
+Description:
+  Used to play voice message to conference. Optionally music on hold is played to caller
+  while message is played to conference.
+
+Direction:
+	Message is played to all members of conference
+
+Supported hardware:
+  Diva
+
+Syntax:
+capicommand(chat_play|<roomname>|<options>|<filename>|controller)
+  roomname   - conference room name
+  options
+      m - The caller will get music-on-hold while message is played
+	filename   - Voice message file name. Should be in aLaw (uLaw) format.
+  controller - CAPI controller
+
+Syntax example:
+exten => s,n,capicommand(chat|test|m|/tmp/file.alaw|1)
+exten => s,n,capicommand(chat|test||/tmp/file.alaw|1-4,7-10)
+
+IVR example:
+/////////////////////////////////////////////////////////////////////
+[isdn-in]
+exten => _X.,1,Answer     ; Answer the line
+exten => _X.,n,Goto(s,1)
+exten => s,1,capicommand(clamping|100)         ; Activate suppression of DTMF tones
+exten => s,n,Playback(record-name)             ; Ask for name
+exten => s,n,capicommand(rxagc|yes)            ; Activate Rx AGC
+exten => s,n,Record(/tmp/${UNIQUEID}-info:alaw) ; Record message
+exten => s,n,capicommand(rxagc|no)             ; Deactivate Rx AGC
+exten => s,n,capicommand(chat_play|test|m|/tmp/${UNIQUEID}-info.alaw|1-4) ; Play message to conference,
+                                                                          ; play music on hold to caller
+exten => s,n,capicommand(chat|test|m|1-4)     ; Create/enter conference room 'test1'
+
+/////////////////////////////////////////////////////////////////////
+
++-------------------------------------------------------------------+
 |  echocancel                                                       |
 +-------------------------------------------------------------------+
 

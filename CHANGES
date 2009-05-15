@@ -21,6 +21,7 @@ HEAD
 - add clear channel fax
 - add DTMF detection for NULL PLCI
 - use direct access to vocoders without RTP framing
+- play message to conference
 
 
 chan_capi-1.1.2
