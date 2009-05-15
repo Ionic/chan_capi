@@ -408,7 +408,7 @@ static struct capichat_s *add_chat_member(char *roomname, struct capi_pvt *i, ro
  * loop during chat
  */
 static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i,
-	struct capichat_s *room, unsigned int flags, FILE* voice_message)
+	struct capichat_s *room, unsigned int flags, struct capi_pvt* iline, FILE* voice_message)
 {
 	struct ast_frame *f;
 	int ms;
@@ -472,6 +472,8 @@ static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i,
 					i->vname);
 				if ((voice_message == 0) && (i->channeltype == CAPI_CHANNELTYPE_NULL)) {
 					capi_write_frame(i, f);
+				} else if (iline != 0) {
+					capi_write_frame(iline, f);
 				}
 			} else if (f->frametype == AST_FRAME_NULL) {
 				/* ignore NULL frame */
@@ -619,7 +621,7 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 	}
 
 	/* main loop */
-	chat_handle_events(c, i, room, flags, 0);
+	chat_handle_events(c, i, room, flags, 0, 0);
 
 	del_chat_member(room);
 
@@ -632,15 +634,17 @@ out:
 int pbx_capi_chat_play(struct ast_channel *c, char *param)
 {
 	struct capi_pvt *i = NULL; 
-	char *roomname, *controller, *file_name;
+	char *roomname, *options, *file_name, *controller;
 	char *p;
 	struct capichat_s *room;
 	ast_group_t tmpcntr;
 	unsigned long long contr = 0;
+	unsigned int flags = 0;
 	room_member_type_t room_member_type = RoomMemberOperator;
 	FILE* f;
 
 	roomname = strsep(&param, "|");
+	options = strsep(&param, "|");
 	file_name = strsep(&param, "|");
 	controller = param;
 
@@ -665,6 +669,20 @@ int pbx_capi_chat_play(struct ast_channel *c, char *param)
 		if (chat_members == 0) {
 			return 0;
 		}
+	}
+
+	while ((options) && (*options)) {
+		switch (*options) {
+		case 'm':
+			flags |= CHAT_FLAG_MOH;
+			break;
+
+		default:
+			cc_log(LOG_WARNING, "Unknown chat option '%c'.\n",
+				*options);
+			break;
+		}
+		options++;
 	}
 
 	f = fopen(file_name, "rb");
@@ -722,7 +740,7 @@ int pbx_capi_chat_play(struct ast_channel *c, char *param)
 	}
 
 	/* main loop */
-	chat_handle_events(c, i, room, CHAT_FLAG_MOH, f);
+	chat_handle_events(c, i, room, flags, (c->tech == &capi_tech) ? (CC_CHANNEL_PVT(c)) : 0, f);
 
 	del_chat_member(room);
 
