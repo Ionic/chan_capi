@@ -1163,7 +1163,7 @@ exten => s,n,Record(/tmp/${UNIQUEID}-info:alaw) ; Record message
 exten => s,n,capicommand(rxagc|no)             ; Deactivate Rx AGC
 exten => s,n,capicommand(chat_play|test|m|/tmp/${UNIQUEID}-info.alaw|1-4) ; Play message to conference,
                                                                           ; play music on hold to caller
-exten => s,n,capicommand(chat|test|m|1-4)     ; Create/enter conference room 'test1'
+exten => s,n,capicommand(chat|test|m|1-4)     ; Create/enter conference room 'test'
 
 /////////////////////////////////////////////////////////////////////
 
