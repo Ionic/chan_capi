@@ -20,6 +20,7 @@
 #include "chan_capi.h"
 #include "chan_capi_chat.h"
 #include "chan_capi_utils.h"
+#include "chan_capi_command.h"
 
 #define CHAT_FLAG_MOH      0x0001
 
@@ -479,6 +480,8 @@ static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i,
 				/* ignore NULL frame */
 				cc_verbose(5, 1, VERBOSE_PREFIX_3 "%s: chat: NULL frame, ignoring.\n",
 					i->vname);
+			} else if ((f->frametype == AST_FRAME_DTMF_END) && (voice_message == 0))  {
+				pbx_capi_voicecommand_process_digit (i, c, f->subclass);
 			} else {
 				cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: chat: unhandled frame %d/%d.\n",
 					i->vname, f->frametype, f->subclass);

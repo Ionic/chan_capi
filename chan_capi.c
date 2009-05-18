@@ -3744,7 +3744,7 @@ static int handle_facility_indication_dtmf(
 					}
 				}
 				if (ignore_digit == 0) {
-					if (pbx_capi_voicecommand_process_digit(i, dtmf) == 0) {
+					if (pbx_capi_voicecommand_process_digit(i, 0, dtmf) == 0) {
 						fr.frametype = AST_FRAME_DTMF;
 						fr.subclass = dtmf;
 						local_queue_frame(i, &fr);
@@ -4839,7 +4839,7 @@ static void capidev_handle_msg(_cmsg *CMSG)
 
 
 static struct capi_pvt* get_active_plci (struct ast_channel *c) {
-	struct capi_pvt* i = pbx_check_resource_plci (c);
+	struct capi_pvt* i = pbx_check_resource_plci(c);
 
 	if (i == NULL)
 		i = CC_CHANNEL_PVT(c);

@@ -25,7 +25,7 @@
 
 int pbx_capi_voicecommand (struct ast_channel *c, char *param);
 int pbx_capi_voicecommand_transparency (struct ast_channel *c, char *param);
-int pbx_capi_voicecommand_process_digit (struct capi_pvt *i, char digit);
+int pbx_capi_voicecommand_process_digit (struct capi_pvt *i, struct ast_channel *owner, char digit);
 int pbx_capi_voicecommand_cleanup (struct capi_pvt *i);
 
 #endif
