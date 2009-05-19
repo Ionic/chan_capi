@@ -85,6 +85,10 @@ int pbx_capi_voicecommand(struct ast_channel *c, char *param)
 		i = pbx_check_resource_plci(c);
 	}
 	if (i == 0) {
+		/*
+			Ignore command silently to ensure same context can be used to process
+			all types of calls or in case of fallback to NULL PLCI
+			*/
 		return 0;
 	}
 
@@ -201,6 +205,10 @@ int pbx_capi_voicecommand_transparency(struct ast_channel *c, char *param)
 		i = pbx_check_resource_plci(c);
 	}
 	if (i == 0) {
+		/*
+			Ignore command silently to ensure same context can be used to process
+			all types of calls or in case of fallback to NULL PLCI
+			*/
 		return 0;
 	}
 

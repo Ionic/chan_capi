@@ -543,7 +543,7 @@ static void capi_echo_canceller(struct capi_pvt *i, int function)
 		return;
 
 	if ((i->channeltype == CAPI_CHANNELTYPE_NULL) &&
-			(i->line_plci == 0)) {
+			(i->line_plci == NULL)) {
 		return;
 	}
 
@@ -566,7 +566,7 @@ static void capi_echo_canceller(struct capi_pvt *i, int function)
 	}
 
 	if ((i->channeltype == CAPI_CHANNELTYPE_NULL) &&
-			(i->line_plci == 0)) {
+			(i->line_plci == NULL)) {
 		return;
 	}
 
@@ -617,7 +617,7 @@ static int capi_check_diva_tone_function_allowed(struct capi_pvt *i)
 		return -1;
 
 	if ((i->channeltype == CAPI_CHANNELTYPE_NULL) &&
-			(i->line_plci == 0)) {
+			(i->line_plci == NULL)) {
 		return -1;
 	}
 
@@ -726,7 +726,7 @@ static int capi_detect_dtmf(struct capi_pvt *i, int flag)
 		return 0;
 
 	if ((i->channeltype == CAPI_CHANNELTYPE_NULL) &&
-		(((i->line_plci == 0) && (null_plci_dtmf_support == 0)) || (i->resource_plci_type == CAPI_RESOURCE_PLCI_LINE))) {
+		(((i->line_plci == NULL) && (null_plci_dtmf_support == 0)) || (i->resource_plci_type == CAPI_RESOURCE_PLCI_LINE))) {
 		return 0;
 	}
 
@@ -2429,7 +2429,7 @@ static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 	unsigned short b3_protocol_options = 0;
 	int extended_resolution = 0;
 
-	if ((i == 0) || ((i->channeltype == CAPI_CHANNELTYPE_NULL) && (i->line_plci == 0))) {
+	if ((i == NULL) || ((i->channeltype == CAPI_CHANNELTYPE_NULL) && (i->line_plci == NULL))) {
 		cc_log(LOG_WARNING, CC_MESSAGE_NAME " receivefax requires resource PLCI\n");
 		return -1;
 	}
@@ -2694,7 +2694,7 @@ static int pbx_capi_send_fax(struct ast_channel *c, char *data)
 	unsigned short b3_protocol_options = 0;
 	int extended_resolution = 0;
 
-	if ((i == 0) || ((i->channeltype == CAPI_CHANNELTYPE_NULL) && (i->line_plci == 0))) {
+	if ((i == NULL) || ((i->channeltype == CAPI_CHANNELTYPE_NULL) && (i->line_plci == NULL))) {
 		cc_log(LOG_WARNING, CC_MESSAGE_NAME " receivefax requires resource PLCI\n");
 		return -1;
 	}
@@ -4022,7 +4022,7 @@ static void capidev_handle_connect_active_indication(_cmsg *CMSG, unsigned int P
 						"w(w(d()))",
 						FACILITYSELECTOR_LINE_INTERCONNECT,
 						0x0001, /* CONNECT */
-						(i->line_plci == 0) ? 0x00000030 : 0x00000000 /* mask */
+						(i->line_plci == NULL) ? 0x00000030 : 0x00000000 /* mask */
 					);
 
 				}
@@ -4473,7 +4473,7 @@ static void capidev_handle_facility_confirmation(_cmsg *CMSG, unsigned int PLCI,
 	if (*i == NULL)
 		return;
 
-	if ((selector == PRIV_SELECTOR_DTMF_ONDATA) && (i[0]->channeltype == CAPI_CHANNELTYPE_NULL) && (i[0]->line_plci == 0)) {
+	if ((selector == PRIV_SELECTOR_DTMF_ONDATA) && (i[0]->channeltype == CAPI_CHANNELTYPE_NULL) && (i[0]->line_plci == NULL)) {
 		if (FACILITY_CONF_INFO(CMSG)) {
 			if (FACILITY_CONF_INFO(CMSG) == 0x300b) {
 				null_plci_dtmf_support = 0;
@@ -4839,10 +4839,13 @@ static void capidev_handle_msg(_cmsg *CMSG)
 
 
 static struct capi_pvt* get_active_plci (struct ast_channel *c) {
-	struct capi_pvt* i = pbx_check_resource_plci(c);
+	struct capi_pvt* i;
 
-	if (i == NULL)
+	if (c->tech == &capi_tech) {
 		i = CC_CHANNEL_PVT(c);
+	} else {
+		i = pbx_check_resource_plci(c);
+	}
 
 	return (i);
 }
@@ -5243,6 +5246,14 @@ static int pbx_capi_echocancel(struct ast_channel *c, char *param)
 {
 	struct capi_pvt *i = get_active_plci (c);
 
+	if (i == NULL) {
+		/*
+			Ignore command silently to ensure same context can be used to process
+			all types of calls or in case of fallback to NULL PLCI
+			*/
+		return (0);
+	}
+
 	if (!param) {
 		cc_log(LOG_WARNING, "Parameter for echocancel missing.\n");
 		return -1;
@@ -5268,6 +5279,14 @@ static int pbx_capi_echocancel(struct ast_channel *c, char *param)
 static int pbx_capi_noisesuppressor(struct ast_channel *c, char *param)
 {
 	struct capi_pvt *i = get_active_plci (c);
+
+	if (i == NULL) {
+		/*
+			Ignore command silently to ensure same context can be used to process
+			all types of calls or in case of fallback to NULL PLCI
+			*/
+		return (0);
+	}
 
 	if (param == NULL) {
 		cc_log(LOG_WARNING, "Parameter for noise suppressor missing.\n");
@@ -5317,6 +5336,14 @@ static int pbx_capi_rxdgain(struct ast_channel *c, char *param)
 	struct capi_pvt *i = get_active_plci (c);
 	float dbGain;
 
+	if (i == NULL) {
+		/*
+			Ignore command silently to ensure same context can be used to process
+			all types of calls or in case of fallback to NULL PLCI
+			*/
+		return (0);
+	}
+
 	if (param == NULL) {
 		cc_log(LOG_WARNING, "Parameter for rx gain missing.\n");
 		return -1;
@@ -5342,6 +5369,14 @@ static int pbx_capi_incrxdgain(struct ast_channel *c, char *param)
 	struct capi_pvt *i = get_active_plci (c);
 	float dbGainInc;
 
+	if (i == NULL) {
+		/*
+			Ignore command silently to ensure same context can be used to process
+			all types of calls or in case of fallback to NULL PLCI
+			*/
+		return (0);
+	}
+
 	if (param == NULL) {
 		cc_log(LOG_WARNING, "Parameter for nncremental rx gain missing.\n");
 		return -1;
@@ -5366,6 +5401,14 @@ static int pbx_capi_txdgain(struct ast_channel *c, char *param)
 	struct capi_pvt *i = get_active_plci (c);
 	float dbGain;
 
+	if (i == NULL) {
+		/*
+			Ignore command silently to ensure same context can be used to process
+			all types of calls or in case of fallback to NULL PLCI
+			*/
+		return (0);
+	}
+
 	if (param == NULL) {
 		cc_log(LOG_WARNING, "Parameter for tx gain missing.\n");
 		return -1;
@@ -5389,6 +5432,14 @@ static int pbx_capi_inctxdgain(struct ast_channel *c, char *param)
 {
 	struct capi_pvt *i = get_active_plci (c);
 	float dbGainInc;
+
+	if (i == NULL) {
+		/*
+			Ignore command silently to ensure same context can be used to process
+			all types of calls or in case of fallback to NULL PLCI
+			*/
+		return (0);
+	}
 
 	if ((param == 0) || (*param == 0)) {
 		cc_log(LOG_WARNING, "Parameter for incremental tx gain missing.\n");
@@ -5416,6 +5467,14 @@ static int pbx_capi_rxagc(struct ast_channel *c, char *param)
 {
 	struct capi_pvt *i = get_active_plci (c);
 
+	if (i == NULL) {
+		/*
+			Ignore command silently to ensure same context can be used to process
+			all types of calls or in case of fallback to NULL PLCI
+			*/
+		return (0);
+	}
+
 	if (!param) {
 		cc_log(LOG_WARNING, "Parameter for rx agc missing.\n");
 		return -1;
@@ -5441,6 +5500,14 @@ static int pbx_capi_rxagc(struct ast_channel *c, char *param)
 static int pbx_capi_txagc(struct ast_channel *c, char *param)
 {
 	struct capi_pvt *i = get_active_plci (c);
+
+	if (i == NULL) {
+		/*
+			Ignore command silently to ensure same context can be used to process
+			all types of calls or in case of fallback to NULL PLCI
+			*/
+		return (0);
+	}
 
 	if (!param) {
 		cc_log(LOG_WARNING, "Parameter for tx agc missing.\n");
@@ -5487,6 +5554,14 @@ static int pbx_capi_clamping(struct ast_channel *c, char *param)
 	struct capi_pvt *i = get_active_plci (c);
 	int duration = 0;
 
+	if (i == NULL) {
+		/*
+			Ignore command silently to ensure same context can be used to process
+			all types of calls or in case of fallback to NULL PLCI
+			*/
+		return (0);
+	}
+
 	if (param != NULL) {
 		duration = atoi(param);
 		if (duration != 0 && duration < 10)
@@ -5505,6 +5580,14 @@ static int pbx_capi_mftonedetection(struct ast_channel *c, char *param)
 {
 	struct capi_pvt *i = get_active_plci (c);
 	unsigned char function;
+
+	if (i == NULL) {
+		/*
+			Ignore command silently to ensure same context can be used to process
+			all types of calls or in case of fallback to NULL PLCI
+			*/
+		return (0);
+	}
 
 	if (!param) {
 		cc_log(LOG_WARNING, "Parameter for MF tone detection missing.\n");
@@ -5532,6 +5615,14 @@ static int pbx_capi_pulsedetection(struct ast_channel *c, char *param)
 {
 	struct capi_pvt *i = get_active_plci (c);
 	unsigned char function;
+
+	if (i == NULL) {
+		/*
+			Ignore command silently to ensure same context can be used to process
+			all types of calls or in case of fallback to NULL PLCI
+			*/
+		return (0);
+	}
 
 	if (!param) {
 		cc_log(LOG_WARNING, "Parameter for Pulse detection missing.\n");
@@ -5606,6 +5697,14 @@ static int pbx_capi_sendtone(struct ast_channel *c, char *param)
 	unsigned char tone;
 	unsigned int n;
 
+	if (i == NULL) {
+		/*
+			Ignore command silently to ensure same context can be used to process
+			all types of calls or in case of fallback to NULL PLCI
+			*/
+		return (0);
+	}
+
 	if ((!param) || (*param == 0)) {
 		cc_log(LOG_WARNING, "Parameter for tone generation missing.\n");
 		return -1;
@@ -5630,6 +5729,14 @@ static int pbx_capi_sendtone(struct ast_channel *c, char *param)
 static int pbx_capi_stoptone(struct ast_channel *c, char *param)
 {
 	struct capi_pvt *i = get_active_plci (c);
+
+	if (i == NULL) {
+		/*
+			Ignore command silently to ensure same context can be used to process
+			all types of calls or in case of fallback to NULL PLCI
+			*/
+		return (0);
+	}
 
 	capi_diva_send_tone_function(i, 0x80);
 	cc_verbose(2, 0, VERBOSE_PREFIX_4 "%s: stopped transmission of tones\n",
@@ -5703,6 +5810,14 @@ static int pbx_capi_starttonedetection(struct ast_channel *c, char *param)
 {
 	struct capi_pvt *i = get_active_plci (c);
 
+	if (i == NULL) {
+		/*
+			Ignore command silently to ensure same context can be used to process
+			all types of calls or in case of fallback to NULL PLCI
+			*/
+		return (0);
+	}
+
 	if ((param == 0) || (*param == 0)) {
 		cc_log(LOG_WARNING, "Parameter for starttonedetection missing.\n");
 		return (-1);
@@ -5728,6 +5843,14 @@ static int pbx_capi_stoptonedetection(struct ast_channel *c, char *param)
 {
 	struct capi_pvt *i = get_active_plci (c);
 
+	if (i == NULL) {
+		/*
+			Ignore command silently to ensure same context can be used to process
+			all types of calls or in case of fallback to NULL PLCI
+			*/
+		return (0);
+	}
+
 	cc_mutex_lock(&i->lock);
 	i->special_tone_extension[0] = 0;
 	cc_mutex_unlock(&i->lock);
@@ -5745,6 +5868,14 @@ static int pbx_capi_pitchcontrol(struct ast_channel *c, char *param)
 	struct capi_pvt *i = get_active_plci (c);
 	unsigned short rxpitch = 0, txpitch = 0;
 	int enabled = 1;
+
+	if (i == NULL) {
+		/*
+			Ignore command silently to ensure same context can be used to process
+			all types of calls or in case of fallback to NULL PLCI
+			*/
+		return (0);
+	}
 
 	if ((param != NULL) && (*param != 0)) {
 		char* p = NULL;
@@ -5799,6 +5930,14 @@ static int pbx_capi_incpitchcontrol(struct ast_channel *c, char *param)
 	signed short rxpitchinc = 0, txpitchinc = 0;
 	int rxPitch = i->rxPitch, txPitch = i->txPitch;
 	char* p = NULL;
+
+	if (i == NULL) {
+		/*
+			Ignore command silently to ensure same context can be used to process
+			all types of calls or in case of fallback to NULL PLCI
+			*/
+		return (0);
+	}
 
 	if ((param == NULL) || (*param == 0)) {
 		cc_log(LOG_WARNING, "Parameter for incremental pitch control missing.\n");
@@ -6180,8 +6319,8 @@ static int pbx_capicommand_exec(struct ast_channel *chan, void *data)
 			struct capi_pvt* resource_plci = pbx_check_resource_plci (chan);
 
 			if ((capicmd->resourceplcisupported == 0) ||
-					(resource_plci == 0) ||
-					(resource_plci->line_plci == 0)) {
+					(resource_plci == NULL) ||
+					(resource_plci->line_plci == NULL)) {
 #ifdef CC_AST_HAS_VERSION_1_4
 				ast_module_user_remove(u);
 #else
