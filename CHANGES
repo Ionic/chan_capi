@@ -22,6 +22,7 @@ HEAD
 - add DTMF detection for NULL PLCI
 - use direct access to vocoders without RTP framing
 - play message to conference and music on hold to caller
+- add commands to remove users from chat
 
 
 chan_capi-1.1.2
