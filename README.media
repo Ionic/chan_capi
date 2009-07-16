@@ -1168,6 +1168,53 @@ exten => s,n,capicommand(chat|test|m|1-4)     ; Create/enter conference room 'te
 /////////////////////////////////////////////////////////////////////
 
 +-------------------------------------------------------------------+
+|  chat_command (Command)                                           |
++-------------------------------------------------------------------+
+
+Description:
+  Used to send command to conference.
+
+Supported hardware:
+  Diva
+
+Syntax:
+capicommand(chat_command|<options>|<roomname>)
+  options    - mandatory
+      r - Remove newest user from conference.
+					Command does not apply to calling member and  be used by operators only.
+      l - Remove all listeners from conference.
+					Command does not apply to calling member and  be used by operators only.
+			o - Remove all operators from conference.
+					Command does not apply to calling member and  be used by operators only.
+			a - Remove all users from conference.
+					Command does not apply to calling member and  be used by operators only.
+  roomname   - optional, room caller assigned to is used if not present
+
+Syntax example:
+exten => s,n,capicommand(chat_command|r)
+exten => s,n,capicommand(chat_command|lo|test)
+exten => s,n,capicommand(chat_command|a|test)
+
+Conference example:
+/////////////////////////////////////////////////////////////////////
+[isdn-in]
+exten => _X.,1,Answer
+exten => _X.,n,Authenticate(12345)
+exten => _X.,n,Playback(vm-rec-name)
+exten => _X.,n,Record(/tmp/name${UNIQUEID}.alaw,5,15)   ; Record name
+exten => _X.,n,capicommand(chat_play|c1||/tmp/name${UNIQUEID}.alaw|1-4) ; Play name to conference
+exten => _X.,n,capicommand(resource|1-4)                ; Create resource PLCI if call from IP
+exten => _X.,n,capicommand(clamping|200)                ; Activate suppression of DTMF codes
+exten => _X.,n,capicommand(vc|chat_mute|1|yes)          ; Voice command, key 1 - mute all members except operators
+exten => _X.,n,capicommand(vc|chat_mute|2|no)           ; Voice command, key 2 - unmute all members except operators
+exten => _X.,n,capicommand(vc|chat_command|0|a|c1)      ; Voice command, key 0 - disconnect all members
+exten => _X.,n,capicommand(vc|noisesuppressor|3|yes)    ; Voice command, key 3 - turn noise suppression on
+exten => _X.,n,capicommand(vc|noisesuppressor|4|no)     ; Voice command, key 4 - turn noise suppression off
+exten => _X.,n,capicommand(chat|c1|mo|1-4)              ; Add caller to conference as operator
+
+/////////////////////////////////////////////////////////////////////
+
++-------------------------------------------------------------------+
 |  echocancel                                                       |
 +-------------------------------------------------------------------+
 
