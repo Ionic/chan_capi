@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <time.h>
 #include <errno.h>
 #include <sys/signal.h>
 
@@ -37,6 +38,8 @@ typedef enum {
 
 #define PLCI_PER_LX_REQUEST 8
 
+#define PBX_CHAT_MEMBER_INFO_RECENT     0x00000001
+#define PBX_CHAT_MEMBER_INFO_REMOVE     0x00000002
 struct capichat_s {
 	char name[16];
 	unsigned int number;
@@ -45,6 +48,8 @@ struct capichat_s {
 	room_mode_t        room_mode;
 	struct capi_pvt *i;
 	struct capichat_s *next;
+	unsigned int info;
+	time_t       time;
 };
 
 struct _deffered_chat_capi_message;
@@ -391,7 +396,15 @@ static struct capichat_s *add_chat_member(char *roomname, struct capi_pvt *i, ro
 
 	room->number = roomnumber;
 	room->room_mode = room_mode;
-	
+
+	for (tmproom = chat_list; tmproom != 0; tmproom = tmproom->next) {
+		if (tmproom->number == roomnumber) {
+			tmproom->info &= ~PBX_CHAT_MEMBER_INFO_RECENT;
+		}
+	}
+	room->info |= PBX_CHAT_MEMBER_INFO_RECENT;
+	room->time = time(0);
+
 	room->next = chat_list;
 	chat_list = room;
 
@@ -453,6 +466,10 @@ static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i,
 		ms = 100;
 		errno = 0;
 		exception = 0;
+
+		if ((room->info & PBX_CHAT_MEMBER_INFO_REMOVE) != 0) {
+			break;
+		}
 
 		rchan = ast_waitfor_nandfds(&chan, 1, &waitfd, nfds, &exception, &ready_fd, &ms);
 
@@ -646,6 +663,11 @@ int pbx_capi_chat_play(struct ast_channel *c, char *param)
 	room_member_type_t room_member_type = RoomMemberOperator;
 	FILE* f;
 
+	if (param == 0 || *param == 0) {
+		cc_log(LOG_WARNING, CC_MESSAGE_NAME " chat_play requires parameters.\n");
+		return (-1);
+	}
+
 	roomname = strsep(&param, "|");
 	options = strsep(&param, "|");
 	file_name = strsep(&param, "|");
@@ -752,6 +774,95 @@ out:
 	capi_remove_nullif(i);
 
 	return 0;
+}
+
+int pbx_capi_chat_command (struct ast_channel *c, char *param)
+{
+	struct capichat_s *room, *tmproom;
+	struct capi_pvt *i;
+	unsigned int roomnumber, ret = 0;
+	const char* options   = strsep(&param, "|");
+	const char* roomname  = param;
+	unsigned int disconnect_command = 0;
+
+	if (options == 0 || *options == 0) {
+		cc_log(LOG_WARNING, CC_MESSAGE_NAME " chat_command requires options.\n");
+		return -1;
+	}
+
+	if (roomname == 0 && *roomname == 0) {
+		roomname = 0;
+	}
+
+	while (*options != 0) {
+		switch (*options) {
+			case 'r': /* Disconnect recent member */
+				disconnect_command |= 1U;
+				break;
+			case 'l': /* Disconnect all listeners */
+				disconnect_command |= 2U;
+				break;
+			case 'o': /* Disconnect all operators */
+				disconnect_command |= 4U;
+				break;
+			case 'a': /* Disconnect all users */
+				disconnect_command |= 8U;
+				break;
+
+			default:
+				cc_log(LOG_WARNING, "Unknown chat_disconnect option '%c'.\n", *options);
+				break;
+		}
+		options++;
+	}
+
+	if (disconnect_command != 0) {
+		i = pbx_check_resource_plci(c);
+
+		cc_mutex_lock(&chat_lock);
+
+		for (room = chat_list; room != 0; room = room->next) {
+			if (((roomname != 0 && strcmp(room->name, roomname) == 0) || (i != 0 && room->i == i)) &&
+					(room->i != 0 && (room->i->used == c || room->i->peer == c))) {
+				if (room->room_member_type == RoomMemberOperator) {
+					struct capichat_s *recent = 0;
+					time_t t = 0;
+
+					roomnumber = room->number;
+					cc_verbose(3, 0, VERBOSE_PREFIX_3 "%s: command %08x (%d)\n",
+											room->name, disconnect_command, roomnumber);
+					for (tmproom = chat_list; tmproom != 0; tmproom = tmproom->next) {
+						if (tmproom->number == roomnumber && tmproom != room) {
+							if ((disconnect_command & 8U) != 0) {
+								tmproom->info |= PBX_CHAT_MEMBER_INFO_REMOVE;
+							} else if ((disconnect_command & 2U) != 0 && room->room_member_type == RoomMemberListener) {
+								tmproom->info |= PBX_CHAT_MEMBER_INFO_REMOVE;
+							} else if ((disconnect_command & 4U) != 0 &&  room->room_member_type == RoomMemberOperator) {
+								tmproom->info |= PBX_CHAT_MEMBER_INFO_REMOVE;
+							} else if ((disconnect_command & 1U) != 0) {
+								if (t < tmproom->time) {
+									t      = tmproom->time;
+									recent = tmproom;
+								}
+							}
+						}
+					}
+					if (recent != 0) {
+						recent->info |= PBX_CHAT_MEMBER_INFO_REMOVE;
+					}
+				} else {
+					cc_verbose(3, 0, VERBOSE_PREFIX_3 "%s: no permissions for command command %08x\n",
+											room->name, disconnect_command);
+					ret = -1;
+				}
+				break;
+			}
+		}
+
+		cc_mutex_unlock(&chat_lock);
+	}
+
+	return (ret);
 }
 
 struct capi_pvt* pbx_check_resource_plci(struct ast_channel *c)
