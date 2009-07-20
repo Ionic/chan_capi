@@ -1518,7 +1518,7 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 		b_protocol_table[i->bproto].b1protocol,
 		b_protocol_table[i->bproto].b2protocol,
 		b_protocol_table[i->bproto].b3protocol,
-		diva_get_b1_conf (i),
+		diva_get_b1_conf(i),
 		b_protocol_table[i->bproto].b2configuration,
 		b_protocol_table[i->bproto].b3configuration,
 		 /* BC */
@@ -1619,7 +1619,7 @@ static int capi_send_answer(struct ast_channel *c, _cstruct b3conf)
 		b3conf = b_protocol_table[i->bproto].b3configuration;
 	}
 
-	b1conf = diva_get_b1_conf (i);
+	b1conf = diva_get_b1_conf(i);
 
 	cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: Answering for %s\n",
 		i->vname, dnid);
@@ -1739,7 +1739,7 @@ static void cc_select_b(struct capi_pvt *i, _cstruct b3conf)
 		b_protocol_table[i->bproto].b1protocol,
 		b_protocol_table[i->bproto].b2protocol,
 		b_protocol_table[i->bproto].b3protocol,
-		diva_get_b1_conf (i),
+		diva_get_b1_conf(i),
 		b_protocol_table[i->bproto].b2configuration,
 		b3conf,
 		capi_set_global_configuration(i)
@@ -2420,7 +2420,7 @@ static void capi_change_bchan_fax(struct capi_pvt *i, B3_PROTO_FAXG3 *b3conf)
  */
 static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 {
-	struct capi_pvt *i = get_active_plci (c);
+	struct capi_pvt *i = get_active_plci(c);
 	int res = 0;
 	int keepbadfax = 0;
 	char *filename, *stationid, *headline, *options;
@@ -2607,7 +2607,7 @@ static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 	return 0;
 }
 
-static void clear_channel_fax_loop (struct ast_channel *c,  struct capi_pvt *i)
+static void clear_channel_fax_loop(struct ast_channel *c,  struct capi_pvt *i)
 {
 	struct ast_frame *f;
 	int ms;
