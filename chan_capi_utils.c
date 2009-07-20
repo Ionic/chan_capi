@@ -16,6 +16,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <string.h>
 #include <sys/types.h>
 #include "chan_capi_platform.h"
 #include "xlaw.h"
@@ -1086,7 +1087,18 @@ unsigned capi_ManufacturerAllowOnController(unsigned controller)
 {
 	MESSAGE_EXCHANGE_ERROR error;
 	int waitcount = 50;
+	unsigned char manbuf[CAPI_MANUFACTURER_LEN];
 	_cmsg CMSG;
+
+	if (capi20_get_manufacturer(controller, manbuf) == NULL) {
+		error = CapiRegOSResourceErr;
+		goto done;
+	}
+	if ((strstr((char *)manbuf, "Eicon") == 0) &&
+	    (strstr((char *)manbuf, "Dialogic") == 0)) {
+		error = 0x100F;
+		goto done;
+	}
 
 	error = capi_sendf (NULL, 0, CAPI_MANUFACTURER_REQ, controller, get_capi_MessageNumber(),
 		"dw(d)", _DI_MANU_ID, _DI_OPTIONS_REQUEST, 0x00000020L);
