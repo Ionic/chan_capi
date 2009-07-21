@@ -430,10 +430,18 @@ static unsigned char *cpars[] = {
 
 #else
 
+#ifdef __bfin__ /* Blackfin */
+#define wordTLcpy(x,y)        memcpy(x,y,2);
+#else
 #define wordTLcpy(x,y)        *(_cword *)(x)=*(_cword *)(y);
+#endif
 #define dwordTLcpy(x,y)       memcpy(x,y,4);
 
+#ifdef __bfin__ /* Blackfin */
+#define wordTRcpy(x,y)        memcpy(y,x,2);
+#else
 #define wordTRcpy(x,y)        *(_cword *)(y)=*(_cword *)(x);
+#endif
 #define dwordTRcpy(x,y)       memcpy(y,x,4);
 
 #define qwordTLcpy(x,y)       memcpy(x,y,8);
