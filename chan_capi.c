@@ -1481,7 +1481,13 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 		called[0] = strlen(dest) + 1;
 		sending_complete = "\x02\x01\x00";
 	}
-	called[1] = 0x80;
+
+	if ((p = pbx_builtin_getvar_helper(c, "CALLEDTON"))) {
+		unsigned char ton = (unsigned char)atoi(p);
+		called[1] = ton | 0x80;
+	} else {
+		called[1] = 0x80;
+	}
 	strncpy(&called[2], dest, sizeof(called) - 3);
 
 	if (c->cid.cid_num) {

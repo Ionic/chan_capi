@@ -466,8 +466,19 @@ BCHANNELINFO
     capicommand(deflect|<number>) to initiate call deflection to another destination.
 
 CALLEDTON
-    The 'type of number' value of the called number is saved in this variable on
+    Incoming calls: 'type of number' value of the called number is saved in this variable on
     incomming call.
+    Outgoing calls: Allows to specity the 'ETS 300 102-1' called party number octet 3
+                    (0x80 is used by default)
+
+    exten => _X.,1,Answer
+    exten => _X.,n,Set(_CALLEDTON=${CALLEDTON}) ; Use value of incoming call for outgoing call
+    exten => _X.,n,Dial(CAPI/ISDN3/100,10)
+
+    exten => _X.,1,Answer
+    exten => _X.,n,Set(_CALLEDTON=1) ; Use new value
+    exten => _X.,n,Dial(CAPI/ISDN3/100,10)
+
 
 CALLERTON
     The 'type of number' value to overwrite for the caller number on outgoing call.

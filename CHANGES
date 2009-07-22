@@ -23,6 +23,7 @@ HEAD
 - use direct access to vocoders without RTP framing
 - play message to conference and music on hold to caller
 - add commands to remove users from chat
+- allow to specity the 'ETS 300 102-1' called party number octet 3
 
 
 chan_capi-1.1.2
