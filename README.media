@@ -684,7 +684,7 @@ stoptonedetection
 
       Tone identifier:
         0x82 - Dial tone detected
-	0x83 - PABX internal dial tone detected
+        0x83 - PABX internal dial tone detected
         0x84 - Special dial tone (stutter dial tone) detected
         0x85 - Second dial tone detected
         0x86 - Ringing tone detected
@@ -904,7 +904,7 @@ exten => 1,n,capicommand(vc|txdgain|3|0) ; Install voice command menu for volume
 exten => 1,n,capicommand(chat|test1|m|1-4)     ; Create/enter conference room 'test1'
 
 exten => 2,1,capicommand(clamping|100)         ; Activate suppression of DTMF tones
-exten => 2,1,capicommand(txdgain|-128)         ; Deactivate tx path
+exten => 2,n,capicommand(txdgain|-128)         ; Deactivate tx path
 exten => 2,n,capicommand(vc|incrxdgain|0|1.5)  ; Install voice command menu for volume control, '0' to increase volume
 exten => 2,n,capicommand(vc|incrxdgain|1|-1.5) ; Install voice command menu for volume control, '1' to decrease volume
 exten => 2,n,capicommand(vc|txdgain|2|-128) ; Install voice command menu for volume control, '2' to mute tx path
@@ -1184,9 +1184,9 @@ capicommand(chat_command|<options>|<roomname>)
 					Command does not apply to calling member and  be used by operators only.
       l - Remove all listeners from conference.
 					Command does not apply to calling member and  be used by operators only.
-			o - Remove all operators from conference.
+      o - Remove all operators from conference.
 					Command does not apply to calling member and  be used by operators only.
-			a - Remove all users from conference.
+      a - Remove all users from conference.
 					Command does not apply to calling member and  be used by operators only.
   roomname   - optional, room caller assigned to is used if not present
 

@@ -254,15 +254,15 @@ exten => i,1,Hangup()                     ; Received unexpected event
 
 [handle_fax]
 exten => s,1,capicommand(receivefax|/tmp/${UNIQUEID}[|<stationid>|<headline>|<options>])
-exten => s,2,Hangup()
+exten => s,n,Hangup()
 exten => h,1,deadagi,fax.php ; Run sfftobmp and mail it
 
 Example with Clear Channel fax support:
 
 [handle_fax]
-exten => s,1,capicommand(resource|1-4) ; Assign resource PLCI
-exten => s,1,capicommand(receivefax|/tmp/${UNIQUEID}[|<stationid>|<headline>|<options>])
-exten => s,2,Hangup()
+exten => s,1,capicommand(resource|1-4) ; Assign resource PLCI (use controllers 1 to 4)
+exten => s,n,capicommand(receivefax|/tmp/${UNIQUEID}[|<stationid>|<headline>|<options>])
+exten => s,n,Hangup()
 exten => h,1,deadagi,fax.php ; Run sfftobmp and mail it
 
 
