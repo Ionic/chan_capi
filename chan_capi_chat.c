@@ -475,6 +475,8 @@ static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i,
 		if (rchan) {
 			f = ast_read(chan);
 			if (!f) {
+				if (voice_message != NULL)
+					continue;
 				cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: chat: no frame, hangup.\n",
 					i->vname);
 				break;
