@@ -322,7 +322,7 @@ static void update_all_capi_mixers(unsigned int roomnumber)
 			}
 		}
 
-		free (segments);
+		free(segments);
 	}
 }
 
