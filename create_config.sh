@@ -60,6 +60,11 @@ case "$AVERSIONNUM" in
 		echo " * assuming Asterisk version 1.4"
 		VER=1_4
 		;;
+	999999)
+		echo "#define CC_AST_HAS_VERSION_1_6" >>$CONFIGFILE
+		echo " * assuming Asterisk version 1.6"
+		VER=1_6
+		;;
 	*)
 		if [ "$VER" = "1_6" ]; then
 			echo "#define CC_AST_HAS_VERSION_1_6" >>$CONFIGFILE
