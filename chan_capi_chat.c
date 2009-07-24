@@ -443,10 +443,8 @@ static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i,
 	waitfd = i->readerfd;
 	if (i->channeltype == CAPI_CHANNELTYPE_NULL) {
 		nfds = 1;
-		if (voice_message == NULL) {
-			ast_set_read_format(chan, capi_capability);
-			ast_set_write_format(chan, capi_capability);
-		}
+		ast_set_read_format(chan, capi_capability);
+		ast_set_write_format(chan, capi_capability);
 	}
 
 	if ((flags & CHAT_FLAG_MOH) && ((room->active < 2) || (voice_message != NULL))) {
