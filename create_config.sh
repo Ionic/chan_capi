@@ -163,6 +163,41 @@ check_version_onesix()
 		echo "#undef CC_AST_HAS_UNION_DATA_IN_FRAME" >>$CONFIGFILE
 		echo " * no new union data in ast_frame structure"
 	fi
+	if grep -q "ast_channel_release.*struct" $INCLUDEDIR/channel.h; then
+		echo "#define CC_AST_HAS_CHANNEL_RELEASE" >>$CONFIGFILE
+		echo " * found ast_channel_release function"
+	else
+		echo "#undef CC_AST_HAS_CHANNEL_RELEASE" >>$CONFIGFILE
+		echo " * no new ast_channel_release function"
+	fi
+	if grep -q "ast_devstate2str.*enum" $INCLUDEDIR/devicestate.h; then
+		echo "#define CC_AST_HAS_AST_DEVSTATE2STR" >>$CONFIGFILE
+		echo " * found new ast_devstate2str function"
+	else
+		echo "#undef CC_AST_HAS_AST_DEVSTATE2STR" >>$CONFIGFILE
+		echo " * obsolete devstate2str function"
+	fi
+	if grep -q "ast_request.*requestor" $INCLUDEDIR/channel.h; then
+		echo "#define CC_AST_HAS_REQUEST_REQUESTOR" >>$CONFIGFILE
+		echo " * found requestor in ast_request"
+	else
+		echo "#undef CC_AST_HAS_REQUEST_REQUESTOR" >>$CONFIGFILE
+		echo " * no requestor in ast_request"
+	fi
+	if grep -q "ast_register_application2.*void " $INCLUDEDIR/module.h; then
+		echo "#undef CC_AST_HAS_CONST_CHAR_IN_REGAPPL" >>$CONFIGFILE
+		echo " * no const char in ast_register_application"
+	else
+		echo "#define CC_AST_HAS_CONST_CHAR_IN_REGAPPL" >>$CONFIGFILE
+		echo " * found const char in ast_register_application"
+	fi
+	if grep -q "ast_channel_alloc.*linkedid" $INCLUDEDIR/channel.h; then
+		echo "#define CC_AST_HAS_LINKEDID_CHAN_ALLOC" >>$CONFIGFILE
+		echo " * found linkedid in ast_channel_alloc"
+	else
+		echo "#undef CC_AST_HAS_LINKEDID_CHAN_ALLOC" >>$CONFIGFILE
+		echo " * no linkedid in ast_channel_alloc"
+	fi
 }
 
 case $VER in

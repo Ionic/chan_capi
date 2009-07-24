@@ -2112,7 +2112,7 @@ static CC_BRIDGE_RETURN pbx_capi_bridge(
 /*
  * a new channel is needed
  */
-static struct ast_channel *capi_new(struct capi_pvt *i, int state)
+static struct ast_channel *capi_new(struct capi_pvt *i, int state, const char *linkedid)
 {
 	struct ast_channel *tmp;
 	int fmt;
@@ -2120,7 +2120,11 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 #ifdef CC_AST_HAS_EXT_CHAN_ALLOC
 	tmp = ast_channel_alloc(0, state, i->cid, NULL,
 #ifdef CC_AST_HAS_EXT2_CHAN_ALLOC
-		i->accountcode, i->dnid, i->context, i->amaflags,
+		i->accountcode, i->dnid, i->context, 
+#ifdef CC_AST_HAS_LINKEDID_CHAN_ALLOC
+		linkedid,
+#endif
+		i->amaflags,
 #endif
 		CC_MESSAGE_BIGNAME "/%s/%s-%x", i->vname, i->dnid, capi_counter++);
 #else
@@ -2146,7 +2150,7 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 #endif
 
 	if (!(capi_create_reader_writer_pipe(i))) {
-		ast_channel_free(tmp);
+		ast_channel_release(tmp);
 		return NULL;
 	}
 	tmp->fds[0] = i->readerfd;
@@ -2286,8 +2290,14 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state)
 /*
  * PBX wants us to dial ...
  */
+#ifdef CC_AST_HAS_REQUEST_REQUESTOR
+static struct ast_channel *
+pbx_capi_request(const char *type, int format, const struct ast_channel *requestor, void *data, int *cause)
+/* TODO: new field requestor to link to called channel */
+#else
 static struct ast_channel *
 pbx_capi_request(const char *type, int format, void *data, int *cause)
+#endif
 {
 	struct capi_pvt *i;
 	struct ast_channel *tmp = NULL;
@@ -2359,7 +2369,13 @@ pbx_capi_request(const char *type, int format, void *data, int *cause)
 		}
 		/* when we come here, we found a free controller match */
 		cc_copy_string(i->dnid, dest, sizeof(i->dnid));
-		tmp = capi_new(i, AST_STATE_RESERVED);
+		tmp = capi_new(i, AST_STATE_RESERVED,
+#ifdef CC_AST_HAS_REQUEST_REQUESTOR
+			requestor ? requestor->linkedid : NULL
+#else
+			NULL
+#endif
+		);
 		if (!tmp) {
 			cc_log(LOG_ERROR, "cannot create new " CC_MESSAGE_NAME " channel\n");
 			interface_cleanup(i);
@@ -4392,7 +4408,7 @@ static void capidev_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, un
 			i->MessageNumber = HEADER_MSGNUM(CMSG);
 			i->cid_ton = callernplan;
 
-			capi_new(i, AST_STATE_DOWN);
+			capi_new(i, AST_STATE_DOWN, NULL);
 			if (i->isdnmode == CAPI_ISDNMODE_DID) {
 				i->state = CAPI_STATE_DID;
 			} else {
@@ -6274,7 +6290,11 @@ pbx_capi_command_proc_t pbx_capi_lockup_command_by_name(const char* name)
 /*
  * capi command interface
  */
+#ifdef CC_AST_HAS_CONST_CHAR_IN_REGAPPL
+static int pbx_capicommand_exec(struct ast_channel *chan, const char *data)
+#else
 static int pbx_capicommand_exec(struct ast_channel *chan, void *data)
+#endif
 {
 	int res = 0;
 #ifdef CC_AST_HAS_VERSION_1_4
@@ -6533,7 +6553,7 @@ static int pbx_capi_devicestate(void *data)
 		/* AST_DEVICE_UNAVAILABLE */
 		}
 		cc_verbose(3, 1, VERBOSE_PREFIX_4 "chan_capi devicestate requested for %s is '%s'\n",
-			(char *)data, devstate2str(res));
+			(char *)data, ast_devstate2str(res));
 	}
 
 	return res;

@@ -126,6 +126,14 @@ static inline unsigned int read_capi_dword(void *m)
 #define FRAME_DATA_PTR data
 #endif
 
+#ifndef CC_AST_HAS_CHANNEL_RELEASE
+#define ast_channel_release(x) ast_channel_free(x)
+#endif
+
+#ifndef CC_AST_HAS_AST_DEVSTATE2STR
+#define ast_devstate2str(x) devstate2str(x)
+#endif
+
 /* */
 #define return_on_no_interface(x)                                       \
 	if (!i) {                                                       \

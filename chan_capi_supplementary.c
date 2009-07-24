@@ -369,7 +369,11 @@ static void	ccbsnr_remote_user_free(_cmsg *CMSG, char type, unsigned int PLCI, _
 #ifdef CC_AST_HAS_EXT_CHAN_ALLOC
 	c = ast_channel_alloc(0, state, handlename, NULL,
 #ifdef CC_AST_HAS_EXT2_CHAN_ALLOC
-		0, ccbsnr->exten, ccbsnr->context, 0,
+		0, ccbsnr->exten, ccbsnr->context,
+#ifdef CC_AST_HAS_LINKEDID_CHAN_ALLOC
+		NULL,
+#endif
+		0,
 #endif
 		"CCBSNR/%x", ccbsnr->handle);
 #else
