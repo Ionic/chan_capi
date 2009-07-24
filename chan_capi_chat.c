@@ -498,7 +498,7 @@ static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i,
 				/* ignore NULL frame */
 				cc_verbose(5, 1, VERBOSE_PREFIX_3 "%s: chat: NULL frame, ignoring.\n",
 					i->vname);
-			} else if ((f->frametype == AST_FRAME_DTMF_END) && (voice_message == 0))  {
+			} else if ((f->frametype == AST_FRAME_DTMF_END) && (voice_message == NULL))  {
 				pbx_capi_voicecommand_process_digit (i, c, f->subclass);
 			} else {
 				cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: chat: unhandled frame %d/%d.\n",
@@ -718,7 +718,7 @@ int pbx_capi_chat_play(struct ast_channel *c, char *param)
 		options++;
 	}
 
-	if (flags & (CHAT_FLAG_MOH | CHAT_FLAG_SAMEMSG)) {
+	if ((flags & (CHAT_FLAG_MOH | CHAT_FLAG_SAMEMSG)) == (CHAT_FLAG_MOH | CHAT_FLAG_SAMEMSG)) {
 		cc_log(LOG_WARNING, "chat_play: option 's' overrides 'm'.\n");
 		flags &= ~CHAT_FLAG_MOH;
 	}
