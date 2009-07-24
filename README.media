@@ -1144,6 +1144,7 @@ capicommand(chat_play|<roomname>|<options>|<filename>|controller)
   roomname   - conference room name
   options
       m - The caller will get music-on-hold while message is played
+      s - The caller will hear the same message that is played
 	filename   - Voice message file name. Should be in aLaw (uLaw) format.
   controller - CAPI controller
 

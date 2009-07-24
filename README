@@ -288,6 +288,7 @@ Deactivate CCBS:
         exten => s,1,capicommand(ccbsstop|${CCLINKAGEID})
 
 Chat (MeetMe/Conference):
+    See also README.media for details!
     If the CAPI card/driver supports it, the caller can be put into a chat-room:
     (This uses the DSPs onboard a Dialogic(R) Diva(R) Rev.2 Media Board.)
         exten => s,1,capicommand(chat|<roomname>|<options>|controller)

@@ -24,6 +24,7 @@
 #include "chan_capi_command.h"
 
 #define CHAT_FLAG_MOH      0x0001
+#define CHAT_FLAG_SAMEMSG  0x0002
 
 typedef enum {
 	RoomMemberDefault  = 0, /* Rx/Tx by default, muted by operator */
@@ -515,6 +516,7 @@ static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i,
 				if (voice_message == NULL) {
 					ast_write(chan, f);
 				} else {
+					struct ast_frame *fr2;
 					char* p = f->FRAME_DATA_PTR;
 					int len;
 
@@ -523,6 +525,10 @@ static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i,
 							if (len < f->datalen) {
 								memset (&p[len], 0x00, f->datalen-len);
 								len = 0;
+							}
+							if (flags & CHAT_FLAG_SAMEMSG) {
+								fr2 = ast_frdup(f);
+								ast_write(chan, fr2);
 							}
 							capi_write_frame(i, f);
 						}
@@ -701,13 +707,20 @@ int pbx_capi_chat_play(struct ast_channel *c, char *param)
 		case 'm':
 			flags |= CHAT_FLAG_MOH;
 			break;
-
+		case 's':
+			flags |= CHAT_FLAG_SAMEMSG;
+			break;
 		default:
 			cc_log(LOG_WARNING, "Unknown chat option '%c'.\n",
 				*options);
 			break;
 		}
 		options++;
+	}
+
+	if (flags & (CHAT_FLAG_MOH | CHAT_FLAG_SAMEMSG)) {
+		cc_log(LOG_WARNING, "chat_play: option 's' overrides 'm'.\n");
+		flags &= ~CHAT_FLAG_MOH;
 	}
 
 	f = fopen(file_name, "rb");
