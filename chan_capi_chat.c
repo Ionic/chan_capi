@@ -448,13 +448,13 @@ static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i,
 		}
 	}
 
-	if ((flags & CHAT_FLAG_MOH) && ((room->active < 2) || (voice_message != 0))) {
+	if ((flags & CHAT_FLAG_MOH) && ((room->active < 2) || (voice_message != NULL))) {
 #if defined(CC_AST_HAS_VERSION_1_6) || defined(CC_AST_HAS_VERSION_1_4)
 		ast_moh_start(chan, NULL, NULL);
 #else
 		ast_moh_start(chan, NULL);
 #endif
-		if (voice_message == 0) {
+		if (voice_message == NULL) {
 			moh_active = 1;
 		} else {
 			voice_message_moh_active = 1;
@@ -488,7 +488,7 @@ static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i,
 			} else if (f->frametype == AST_FRAME_VOICE) {
 				cc_verbose(5, 1, VERBOSE_PREFIX_3 "%s: chat: voice frame.\n",
 					i->vname);
-				if ((voice_message == 0) && (i->channeltype == CAPI_CHANNELTYPE_NULL)) {
+				if ((voice_message == NULL) && (i->channeltype == CAPI_CHANNELTYPE_NULL)) {
 					capi_write_frame(i, f);
 				} else if (iline != 0) {
 					capi_write_frame(iline, f);
@@ -512,7 +512,7 @@ static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i,
 			}
 			f = capi_read_pipeframe(i);
 			if (f->frametype == AST_FRAME_VOICE) {
-				if (voice_message == 0) {
+				if (voice_message == NULL) {
 					ast_write(chan, f);
 				} else {
 					char* p = f->FRAME_DATA_PTR;
@@ -776,7 +776,7 @@ out:
 	return 0;
 }
 
-int pbx_capi_chat_command (struct ast_channel *c, char *param)
+int pbx_capi_chat_command(struct ast_channel *c, char *param)
 {
 	struct capichat_s *room, *tmproom;
 	struct capi_pvt *i;
