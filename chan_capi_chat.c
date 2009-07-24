@@ -491,7 +491,7 @@ static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i,
 					i->vname);
 				if ((voice_message == NULL) && (i->channeltype == CAPI_CHANNELTYPE_NULL)) {
 					capi_write_frame(i, f);
-				} else if (iline != 0) {
+				} else if (iline != NULL) {
 					capi_write_frame(iline, f);
 				}
 			} else if (f->frametype == AST_FRAME_NULL) {
