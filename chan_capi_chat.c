@@ -491,7 +491,7 @@ static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i,
 					i->vname);
 				if ((voice_message == NULL) && (i->channeltype == CAPI_CHANNELTYPE_NULL)) {
 					capi_write_frame(i, f);
-				} else if (iline != NULL) {
+				} else if ((iline != NULL) && (!(flags & CHAT_FLAG_SAMEMSG))) {
 					capi_write_frame(iline, f);
 				}
 			} else if (f->frametype == AST_FRAME_NULL) {
@@ -528,7 +528,12 @@ static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i,
 							}
 							if (flags & CHAT_FLAG_SAMEMSG) {
 								fr2 = ast_frdup(f);
-								ast_write(chan, fr2);
+								if (iline != NULL) {
+									capi_write_frame(iline, fr2);
+								} else {
+									ast_write(chan, fr2);
+									ast_frfree(fr2);
+								}
 							}
 							capi_write_frame(i, f);
 						}
