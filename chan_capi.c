@@ -4877,10 +4877,11 @@ static struct capi_pvt* get_active_plci (struct ast_channel *c) {
  */
 static int pbx_capi_call_deflect(struct ast_channel *c, char *param)
 {
+#define DEFLECT_NUMBER_MAX_LEN 35
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	char *number;
 	int numberlen;
-	char facnumber[32];
+	char facnumber[DEFLECT_NUMBER_MAX_LEN + 4];
 
 	if (!param) {
 		cc_log(LOG_WARNING, CC_MESSAGE_NAME
@@ -4895,9 +4896,10 @@ static int pbx_capi_call_deflect(struct ast_channel *c, char *param)
 			" deflection requires an argument (destination phone number)\n");
 		return -1;
 	}
-	if (numberlen > 35) {
+	if (numberlen > DEFLECT_NUMBER_MAX_LEN) {
 		cc_log(LOG_WARNING, CC_MESSAGE_NAME
-			" deflection does only support phone number up to 35 digits\n");
+			" deflection does only support phone number up to %d digits\n",
+			DEFLECT_NUMBER_MAX_LEN);
 		return -1;
 	}
 	if (!(capi_controllers[i->controller]->CD)) {
