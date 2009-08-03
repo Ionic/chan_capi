@@ -20,20 +20,20 @@ None yet - you will be welcome here :-)
 No support for Asterisk 1.0.x any more, you need at least
 Asterisk 1.2.x , 1.4.x or 1.6.x.
 
-What is Q.SIG
+What is QSIG
 =============
 
-Q.SIG is a protocol extension for ISDN.
+QSIG is a protocol extension for ISDN.
 It is mainly used on connecting PBXs of different PBX vendors, which allows 
 better interoperability.
 As example there can be a name of an extension transferred between different
 PBXs, which is not possibile with standard ISDN.
 
 These extensions will be transmitted as encoded facility information elements.
-To use Q.SIG with Asterisk, you willll need a card such as a Dialogic(R) Diva(R) 
+To use QSIG with Asterisk, you willll need a card such as a Dialogic(R) Diva(R) 
 Media Board (BRI like PRI) that supports QSIG. Maybe others do also work, if so, let me now.
 
-The Q.SIG support includes:
+The QSIG support includes:
 ==========================
 
 - Name presentation on Call SETUP incoming like outgoing
@@ -50,7 +50,7 @@ The Q.SIG support includes:
 
     at the moment only incoming handling is supported
     
-- Possibility to inform Q.SIG switch about a call from the public network
+- Possibility to inform QSIG switch about a call from the public network
     If you set the variable QSIG_SETUP=X, then the QSIG switch on the other side will know, 
     that this call source is the public network - you will get a different ring tone, etc.
     In dialplan use:    Set(__QSIG_SETUP=X)  command.
@@ -110,11 +110,11 @@ Please visit:		http://www.melware.org/ChanCapiConf
 
 
 
-Simply enable Q.SIG with the following line in your capi.conf interface:
+Simply enable QSIG with the following line in your capi.conf interface:
 
 Here we go with new configuration
 
-Set Q.SIG to one of the following values, which corresponds to your configuration.
+Set QSIG to one of the following values, which corresponds to your configuration.
 
 0	QSIG turned off
 1	Alcatel (4400 & Enterprise - Maybe OXO/4200) ECMA (wrongly named ECMA - it is ETSI) variant
