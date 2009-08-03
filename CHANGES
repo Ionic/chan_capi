@@ -24,6 +24,8 @@ HEAD
 - play message to conference and music on hold to caller
 - add commands to remove users from chat
 - allow to specity the 'ETS 300 102-1' called party number octet 3
+- fixed possible buffer overflow in 'deflect'
+- added 'h' option to chat to auto-hangup caller if alone in conference too long
 
 
 chan_capi-1.1.2
