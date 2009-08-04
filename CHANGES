@@ -1,7 +1,7 @@
 CHANGES
 =======
 
-HEAD
+chan_capi-1.1.3
 ------------------
 - fixed buffer length error with internal libcapi debug code.
 - performance optimizations, use debug code when needed only.
