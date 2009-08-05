@@ -219,6 +219,8 @@ The reception of the fax message is started using 'receivefax' capi command:
     'stationid' - station ID, optional
     'headline'  - head line, optional
     'options'   - fax options, optional
+                  'X' - use fax T.30 extended (default)
+                  'x' - do not use fax T.30 extended
                   'k' - keep fax document in case of errors (by default document is removed
                         if fax transmission was not completed with success).
                   'f' - allow Fine resolution (default)

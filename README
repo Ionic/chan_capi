@@ -153,7 +153,7 @@ Call Deflection:
 Fax receive:
     Receives a fax using CAPI.
         Example:
-        exten => s,1,capicommand(receivefax|/tmp/${UNIQUEID}|+49 6137 555123|Asterisk|k)
+        exten => s,1,capicommand(receivefax|/tmp/${UNIQUEID}|+49 6137 555123|Asterisk|kX)
 	(more see below)
 
 Fax send:
@@ -383,6 +383,9 @@ The parameter <filename> is mandatory and the parameters <stationid>,
 By default, if fax reception was not successful, the file is deleted. If you want even
 partly received or broken fax files, use 'k' for "keep bad fax" in the <options>:
   capicommand(receivefax|/tmp/${UNIQUEID}|+123456789||k)
+You can activate extended fax support by 'X' in the <options>:
+  capicommand(receivefax|/tmp/${UNIQUEID}|+123456789||X)
+Please read details on extended fax options in README.Diva.fax.
 
 To enable fax tone detection and redirect to extension 'fax', use config variable
 'faxdetect' in capi.conf. This can be limited to the first 'n' seconds of a connection
