@@ -410,6 +410,7 @@ With a Dialogic(R) Diva(R) Media Board, the following features are provided:
  - high resolution
  - Color Fax 
  - JPEG Compression is disabled (not tested yet)
+See README.Diva.fax for more details and description of all options.
 
 capicommand(sendfax|<filename>[|<stationid>|<headline>]):
 ------------------------------------------------------------
