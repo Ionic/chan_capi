@@ -221,7 +221,8 @@ The reception of the fax message is started using 'receivefax' capi command:
     'options'   - fax options, optional
                   'k' - keep fax document in case of errors (by default document is removed
                         if fax transmission was not completed with success).
-                  'f' - allow Fine resolution
+                  'f' - allow Fine resolution (default)
+                  'F' - do not use Fine resolution
                   'u' - activate support for Super/Ultra fine resolutions and paper formats
                   'j' - enable JPEG coding
                   'b' - enable T.43 coding

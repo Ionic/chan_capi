@@ -2448,7 +2448,7 @@ static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 	char *filename, *stationid, *headline, *options;
 	B3_PROTO_FAXG3 b3conf;
 	char buffer[CAPI_MAX_STRING];
-	unsigned short b3_protocol_options = 0;
+	unsigned short b3_protocol_options = 0x0001;
 	int extended_resolution = 0;
 
 	if ((i == NULL) || ((i->channeltype == CAPI_CHANNELTYPE_NULL) && (i->line_plci == NULL))) {
@@ -2490,6 +2490,12 @@ static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 			cc_verbose(3, 1,
 				VERBOSE_PREFIX_3 CC_MESSAGE_NAME " receivefax: Allow Fine resolution\n");
 			b3_protocol_options |= 0x0001;
+			break;
+		case 'F':	/* do not use Fine resolution */
+			cc_verbose(3, 1,
+				VERBOSE_PREFIX_3 CC_MESSAGE_NAME " receivefax: Allow Fine resolution\n");
+			if (extended_resolution == 0)
+				b3_protocol_options &= ~0x0001;
 			break;
 		case 'u':	/* use Fine resolution */
 			cc_verbose(3, 1,
