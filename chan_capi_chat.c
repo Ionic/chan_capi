@@ -389,8 +389,8 @@ static struct capichat_s *add_chat_member(char *roomname, struct capi_pvt *i, ro
 			room_mode  = tmproom->room_mode;
 			break;
 		} else {
-			if (tmproom->number == roomnumber) {
-				roomnumber++;
+			if (tmproom->number >= roomnumber) {
+				roomnumber = tmproom->number + 1;
 			}
 		}
 		tmproom = tmproom->next;
