@@ -2925,9 +2925,8 @@ static void clear_channel_fax_loop(struct ast_channel *c,  struct capi_pvt *i)
 /*
  * capicommand 'sendfax'
  */
-static int pbx_capi_send_fax(struct ast_channel *c, char *data)
+static int pbx_capi_send_extended_fax(struct ast_channel *c, struct capi_pvt *i, char *data)
 {
-	struct capi_pvt *i = get_active_plci (c);
 	int res = 0;
 	char *filename, *stationid, *headline, *options;
 	B3_PROTO_FAXG3 b3conf;
@@ -2935,17 +2934,6 @@ static int pbx_capi_send_fax(struct ast_channel *c, char *data)
 	int file_format;
 	unsigned short b3_protocol_options = 0;
 	int extended_resolution = 0;
-
-	if ((i == NULL) || ((i->channeltype == CAPI_CHANNELTYPE_NULL) && (i->line_plci == NULL))) {
-		cc_log(LOG_WARNING, CC_MESSAGE_NAME " receivefax requires resource PLCI\n");
-		return -1;
-	}
-
-	if (!data) { /* no data implies no filename or anything is present */
-		cc_log(LOG_WARNING, CC_MESSAGE_NAME " sendfax requires a filename\n");
-		capi_remove_nullif(i);
-		return -1;
-	}
 
 	filename = strsep(&data, "|");
 	stationid = strsep(&data, "|");
@@ -3004,38 +2992,43 @@ static int pbx_capi_send_fax(struct ast_channel *c, char *data)
 		switch (*options) {
 		case 'f':	/* use Fine resolution */
 			cc_verbose(3, 1,
-				VERBOSE_PREFIX_3 CC_MESSAGE_NAME " receivefax: Use Fine resolution\n");
+				VERBOSE_PREFIX_3 CC_MESSAGE_NAME " sendfax: Use Fine resolution\n");
 			b3_protocol_options |= 0x0001;
 			break;
 		case 'u':	/* use Fine resolution */
 			cc_verbose(3, 1,
-				VERBOSE_PREFIX_3 CC_MESSAGE_NAME " receivefax: Allow Super/Ultra fine resolution\n");
+				VERBOSE_PREFIX_3 CC_MESSAGE_NAME " sendfax: Allow Super/Ultra fine resolution\n");
 			b3_protocol_options |= 0x0001;
 			extended_resolution = 1;
 			break;
 		case 'j':	/* enable JPEG encoding */
 		case 't':	/* diasble T.85 encoding */
 			cc_verbose(3, 1,
-				VERBOSE_PREFIX_3 CC_MESSAGE_NAME " receivefax: Do not use T.85 coding\n");
+				VERBOSE_PREFIX_3 CC_MESSAGE_NAME " sendfax: Do not use T.85 coding\n");
 			b3_protocol_options |= 0x1000;
 			break;
 		case 'e':	/* disable ECM encoding */
 			cc_verbose(3, 1,
-				VERBOSE_PREFIX_3 CC_MESSAGE_NAME " receivefax: Do not use EC\nM");
+				VERBOSE_PREFIX_3 CC_MESSAGE_NAME " sendfax: Do not use ECM\n");
 			b3_protocol_options |= 0x8000;
 			break;
 		case 'm':	/* disable MMR encoding */
 			cc_verbose(3, 1,
-				VERBOSE_PREFIX_3 CC_MESSAGE_NAME " receivefax: do not use MMR (T.6) coding\n");
+				VERBOSE_PREFIX_3 CC_MESSAGE_NAME " sendfax: do not use MMR (T.6) coding\n");
 			b3_protocol_options |= 0x4000;
 			break;
 		case 'd':	/* disable MR encoding */
 			cc_verbose(3, 1,
-				VERBOSE_PREFIX_3 CC_MESSAGE_NAME " receivefax: do not use MR (2D) coding\n");
+				VERBOSE_PREFIX_3 CC_MESSAGE_NAME " sendfax: do not use MR (2D) coding\n");
 			b3_protocol_options |= 0x2000;
 			break;
+
+		case 'X':
+		case 'x':
+			break;
+
 		default:
-			cc_log(LOG_WARNING, "Unknown option '%c' for receivefax.\n",
+			cc_log(LOG_WARNING, "Unknown option '%c' for sendfax.\n",
 				*options);
 		}
 		options++;
@@ -3138,6 +3131,171 @@ static int pbx_capi_send_fax(struct ast_channel *c, char *data)
 	capi_remove_nullif(i);
 
 	return 0;
+}
+
+static int pbx_capi_send_basic_fax(struct ast_channel *c, struct capi_pvt *i, char *data)
+{
+	int res = 0;
+	char *filename, *stationid, *headline, *options;
+	B3_PROTO_FAXG3 b3conf;
+	char buffer[CAPI_MAX_STRING];
+
+	filename = strsep(&data, "|");
+	stationid = strsep(&data, "|");
+	headline = strsep(&data, "|");
+	options = data;
+
+	if (!stationid)
+		stationid = emptyid;
+	if (!headline)
+		headline = emptyid;
+
+	while ((options) && (*options)) {
+		switch (*options) {
+		case 'f':	/* use Fine resolution */
+		case 'u':	/* use Fine resolution */
+			break;
+		case 'j':	/* enable JPEG encoding */
+		case 't':	/* diasble T.85 encoding */
+		case 'e':	/* disable ECM encoding */
+		case 'm':	/* disable MMR encoding */
+		case 'd':	/* disable MR encoding */
+			cc_log(LOG_WARNING, "Option '%c' requires B3 fax T.30 extended.\n",
+				*options);
+			break;
+
+		case 'X':
+		case 'x':
+			break;
+
+		default:
+			cc_log(LOG_WARNING, "Unknown option '%c' for receivefax.\n",
+				*options);
+		}
+		options++;
+	}
+
+	cc_verbose(3, 1, VERBOSE_PREFIX_3 CC_MESSAGE_NAME " sendfax: '%s' '%s' '%s'\n",
+		filename, stationid, headline);
+
+	capi_wait_for_answered(i);
+
+	if ((i->fFax = fopen(filename, "rb")) == NULL) {
+		cc_log(LOG_WARNING, "can't open fax file (%s)\n", strerror(errno));
+		return -1;
+	}
+
+	i->FaxState |= (CAPI_FAX_STATE_ACTIVE | CAPI_FAX_STATE_SENDMODE);
+	setup_b3_basic_fax_config(&b3conf, FAX_SFF_FORMAT, stationid, headline);
+
+	i->bproto = CC_BPROTO_FAX3_BASIC;
+
+	switch (i->state) {
+	case CAPI_STATE_ALERTING:
+	case CAPI_STATE_DID:
+	case CAPI_STATE_INCALL:
+		capi_send_answer(c, (_cstruct)&b3conf);
+		break;
+	case CAPI_STATE_CONNECTED:
+		capi_change_bchan_fax(i, &b3conf);
+		break;
+	default:
+		i->FaxState &= ~CAPI_FAX_STATE_ACTIVE;
+		cc_log(LOG_WARNING, CC_MESSAGE_NAME " send fax in wrong state (%d)\n",
+			i->state);
+		return -1;
+	}
+	while (capi_tell_fax_finish(i)) {
+		if (ast_safe_sleep_conditional(c, 1000, capi_tell_fax_finish, i) != 0) {
+			/* we got a hangup */
+			cc_verbose(3, 1,
+				VERBOSE_PREFIX_3 CC_MESSAGE_NAME " sendfax: hangup.\n");
+			break;
+		}
+	}
+
+	cc_mutex_lock(&i->lock);
+
+	res = (i->FaxState & CAPI_FAX_STATE_ERROR) ? 1 : 0;
+	i->FaxState &= ~(CAPI_FAX_STATE_ACTIVE | CAPI_FAX_STATE_ERROR);
+
+	cc_verbose(2, 1, VERBOSE_PREFIX_3 "Closing fax file...\n");
+	fclose(i->fFax);
+	i->fFax = NULL;
+
+	cc_mutex_unlock(&i->lock);
+
+	if (res != 0) {
+		cc_verbose(2, 0,
+			VERBOSE_PREFIX_1 CC_MESSAGE_NAME
+				" sendfax: fax send failed reason=0x%04x reasonB3=0x%04x\n",
+				i->reason, i->reasonb3);
+	} else {
+		cc_verbose(2, 0,
+			VERBOSE_PREFIX_1 CC_MESSAGE_NAME " sendfax: fax sent successful.\n");
+	}
+	snprintf(buffer, CAPI_MAX_STRING-1, "%d", res);
+	pbx_builtin_setvar_helper(c, "FAXSTATUS", buffer);
+	
+	return 0;
+}
+
+static int pbx_capi_send_fax(struct ast_channel *c, char *data)
+{
+	struct capi_pvt *i = get_active_plci(c);
+	int force_extended = 0, force_no_extended = 0;
+	char *ldata_mem, *ldata;
+
+	if ((i == NULL) || ((i->channeltype == CAPI_CHANNELTYPE_NULL) && (i->line_plci == NULL))) {
+		cc_log(LOG_WARNING, CC_MESSAGE_NAME " sendfax requires resource PLCI\n");
+		return -1;
+	}
+
+	if (!data || !*data) { /* no data implies no filename or anything is present */
+		cc_log(LOG_WARNING, CC_MESSAGE_NAME " sendfax requires a filename\n");
+		capi_remove_nullif(i);
+		return -1;
+	}
+
+	ldata_mem = ldata = strdup(data);
+	if (!ldata_mem) {
+		cc_log(LOG_WARNING, CC_MESSAGE_NAME " out of memory\n");
+		capi_remove_nullif(i);
+		return -1;
+	}
+
+	(void)strsep(&ldata, "|");
+	(void)strsep(&ldata, "|");
+	(void)strsep(&ldata, "|");
+	while ((ldata) && (*ldata)) {
+		switch (*ldata) {
+			case 'X':
+				force_extended = 1;
+				force_no_extended = 0;
+				break;
+			case 'x':
+				force_extended = 0;
+				force_no_extended = 1;
+				break;
+		}
+		ldata++;
+	}
+
+	free(ldata_mem);
+
+	if ((force_extended != 0) && (capi_controllers[i->controller]->fax_t30_extended == 0)) {
+		force_extended = 0;
+		cc_log(LOG_WARNING, CC_MESSAGE_NAME " fax T.30 extended not available\n");
+	}
+
+	force_extended |= ((capi_controllers[i->controller]->divaExtendedFeaturesAvailable != 0) && (force_no_extended == 0)); /* Always use fax T.30 extended for Diva */
+	force_extended |= (i->channeltype == CAPI_CHANNELTYPE_NULL); /* always use fax T.30 extended for clear channel fax */
+
+	if (force_extended != 0) {
+		return (pbx_capi_send_extended_fax(c, i, data));
+	} else {
+		return (pbx_capi_send_basic_fax(c, i, data));
+	}
 }
 
 /*

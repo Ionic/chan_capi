@@ -287,6 +287,8 @@ The transmission of the fax message is started using 'sendfax' capi command:
     'stationid' - station ID, optional
     'headline'  - head line, optional
     'options'   - fax options, optional
+                  'X' - use fax T.30 extended (default)
+                  'x' - do not use fax T.30 extended
                   'f' - use Fine resolution
                   'u' - activate support for Super/Ultra fine resolutions and paper formats
                   't' - do not use T.85

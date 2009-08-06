@@ -415,10 +415,13 @@ With a Dialogic(R) Diva(R) Media Board, the following features are provided:
  - JPEG Compression is disabled (not tested yet)
 See README.Diva.fax for more details and description of all options.
 
-capicommand(sendfax|<filename>[|<stationid>|<headline>]):
+capicommand(sendfax|<filename>[|<stationid>|<headline>|<options>]):
 ------------------------------------------------------------
 To send a fax, you can use the same mechanism like with receivefax.
 Just replace the <filename> with the path to the .SFF file to send.
+You can activate extended fax support by 'X' in the <options>:
+  capicommand(sendfax|/tmp/${UNIQUEID}|+123456789||X)
+Please read details on extended fax options in README.Diva.fax.
 
 After disconnect of a fax connection, the following variables
 will be set for that channel:
