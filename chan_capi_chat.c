@@ -399,7 +399,7 @@ static struct capichat_s *add_chat_member(char *roomname, struct capi_pvt *i, ro
 	room->number = roomnumber;
 	room->room_mode = room_mode;
 
-	for (tmproom = chat_list; tmproom != 0; tmproom = tmproom->next) {
+	for (tmproom = chat_list; tmproom != NULL; tmproom = tmproom->next) {
 		if (tmproom->number == roomnumber) {
 			tmproom->info &= ~PBX_CHAT_MEMBER_INFO_RECENT;
 		}
