@@ -56,7 +56,17 @@ ifeq (${OSNAME},NetBSD)
 CONFIG_DIR=$(INSTALL_PREFIX)/usr/pkg/etc/asterisk
 endif
 
+OSARCH=$(shell uname -s)
+
+ifeq ($(strip $(PROC)),)
+ifeq (${OSARCH},Linux)
 PROC=$(shell uname -m)
+else
+ifeq (${OSARCH},FreeBSD)
+PROC=$(shell uname -m)
+endif
+endif
+endif
 
 AVERSION=$(shell if grep -q "VERSION_NUM 0104" $(ASTERISK_HEADER_DIR)/asterisk/version.h; then echo V1_4; fi)
 
@@ -87,9 +97,9 @@ endif
 
 CFLAGS=-pipe -fPIC -Wall -Wmissing-prototypes -Wmissing-declarations $(DEBUG) $(INCLUDE) -D_REENTRANT -D_GNU_SOURCE
 CFLAGS+=$(OPTIMIZE)
-CFLAGS+=-O6
+CFLAGS+=-O2
 CFLAGS+=$(shell if $(CC) -march=$(PROC) -S -o /dev/null -xc /dev/null >/dev/null 2>&1; then echo "-march=$(PROC)"; fi)
-CFLAGS+=$(shell if uname -m | grep -q ppc; then echo "-fsigned-char"; fi)
+CFLAGS+=$(shell if uname -m | grep -q "ppc\|arm\|s390"; then echo "-fsigned-char"; fi)
 
 LIBS=-ldl -lpthread -lm
 CC=gcc
