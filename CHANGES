@@ -1,6 +1,10 @@
 CHANGES
 =======
 
+HEAD
+------------------
+- corrected check for Info value on CONNECT_B3_CONF
+
 chan_capi-1.1.4
 ------------------
 - use extended fax if available only and have fine resolution on receive activated by default

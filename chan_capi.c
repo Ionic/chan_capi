@@ -5127,7 +5127,7 @@ static void capidev_handle_msg(_cmsg *CMSG)
 	case CAPI_P_CONF(CONNECT_B3):
 		wInfo = CONNECT_B3_CONF_INFO(CMSG);
 		if(i == NULL) break;
-		if (wInfo == 0) {
+		if ((wInfo & 0xff00) == 0) {
 			i->NCCI = NCCI;
 			if (i->channeltype != CAPI_CHANNELTYPE_NULL) {
 				capi_controllers[i->controller]->nfreebchannels--;
