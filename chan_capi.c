@@ -2123,7 +2123,7 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state, const char *l
 	int fmt;
 
 #ifdef CC_AST_HAS_EXT_CHAN_ALLOC
-	tmp = ast_channel_alloc(0, state, i->cid, NULL,
+	tmp = ast_channel_alloc(0, state, i->cid, emptyid,
 #ifdef CC_AST_HAS_EXT2_CHAN_ALLOC
 		i->accountcode, i->dnid, i->context, 
 #ifdef CC_AST_HAS_LINKEDID_CHAN_ALLOC
