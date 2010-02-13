@@ -1367,6 +1367,10 @@ int capi_write_frame(struct capi_pvt *i, struct ast_frame *f)
 	if (unlikely(f->frametype == AST_FRAME_NULL)) {
 		return 0;
 	}
+	if (unlikely((!f->FRAME_DATA_PTR) || (!f->datalen))) {
+		/* prodding from Asterisk, just returning */
+		return 0;
+	}
 	if (unlikely(f->frametype == AST_FRAME_DTMF)) {
 		cc_log(LOG_ERROR, "dtmf frame should be written\n");
 		return 0;
@@ -1378,10 +1382,6 @@ int capi_write_frame(struct capi_pvt *i, struct ast_frame *f)
 	if (unlikely(i->FaxState & CAPI_FAX_STATE_ACTIVE)) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: write on fax activity?\n",
 			i->vname);
-		return 0;
-	}
-	if (unlikely((!f->FRAME_DATA_PTR) || (!f->datalen))) {
-		cc_log(LOG_DEBUG, "No data for FRAME_VOICE %s\n", i->vname);
 		return 0;
 	}
 	if (i->isdnstate & CAPI_ISDN_STATE_RTP) {
