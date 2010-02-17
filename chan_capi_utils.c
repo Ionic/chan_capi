@@ -70,7 +70,7 @@ void cc_verbose_internal(char *text, ...)
 #endif
 
 	cc_mutex_lock(&verbose_lock);
-	cc_pbx_verbose(line);
+	cc_pbx_verbose("%s", line);
 	cc_mutex_unlock(&verbose_lock);	
 }
 
