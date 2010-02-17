@@ -303,12 +303,14 @@ static void write_capi_trace(int send, unsigned char *buf, int length, int datam
 
 	fd = open(tracefile, O_WRONLY | O_CREAT | O_APPEND, 0644);
 	if (fd >= 0) {
+		int tmp;
+
 		ltime = (_cdword)time(NULL);
 		capimsg_setu16(header, 0, length + sizeof(header));
 		capimsg_setu32(header, 2, ltime);
 		header[6] = (send) ? 0x80:0x81;
-		write(fd, header, sizeof(header));
-		write(fd, buf, length);
+		tmp = write(fd, header, sizeof(header));
+		tmp = write(fd, buf, length);
 		close(fd);
 	}
 }
@@ -981,13 +983,23 @@ capi20_get_profile(unsigned Ctrl, unsigned char *Buf)
 	if (remote_capi) {
 		unsigned char buf[100];
 		unsigned char *p = buf;
+		unsigned fret;
+
 		set_rcapicmd_header(&p, 14, RCAPI_GET_PROFILE_REQ, Ctrl);
 		if(!(remote_command(capi_fd, buf, 14, RCAPI_GET_PROFILE_CONF)))
 			return CapiMsgOSResourceErr;
-		if(*(unsigned short *)buf == CapiNoError) {
-			memcpy(Buf, buf + 2, (Ctrl) ? sizeof(struct capi_profile) : 2);
+
+		{
+			unsigned short* tmp = (unsigned short*)buf;
+
+			if(*tmp == CapiNoError) {
+				memcpy(Buf, buf + 2, (Ctrl) ? sizeof(struct capi_profile) : 2);
+			}
+
+			fret = *tmp; 
 		}
-		return (*(unsigned short *)buf); 
+
+		return (fret);
 	}
 
 	ioctl_data.contr = Ctrl;
