@@ -51,7 +51,7 @@ void cc_qsig_verbose(int c_d, char *text, ...)
 	if (option_verbose > 4) {
 		if ((!c_d) || ((c_d) && (capiqsigdebug))) {	
 			cc_mutex_lock(&qsig_verbose_lock);
-			cc_pbx_verbose(line);
+			cc_pbx_verbose("%s", line);
 			cc_mutex_unlock(&qsig_verbose_lock);	
 		}
 	}
