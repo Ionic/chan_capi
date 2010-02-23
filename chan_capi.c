@@ -4814,8 +4814,6 @@ static void capidev_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, un
 			pbx_builtin_setvar_helper(i->owner, "BCHANNELINFO", bchannelinfo);
 			sprintf(buffer, "%d", callednplan);
 			pbx_builtin_setvar_helper(i->owner, "CALLEDTON", buffer);
-			sprintf(buffer, "%d", callernplan);
-			pbx_builtin_setvar_helper(i->owner, "CALLERTON", buffer);
 			sprintf(buffer, "%d", i->cip);
 			pbx_builtin_setvar_helper(i->owner, "CAPI_CIP", buffer);
 			/*
