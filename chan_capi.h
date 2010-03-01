@@ -31,7 +31,11 @@
 #include <asterisk/features.h>
 #include <asterisk/utils.h>
 #include <asterisk/cli.h>
+#ifdef CC_AST_HAS_RTP_ENGINE_H
+#include <asterisk/rtp_engine.h>
+#else
 #include <asterisk/rtp.h>
+#endif
 #include <asterisk/causes.h>
 #include <asterisk/strings.h>
 #include <asterisk/dsp.h>
@@ -124,6 +128,14 @@ static inline unsigned int read_capi_dword(void *m)
 #define FRAME_DATA_PTR data.ptr
 #else
 #define FRAME_DATA_PTR data
+#endif
+
+#ifdef CC_AST_HAS_UNION_SUBCLASS_IN_FRAME
+#define FRAME_SUBCLASS_INTEGER(x) x.integer
+#define FRAME_SUBCLASS_CODEC(x) x.codec
+#else
+#define FRAME_SUBCLASS_INTEGER(x) x
+#define FRAME_SUBCLASS_CODEC(x) x
 #endif
 
 #ifndef CC_AST_HAS_CHANNEL_RELEASE
@@ -496,8 +508,16 @@ struct capi_pvt {
 	time_t whentoretrieve;
 
 	/* RTP */
+#ifdef CC_AST_HAS_RTP_ENGINE_H
+	struct ast_rtp_instance *rtp;
+#else
 	struct ast_rtp *rtp;
+#endif
+#ifdef CC_AST_HAS_FORMAT_T
+	format_t capability;
+#else
 	int capability;
+#endif
 	int rtpcodec;
 	int codec;
 	unsigned int timestamp;
@@ -570,7 +590,11 @@ struct cc_capi_conf {
 	float rxgain;
 	float txgain;
 	struct ast_codec_pref prefs;
+#ifdef CC_AST_HAS_FORMAT_T
+	format_t capability;
+#else
 	int capability;
+#endif
 #ifdef CC_AST_HAS_VERSION_1_4
 	struct ast_jb_conf jbconf;
 	char mohinterpret[MAX_MUSICCLASS];
@@ -666,7 +690,11 @@ struct cc_capi_controller {
  * prototypes
  */
 extern const struct ast_channel_tech capi_tech;
+#ifdef CC_AST_HAS_FORMAT_T
+extern format_t capi_capability;
+#else
 extern int capi_capability;
+#endif
 extern unsigned capi_ApplID;
 extern struct capi_pvt *capi_iflist;
 extern void cc_start_b3(struct capi_pvt *i);

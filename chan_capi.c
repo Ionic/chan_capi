@@ -177,7 +177,11 @@ static char capi_subscriber_prefix[AST_MAX_EXTENSION];
 
 static char default_language[MAX_LANGUAGE] = "";
 
+#ifdef CC_AST_HAS_FORMAT_T
+format_t capi_capability = AST_FORMAT_ALAW;
+#else
 int capi_capability = AST_FORMAT_ALAW;
+#endif
 
 static int null_plci_dtmf_support = 1;
 
@@ -791,7 +795,7 @@ static int local_queue_frame(struct capi_pvt *i, struct ast_frame *f)
 	if ((i->state == CAPI_STATE_DISCONNECTING) ||
 	    (i->isdnstate & CAPI_ISDN_STATE_HANGUP)) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: no queue_frame in state disconnecting for %d/%d\n",
-			i->vname, f->frametype, f->subclass);
+			i->vname, f->frametype, FRAME_SUBCLASS_INTEGER(f->subclass));
 		return 0;
 	}
 
@@ -800,7 +804,7 @@ static int local_queue_frame(struct capi_pvt *i, struct ast_frame *f)
 	}
 
 	if ((f->frametype == AST_FRAME_CONTROL) &&
-	    (f->subclass == AST_CONTROL_HANGUP)) {
+	    (FRAME_SUBCLASS_INTEGER(f->subclass) == AST_CONTROL_HANGUP)) {
 		i->isdnstate |= CAPI_ISDN_STATE_HANGUP;
 	}
 
@@ -1068,7 +1072,11 @@ static void interface_cleanup(struct capi_pvt *i)
 
 	i->rtpcodec = 0;
 	if (i->rtp) {
+#ifdef CC_AST_HAS_RTP_ENGINE_H
+		ast_rtp_instance_destroy(i->rtp);
+#else
 		ast_rtp_destroy(i->rtp);
+#endif
 		i->rtp = NULL;
 	}
 
@@ -1162,7 +1170,7 @@ static void send_progress(struct capi_pvt *i)
 
 	if (!(i->isdnstate & CAPI_ISDN_STATE_PROGRESS)) {
 		i->isdnstate |= CAPI_ISDN_STATE_PROGRESS;
-		fr.subclass = AST_CONTROL_PROGRESS;
+		FRAME_SUBCLASS_INTEGER(fr.subclass) = AST_CONTROL_PROGRESS;
 		local_queue_frame(i, &fr);
 	}
 	return;
@@ -2296,9 +2304,14 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state, const char *l
  * PBX wants us to dial ...
  */
 #ifdef CC_AST_HAS_REQUEST_REQUESTOR
+#ifdef CC_AST_HAS_REQUEST_FORMAT_T
+static struct ast_channel *
+pbx_capi_request(const char *type, format_t format, const struct ast_channel *requestor, void *data, int *cause)
+/* TODO: new field requestor to link to called channel */
+#else
 static struct ast_channel *
 pbx_capi_request(const char *type, int format, const struct ast_channel *requestor, void *data, int *cause)
-/* TODO: new field requestor to link to called channel */
+#endif
 #else
 static struct ast_channel *
 pbx_capi_request(const char *type, int format, void *data, int *cause)
@@ -2881,7 +2894,8 @@ static void clear_channel_fax_loop(struct ast_channel *c,  struct capi_pvt *i)
 					i->vname);
 				break;
 			}
-			if ((f->frametype == AST_FRAME_CONTROL) && (f->subclass == AST_CONTROL_HANGUP)) {
+			if ((f->frametype == AST_FRAME_CONTROL) &&
+				(FRAME_SUBCLASS_INTEGER(f->subclass) == AST_CONTROL_HANGUP)) {
 				cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: clear channel fax: hangup frame.\n",
 					i->vname);
 				ast_frfree(f);
@@ -2896,7 +2910,7 @@ static void clear_channel_fax_loop(struct ast_channel *c,  struct capi_pvt *i)
 					i->vname);
 			} else {
 				cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: cler channel fax: unhandled frame %d/%d.\n",
-					i->vname, f->frametype, f->subclass);
+					i->vname, f->frametype, FRAME_SUBCLASS_INTEGER(f->subclass));
 			}
 			ast_frfree(f);
 		} else if (ready_fd == i->readerfd) {
@@ -3545,7 +3559,7 @@ static void capidev_handle_did_digits(_cmsg *CMSG, unsigned int PLCI, unsigned i
 			/* we are already in pbx, so we send the digits as dtmf */
 			for (a = 0; a < strlen(did); a++) {
 				fr.frametype = AST_FRAME_DTMF;
-				fr.subclass = did[a];
+				FRAME_SUBCLASS_INTEGER(fr.subclass) = did[a];
 				local_queue_frame(i, &fr);
 			} 
 		}
@@ -3561,16 +3575,19 @@ static void capidev_handle_did_digits(_cmsg *CMSG, unsigned int PLCI, unsigned i
  */
 void capi_queue_cause_control(struct capi_pvt *i, int control)
 {
-	struct ast_frame fr = { AST_FRAME_CONTROL, AST_CONTROL_HANGUP, };
+	struct ast_frame fr;
+
+	fr.frametype = AST_FRAME_CONTROL;
+	FRAME_SUBCLASS_INTEGER(fr.subclass) = AST_CONTROL_HANGUP;
 	
 	if ((i->owner) && (control)) {
 		int cause = i->owner->hangupcause;
 		if (cause == AST_CAUSE_NORMAL_CIRCUIT_CONGESTION) {
-			fr.subclass = AST_CONTROL_CONGESTION;
+			FRAME_SUBCLASS_INTEGER(fr.subclass) = AST_CONTROL_CONGESTION;
 		} else if ((cause != AST_CAUSE_NO_USER_RESPONSE) &&
 		           (cause != AST_CAUSE_NO_ANSWER)) {
 			/* not NOANSWER */
-			fr.subclass = AST_CONTROL_BUSY;
+			FRAME_SUBCLASS_INTEGER(fr.subclass) = AST_CONTROL_BUSY;
 		}
 	}
 	local_queue_frame(i, &fr);
@@ -3873,7 +3890,7 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 			i->vname);
 		send_progress(i);
 		fr.frametype = AST_FRAME_CONTROL;
-		fr.subclass = AST_CONTROL_RINGING;
+		FRAME_SUBCLASS_INTEGER(fr.subclass) = AST_CONTROL_RINGING;
 		local_queue_frame(i, &fr);
 		if (i->owner)
 			ast_setstate(i->owner, AST_STATE_RINGING);
@@ -3883,7 +3900,7 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element CALL PROCEEDING\n",
 			i->vname);
 		fr.frametype = AST_FRAME_CONTROL;
-		fr.subclass = AST_CONTROL_PROCEEDING;
+		FRAME_SUBCLASS_INTEGER(fr.subclass) = AST_CONTROL_PROCEEDING;
 		local_queue_frame(i, &fr);
 		break;
 	case 0x8003:	/* PROGRESS */
@@ -4135,7 +4152,7 @@ static int handle_facility_indication_dtmf(
 
 							while (i->special_tone_extension[n] != 0) {
 								fr.frametype = AST_FRAME_DTMF;
-								fr.subclass = i->special_tone_extension[n++];
+								FRAME_SUBCLASS_INTEGER(fr.subclass) = i->special_tone_extension[n++];
 								local_queue_frame(i, &fr);
 							}
 						}
@@ -4146,7 +4163,7 @@ static int handle_facility_indication_dtmf(
 				if (ignore_digit == 0) {
 					if (pbx_capi_voicecommand_process_digit(i, 0, dtmf) == 0) {
 						fr.frametype = AST_FRAME_DTMF;
-						fr.subclass = dtmf;
+						FRAME_SUBCLASS_INTEGER(fr.subclass) = dtmf;
 						local_queue_frame(i, &fr);
 					}
 				}
@@ -4229,7 +4246,7 @@ static void capidev_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, un
 		}
 #ifndef CC_AST_HAS_VERSION_1_4
 		fr.frametype = AST_FRAME_CONTROL;
-		fr.subclass = AST_CONTROL_PROGRESS;
+		FRAME_SUBCLASS_INTEGER(fr.subclass) = AST_CONTROL_PROGRESS;
 		local_queue_frame(i, &fr);
 #endif
 		return;
@@ -4289,9 +4306,9 @@ static void capidev_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, un
 				}
 			}
 		}
-		fr.subclass = capi_capability;
+		FRAME_SUBCLASS_CODEC(fr.subclass) = capi_capability;
 	} else {
-		fr.subclass = i->codec;
+		FRAME_SUBCLASS_CODEC(fr.subclass) = i->codec;
 	}
 
 	fr.frametype = AST_FRAME_VOICE;
@@ -4302,8 +4319,8 @@ static void capidev_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, un
 	fr.mallocd = 0;
 	fr.delivery = ast_tv(0,0);
 	fr.src = NULL;
-	cc_verbose(8, 1, VERBOSE_PREFIX_3 "%s: DATA_B3_IND (len=%d) fr.datalen=%d fr.subclass=%d\n",
-		i->vname, b3len, fr.datalen, fr.subclass);
+	cc_verbose(8, 1, VERBOSE_PREFIX_3 "%s: DATA_B3_IND (len=%d) fr.datalen=%d fr.subclass=%ld\n",
+		i->vname, b3len, fr.datalen, FRAME_SUBCLASS_CODEC(fr.subclass));
 	local_queue_frame(i, &fr);
 	return;
 }
@@ -4313,7 +4330,10 @@ static void capidev_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, un
  */
 static void capi_signal_answer(struct capi_pvt *i)
 {
-	struct ast_frame fr = { AST_FRAME_CONTROL, AST_CONTROL_ANSWER, };
+	struct ast_frame fr;
+
+	fr.frametype = AST_FRAME_CONTROL;
+	FRAME_SUBCLASS_INTEGER(fr.subclass) = AST_CONTROL_ANSWER;
 
 	if (i->outgoing == 1) {
 		local_queue_frame(i, &fr);
@@ -4602,8 +4622,11 @@ static void capidev_handle_connect_b3_indication(_cmsg *CMSG, unsigned int PLCI,
  */
 static void capidev_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
 {
-	struct ast_frame fr = { AST_FRAME_CONTROL, AST_CONTROL_HANGUP, };
+	struct ast_frame fr;
 	int state;
+
+	fr.frametype = AST_FRAME_CONTROL;
+	FRAME_SUBCLASS_INTEGER(fr.subclass) = AST_CONTROL_HANGUP;
 
 	capi_sendf(NULL, 0, CAPI_DISCONNECT_RESP, PLCI, HEADER_MSGNUM(CMSG), "");
 	
@@ -4651,7 +4674,7 @@ static void capidev_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI,
 	}
 
 	if (DISCONNECT_IND_REASON(CMSG) == 0x34a2) {
-		fr.subclass = AST_CONTROL_CONGESTION;
+		FRAME_SUBCLASS_INTEGER(fr.subclass) = AST_CONTROL_CONGESTION;
 	}
 
 	if (state == CAPI_STATE_DISCONNECTING) {
@@ -5022,7 +5045,10 @@ void capidev_handle_connection_conf(struct capi_pvt **i, unsigned int PLCI,
 	unsigned short wInfo, unsigned short wMsgNum)
 {
 	struct capi_pvt *ii;
-	struct ast_frame fr = { AST_FRAME_CONTROL, AST_CONTROL_BUSY, };
+	struct ast_frame fr;
+
+	fr.frametype = AST_FRAME_CONTROL;
+	FRAME_SUBCLASS_INTEGER(fr.subclass) = AST_CONTROL_BUSY;
 
 	if (*i) {
 		cc_log(LOG_ERROR, CC_MESSAGE_BIGNAME ": CONNECT_CONF for already "

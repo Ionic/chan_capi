@@ -34,6 +34,11 @@ if [ "$AVERSION" = "" ]; then
 	AVERSION="trunk"
 	VER="1_6"
 fi
+if [ -z "$AVERSIONNUM" ]; then
+	AVERSIONNUM=999999
+	AVERSION="trunk"
+	VER="1_6"
+fi
 echo $AVERSION
 
 echo "/*" >$CONFIGFILE
@@ -163,6 +168,13 @@ check_version_onesix()
 		echo "#undef CC_AST_HAS_UNION_DATA_IN_FRAME" >>$CONFIGFILE
 		echo " * no new union data in ast_frame structure"
 	fi
+	if grep -q "} subclass;" $INCLUDEDIR/frame.h; then
+		echo "#define CC_AST_HAS_UNION_SUBCLASS_IN_FRAME" >>$CONFIGFILE
+		echo " * found new union subclass in ast_frame structure"
+	else
+		echo "#undef CC_AST_HAS_UNION_SUBCLASS_IN_FRAME" >>$CONFIGFILE
+		echo " * no new union subclass in ast_frame structure"
+	fi
 	if grep -q "ast_channel_release.*struct" $INCLUDEDIR/channel.h; then
 		echo "#define CC_AST_HAS_CHANNEL_RELEASE" >>$CONFIGFILE
 		echo " * found ast_channel_release function"
@@ -184,6 +196,13 @@ check_version_onesix()
 		echo "#undef CC_AST_HAS_REQUEST_REQUESTOR" >>$CONFIGFILE
 		echo " * no requestor in ast_request"
 	fi
+	if grep -q "ast_request.*format_t format" $INCLUDEDIR/channel.h; then
+		echo "#define CC_AST_HAS_REQUEST_FORMAT_T" >>$CONFIGFILE
+		echo " * found format_t in ast_request"
+	else
+		echo "#undef CC_AST_HAS_REQUEST_FORMAT_T" >>$CONFIGFILE
+		echo " * no format_t in ast_request"
+	fi
 	if grep -q "ast_register_application2.*void " $INCLUDEDIR/module.h; then
 		echo "#undef CC_AST_HAS_CONST_CHAR_IN_REGAPPL" >>$CONFIGFILE
 		echo " * no const char in ast_register_application"
@@ -197,6 +216,24 @@ check_version_onesix()
 	else
 		echo "#undef CC_AST_HAS_LINKEDID_CHAN_ALLOC" >>$CONFIGFILE
 		echo " * no linkedid in ast_channel_alloc"
+	fi
+	if [ -f $INCLUDEDIR/frame_defs.h ]; then
+		if grep -q "typedef.*format_t" $INCLUDEDIR/frame_defs.h; then
+			echo "#define CC_AST_HAS_FORMAT_T" >>$CONFIGFILE
+			echo " * found format_t in frame_defs"
+		else
+			echo "#undef CC_AST_HAS_FORMAT_T" >>$CONFIGFILE
+			echo " * no format_t in frame_defs"
+		fi
+	else
+			echo "#undef CC_AST_HAS_FORMAT_T" >>$CONFIGFILE
+	fi
+	if [ -f $INCLUDEDIR/rtp_engine.h ]; then
+		echo "#define CC_AST_HAS_RTP_ENGINE_H" >>$CONFIGFILE
+		echo " * found rtp_engine.h"
+	else
+		echo "#undef CC_AST_HAS_RTP_ENGINE_H" >>$CONFIGFILE
+		echo " * no rtp_engine.h"
 	fi
 }
 

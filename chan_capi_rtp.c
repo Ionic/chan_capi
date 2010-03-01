@@ -166,12 +166,23 @@ int capi_alloc_rtp(struct capi_pvt *i)
 	hp = ast_gethostbyname("localhost", &ahp);
 	memcpy(&addr, hp->h_addr, sizeof(addr));
 
-	if (!(i->rtp = ast_rtp_new_with_bindaddr(NULL, NULL, 0, 0, addr))) {
+#ifdef CC_AST_HAS_RTP_ENGINE_H
+	i->rtp = ast_rtp_instance_new(NULL, NULL, (struct sockaddr_in *)&addr, NULL);
+#else
+	i->rtp = ast_rtp_new_with_bindaddr(NULL, NULL, 0, 0, addr);
+#endif
+
+	if (!(i->rtp)) {
 		cc_log(LOG_ERROR, "%s: unable to alloc rtp.\n", i->vname);
 		return 1;
 	}
+#ifdef CC_AST_HAS_RTP_ENGINE_H
+	ast_rtp_instance_get_local_address(i->rtp, &us);
+	ast_rtp_instance_set_remote_address(i->rtp, &us);
+#else
 	ast_rtp_get_us(i->rtp, &us);
 	ast_rtp_set_peer(i->rtp, &us);
+#endif
 	cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: alloc rtp socket on %s:%d\n",
 		i->vname,
 #ifdef CC_AST_HAS_VERSION_1_4
@@ -202,17 +213,28 @@ int capi_write_rtp(struct capi_pvt *i, struct ast_frame *f)
 		return -1;
 	}
 
+#ifdef CC_AST_HAS_RTP_ENGINE_H
+	ast_rtp_instance_get_local_address(i->rtp, &us);
+	ast_rtp_instance_set_remote_address(i->rtp, &us);
+	if (ast_rtp_instance_write(i->rtp, f) != 0) {
+#else
 	ast_rtp_get_us(i->rtp, &us);
 	ast_rtp_set_peer(i->rtp, &us);
 	if (ast_rtp_write(i->rtp, f) != 0) {
+#endif
 		cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: rtp_write error, dropping packet.\n",
 			i->vname);
 		return 0;
 	}
 
 	while(1) {
-		len = recvfrom(ast_rtp_fd(i->rtp), buf, sizeof(buf),
-			0, (struct sockaddr *)&us, &uslen);
+#ifdef CC_AST_HAS_RTP_ENGINE_H
+		len = recvfrom(ast_rtp_instance_fd(i->rtp, 0),
+			buf, sizeof(buf), 0, (struct sockaddr *)&us, &uslen);
+#else
+		len = recvfrom(ast_rtp_fd(i->rtp),
+			buf, sizeof(buf), 0, (struct sockaddr *)&us, &uslen);
+#endif
 		if (len <= 0)
 			break;
 
@@ -238,7 +260,7 @@ int capi_write_rtp(struct capi_pvt *i, struct ast_frame *f)
 		i->send_buffer_handle++;
 
 		cc_verbose(6, 1, VERBOSE_PREFIX_4 "%s: RTP write for NCCI=%#x len=%d(%d) %s ts=%x\n",
-			i->vname, i->NCCI, len, f->datalen, ast_getformatname(f->subclass),
+			i->vname, i->NCCI, len, f->datalen, ast_getformatname(FRAME_SUBCLASS_CODEC(f->subclass)),
 			i->timestamp);
 
 		capi_sendf(NULL, 0, CAPI_DATA_B3_REQ, i->NCCI, get_capi_MessageNumber(),
@@ -269,28 +291,42 @@ struct ast_frame *capi_read_rtp(struct capi_pvt *i, unsigned char *buf, int len)
 		return NULL;
 	}
 
+#ifdef CC_AST_HAS_RTP_ENGINE_H
+	ast_rtp_instance_get_local_address(i->rtp, &us);
+	ast_rtp_instance_set_remote_address(i->rtp, &us);
+#else
 	ast_rtp_get_us(i->rtp, &us);
 	ast_rtp_set_peer(i->rtp, &us);
+#endif
 
-	if (len != sendto(ast_rtp_fd(i->rtp), buf, len, 0, (struct sockaddr *)&us, sizeof(us))) {
+#ifdef CC_AST_HAS_RTP_ENGINE_H
+	if (len != sendto(ast_rtp_instance_fd(i->rtp, 0), buf, len, 0, (struct sockaddr *)&us, sizeof(us)))
+#else
+	if (len != sendto(ast_rtp_fd(i->rtp), buf, len, 0, (struct sockaddr *)&us, sizeof(us)))
+#endif
+	{
 		cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s: RTP sendto error\n",
 			i->vname);
 		return NULL;
 	}
 
+#ifdef CC_AST_HAS_RTP_ENGINE_H
+	if ((f = ast_rtp_instance_read(i->rtp, 0))) {
+#else
 	if ((f = ast_rtp_read(i->rtp))) {
+#endif
 		if (f->frametype != AST_FRAME_VOICE) {
 			cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: DATA_B3_IND RTP (len=%d) non voice type=%d\n",
 				i->vname, len, f->frametype);
 			return NULL;
 		}
 		cc_verbose(6, 1, VERBOSE_PREFIX_4 "%s: DATA_B3_IND RTP NCCI=%#x len=%d %s (read/write=%d/%d)\n",
-			i->vname, i->NCCI, len, ast_getformatname(f->subclass),
+			i->vname, i->NCCI, len, ast_getformatname(FRAME_SUBCLASS_CODEC(f->subclass)),
 			i->owner->readformat, i->owner->writeformat);
-		if (i->owner->nativeformats != f->subclass) {
-			cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: DATA_B3_IND RTP nativeformats=%d, but subclass=%d\n",
-				i->vname, i->owner->nativeformats, f->subclass);
-			i->owner->nativeformats = f->subclass;
+		if (i->owner->nativeformats != FRAME_SUBCLASS_CODEC(f->subclass)) {
+			cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: DATA_B3_IND RTP nativeformats=%d, but subclass=%ld\n",
+				i->vname, i->owner->nativeformats, FRAME_SUBCLASS_CODEC(f->subclass));
+			i->owner->nativeformats = FRAME_SUBCLASS_CODEC(f->subclass);
 			ast_set_read_format(i->owner, i->owner->readformat);
 			ast_set_write_format(i->owner, i->owner->writeformat);
 		}

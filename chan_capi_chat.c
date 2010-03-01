@@ -484,7 +484,8 @@ static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i,
 					i->vname);
 				break;
 			}
-			if ((f->frametype == AST_FRAME_CONTROL) && (f->subclass == AST_CONTROL_HANGUP)) {
+			if ((f->frametype == AST_FRAME_CONTROL) &&
+				(FRAME_SUBCLASS_INTEGER(f->subclass) == AST_CONTROL_HANGUP)) {
 				cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: chat: hangup frame.\n",
 					i->vname);
 				ast_frfree(f);
@@ -502,10 +503,10 @@ static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i,
 				cc_verbose(5, 1, VERBOSE_PREFIX_3 "%s: chat: NULL frame, ignoring.\n",
 					i->vname);
 			} else if ((f->frametype == AST_FRAME_DTMF_END) && (voice_message == NULL))  {
-				pbx_capi_voicecommand_process_digit (i, c, f->subclass);
+				pbx_capi_voicecommand_process_digit(i, c, FRAME_SUBCLASS_INTEGER(f->subclass));
 			} else {
 				cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: chat: unhandled frame %d/%d.\n",
-					i->vname, f->frametype, f->subclass);
+					i->vname, f->frametype, FRAME_SUBCLASS_INTEGER(f->subclass));
 			}
 			ast_frfree(f);
 		} else if (ready_fd == i->readerfd) {
