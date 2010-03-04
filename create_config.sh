@@ -168,7 +168,7 @@ check_version_onesix()
 		echo "#undef CC_AST_HAS_UNION_DATA_IN_FRAME" >>$CONFIGFILE
 		echo " * no new union data in ast_frame structure"
 	fi
-	if grep -q "} subclass;" $INCLUDEDIR/frame.h; then
+	if grep -q "union ast_frame_subclass subclass" $INCLUDEDIR/frame.h; then
 		echo "#define CC_AST_HAS_UNION_SUBCLASS_IN_FRAME" >>$CONFIGFILE
 		echo " * found new union subclass in ast_frame structure"
 	else
