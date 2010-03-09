@@ -3575,9 +3575,8 @@ static void capidev_handle_did_digits(_cmsg *CMSG, unsigned int PLCI, unsigned i
  */
 void capi_queue_cause_control(struct capi_pvt *i, int control)
 {
-	struct ast_frame fr;
+	struct ast_frame fr = { AST_FRAME_CONTROL, };
 
-	fr.frametype = AST_FRAME_CONTROL;
 	FRAME_SUBCLASS_INTEGER(fr.subclass) = AST_CONTROL_HANGUP;
 	
 	if ((i->owner) && (control)) {
@@ -4330,9 +4329,8 @@ static void capidev_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, un
  */
 static void capi_signal_answer(struct capi_pvt *i)
 {
-	struct ast_frame fr;
+	struct ast_frame fr = { AST_FRAME_CONTROL, };
 
-	fr.frametype = AST_FRAME_CONTROL;
 	FRAME_SUBCLASS_INTEGER(fr.subclass) = AST_CONTROL_ANSWER;
 
 	if (i->outgoing == 1) {
@@ -4622,10 +4620,9 @@ static void capidev_handle_connect_b3_indication(_cmsg *CMSG, unsigned int PLCI,
  */
 static void capidev_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
 {
-	struct ast_frame fr;
+	struct ast_frame fr = { AST_FRAME_CONTROL, };
 	int state;
 
-	fr.frametype = AST_FRAME_CONTROL;
 	FRAME_SUBCLASS_INTEGER(fr.subclass) = AST_CONTROL_HANGUP;
 
 	capi_sendf(NULL, 0, CAPI_DISCONNECT_RESP, PLCI, HEADER_MSGNUM(CMSG), "");
@@ -5045,9 +5042,8 @@ void capidev_handle_connection_conf(struct capi_pvt **i, unsigned int PLCI,
 	unsigned short wInfo, unsigned short wMsgNum)
 {
 	struct capi_pvt *ii;
-	struct ast_frame fr;
+	struct ast_frame fr = { AST_FRAME_CONTROL, };
 
-	fr.frametype = AST_FRAME_CONTROL;
 	FRAME_SUBCLASS_INTEGER(fr.subclass) = AST_CONTROL_BUSY;
 
 	if (*i) {
