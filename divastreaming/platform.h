@@ -62,5 +62,35 @@
 #define unlikely(__x__) (!!(__x__))
 #endif
 
+#ifndef MIN
+#define MIN(a,b)  ((a)>(b) ? (b) : (a))
+#endif
+
+#ifndef MAX
+#define MAX(a,b)  ((a)>(b) ? (a) : (b))
+#endif
+
+#define DIVAS_CONTAINING_RECORD(address, type, field) \
+        ((type *)((char*)(address) - (char*)(&((type *)0)->field)))
+
+#define DIVA_STREAMING_MAX_TRACE_IDENT_LENGTH 4
+
+void* diva_os_malloc (unsigned long flags, unsigned long size);
+void diva_os_free (unsigned long flags, void* ptr);
+
+void diva_runtime_error_message (const char* fmt, ...);
+void diva_runtime_log_message (const char* fmt, ...);
+void diva_runtime_trace_message (const char* fmt, ...);
+void diva_runtime_binary_message (const void* data, dword length);
+
+#define DBG_ERR(__x__) do { diva_runtime_error_message __x__;  } while (0);
+#define DBG_LOG(__x__) do { diva_runtime_log_message   __x__;  } while (0);
+#define DBG_TRC(__x__) do { diva_runtime_trace_message __x__;  } while (0);
+#define DBG_BLK(__x__) do { diva_runtime_binary_message __x__; } while (0);
+
+#define dbg_init(__a__, __b__, __c__) do { diva_runtime_log_message("%s %s %u", __a__, __b__, __c__); } while (0)
+
+#include <string.h>
+
 #endif
 
