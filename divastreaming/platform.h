@@ -25,6 +25,8 @@
 #ifndef __DIVA_OS_STREAMING_PLATFORM_H__
 #define __DIVA_OS_STREAMING_PLATFORM_H__
 
+#define DIVA_USERMODE 1
+
 #if !defined(__i386__)
 #define READ_WORD(w) ( ((byte *)(w))[0] + \
                       (((byte *)(w))[1]<<8) )
