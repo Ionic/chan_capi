@@ -3,6 +3,10 @@ CHANGES
 
 HEAD
 ------------------
+
+
+chan_capi-1.1.5
+------------------
 - corrected check for Info value on CONNECT_B3_CONF
 - fixed NULL-pointer in cid_name (asterisk 1.6 pickup revealed this)
 - changed action on prodding in .write function to ignore it
