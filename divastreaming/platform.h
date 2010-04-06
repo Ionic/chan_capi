@@ -26,6 +26,7 @@
 #define __DIVA_OS_STREAMING_PLATFORM_H__
 
 #define DIVA_USERMODE 1
+#define LINUX         1
 
 #if !defined(__i386__)
 #define READ_WORD(w) ( ((byte *)(w))[0] + \
@@ -50,10 +51,11 @@
 #define WRITE_DWORD(b,w) do{ *(dword *)(b)=(w); }while(0)
 #endif
 
-#define	byte   unsigned char 
-#define	word   unsigned short
-#define	dword  unsigned long 
-#define int32  signed int
+typedef unsigned char      byte;
+typedef unsigned short     word;
+typedef unsigned int       dword;
+typedef signed int         int32;
+typedef unsigned long long qword;
 
 #ifndef likely
 #define likely(__x__)   (!!(__x__))
@@ -78,19 +80,8 @@
 void* diva_os_malloc (unsigned long flags, unsigned long size);
 void diva_os_free (unsigned long flags, void* ptr);
 
-void diva_runtime_error_message (const char* fmt, ...);
-void diva_runtime_log_message (const char* fmt, ...);
-void diva_runtime_trace_message (const char* fmt, ...);
-void diva_runtime_binary_message (const void* data, dword length);
-
-#define DBG_ERR(__x__) do { diva_runtime_error_message __x__;  } while (0);
-#define DBG_LOG(__x__) do { diva_runtime_log_message   __x__;  } while (0);
-#define DBG_TRC(__x__) do { diva_runtime_trace_message __x__;  } while (0);
-#define DBG_BLK(__x__) do { diva_runtime_binary_message __x__; } while (0);
-
-#define dbg_init(__a__, __b__, __c__) do { diva_runtime_log_message("%s %s %u", __a__, __b__, __c__); } while (0)
-
 #include <string.h>
+#include "debuglib.h"
 
 #endif
 
