@@ -18,6 +18,8 @@
 
 OSNAME=${shell uname}
 
+DIVA_STREAMING=0
+
 USE_OWN_LIBCAPI=yes
 
 .EXPORT_ALL_VARIABLES:
@@ -78,6 +80,10 @@ INCLUDE=
 LIBLINUX=-lcapi20
 endif
 
+ifeq (${DIVA_STREAMING},1)
+INCLUDE += -I./divastreaming -I./divastreaming/..
+endif
+
 DEBUG=-g #-pg
 INCLUDE+= -I$(ASTERISK_HEADER_DIR)
 ifndef C4B
@@ -100,6 +106,9 @@ CFLAGS+=$(OPTIMIZE)
 CFLAGS+=-O2
 CFLAGS+=$(shell if $(CC) -march=$(PROC) -S -o /dev/null -xc /dev/null >/dev/null 2>&1; then echo "-march=$(PROC)"; fi)
 CFLAGS+=$(shell if uname -m | grep -q "ppc\|arm\|s390"; then echo "-fsigned-char"; fi)
+ifeq (${DIVA_STREAMING},1)
+CFLAGS += -DDIVA_STREAMING=1
+endif
 
 LIBS=-ldl -lpthread -lm
 CC=gcc
@@ -113,6 +122,15 @@ OBJECTS=chan_capi.o chan_capi_utils.o chan_capi_rtp.o chan_capi_command.o xlaw.o
 
 ifeq (${USE_OWN_LIBCAPI},yes)
 OBJECTS += libcapi20/convert.o libcapi20/capi20.o libcapi20/capifunc.o
+endif
+
+ifeq (${DIVA_STREAMING},1)
+OBJECTS += divastreaming/diva_streaming_idi_host_ifc_impl.o \
+           divastreaming/diva_streaming_idi_host_rx_ifc_impl.o \
+           divastreaming/diva_streaming_manager.o \
+           divastreaming/diva_streaming_messages.o \
+           divastreaming/segment_alloc.o \
+           divastreaming/runtime.o
 endif
 
 CFLAGS+=-Wno-missing-prototypes -Wno-missing-declarations
@@ -131,6 +149,7 @@ clean:
 	rm -f config.h
 	rm -f *.so *.o
 	rm -f libcapi20/*.o
+	rm -f divastreaming/*.o
 
 config.h:
 	./create_config.sh "$(ASTERISK_HEADER_DIR)"
