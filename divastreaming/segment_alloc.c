@@ -65,7 +65,9 @@ typedef struct _diva_segment_alloc {
 #endif
 	diva_entity_queue_t free_q;
 	diva_entity_queue_t busy_q;
+#if !defined(DIVA_USERMODE)
 	IDI_SYNC_REQ syncReq;
+#endif
 } diva_segment_alloc_t;
 
 /*
@@ -218,7 +220,7 @@ void* segment_alloc_proc(struct _diva_segment_alloc* pI, dword* lo, dword* hi) {
 		data[0] = DIVA_XDI_UM_CMD_CREATE_XDI_DESCRIPTORS;
 		data[1] = 1;
 
-    write (pI->fd, data, 2*sizeof(dword));
+    { int tmp = write (pI->fd, data, 2*sizeof(dword)); tmp++; }
     ret = read (pI->fd, data, sizeof(data));
     if (ret == sizeof(data) || ret == (sizeof(data)-sizeof(data[0]))) {
 			if (data[0] == DIVA_XDI_UM_CMD_CREATE_XDI_DESCRIPTORS && data[1] == 1) {
