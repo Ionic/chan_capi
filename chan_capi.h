@@ -49,6 +49,10 @@
 #ifndef _PBX_CAPI_H
 #define _PBX_CAPI_H
 
+#ifdef DIVA_STREAMING
+struct _diva_stream_scheduling_entry;
+#endif
+
 #define CAPI_MAX_CONTROLLERS             64
 #define CAPI_MAX_B3_BLOCKS                7
 
@@ -533,6 +537,10 @@ struct capi_pvt {
 	struct capi_pvt *line_plci;
 	/* Resource PLCI data data if line */
 	struct capi_pvt *data_plci;
+
+#ifdef DIVA_STREAMING
+	struct _diva_stream_scheduling_entry* diva_stream_entry;
+#endif
 	
 	/*! Next channel in list */
 	struct capi_pvt *next;
@@ -635,6 +643,9 @@ struct cc_capi_controller {
 	int divaExtendedFeaturesAvailable;
 	int ecPath;
 	int fax_t30_extended;
+#ifdef DIVA_STREAMING
+	int divaStreaming;
+#endif
 };
 
 

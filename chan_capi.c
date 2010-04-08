@@ -4625,6 +4625,11 @@ static void capidev_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI,
 
 	FRAME_SUBCLASS_INTEGER(fr.subclass) = AST_CONTROL_HANGUP;
 
+#ifdef DIVA_STREAMING
+	if (i->diva_stream_entry != 0)
+		capi_DivaStreamingRemove(i);
+#endif
+
 	capi_sendf(NULL, 0, CAPI_DISCONNECT_RESP, PLCI, HEADER_MSGNUM(CMSG), "");
 	
 	show_capi_info(i, DISCONNECT_IND_REASON(CMSG));
@@ -4852,6 +4857,13 @@ static void capidev_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, un
 
 			/* Handle QSIG informations, if any */
 			cc_qsig_handle_capiind(CONNECT_IND_FACILITYDATAARRAY(CMSG), i);
+
+#ifdef DIVA_STREAMING
+			i->diva_stream_entry = 0;
+			if (capi_controllers[i->controller]->divaStreaming != 0) {
+				capi_DivaStreamingOn(i);
+			}
+#endif
 		
 			if (i->immediate) {	
 				if ((i->isdnmode == CAPI_ISDNMODE_MSN) || (!(strlen(i->dnid)))) {
@@ -7094,6 +7106,9 @@ static void *capidev_loop(void *data)
 			lastcall = newtime;
 			capidev_run_secondly(newtime);
 		}
+#ifdef DIVA_STREAMING
+		divaStreamingWakeup ();
+#endif
 	} /* for */
 	
 	/* never reached */
@@ -7947,7 +7962,11 @@ static int cc_init_capi(void)
 		if (privateoptions & 0x04) {
 			cc_verbose(3, 0, VERBOSE_PREFIX_4 "T.38 is supported (not implemented yet)\n");
 		}
-
+#ifdef DIVA_STREAMING
+		/** \todo check CAPI profile */
+		cc_verbose(3, 0, VERBOSE_PREFIX_4 "Divaa streaming is supported\n");
+		cp->divaStreaming = 1;
+#endif
 		capi_controllers[controller] = cp;
 	}
 	return 0;

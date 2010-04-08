@@ -80,6 +80,8 @@ typedef unsigned long long qword;
 void* diva_os_malloc (unsigned long flags, unsigned long size);
 void diva_os_free (unsigned long flags, void* ptr);
 
+#define _DI_STREAM_CTRL 0x0014
+
 #include <string.h>
 #include "debuglib.h"
 
