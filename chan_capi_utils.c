@@ -1286,7 +1286,9 @@ void capi_DivaStreamingRemove(struct capi_pvt *i)
 		if (pE->diva_stream_state == DivaStreamCreated) {
 			/** \todo Use Diva MANUFACTURER_REQ to cancel stream */
 		} else if (pE->diva_stream_state == DivaStreamActive) {
+			cc_mutex_lock(&capi_put_lock);
 			pE->diva_stream->release_stream(pE->diva_stream);
+			cc_mutex_unlock(&capi_put_lock);
 		}
 	}
 }
