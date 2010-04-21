@@ -105,7 +105,7 @@ static char *commandtdesc = CC_MESSAGE_BIGNAME " command interface.\n"
 "FAXID         :ID of the remote fax machine\n"
 "Asterisk variables used/set by chan_capi:\n"
 "BCHANNELINFO,CALLEDTON,_CALLERHOLDID,CALLINGSUBADDRESS,CALLEDSUBADDRESS\n"
-"CONNECTEDNUMBER,FAXEXTEN,PRI_CAUSE,REDIRECTINGNUMBER,REDIRECTREASON\n"
+"CONNECTEDNUMBER,FAXEXTEN,PRI_CAUSE,REDIRECTINGNUMBER,REDIRECTREASON,ISDNPI1,ISDNPI2\n"
 "!!! for more details and samples, check the README of chan_capi !!!\n";
 
 static char *commandapp = "capicommand";
@@ -3778,6 +3778,13 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 	case 0x001e:	/* Progress Indicator */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element PI %02x %02x\n",
 			i->vname, INFO_IND_INFOELEMENT(CMSG)[1], INFO_IND_INFOELEMENT(CMSG)[2]);
+		if (i->owner) {
+			char pibuf[16];
+			snprintf(pibuf, sizeof(pibuf) - 1, "%d", INFO_IND_INFOELEMENT(CMSG)[1]); 
+			pbx_builtin_setvar_helper(i->owner, "ISDNPI1", pibuf);
+			snprintf(pibuf, sizeof(pibuf) - 1, "%d", INFO_IND_INFOELEMENT(CMSG)[2]); 
+			pbx_builtin_setvar_helper(i->owner, "ISDNPI2", pibuf);
+		}
 		handle_progress_indicator(CMSG, PLCI, i);
 		capidev_sendback_info(i, CMSG);
 		break;

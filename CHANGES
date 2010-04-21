@@ -3,7 +3,8 @@ CHANGES
 
 HEAD
 ------------------
-
+- added dialplan variables ISDNPI1 and ISDNPI2
+- prelimiary support for 'divastreaming'.
 
 chan_capi-1.1.5
 ------------------

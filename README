@@ -542,4 +542,6 @@ REDIRECTIONNUMBER
     If an outgoing call is redirected, this variable may be set to the
     new destination.
 
+ISDNPI1 and ISDNPI2
+    The two values of the information element PI (Progress Indicator).
 
