@@ -28,7 +28,7 @@
 void diva_runtime_error_message (const char* fmt, ...);
 void diva_runtime_log_message (const char* fmt, ...);
 void diva_runtime_trace_message (const char* fmt, ...);
-void diva_runtime_binary_message (const void* data, dword length);
+void diva_runtime_binary_message (const void* data, unsigned long length);
 
 #define DBG_ERR(__x__) do { diva_runtime_error_message __x__;  } while (0);
 #define DBG_LOG(__x__) do { diva_runtime_log_message   __x__;  } while (0);

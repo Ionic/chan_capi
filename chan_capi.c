@@ -39,6 +39,13 @@
 #include "chan_capi_supplementary.h"
 #include "chan_capi_chat.h"
 #include "chan_capi_command.h"
+#ifdef DIVA_STREAMING
+#include "platform.h"
+#include "diva_streaming_result.h"
+#include "diva_streaming_messages.h"
+#include "diva_streaming_vector.h"
+#include "diva_streaming_manager.h"
+#endif
 
 /* #define CC_VERSION "x.y.z" */
 #define CC_VERSION "$Revision$"
@@ -4217,7 +4224,12 @@ static void capidev_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, u
 /*
  * CAPI DATA_B3_IND
  */
-static void capidev_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i)
+static void capidev_handle_data_b3_indication(_cmsg *CMSG,
+																							unsigned int PLCI,
+																							unsigned int NCCI,
+																							struct capi_pvt *i,
+																							struct _diva_streaming_vector* vind,
+																							int vind_nr)
 {
 	struct ast_frame fr = { AST_FRAME_NULL, };
 	unsigned char *b3buf = NULL;
@@ -4229,14 +4241,23 @@ static void capidev_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, un
 
 	if (i != NULL) {
 		if ((i->isdnstate & CAPI_ISDN_STATE_RTP)) rtpoffset = RTP_HEADER_SIZE;
-		b3len = DATA_B3_IND_DATALENGTH(CMSG);
 		b3buf = &(i->rec_buffer[AST_FRIENDLY_OFFSET - rtpoffset]);
-		memcpy(b3buf, (char *)DATA_B3_IND_DATA(CMSG), b3len);
+		if (CMSG != 0) {
+			b3len = DATA_B3_IND_DATALENGTH(CMSG);
+			memcpy(b3buf, (char *)DATA_B3_IND_DATA(CMSG), b3len);
+		} else {
+			dword i = 0, k = 0;
+#ifdef DIVA_STREAMING
+			b3len = (int)diva_streaming_read_vector_data (vind, vind_nr, &i, &k, b3buf, CAPI_MAX_B3_BLOCK_SIZE);
+#endif
+		}
 	}
 	
-	/* send a DATA_B3_RESP very quickly to free the buffer in capi */
-	capi_sendf(NULL, 0, CAPI_DATA_B3_RESP, NCCI, HEADER_MSGNUM(CMSG),
-		"w", DATA_B3_IND_DATAHANDLE(CMSG));
+
+	if (CMSG != 0) { /* send a DATA_B3_RESP very quickly to free the buffer in capi */
+		capi_sendf(NULL, 0, CAPI_DATA_B3_RESP, NCCI, HEADER_MSGNUM(CMSG),
+			"w", DATA_B3_IND_DATAHANDLE(CMSG));
+	}
 
 	return_on_no_interface("DATA_B3_IND");
 
@@ -4330,6 +4351,15 @@ static void capidev_handle_data_b3_indication(_cmsg *CMSG, unsigned int PLCI, un
 	local_queue_frame(i, &fr);
 	return;
 }
+
+#ifdef DIVA_STREAMING
+void capidev_handle_data_b3_indication_vector (struct capi_pvt *i,
+																							 struct _diva_streaming_vector* vind,
+																							 int vind_nr)
+{
+	capidev_handle_data_b3_indication(0, 0, 0, i, vind, vind_nr);
+}
+#endif
 
 /*
  * signal 'answer' to PBX
@@ -5126,7 +5156,7 @@ static void capidev_handle_msg(_cmsg *CMSG)
 		capidev_handle_connect_indication(CMSG, PLCI, NCCI, &i);
 		break;
 	case CAPI_P_IND(DATA_B3):
-		capidev_handle_data_b3_indication(CMSG, PLCI, NCCI, i);
+		capidev_handle_data_b3_indication(CMSG, PLCI, NCCI, i, 0, 0);
 		break;
 	case CAPI_P_IND(CONNECT_B3):
 		capidev_handle_connect_b3_indication(CMSG, PLCI, NCCI, i);
@@ -5243,7 +5273,10 @@ static void capidev_handle_msg(_cmsg *CMSG)
 				wInfo = (unsigned short)(CMSG->Class >> 16);
 				capidev_handle_connection_conf(&i, PLCI, wInfo, wMsgNum);
 				break;
-
+#ifdef DIVA_STREAMING
+			case _DI_STREAM_CTRL:
+				break;
+#endif
 			default:
 				cc_log(LOG_ERROR, CC_MESSAGE_BIGNAME ": unknown manufacturer command: %04x",
 					CMSG->Class & 0xffff);
@@ -7971,7 +8004,7 @@ static int cc_init_capi(void)
 		}
 #ifdef DIVA_STREAMING
 		/** \todo check CAPI profile */
-		cc_verbose(3, 0, VERBOSE_PREFIX_4 "Divaa streaming is supported\n");
+		cc_verbose(3, 0, VERBOSE_PREFIX_4 "CAPI %d Diva streaming is supported\n",  cp->controller);
 		cp->divaStreaming = 1;
 #endif
 		capi_controllers[controller] = cp;

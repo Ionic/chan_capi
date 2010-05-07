@@ -1164,38 +1164,32 @@ static int divaStreamingMessageRx (void* user_context, dword message, dword leng
 	dword message_type = (message & 0xff);
 
   if (message_type == 0) { /* IDI message */
-#if 0
-			dword offset = 0;
-			diva_streaming_vector_t vind[8];
-			byte Ind = 0;
-			int vind_nr = 0;
-			int process_indication;
+		dword offset = 0;
+		diva_streaming_vector_t vind[8];
+		byte Ind = 0;
+		int vind_nr = 0;
+		int process_indication;
 
-			do {
-				vind_nr = sizeof(vind)/sizeof(vind[0]);
-				offset = diva_streaming_get_indication_data (offset, message, length, v, nr_v, &Ind, vind, &vind_nr);
+		do {
+			vind_nr = sizeof(vind)/sizeof(vind[0]);
+			offset = diva_streaming_get_indication_data (offset, message, length, v, nr_v, &Ind, vind, &vind_nr);
 
-				process_indication = ((Ind & 0x0f) == N_UDATA || channel_suspended == 0) && (diva_streaming_idi_supported_ind (Ind, vind_nr != 0, vind_nr != 0 ? (byte*)vind->data : (byte*)"") != 0);
+			process_indication = (diva_streaming_idi_supported_ind (Ind, vind_nr != 0, vind_nr != 0 ? (byte*)vind->data : (byte*)"") != 0);
 
-				if (likely(process_indication != 0)) {
+			if (likely(process_indication != 0)) {
+				if (likely(Ind == 8)) {
+					if (likely(pE->i != 0 && pE->i->NCCI != 0))
+						capidev_handle_data_b3_indication_vector (pE->i, vind, vind_nr);
+				} else {
 					dword i = 0, k = 0;
-					byte* indication_length_data;
 					word data_length;
+					byte ind_data_buffer[2048+512];
+					data_length = (word)diva_streaming_read_vector_data (vind, vind_nr, &i, &k, ind_data_buffer, sizeof(ind_data_buffer));
 
-					pE->combined_ind.data[pE->combined_ind.total_length++] = Ind;
-					pE->combined_ind.data[pE->combined_ind.total_length++] = pE->channels[pE->diva_stream_xdi_channel].xdi_channel;
-					indication_length_data = &pE->combined_ind.data[pE->combined_ind.total_length];
-					pE->combined_ind.total_length += 2;
-
-					data_length = (word)diva_streaming_read_vector_data (vind, vind_nr, &i, &k,
-																															 &pE->combined_ind.data[pE->combined_ind.total_length],
-																															 sizeof(pE->combined_ind.data_buffer)-pE->combined_ind.total_length-1);
-					*indication_length_data++ = (byte)data_length;
-					*indication_length_data    = (byte)(data_length >> 8);
-					pE->combined_ind.total_length += data_length;
+					DBG_TRC(("Ind: %02x length:%u", Ind, data_length))
 				}
-			} while (offset != 0);
-#endif
+			}
+		} while (offset != 0);
   } else if (message_type == 0xff) { /* System message */
     switch ((byte)(message >> 8)) {
       case DIVA_STREAM_MESSAGE_INIT: /* Stream active */
@@ -1204,7 +1198,7 @@ static int divaStreamingMessageRx (void* user_context, dword message, dword leng
         break; 
 
 			case DIVA_STREAM_MESSAGE_RX_TX_ACK: /* Resolved Tx flow control */
-				cc_verbose(4, 1, "%s: stream tx ack (PLCI=%#x)\n", pE->vname, pE->PLCI);
+				/* cc_verbose(4, 1, "%s: stream tx ack (PLCI=%#x)\n", pE->vname, pE->PLCI); */
 				break;
 
       case DIVA_STREAM_MESSAGE_SYNC_ACK: /* Sync ack request acknowledge */
@@ -1284,10 +1278,14 @@ void capi_DivaStreamingRemove(struct capi_pvt *i)
 
 	if (pE != 0) {
 		if (pE->diva_stream_state == DivaStreamCreated) {
+			cc_mutex_lock(&capi_put_lock);
 			/** \todo Use Diva MANUFACTURER_REQ to cancel stream */
+			pE->i = 0;
+			cc_mutex_unlock(&capi_put_lock);
 		} else if (pE->diva_stream_state == DivaStreamActive) {
 			cc_mutex_lock(&capi_put_lock);
 			pE->diva_stream->release_stream(pE->diva_stream);
+			pE->i = 0;
 			cc_mutex_unlock(&capi_put_lock);
 		}
 	}
@@ -1299,7 +1297,7 @@ void capi_DivaStreamingRemove(struct capi_pvt *i)
 
 	To ensure exclusive access scheduling queue is static function variable
 	*/
-void diva_streaming_wakeup (void) {
+void divaStreamingWakeup (void) {
 	static diva_entity_queue_t active_streams;
 	diva_entity_link_t* link;
 

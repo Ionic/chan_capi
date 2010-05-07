@@ -724,6 +724,13 @@ extern char chatinfo_usage[];
 typedef int (*pbx_capi_command_proc_t)(struct ast_channel *, char *);
 pbx_capi_command_proc_t pbx_capi_lockup_command_by_name(const char* name);
 
+#ifdef DIVA_STREAMING
+struct _diva_streaming_vector;
+void capidev_handle_data_b3_indication_vector (struct capi_pvt *i,
+																							 struct _diva_streaming_vector* vind,
+																							 int vind_nr);
+#endif
+
 /* DIVA specific MANUFACTURER definitions */
 #define _DI_MANU_ID         0x44444944
 #define _DI_ASSIGN_PLCI     0x0001
