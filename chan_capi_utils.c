@@ -1250,8 +1250,10 @@ void capi_DivaStreamingOn(struct capi_pvt *i)
 	ret = diva_stream_create (&pE->diva_stream, NULL, 255, divaStreamingMessageRx, pE, trace_ident);
 
 	if (ret == 0) {
-		const byte* description = pE->diva_stream->description (pE->diva_stream);
+		byte* description = (byte*)pE->diva_stream->description (pE->diva_stream);
 		MESSAGE_EXCHANGE_ERROR error;
+
+		description[3] |= 0x01;
 
 		cc_mutex_lock(&capi_put_lock);
 		error = capi_sendf (NULL, 0, CAPI_MANUFACTURER_REQ, i->PLCI, get_capi_MessageNumber(),

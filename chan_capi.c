@@ -39,6 +39,7 @@
 #include "chan_capi_supplementary.h"
 #include "chan_capi_chat.h"
 #include "chan_capi_command.h"
+struct _diva_streaming_vector* vind;
 #ifdef DIVA_STREAMING
 #include "platform.h"
 #include "diva_streaming_result.h"
@@ -4246,8 +4247,8 @@ static void capidev_handle_data_b3_indication(_cmsg *CMSG,
 			b3len = DATA_B3_IND_DATALENGTH(CMSG);
 			memcpy(b3buf, (char *)DATA_B3_IND_DATA(CMSG), b3len);
 		} else {
-			dword i = 0, k = 0;
 #ifdef DIVA_STREAMING
+			dword i = 0, k = 0;
 			b3len = (int)diva_streaming_read_vector_data (vind, vind_nr, &i, &k, b3buf, CAPI_MAX_B3_BLOCK_SIZE);
 #endif
 		}
@@ -4352,7 +4353,7 @@ static void capidev_handle_data_b3_indication(_cmsg *CMSG,
 	return;
 }
 
-#ifdef DIVA_STREAMING
+#if defined(DIVA_STREAMING)
 void capidev_handle_data_b3_indication_vector (struct capi_pvt *i,
 																							 struct _diva_streaming_vector* vind,
 																							 int vind_nr)
