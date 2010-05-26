@@ -54,6 +54,8 @@ static struct peerlink_s {
 } peerlinkchannel[CAPI_MAX_PEERLINKCHANNELS];
 
 #ifdef DIVA_STREAMING
+AST_MUTEX_DEFINE_STATIC(stream_write_lock);
+
 typedef enum _diva_stream_state {
   DivaStreamCreated        = 0,
   DivaStreamActive         = 1,
@@ -1313,7 +1315,9 @@ void divaStreamingWakeup (void) {
 		diva_entity_link_t* next = diva_q_get_next(link);
 		diva_stream_scheduling_entry_t* pE = DIVAS_CONTAINING_RECORD(link, diva_stream_scheduling_entry_t, link);
 
+		cc_mutex_lock(&stream_write_lock);
 		pE->diva_stream->wakeup (pE->diva_stream);
+		cc_mutex_unlock(&stream_write_lock);
 
 		if (pE->diva_stream == 0) {
 			diva_q_remove (&active_streams, &pE->link);
@@ -1543,6 +1547,7 @@ int capi_write_frame(struct capi_pvt *i, struct ast_frame *f)
 	struct ast_frame *fsmooth;
 	int txavg=0;
 	int ret = 0;
+	int B3Blocks = 1;
 
 	if (unlikely(!i)) {
 		cc_log(LOG_ERROR, "channel has no interface\n");
@@ -1599,6 +1604,7 @@ int capi_write_frame(struct capi_pvt *i, struct ast_frame *f)
 		}
 		return capi_write_rtp(i, f);
 	}
+
 	if (unlikely(i->B3count >= CAPI_MAX_B3_BLOCKS)) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: B3count is full, dropping packet.\n",
 			i->vname);
@@ -1606,17 +1612,38 @@ int capi_write_frame(struct capi_pvt *i, struct ast_frame *f)
 	}
 
 	if (i->bproto == CC_BPROTO_VOCODER) {
-		buf = &(i->send_buffer[(i->send_buffer_handle % CAPI_MAX_B3_BLOCKS) *
-			(CAPI_MAX_B3_BLOCK_SIZE + AST_FRIENDLY_OFFSET)]);
-		i->send_buffer_handle++;
+#ifdef DIVA_STREAMING
+		if (i->diva_stream_entry != 0) {
+			int written = 0, ready = 0;
 
-		memcpy (buf, f->FRAME_DATA_PTR, f->datalen);
+			B3Blocks = 0;
+			cc_mutex_lock(&stream_write_lock);
+			if ((ready = (i->diva_stream_entry->diva_stream_state == DivaStreamActive)) &&
+					(i->diva_stream_entry->diva_stream->get_tx_free (i->diva_stream_entry->diva_stream) > 2*CAPI_MAX_B3_BLOCK_SIZE+128)) {
+				written = i->diva_stream_entry->diva_stream->write (i->diva_stream_entry->diva_stream, 8U << 8 | DIVA_STREAM_MESSAGE_TX_IDI_REQUEST, f->FRAME_DATA_PTR, f->datalen);
+				i->diva_stream_entry->diva_stream->flush_stream(i->diva_stream_entry->diva_stream);
+			}
+			cc_mutex_unlock(&stream_write_lock);
 
-		error = capi_sendf(NULL, 0, CAPI_DATA_B3_REQ, i->NCCI, get_capi_MessageNumber(),
-			"dwww", buf, f->datalen, i->send_buffer_handle, 0);
+			error = written != f->datalen;
+			if (unlikely(error != 0)) {
+				cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: stream is %s, dropping packet.\n", i->vname, (ready != 0) ? "full" : "not ready");
+			}
+		} else
+#endif
+		{
+			buf = &(i->send_buffer[(i->send_buffer_handle % CAPI_MAX_B3_BLOCKS) *
+				(CAPI_MAX_B3_BLOCK_SIZE + AST_FRIENDLY_OFFSET)]);
+			i->send_buffer_handle++;
+
+			memcpy (buf, f->FRAME_DATA_PTR, f->datalen);
+
+			error = capi_sendf(NULL, 0, CAPI_DATA_B3_REQ, i->NCCI, get_capi_MessageNumber(),
+				"dwww", buf, f->datalen, i->send_buffer_handle, 0);
+		}
 		if (likely(error == 0)) {
 			cc_mutex_lock(&i->lock);
-			i->B3count++;
+			i->B3count += B3Blocks;
 			i->B3q -= f->datalen;
 			if (i->B3q < 0)
 				i->B3q = 0;
@@ -1664,10 +1691,31 @@ int capi_write_frame(struct capi_pvt *i, struct ast_frame *f)
 			}
 		}
    
-   		error = 1; 
+		error = 1; 
 		if (i->B3q > 0) {
-			error = capi_sendf(NULL, 0, CAPI_DATA_B3_REQ, i->NCCI, get_capi_MessageNumber(),
-				"dwww", buf, fsmooth->datalen, i->send_buffer_handle, 0);
+#if defined(DIVA_STREAMING)
+			if (i->diva_stream_entry != 0) {
+				int written = 0, ready = 0;
+
+				B3Blocks = 0;
+				cc_mutex_lock(&stream_write_lock);
+				if ((ready = (i->diva_stream_entry->diva_stream_state == DivaStreamActive)) &&
+						(i->diva_stream_entry->diva_stream->get_tx_free (i->diva_stream_entry->diva_stream) > 2*CAPI_MAX_B3_BLOCK_SIZE+128)) {
+					written = i->diva_stream_entry->diva_stream->write (i->diva_stream_entry->diva_stream, 8U << 8 | DIVA_STREAM_MESSAGE_TX_IDI_REQUEST, buf, fsmooth->datalen);
+					i->diva_stream_entry->diva_stream->flush_stream(i->diva_stream_entry->diva_stream);
+				}
+				cc_mutex_unlock(&stream_write_lock);
+
+				error = written != fsmooth->datalen;
+				if (unlikely(error != 0)) {
+					cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: stream is %s, dropping packet.\n", i->vname, (ready != 0) ? "full" : "not ready");
+				}
+			} else
+#endif
+			{
+				error = capi_sendf(NULL, 0, CAPI_DATA_B3_REQ, i->NCCI, get_capi_MessageNumber(),
+					"dwww", buf, fsmooth->datalen, i->send_buffer_handle, 0);
+			}
 		} else {
 			cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: too much voice to send for NCCI=%#x\n",
 				i->vname, i->NCCI);
@@ -1675,7 +1723,7 @@ int capi_write_frame(struct capi_pvt *i, struct ast_frame *f)
 
 		if (likely(!error)) {
 			cc_mutex_lock(&i->lock);
-			i->B3count++;
+			i->B3count += B3Blocks;
 			i->B3q -= fsmooth->datalen;
 			if (i->B3q < 0)
 				i->B3q = 0;
