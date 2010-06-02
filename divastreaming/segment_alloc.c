@@ -102,9 +102,25 @@ static diva_segment_alloc_access_t ifc_ref = {
 	resource_removed
 };
 
+#if defined(DIVA_SHARED_SEGMENT_ALLOC)
+static struct _diva_segment_alloc* shared_segment_alloc;
+static int shared_segment_alloc_count;
+#endif
+
 int diva_create_segment_alloc  (void* os_context, struct _diva_segment_alloc** segment_alloc)
 {
 	diva_segment_alloc_t* pI = diva_os_malloc(0, sizeof(*pI));
+
+#if defined(DIVA_SHARED_SEGMENT_ALLOC)
+	if (shared_segment_alloc != 0) {
+		shared_segment_alloc_count++;
+		*segment_alloc = shared_segment_alloc;
+		DBG_LOG(("shared %d segment alloc [%p]", pI, shared_segment_alloc_count))
+		return (0);
+	}
+#endif
+
+	pI = diva_os_malloc(0, sizeof(*pI));
 
 	if (pI != 0) {
 		memset (pI, 0x00, sizeof(*pI));
@@ -133,6 +149,10 @@ int diva_create_segment_alloc  (void* os_context, struct _diva_segment_alloc** s
 	}
 
 	if (pI != 0) {
+#if defined(DIVA_SHARED_SEGMENT_ALLOC)
+		shared_segment_alloc = pI;
+		shared_segment_alloc_count = 1;
+#endif
 		DBG_LOG(("created segment alloc [%p]", pI))
 	}
 
@@ -142,10 +162,23 @@ int diva_create_segment_alloc  (void* os_context, struct _diva_segment_alloc** s
 int diva_destroy_segment_alloc (struct _diva_segment_alloc** segment_alloc) {
 	diva_segment_alloc_t* pI = (segment_alloc != 0) ? *segment_alloc : 0;
 
-	DBG_TRC(("destroy segment alloc [%p]", segment_alloc))
+#if defined(DIVA_SHARED_SEGMENT_ALLOC)
+	shared_segment_alloc_count--;
+	if (shared_segment_alloc_count > 0) {
+		if (segment_alloc != 0)
+			*segment_alloc = 0;
+		DBG_LOG(("unshare %d segment alloc [%p]", segment_alloc, shared_segment_alloc_count))
+		return (0);
+	}
+#endif
+
+	DBG_LOG(("destroy segment alloc [%p]", segment_alloc))
 
 	if (pI != 0) {
 		diva_entity_link_t* link;
+
+		shared_segment_alloc = 0;
+		shared_segment_alloc_count = 0;
 
 		while ((link = diva_q_get_head (&pI->busy_q)) != 0) {
 			diva_q_remove (&pI->busy_q, link);
