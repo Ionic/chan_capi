@@ -85,5 +85,7 @@ void diva_os_free (unsigned long flags, void* ptr);
 #include <string.h>
 #include "debuglib.h"
 
+#define DIVA_SHARED_SEGMENT_ALLOC 1
+
 #endif
 
