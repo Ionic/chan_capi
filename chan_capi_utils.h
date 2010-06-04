@@ -61,6 +61,7 @@ extern int capi_write_frame(struct capi_pvt *i, struct ast_frame *f);
 extern int capi_verify_resource_plci(const struct capi_pvt *i);
 #ifdef DIVA_STREAMING
 extern void capi_DivaStreamingOn(struct capi_pvt *i);
+extern void capi_DivaStreamingRemoveInfo(struct capi_pvt *i);
 extern void capi_DivaStreamingRemove(struct capi_pvt *i);
 extern void divaStreamingWakeup (void);
 #endif

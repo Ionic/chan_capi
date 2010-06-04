@@ -59,8 +59,9 @@ AST_MUTEX_DEFINE_STATIC(stream_write_lock);
 typedef enum _diva_stream_state {
   DivaStreamCreated        = 0,
   DivaStreamActive         = 1,
-  DivaStreamDisconnectSent = 2,
-  DivaStreamDisconnected   = 3
+  DivaStreamCancelSent     = 2,
+  DivaStreamDisconnectSent = 3,
+  DivaStreamDisconnected   = 4
 } diva_stream_state_t;
 
 typedef struct _diva_stream_scheduling_entry {
@@ -72,6 +73,7 @@ typedef struct _diva_stream_scheduling_entry {
 	int									tx_flow_control;
 	char vname[CAPI_MAX_STRING]; /* Cached from capi_pvt */
 	dword               PLCI; /* Cached from capi_pvt */
+	time_t              cancel_start;
 } diva_stream_scheduling_entry_t;
 
 static diva_entity_queue_t diva_streaming_new; /* protected by capi_put_lock, new streams */
@@ -1196,7 +1198,13 @@ static int divaStreamingMessageRx (void* user_context, dword message, dword leng
     switch ((byte)(message >> 8)) {
       case DIVA_STREAM_MESSAGE_INIT: /* Stream active */
 				cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: stream active (PLCI=%#x)\n", pE->vname, pE->PLCI);
-				pE->diva_stream_state = DivaStreamActive;
+				if (pE->diva_stream_state == DivaStreamCreated) {
+					pE->diva_stream_state = DivaStreamActive;
+				} else if (pE->diva_stream_state == DivaStreamCancelSent) {
+					pE->diva_stream->release_stream(pE->diva_stream);
+					pE->i = 0;
+					pE->diva_stream_state = DivaStreamDisconnectSent;
+				}
         break; 
 
 			case DIVA_STREAM_MESSAGE_RX_TX_ACK: /* Resolved Tx flow control */
@@ -1276,6 +1284,26 @@ void capi_DivaStreamingOn(struct capi_pvt *i)
 	}
 }
 
+/*
+ * Remove stream info
+ * 
+ * To remove stream from one active connection:
+ *   remove stream info
+ *   disconnect B3
+ *   remove stream
+ *   select_b
+ */
+void capi_DivaStreamingRemoveInfo(struct capi_pvt *i)
+{
+	byte description[] = { 2, 0, 0 };
+	MESSAGE_EXCHANGE_ERROR error;
+
+	cc_mutex_lock(&capi_put_lock);
+	error = capi_sendf (NULL, 0, CAPI_MANUFACTURER_REQ, i->PLCI, get_capi_MessageNumber(),
+											"dws", _DI_MANU_ID, _DI_STREAM_CTRL, description);
+	cc_mutex_unlock(&capi_put_lock);
+}
+
 void capi_DivaStreamingRemove(struct capi_pvt *i)
 {
 	diva_stream_scheduling_entry_t* pE = i->diva_stream_entry;
@@ -1284,12 +1312,37 @@ void capi_DivaStreamingRemove(struct capi_pvt *i)
 		if (pE->diva_stream_state == DivaStreamCreated) {
 			cc_mutex_lock(&capi_put_lock);
 			/** \todo Use Diva MANUFACTURER_REQ to cancel stream */
+
+			if (i->NCCI != 0) {
+				/*
+					If NCCI is not sen then this is no possibility to send cancel request
+					to queued in the IDI L2 streaming info. But in user mode this is OK,
+					if removing PLCI CAPI removes networking entity and this operation
+          causes cancellation of create streaming request.
+          Timeout is only for the rare case where create streaming request was newer
+          sent to hardware.
+					*/
+				byte data[] = { 0x8 /* CONTROL */, 0x01 /* CANCEL */};
+				MESSAGE_EXCHANGE_ERROR error;
+
+				error = capi_sendf(NULL, 0, CAPI_DATA_B3_REQ, i->NCCI, get_capi_MessageNumber(),
+													"dwww", data, sizeof(data), 0, 1U << 4);
+				if (likely(error == 0)) {
+					cc_mutex_lock(&i->lock);
+					i->B3count++;
+					cc_mutex_unlock(&i->lock);
+				}
+			}
 			pE->i = 0;
+			pE->diva_stream_state = DivaStreamCancelSent;
+			pE->cancel_start = time(NULL) + 5;
 			cc_mutex_unlock(&capi_put_lock);
+			DBG_LOG(("stream %p canceled", pE->diva_stream))
 		} else if (pE->diva_stream_state == DivaStreamActive) {
 			cc_mutex_lock(&capi_put_lock);
 			pE->diva_stream->release_stream(pE->diva_stream);
 			pE->i = 0;
+			pE->diva_stream_state = DivaStreamDisconnectSent;
 			cc_mutex_unlock(&capi_put_lock);
 		}
 	}
@@ -1304,6 +1357,7 @@ void capi_DivaStreamingRemove(struct capi_pvt *i)
 void divaStreamingWakeup (void) {
 	static diva_entity_queue_t active_streams;
 	diva_entity_link_t* link;
+	time_t current_time = time (NULL);
 
 	cc_mutex_lock(&capi_put_lock);
 	while ((link = diva_q_get_head (&diva_streaming_new)) != 0) {
@@ -1313,7 +1367,7 @@ void divaStreamingWakeup (void) {
 	}
 	cc_mutex_unlock(&capi_put_lock);
 
-	for (link = diva_q_get_head (&active_streams); link != 0;) {
+	for (link = diva_q_get_head (&active_streams); likely(link != 0);) {
 		diva_entity_link_t* next = diva_q_get_next(link);
 		diva_stream_scheduling_entry_t* pE = DIVAS_CONTAINING_RECORD(link, diva_stream_scheduling_entry_t, link);
 
@@ -1321,7 +1375,14 @@ void divaStreamingWakeup (void) {
 		pE->diva_stream->wakeup (pE->diva_stream);
 		cc_mutex_unlock(&stream_write_lock);
 
-		if (pE->diva_stream == 0) {
+		if (unlikely(pE->diva_stream_state == DivaStreamCancelSent && pE->cancel_start < current_time)) {
+			DBG_LOG(("stream %p reclaimed", pE->diva_stream))
+			pE->diva_stream->release (pE->diva_stream);
+			pE->diva_stream_state = DivaStreamDisconnected;
+			pE->diva_stream = 0;
+		}
+
+		if (unlikely(pE->diva_stream == 0)) {
 			diva_q_remove (&active_streams, &pE->link);
 			if (pE->i != 0) {
 				pE->i->diva_stream_entry = 0;
