@@ -35,6 +35,6 @@ void diva_runtime_binary_message (const void* data, unsigned long length);
 #define DBG_TRC(__x__) do { diva_runtime_trace_message __x__;  } while (0);
 #define DBG_BLK(__x__) do { diva_runtime_binary_message __x__; } while (0);
 
-#define dbg_init(__a__, __b__, __c__) do { diva_runtime_log_message("%s %s %u", __a__, __b__, __c__); } while (0)
+#define dbg_init(__a__, __b__, __c__) do { static int initialized; if (initialized == 0) { initialized = 1; diva_runtime_log_message("%s %s %u", __a__, __b__, __c__); } } while (0)
 
 #endif
