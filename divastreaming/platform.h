@@ -86,6 +86,13 @@ void diva_os_free (unsigned long flags, void* ptr);
 #include "debuglib.h"
 
 #define DIVA_SHARED_SEGMENT_ALLOC 1
+/*
+  DIVA_SHARED_SEGMENT_LOCK used to lock shared segment alloc instance. Locked instance is newer freed
+  due to reference counter newer receives zero. This allows to maintain permenently mapped pool of pages
+  and to reduce overall system load.
+  Causes memory load if application is stopped, but memory and mapped resources are freed by OS.
+  */
+#define DIVA_SHARED_SEGMENT_LOCK  1
 
 #endif
 
