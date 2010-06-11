@@ -1046,6 +1046,11 @@ static void interface_cleanup(struct capi_pvt *i)
 	cc_verbose(2, 1, VERBOSE_PREFIX_2 "%s: Interface cleanup PLCI=%#x\n",
 		i->vname, i->PLCI);
 
+#ifdef DIVA_STREAMING
+	if (i->diva_stream_entry != 0)
+		capi_DivaStreamingRemove(i);
+#endif
+
 	pbx_capi_voicecommand_cleanup(i);
 
 	if (i->readerfd != -1) {
@@ -4664,7 +4669,7 @@ static void capidev_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI,
 	FRAME_SUBCLASS_INTEGER(fr.subclass) = AST_CONTROL_HANGUP;
 
 #ifdef DIVA_STREAMING
-	if (i->diva_stream_entry != 0)
+	if (i != 0 && i->diva_stream_entry != 0)
 		capi_DivaStreamingRemove(i);
 #endif
 
