@@ -2618,6 +2618,10 @@ static int pbx_capi_receive_extended_fax(struct ast_channel *c, struct capi_pvt 
 	case CAPI_STATE_ALERTING:
 	case CAPI_STATE_DID:
 	case CAPI_STATE_INCALL:
+#ifdef DIVA_STREAMING
+		capi_DivaStreamingRemoveInfo(i);
+		capi_DivaStreamingRemove(i);
+#endif
 		capi_send_answer(c, (_cstruct)&b3conf);
 		break;
 	case CAPI_STATE_CONNECTED:
@@ -2762,6 +2766,10 @@ static int pbx_capi_receive_basic_fax(struct ast_channel *c, struct capi_pvt *i,
 	case CAPI_STATE_ALERTING:
 	case CAPI_STATE_DID:
 	case CAPI_STATE_INCALL:
+#ifdef DIVA_STREAMING
+		capi_DivaStreamingRemoveInfo(i);
+		capi_DivaStreamingRemove(i);
+#endif
 		capi_send_answer(c, (_cstruct)&b3conf);
 		break;
 	case CAPI_STATE_CONNECTED:
@@ -3086,6 +3094,10 @@ static int pbx_capi_send_extended_fax(struct ast_channel *c, struct capi_pvt *i,
 	case CAPI_STATE_ALERTING:
 	case CAPI_STATE_DID:
 	case CAPI_STATE_INCALL:
+#ifdef DIVA_STREAMING
+		capi_DivaStreamingRemoveInfo(i);
+		capi_DivaStreamingRemove(i);
+#endif
 		capi_send_answer(c, (_cstruct)&b3conf);
 		break;
 	case CAPI_STATE_CONNECTED:
@@ -3226,6 +3238,10 @@ static int pbx_capi_send_basic_fax(struct ast_channel *c, struct capi_pvt *i, ch
 	case CAPI_STATE_ALERTING:
 	case CAPI_STATE_DID:
 	case CAPI_STATE_INCALL:
+#ifdef DIVA_STREAMING
+		capi_DivaStreamingRemoveInfo(i);
+		capi_DivaStreamingRemove(i);
+#endif
 		capi_send_answer(c, (_cstruct)&b3conf);
 		break;
 	case CAPI_STATE_CONNECTED:
