@@ -1299,8 +1299,14 @@ void capi_DivaStreamingRemoveInfo(struct capi_pvt *i)
 {
 	byte description[] = { 2, 0, 0 };
 	MESSAGE_EXCHANGE_ERROR error;
+	int send;
 
-	error = capi_sendf (NULL, 0, CAPI_MANUFACTURER_REQ, i->PLCI, get_capi_MessageNumber(),
+	cc_mutex_lock(&stream_write_lock);
+	send = i->diva_stream_entry != 0;
+	cc_mutex_unlock(&stream_write_lock);
+
+	if (send != 0)
+		error = capi_sendf (NULL, 0, CAPI_MANUFACTURER_REQ, i->PLCI, get_capi_MessageNumber(),
 											"dws", _DI_MANU_ID, _DI_STREAM_CTRL, description);
 }
 
@@ -1309,8 +1315,9 @@ void capi_DivaStreamingRemove(struct capi_pvt *i)
 	diva_stream_scheduling_entry_t* pE = i->diva_stream_entry;
 	int send_cancel = 0;
 
+	cc_mutex_lock(&stream_write_lock);
+	pE = i->diva_stream_entry;
 	if (pE != 0) {
-		cc_mutex_lock(&stream_write_lock);
 		i->diva_stream_entry = 0;
 		pE->i = 0;
 		if (pE->diva_stream_state == DivaStreamCreated) {
@@ -1333,8 +1340,8 @@ void capi_DivaStreamingRemove(struct capi_pvt *i)
 			pE->diva_stream->release_stream(pE->diva_stream);
 			pE->diva_stream_state = DivaStreamDisconnectSent;
 		}
-		cc_mutex_unlock(&stream_write_lock);
 	}
+	cc_mutex_unlock(&stream_write_lock);
 
 	if (send_cancel != 0) {
 		static byte data[] = { 0x8 /* CONTROL */, 0x01 /* CANCEL */};
@@ -1677,11 +1684,11 @@ int capi_write_frame(struct capi_pvt *i, struct ast_frame *f)
 
 	if (i->bproto == CC_BPROTO_VOCODER) {
 #ifdef DIVA_STREAMING
+		cc_mutex_lock(&stream_write_lock);
 		if (i->diva_stream_entry != 0) {
 			int written = 0, ready = 0;
 
 			B3Blocks = 0;
-			cc_mutex_lock(&stream_write_lock);
 			if ((ready = (i->diva_stream_entry->diva_stream_state == DivaStreamActive)) &&
 					(i->diva_stream_entry->diva_stream->get_tx_free (i->diva_stream_entry->diva_stream) > 2*CAPI_MAX_B3_BLOCK_SIZE+128)) {
 				written = i->diva_stream_entry->diva_stream->write (i->diva_stream_entry->diva_stream, 8U << 8 | DIVA_STREAM_MESSAGE_TX_IDI_REQUEST, f->FRAME_DATA_PTR, f->datalen);
@@ -1696,6 +1703,9 @@ int capi_write_frame(struct capi_pvt *i, struct ast_frame *f)
 		} else
 #endif
 		{
+#ifdef DIVA_STREAMING
+			cc_mutex_unlock(&stream_write_lock);
+#endif
 			buf = &(i->send_buffer[(i->send_buffer_handle % CAPI_MAX_B3_BLOCKS) *
 				(CAPI_MAX_B3_BLOCK_SIZE + AST_FRIENDLY_OFFSET)]);
 			i->send_buffer_handle++;
