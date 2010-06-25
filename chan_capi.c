@@ -1047,8 +1047,7 @@ static void interface_cleanup(struct capi_pvt *i)
 		i->vname, i->PLCI);
 
 #ifdef DIVA_STREAMING
-	if (i->diva_stream_entry != 0)
-		capi_DivaStreamingRemove(i);
+	capi_DivaStreamingRemove(i);
 #endif
 
 	pbx_capi_voicecommand_cleanup(i);
@@ -2485,7 +2484,13 @@ static void setup_b3_basic_fax_config(B3_PROTO_FAXG3 *b3conf, int fax_format, ch
 static void capi_change_bchan_fax(struct capi_pvt *i, B3_PROTO_FAXG3 *b3conf) 
 {
 	i->isdnstate |= CAPI_ISDN_STATE_B3_SELECT;
+#ifdef DIVA_STREAMING
+	capi_DivaStreamingRemoveInfo(i);
+#endif
 	cc_disconnect_b3(i, 1);
+#ifdef DIVA_STREAMING
+	capi_DivaStreamingRemove(i);
+#endif
 	cc_select_b(i, (_cstruct)b3conf);
 	return;
 }
@@ -4669,7 +4674,7 @@ static void capidev_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI,
 	FRAME_SUBCLASS_INTEGER(fr.subclass) = AST_CONTROL_HANGUP;
 
 #ifdef DIVA_STREAMING
-	if (i != 0 && i->diva_stream_entry != 0)
+	if (i != 0)
 		capi_DivaStreamingRemove(i);
 #endif
 
