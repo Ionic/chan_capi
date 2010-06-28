@@ -1538,6 +1538,13 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 		cc_qsig_add_call_setup_data(facilityarray, i, c);
 	}
 
+#ifdef DIVA_STREAMING
+			i->diva_stream_entry = 0;
+			if (capi_controllers[i->controller]->divaStreaming != 0) {
+				capi_DivaStreamingOn(i, 1, i->MessageNumber);
+			}
+#endif
+
 	error = capi_sendf(NULL, 0, CAPI_CONNECT_REQ, i->controller, i->MessageNumber,
 		"wssss(wwwsss())()()()((w)()()ss)",
 		cip, /* CIP value */
@@ -4925,7 +4932,7 @@ static void capidev_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, un
 #ifdef DIVA_STREAMING
 			i->diva_stream_entry = 0;
 			if (capi_controllers[i->controller]->divaStreaming != 0) {
-				capi_DivaStreamingOn(i);
+				capi_DivaStreamingOn(i, 0, 0);
 			}
 #endif
 		
@@ -8030,9 +8037,8 @@ static int cc_init_capi(void)
 			cc_verbose(3, 0, VERBOSE_PREFIX_4 "T.38 is supported (not implemented yet)\n");
 		}
 #ifdef DIVA_STREAMING
-		/** \todo check CAPI profile */
+		cp->divaStreaming = capi_DivaStreamingSupported(cp->controller);
 		cc_verbose(3, 0, VERBOSE_PREFIX_4 "CAPI %d Diva streaming is supported\n",  cp->controller);
-		cp->divaStreaming = 1;
 #endif
 		capi_controllers[controller] = cp;
 	}

@@ -1162,6 +1162,45 @@ done:
 }
 
 #ifdef DIVA_STREAMING
+int capi_DivaStreamingSupported (unsigned controller)
+{
+	MESSAGE_EXCHANGE_ERROR error;
+	int waitcount = 50;
+	unsigned char manbuf[CAPI_MANUFACTURER_LEN];
+	_cmsg CMSG;
+	int ret = 0;
+
+	if (capi20_get_manufacturer(controller, manbuf) == NULL) {
+		goto done;
+	}
+	if ((strstr((char *)manbuf, "Eicon") == 0) &&
+	    (strstr((char *)manbuf, "Dialogic") == 0)) {
+		goto done;
+	}
+
+	error = capi_sendf (NULL, 0, CAPI_MANUFACTURER_REQ, controller, get_capi_MessageNumber(),
+		"dw(bs)", _DI_MANU_ID, _DI_STREAM_CTRL, 2, "");
+
+	if (error)
+		goto done;
+
+	while (waitcount) {
+		error = capidev_check_wait_get_cmsg(&CMSG);
+
+		if (IS_MANUFACTURER_CONF(&CMSG) && (CMSG.ManuID == _DI_MANU_ID) &&
+			((CMSG.Class & 0xffff) == _DI_STREAM_CTRL)) {
+			error = (MESSAGE_EXCHANGE_ERROR)(CMSG.Class >> 16);
+			ret = (error == 0);
+			break;
+		}
+		usleep(30000);
+		waitcount--;
+	}
+
+done:
+	return ret;
+}
+
 static int divaStreamingMessageRx (void* user_context, dword message, dword length, const struct _diva_streaming_vector* v, dword nr_v)
 {
 	diva_stream_scheduling_entry_t* pE = (diva_stream_scheduling_entry_t*)user_context;
@@ -1242,11 +1281,12 @@ static int divaStreamingMessageRx (void* user_context, dword message, dword leng
  * Create Diva stream
  *
  */
-void capi_DivaStreamingOn(struct capi_pvt *i)
+void capi_DivaStreamingOn(struct capi_pvt *i, byte streamCommand, _cword messageNumber)
 {
 	diva_stream_scheduling_entry_t* pE;
 	int ret;
 	char trace_ident[8];
+	unsigned int effectivePLCI;
 
 	pE = malloc (sizeof(*pE));
 	if (pE == 0)
@@ -1263,9 +1303,22 @@ void capi_DivaStreamingOn(struct capi_pvt *i)
 		byte* description = (byte*)pE->diva_stream->description (pE->diva_stream);
 		MESSAGE_EXCHANGE_ERROR error;
 
+		description[1] = streamCommand;
+
 		description[3] |= 0x01;
 
-		error = capi_sendf (NULL, 0, CAPI_MANUFACTURER_REQ, i->PLCI, get_capi_MessageNumber(),
+		if (streamCommand == 0) {
+			messageNumber = get_capi_MessageNumber();
+			effectivePLCI = i->PLCI;
+		} else {
+			/*
+				PLCI still not assigned. Send to controller and tag with message number
+				where command receives effective
+				*/
+			effectivePLCI = i->controller;
+		}
+
+		error = capi_sendf (NULL, 0, CAPI_MANUFACTURER_REQ, effectivePLCI, messageNumber,
 												"dws", _DI_MANU_ID, _DI_STREAM_CTRL, description);
 		if (error == 0) {
 			pE->diva_stream_state = DivaStreamCreated;
