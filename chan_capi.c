@@ -5309,6 +5309,25 @@ static void capidev_handle_msg(_cmsg *CMSG)
 				break;
 #ifdef DIVA_STREAMING
 			case _DI_STREAM_CTRL:
+				wInfo = (unsigned short)(CMSG->Class >> 16);
+				if (wInfo != 0) {
+					int do_lock = (i == 0);
+					struct capi_pvt *ii = (i != 0) ? i : capi_find_interface_by_msgnum(wMsgNum);
+
+					cc_log(LOG_ERROR, "stream error %04x for %s=%#x\n", wInfo, PLCI != 0 ? "PLCI" : "MsgNr", PLCI != 0 ? PLCI : wMsgNum);
+
+					if (ii != 0) {
+						if (do_lock) {
+							cc_mutex_lock(&ii->lock);
+						}
+						capi_DivaStreamingRemove(ii);
+						if (do_lock) {
+							cc_mutex_unlock(&ii->lock);
+						}
+					} else {
+						cc_log(LOG_ERROR, "stream error %04x for MsgNr %04x, unexpected", wInfo, wMsgNum);
+					}
+				}
 				break;
 #endif
 			default:

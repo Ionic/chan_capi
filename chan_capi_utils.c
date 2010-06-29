@@ -1236,6 +1236,9 @@ static int divaStreamingMessageRx (void* user_context, dword message, dword leng
   } else if (message_type == 0xff) { /* System message */
     switch ((byte)(message >> 8)) {
       case DIVA_STREAM_MESSAGE_INIT: /* Stream active */
+				if (pE->PLCI == 0 && pE->i != 0) {
+					pE->PLCI = pE->i->PLCI;
+				}
 				cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: stream active (PLCI=%#x)\n", pE->vname, pE->PLCI);
 				if (pE->diva_stream_state == DivaStreamCreated) {
 					pE->diva_stream_state = DivaStreamActive;
