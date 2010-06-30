@@ -8349,7 +8349,16 @@ static int capi_eval_config(struct ast_config *cfg)
 			if (ast_true(v->value)) {
 				capi_capability = AST_FORMAT_ULAW;
 			}
+#ifdef DIVA_STREAMING
+		} else if (!strcasecmp(v->name, "nodivastreaming")) {
+			if (ast_true(v->value)) {
+				capi_DivaStreamingDisable ();
+			}
+#endif
 		}
+
+
+
 	}
 
 	/* go through all other sections, which are our interfaces */

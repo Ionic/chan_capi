@@ -14,6 +14,7 @@
 /*
 	LOCALS
 	*/
+static int diva_streaming_disabled;
 AST_MUTEX_DEFINE_STATIC(stream_write_lock);
 
 static diva_entity_queue_t diva_streaming_new; /* protected by stream_write_lock, new streams */
@@ -146,6 +147,9 @@ void capi_DivaStreamingOn(struct capi_pvt *i, byte streamCommand, _cword message
 	int ret;
 	char trace_ident[8];
 	unsigned int effectivePLCI;
+
+	if (diva_streaming_disabled)
+		return;
 
 	pE = malloc (sizeof(*pE));
 	if (pE == 0)
@@ -325,4 +329,7 @@ void capi_DivaStreamUnLock (void)
 	cc_mutex_unlock(&stream_write_lock);
 }
 
+void capi_DivaStreamingDisable (void) {
+	diva_streaming_disabled = 1;
+}
 

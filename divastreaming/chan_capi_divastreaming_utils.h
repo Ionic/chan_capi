@@ -8,6 +8,7 @@ extern void capi_DivaStreamingRemove(struct capi_pvt *i);
 extern void divaStreamingWakeup(void);
 extern void capi_DivaStreamLock(void);
 extern void capi_DivaStreamUnLock (void);
+extern void capi_DivaStreamingDisable (void);
 
 typedef enum _diva_stream_state {
   DivaStreamCreated        = 0,
