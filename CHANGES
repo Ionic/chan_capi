@@ -4,7 +4,9 @@ CHANGES
 HEAD
 ------------------
 - added dialplan variables ISDNPI1 and ISDNPI2
-- prelimiary support for 'divastreaming'.
+- Support for 'divastreaming' available (Diva 4PRI PCI, Diva 2PRI PCI,
+  Diva 4PRI HS PCIe, Diva 2PRI HS PCIe, Diva 1PRI HS PCIe,
+  Diva 8PRI PCIe FS, Diva 4PRI PCIe FS)
 
 chan_capi-1.1.5
 ------------------
