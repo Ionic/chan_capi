@@ -59,13 +59,6 @@ extern int capi_create_reader_writer_pipe(struct capi_pvt *i);
 extern struct ast_frame *capi_read_pipeframe(struct capi_pvt *i);
 extern int capi_write_frame(struct capi_pvt *i, struct ast_frame *f);
 extern int capi_verify_resource_plci(const struct capi_pvt *i);
-#ifdef DIVA_STREAMING
-extern int capi_DivaStreamingSupported (unsigned controller);
-extern void capi_DivaStreamingOn(struct capi_pvt *i, unsigned char streamCommand, _cword messageNumber);
-extern void capi_DivaStreamingRemoveInfo(struct capi_pvt *i);
-extern void capi_DivaStreamingRemove(struct capi_pvt *i);
-extern void divaStreamingWakeup (void);
-#endif
 
 #define capi_number(data, strip) \
   capi_number_func(data, strip, alloca(AST_MAX_EXTENSION))

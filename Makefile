@@ -130,6 +130,7 @@ OBJECTS += divastreaming/diva_streaming_idi_host_ifc_impl.o \
            divastreaming/diva_streaming_manager.o \
            divastreaming/diva_streaming_messages.o \
            divastreaming/segment_alloc.o \
+           divastreaming/chan_capi_divastreaming_utils.o \
            divastreaming/runtime.o
 endif
 
