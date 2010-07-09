@@ -541,8 +541,8 @@ static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i,
 									capi_write_frame(iline, fr2);
 								} else {
 									ast_write(chan, fr2);
-									ast_frfree(fr2);
 								}
+								ast_frfree(fr2);
 							}
 							capi_write_frame(i, f);
 						}
