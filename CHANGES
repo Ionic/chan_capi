@@ -7,6 +7,7 @@ HEAD
 - Support for 'divastreaming' available (Diva 4PRI PCI, Diva 2PRI PCI,
   Diva 4PRI HS PCIe, Diva 2PRI HS PCIe, Diva 1PRI HS PCIe,
   Diva 8PRI PCIe FS, Diva 4PRI PCIe FS)
+- Fixed memory leak in chat_play if using with 's' option
 
 chan_capi-1.1.5
 ------------------
