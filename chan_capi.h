@@ -648,18 +648,6 @@ struct cc_capi_controller {
 #endif
 };
 
-
-/* ETSI 300 102-1 information element identifiers */
-#define CAPI_ETSI_IE_CAUSE                      0x08
-#define CAPI_ETSI_IE_PROGRESS_INDICATOR         0x1e
-#define CAPI_ETSI_IE_CALLED_PARTY_NUMBER        0x70
-#define CAPI_ETSI_IE_FACILITY                   0x1c
-
-/* ETIS 300 102-1 message types */
-#define CAPI_ETSI_ALERTING                      0x01
-#define CAPI_ETSI_SETUP_ACKKNOWLEDGE            0x0d
-#define CAPI_ETSI_DISCONNECT                    0x45
-
 /* ETSI 300 102-1 Numbering Plans */
 #define CAPI_ETSI_NPLAN_SUBSCRIBER              0x40
 #define CAPI_ETSI_NPLAN_NATIONAL                0x20
