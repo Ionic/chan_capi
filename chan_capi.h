@@ -227,6 +227,16 @@ typedef struct fax3proto3 B3_PROTO_FAXG3;
 #define EC_ECHOCANCEL_PATH_IP           2 /* Activate EC for IP */
 #define EC_ECHOCANCEL_PATH_BITS         (EC_ECHOCANCEL_PATH_IFC | EC_ECHOCANCEL_PATH_IP)
 
+/*
+	Control EC on transit connectionss
+	*/
+#define EC_ECHOCANCEL_TRANSIT_OFF       0 /* EC deactivated on transit connection, default */
+#define EC_ECHOCANCEL_TRANSIT_A         1 /* EC activated on side A of transsit connection */
+#define EC_ECHOCANCEL_TRANSIT_B         2 /* EC activated on side B of transsit connection */
+#define EC_ECHOCANCEL_TRANSIT_AB        (EC_ECHOCANCEL_TRANSIT_A | EC_ECHOCANCEL_TRANSIT_B)
+#define EC_ECHOCANCEL_TRANSIT_BITS      (EC_ECHOCANCEL_TRANSIT_A | EC_ECHOCANCEL_TRANSIT_B)
+
+
 #define CC_HOLDTYPE_LOCAL               0
 #define CC_HOLDTYPE_HOLD                1
 #define CC_HOLDTYPE_NOTIFY              2
@@ -608,6 +618,7 @@ struct cc_capi_conf {
 	char mohinterpret[MAX_MUSICCLASS];
 #endif
 	int echocancelpath;
+	int econtransitconn;
 };
 
 struct cc_capi_controller {
@@ -642,6 +653,7 @@ struct cc_capi_controller {
 
 	int divaExtendedFeaturesAvailable;
 	int ecPath;
+	int ecOnTransit;
 	int fax_t30_extended;
 #ifdef DIVA_STREAMING
 	int divaStreaming;

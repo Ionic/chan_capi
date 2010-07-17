@@ -2036,9 +2036,13 @@ static int capi_bridge(int start, struct capi_pvt *i0, struct capi_pvt *i1, int 
 
 		if (!(flags & AST_BRIDGE_DTMF_CHANNEL_1))
 			capi_detect_dtmf(i1, 0);
-
-		capi_echo_canceller(i0, EC_FUNCTION_DISABLE);
-		capi_echo_canceller(i1, EC_FUNCTION_DISABLE);
+ 
+		if ((capi_controllers[i0->controller]->ecOnTransit & EC_ECHOCANCEL_TRANSIT_A) == 0) {
+			capi_echo_canceller(i0, EC_FUNCTION_DISABLE);
+		}
+		if ((capi_controllers[i1->controller]->ecOnTransit & EC_ECHOCANCEL_TRANSIT_B) == 0) {
+			capi_echo_canceller(i1, EC_FUNCTION_DISABLE);
+		}
 		cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s/%s: activating bridge.\n",
 			i0->vname, i1->vname);
 		ret = line_interconnect(i0, i1, 1);
@@ -7326,6 +7330,7 @@ int mkif(struct cc_capi_conf *conf)
 
 		capi_controllers[unit]->used = 1;
 		capi_controllers[unit]->ecPath = conf->echocancelpath;
+		capi_controllers[unit]->ecOnTransit = conf->econtransitconn;
 
 		tmp->controller = unit;
 		tmp->doEC = conf->echocancel;
@@ -8265,6 +8270,12 @@ static int conf_interface(struct cc_capi_conf *conf, struct ast_variable *v)
 			conf->echocancelpath &= EC_ECHOCANCEL_PATH_BITS;
 			if (conf->echocancelpath == 0)
 				conf->echocancelpath = EC_ECHOCANCEL_PATH_BITS;
+		}
+		if (!strcasecmp(v->name, "econtransitconn")) {
+			conf->econtransitconn  = atoi(v->value);
+			conf->econtransitconn &= EC_ECHOCANCEL_TRANSIT_BITS;
+			if (conf->econtransitconn == 0)
+				conf->econtransitconn = EC_ECHOCANCEL_TRANSIT_AB;
 		}
 
 		if (!strcasecmp(v->name, "echotail")) {
