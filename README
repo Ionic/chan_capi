@@ -180,6 +180,14 @@ Enable/Disable echocancel:
           or
         exten => s,1,capicommand(echocancel|no)
 
+    By default chan_capi deactivates echo-cancel for transit connections
+    (Dial command called from existing call). You can use 'econtransitconn'
+    configurationsparameter (capi.conf) to change this behavior:
+    econtransitconn=0 ; Deactivate EC on transsit connections
+    econtransitconn=1 ; Deactivate EC on secondary call of transit connetion only
+    econtransitconn=2 ; Deactivate EC on primary call of transit connetion only
+    econtransitconn=3 ; Do not deactivate EC on transit connections
+
 Malicious Call Identification:
     Reports a call of malicious nature.
         Example:
