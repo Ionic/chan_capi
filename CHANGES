@@ -8,8 +8,8 @@ HEAD
   Diva 4PRI HS PCIe, Diva 2PRI HS PCIe, Diva 1PRI HS PCIe,
   Diva 8PRI PCIe FS, Diva 4PRI PCIe FS)
 - Fixed memory leak in chat_play if using with 's' option
-- Add 'econtransitconn' configurationsparameter. Allows to preserve
-  EC for transsit connections
+- Add 'econtransitconn' configurations parameter. Allows to preserve
+  EC for transit connections
 
 chan_capi-1.1.5
 ------------------
