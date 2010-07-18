@@ -8274,8 +8274,6 @@ static int conf_interface(struct cc_capi_conf *conf, struct ast_variable *v)
 		if (!strcasecmp(v->name, "econtransitconn")) {
 			conf->econtransitconn  = atoi(v->value);
 			conf->econtransitconn &= EC_ECHOCANCEL_TRANSIT_BITS;
-			if (conf->econtransitconn == 0)
-				conf->econtransitconn = EC_ECHOCANCEL_TRANSIT_AB;
 		}
 
 		if (!strcasecmp(v->name, "echotail")) {
