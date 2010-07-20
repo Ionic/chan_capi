@@ -2944,16 +2944,16 @@ static void clear_channel_fax_loop(struct ast_channel *c,  struct capi_pvt *i)
 				capi_write_frame(i, f);
 			} else if (f->frametype == AST_FRAME_NULL) {
 				/* ignore NULL frame */
-				cc_verbose(5, 1, VERBOSE_PREFIX_3 "%s: cler channel fax: NULL frame, ignoring.\n",
+				cc_verbose(5, 1, VERBOSE_PREFIX_3 "%s: clear channel fax: NULL frame, ignoring.\n",
 					i->vname);
 			} else {
-				cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: cler channel fax: unhandled frame %d/%d.\n",
+				cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: clear channel fax: unhandled frame %d/%d.\n",
 					i->vname, f->frametype, FRAME_SUBCLASS_INTEGER(f->subclass));
 			}
 			ast_frfree(f);
 		} else if (ready_fd == i->readerfd) {
 			if (exception) {
-				cc_verbose(1, 0, VERBOSE_PREFIX_3 "%s: cler channel fax: exception on readerfd\n",
+				cc_verbose(1, 0, VERBOSE_PREFIX_3 "%s: clear channel fax: exception on readerfd\n",
 					i->vname);
 				break;
 			}
