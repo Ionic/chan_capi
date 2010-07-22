@@ -10,6 +10,7 @@ HEAD
 - Fixed memory leak in chat_play if using with 's' option
 - Add 'econtransitconn' configurations parameter. Allows to preserve
   EC for transit connections
+- added variable DISCONNECT_IND_REASON to get real reason code from CAPI
 
 chan_capi-1.1.5
 ------------------

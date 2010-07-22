@@ -530,6 +530,13 @@ CONNECTEDNUMBER
     Can be set before answering and if set, the content is used for
     IE 'Connected Number' on answering.
 
+DISCONNECT_IND_REASON
+    When CAPI reports DISCONNECT_IND, some CAPI reason codes are not set
+    in HANGUPCAUSE, because they are not valid cause codes. To also
+    get those CAPI reason codes, you can check this variable on hangup.
+    This is e.g. useful for reason 0x3301, which tells that the ISDN
+	connection is physically broken (cable).
+
 FAXEXTEN
     If chan_capi sends the call to extensions 'fax', the original extension number
     is saved in this variable.

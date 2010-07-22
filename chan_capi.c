@@ -4698,6 +4698,7 @@ static void capidev_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI,
 {
 	struct ast_frame fr = { AST_FRAME_CONTROL, };
 	int state;
+	char buffer[CAPI_MAX_STRING];
 
 	FRAME_SUBCLASS_INTEGER(fr.subclass) = AST_CONTROL_HANGUP;
 
@@ -4717,13 +4718,18 @@ static void capidev_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI,
 
 	i->reason = DISCONNECT_IND_REASON(CMSG);
 
-	if ((i->owner) && (i->owner->hangupcause == 0)) {
-		/* set hangupcause, in case there is no 
-		 * "cause" information element:
-		 */
-		i->owner->hangupcause =
-			((i->reason & 0xFF00) == 0x3400) ?
-			i->reason & 0x7F : AST_CAUSE_NORMAL_CLEARING;
+	if (i->owner) {
+		if (i->owner->hangupcause == 0) {
+			/* set hangupcause, in case there is no 
+			 * "cause" information element:
+			 */
+			i->owner->hangupcause =
+				((i->reason & 0xFF00) == 0x3400) ?
+				i->reason & 0x7F : AST_CAUSE_NORMAL_CLEARING;
+		}
+		/* the real reason could be != 0x34xx, so provide this value in variable */
+		sprintf(buffer, "%d", i->reason);
+		pbx_builtin_setvar_helper(i->owner, "DISCONNECT_IND_REASON", buffer);
 	}
 
 	if (i->FaxState & CAPI_FAX_STATE_ACTIVE) {
