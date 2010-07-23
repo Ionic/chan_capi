@@ -5695,6 +5695,38 @@ static int pbx_capi_ect(struct ast_channel *c, char *param)
 }
 
 /*
+ * send keypad facility
+ */
+static int pbx_capi_keypad(struct ast_channel *c, char *param)
+{
+	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+	unsigned char buffer[32];
+	int length;
+
+	if ((!param) || (!(*param))) {
+		cc_log(LOG_WARNING, "Parameter for keypad missing.\n");
+		return -1;
+	}
+
+	length = strlen(param);
+	if (length > (sizeof(buffer) - 1))
+		length = sizeof(buffer) - 1;
+
+	buffer[0] = length;
+	memcpy(&buffer[1], param, length);
+
+	capi_sendf(NULL, 0, CAPI_INFO_REQ, i->PLCI, get_capi_MessageNumber(),
+		"()(()s()()())",
+		buffer
+	);
+
+	cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: sent KEYPAD [%s] for PLCI=%#x\n",
+		i->vname, param, i->PLCI);
+
+	return 0;
+}
+
+/*
  * hold a call
  */
 static int pbx_capi_hold(struct ast_channel *c, char *param)
@@ -6771,6 +6803,7 @@ static struct capicommands_s {
 	{ "getplci",         pbx_capi_getplci,             1, 0 },
 
 	{ "malicious",    pbx_capi_malicious,       1, 0 },
+	{ "keypad",       pbx_capi_keypad,          1, 0 },
 	{ "hold",         pbx_capi_hold,            1, 0 },
 	{ "holdtype",     pbx_capi_holdtype,        1, 0 },
 	{ "retrieve",     pbx_capi_retrieve,        0, 0 },

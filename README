@@ -188,6 +188,11 @@ Enable/Disable echocancel:
     econtransitconn=2 ; Deactivate EC on primary call of transit connection only
     econtransitconn=3 ; Do not deactivate EC on transit connections
 
+Send Keypad Facility:
+    Send Keypad Faciliaty information.
+        Example:
+        exten => s,1,capicommand(keypad|<digits>)
+
 Malicious Call Identification:
     Reports a call of malicious nature.
         Example:

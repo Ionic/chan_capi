@@ -11,6 +11,7 @@ HEAD
 - Add 'econtransitconn' configurations parameter. Allows to preserve
   EC for transit connections
 - added variable DISCONNECT_IND_REASON to get real reason code from CAPI
+- added capicommand(keypad)
 
 chan_capi-1.1.5
 ------------------
