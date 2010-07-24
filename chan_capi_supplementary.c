@@ -618,6 +618,11 @@ int handle_facility_indication_supplementary(
 			i->vname, PLCI, infoword);
 		show_capi_info(i, infoword);
 		break;
+	case 0x000d: /* CD */
+		cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: PLCI=%#x CD Service Reason=0x%04x\n",
+			i->vname, PLCI, infoword);
+		show_capi_info(i, infoword);
+		break;
 	case 0x8013: /* CCBS info retain */
 		cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: PLCI=%#x CCBS unique id=0x%04x\n",
 			i->vname, PLCI, infoword);

@@ -12,6 +12,7 @@ HEAD
   EC for transit connections
 - added variable DISCONNECT_IND_REASON to get real reason code from CAPI
 - added capicommand(keypad)
+- added log of FACILITY_IND for call deflect suplementary service
 
 chan_capi-1.1.5
 ------------------
