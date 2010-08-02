@@ -226,6 +226,15 @@ void capi_DivaStreamingRemoveInfo(struct capi_pvt *i)
 											"dws", _DI_MANU_ID, _DI_STREAM_CTRL, description);
 }
 
+void capi_DivaStreamingStreamNotUsed (struct capi_pvt *i)
+{
+	byte description[] = { 0x04, 0x00, 0x02, 0x00, 0x00 };
+	MESSAGE_EXCHANGE_ERROR error;
+
+	error = capi_sendf (NULL, 0, CAPI_MANUFACTURER_REQ, i->PLCI, get_capi_MessageNumber(),
+											"dws", _DI_MANU_ID, _DI_STREAM_CTRL, description);
+}
+
 void capi_DivaStreamingRemove(struct capi_pvt *i)
 {
 	diva_stream_scheduling_entry_t* pE = i->diva_stream_entry;
