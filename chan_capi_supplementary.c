@@ -399,6 +399,15 @@ static void	ccbsnr_remote_user_free(_cmsg *CMSG, char type, unsigned int PLCI, _
 
 	c->priority = ccbsnr->priority;
 
+#ifdef CC_AST_HAS_VERSION_1_8
+  /*! \todo verify if necessary/complete */
+	c->connected.id.number.valid = 1;
+	ast_free (c->connected.id.number.str);
+	c->connected.id.number.str = ast_strdup(handlename);
+
+	ast_free (c->dialed.number.str);
+	c->dialed.number.str = ast_strdup (ccbsnr->exten);
+#else
 	if (c->cid.cid_num) {
 		free(c->cid.cid_num);
 	}
@@ -407,6 +416,7 @@ static void	ccbsnr_remote_user_free(_cmsg *CMSG, char type, unsigned int PLCI, _
 		free(c->cid.cid_dnid);
 	}
 	c->cid.cid_dnid = strdup(ccbsnr->exten);
+#endif
 
 #ifndef CC_AST_HAS_EXT2_CHAN_ALLOC
 	cc_copy_string(c->context, ccbsnr->context, sizeof(c->context));
