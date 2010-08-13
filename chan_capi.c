@@ -39,6 +39,9 @@
 #include "chan_capi_supplementary.h"
 #include "chan_capi_chat.h"
 #include "chan_capi_command.h"
+#ifdef CC_AST_HAS_VERSION_1_8
+#include <asterisk/callerid.h>
+#endif
 struct _diva_streaming_vector* vind;
 #ifdef DIVA_STREAMING
 #include "platform.h"
@@ -1332,6 +1335,65 @@ static int pbx_capi_hangup(struct ast_channel *c)
 	return 0;
 }
 
+static void pbx_capi_call_build_calling_party_number (struct ast_channel *c,
+																											char* calling,
+																											int max_calling,
+																											int use_defaultcid,
+																											const char* ocid)
+{
+	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+	const char *ton;
+	char callerid[AST_MAX_EXTENSION];
+	int CLIR;
+	int callernplan;
+
+#ifdef CC_AST_HAS_VERSION_1_8
+	if (c->connected.id.number.valid) {
+		CLIR = c->connected.id.number.presentation;
+		callernplan = c->connected.id.number.plan & 0x7f;
+	} else {
+		CLIR = 0;
+		callernplan = 0;
+	}
+	if (c->connected.id.number.valid && !ast_strlen_zero(c->connected.id.number.str)) {
+		ast_copy_string(callerid, c->connected.id.number.str, sizeof(callerid));
+	} else {
+		memset(callerid, 0, sizeof(callerid));
+	}
+#else
+	CLIR = c->cid.cid_pres;
+	callernplan = c->cid.cid_ton & 0x7f;
+
+	if (c->cid.cid_num) {
+		cc_copy_string(callerid, c->cid.cid_num, sizeof(callerid));
+	} else {
+		memset(callerid, 0, sizeof(callerid));
+	}
+#endif
+
+	if (use_defaultcid) {
+		cc_copy_string(callerid, i->defaultcid, sizeof(callerid));
+	} else if (ocid) {
+		cc_copy_string(callerid, ocid, sizeof(callerid));
+	}
+
+	cc_copy_string(i->cid, callerid, sizeof(i->cid));
+
+	if ((ton = pbx_builtin_getvar_helper(c, "CALLERTON"))) {
+		callernplan = atoi(ton) & 0x7f;
+	}
+	i->cid_ton = callernplan;
+
+	calling[0] = strlen(callerid) + 2;
+	calling[1] = callernplan;
+	calling[2] = 0x80 | (CLIR & 0x63);
+	strncpy(&calling[3], callerid, max_calling - 4);
+
+	cc_verbose(1, 1, VERBOSE_PREFIX_2 "%s: Call %s %s%s (pres=0x%02x, ton=0x%02x)\n",
+		i->vname, c->name, i->doB3 ? "with B3 ":" ",
+		i->doOverlap ? "overlap":"", CLIR, callernplan);
+}
+
 /*
  * PBX tells us to make a call
  */
@@ -1341,12 +1403,9 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 	char *dest, *interface, *param, *ocid;
 	char buffer[AST_MAX_EXTENSION];
 	char called[AST_MAX_EXTENSION], calling[AST_MAX_EXTENSION];
-	char callerid[AST_MAX_EXTENSION];
-	int CLIR;
-	int callernplan = 0;
 	int use_defaultcid = 0;
 	_cword cip;
-	const char *ton, *p;
+	const char *p;
 	char *osa = NULL;
 	char *dsa = NULL;
 	char callingsubaddress[AST_MAX_EXTENSION];
@@ -1458,18 +1517,6 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 		return 0;
 	}
 
-	CLIR = c->cid.cid_pres;
-	callernplan = c->cid.cid_ton & 0x7f;
-
-	if ((ton = pbx_builtin_getvar_helper(c, "CALLERTON"))) {
-		callernplan = atoi(ton) & 0x7f;
-	}
-	i->cid_ton = callernplan;
-
-	cc_verbose(1, 1, VERBOSE_PREFIX_2 "%s: Call %s %s%s (pres=0x%02x, ton=0x%02x)\n",
-		i->vname, c->name, i->doB3 ? "with B3 ":" ",
-		i->doOverlap ? "overlap":"", CLIR, callernplan);
-
 	if ((p = pbx_builtin_getvar_helper(c, "CALLINGSUBADDRESS"))) {
 		callingsubaddress[0] = strlen(p) + 1;
 		callingsubaddress[1] = 0x80;
@@ -1516,23 +1563,7 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 	}
 	strncpy(&called[2], dest, sizeof(called) - 3);
 
-	if (c->cid.cid_num) {
-		cc_copy_string(callerid, c->cid.cid_num, sizeof(callerid));
-	} else {
-		memset(callerid, 0, sizeof(callerid));
-	}
-
-	if (use_defaultcid) {
-		cc_copy_string(callerid, i->defaultcid, sizeof(callerid));
-	} else if (ocid) {
-		cc_copy_string(callerid, ocid, sizeof(callerid));
-	}
-	cc_copy_string(i->cid, callerid, sizeof(i->cid));
-
-	calling[0] = strlen(callerid) + 2;
-	calling[1] = callernplan;
-	calling[2] = 0x80 | (CLIR & 0x63);
-	strncpy(&calling[3], callerid, sizeof(calling) - 4);
+	pbx_capi_call_build_calling_party_number (c, calling, sizeof(calling), use_defaultcid, ocid);
 
 	if (doqsig) {
 		facilityarray = alloca(CAPI_MAX_FACILITYDATAARRAY_SIZE);
@@ -2270,18 +2301,32 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state, const char *l
 		(i->bproto == CC_BPROTO_VOCODER) ? "VOCODER" : ((i->rtp) ? " (RTP)" : ""));
 
 	if (!ast_strlen_zero(i->cid)) {
+#ifdef CC_AST_HAS_VERSION_1_8
+		ast_free (tmp->connected.id.number.str);
+		tmp->connected.id.number.valid = 1;
+		tmp->connected.id.number.str = ast_strdup(i->cid);
+		tmp->connected.id.number.plan = i->cid_ton;
+#else
 		if (tmp->cid.cid_num) {
 			free(tmp->cid.cid_num);
 		}
 		tmp->cid.cid_num = strdup(i->cid);
+#endif
 	}
 	if (!ast_strlen_zero(i->dnid)) {
-		if (tmp->cid.cid_dnid) {
-			free(tmp->cid.cid_dnid);
-		}
-		tmp->cid.cid_dnid = strdup(i->dnid);
+#ifdef CC_AST_HAS_VERSION_1_8
+		ast_free (tmp->dialed.number.str);
+		tmp->dialed.number.str  = ast_strdup (i->dnid);
+#else
+		ast_free(tmp->cid.cid_dnid);
+		tmp->cid.cid_dnid = ast_strdup(i->dnid);
+#endif
 	}
+#ifdef CC_AST_HAS_VERSION_1_8
+	tmp->dialed.number.plan = i->cid_ton;
+#else
 	tmp->cid.cid_ton = i->cid_ton;
+#endif
 
 #ifndef CC_AST_HAS_EXT2_CHAN_ALLOC
 	if (i->amaflags)
@@ -3895,10 +3940,34 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 			snprintf(reasonbuf, sizeof(reasonbuf) - 1, "%d", val); 
 			pbx_builtin_setvar_helper(i->owner, "REDIRECTINGNUMBER", p);
 			pbx_builtin_setvar_helper(i->owner, "REDIRECTREASON", reasonbuf);
+#ifdef CC_AST_HAS_VERSION_1_8
+			{
+       /*! \todo Set correctly redirecting to and reason */
+
+				struct ast_party_redirecting redirecting;
+				struct ast_set_party_redirecting update_redirecting;
+
+				memset(&redirecting, 0, sizeof(redirecting));
+				memset(&update_redirecting, 0, sizeof(update_redirecting));
+
+				update_redirecting.from.number = 1;
+				redirecting.from.number.valid = 1;
+				redirecting.from.number.str = (char *)p;
+				redirecting.from.number.plan = 0;
+				redirecting.from.number.presentation = 0;
+				redirecting.from.tag = 0;
+
+				redirecting.reason = AST_REDIRECTING_REASON_UNKNOWN;
+				redirecting.count = 1;
+
+				ast_channel_set_redirecting(i->owner, &redirecting, &update_redirecting);
+			}
+#else
 			if (i->owner->cid.cid_rdnis) {
 				free(i->owner->cid.cid_rdnis);
 			}
 			i->owner->cid.cid_rdnis = strdup(p);
+#endif
 		}
 		capidev_sendback_info(i, CMSG);
 		break;
@@ -4909,7 +4978,26 @@ static void capidev_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, un
 			if (capi_tcap_is_digital(i->transfercapability)) {
 				i->bproto = CC_BPROTO_TRANSPARENT;
 			}
+#ifdef CC_AST_HAS_VERSION_1_8
+			if (CID != NULL) {
+				const char* effective_cid = i->cid;
+
+				/*
+					Preserve original plan if translation is not required or done in dial plan
+					*/
+				if (capi_national_prefix[0]      == 0 &&
+						capi_international_prefix[0] == 0 &&
+						capi_subscriber_prefix[0]    == 0) {
+					i->owner->caller.id.number.plan = callernplan;
+					effective_cid = CID;
+				}
+				i->owner->caller.id.number.presentation = callpres;
+
+				ast_set_callerid(i->owner, effective_cid, NULL, effective_cid);
+			}
+#else
 			i->owner->cid.cid_pres = callpres;
+#endif
 			cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: Incoming call '%s' -> '%s'\n",
 				i->vname, i->cid, i->dnid);
 
