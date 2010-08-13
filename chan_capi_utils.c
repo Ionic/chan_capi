@@ -1541,3 +1541,37 @@ int capi_write_frame(struct capi_pvt *i, struct ast_frame *f)
 	return ret;
 }
 
+/*
+	 ast_channel_lock(chan) to be held while
+	 while accessing returned pointer
+	*/
+const char* pbx_capi_get_cid (struct ast_channel* c)
+{
+	const char* cid;
+
+#ifdef CC_AST_HAS_VERSION_1_8
+	cid = S_COR(c->caller.id.number.valid, c->caller.id.number.str, "");
+#else
+	cid = c->cid.cid_num;
+#endif
+
+	return (cid);
+}
+
+/*
+	 ast_channel_lock(chan) to be held while
+	 while accessing returned pointer
+	*/
+const char* pbx_capi_get_callername (struct ast_channel* c)
+{
+	const char* name;
+
+#ifdef CC_AST_HAS_VERSION_1_8
+	name = S_COR(c->caller.id.name.valid, c->caller.id.name.str, "");
+#else
+	name = (c->cid.cid_name) ? c->cid.cid_name : "";
+#endif
+
+	return (name);
+}
+
