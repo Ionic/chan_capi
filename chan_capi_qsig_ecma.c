@@ -75,7 +75,11 @@ void cc_qsig_op_ecma_isdn_namepres(struct cc_qsig_invokedata *invoke, struct cap
 		
 	switch (invoke->type) {
 		case 0:	/* Calling Name */
+#ifdef CC_AST_HAS_VERSION_1_8
+			ast_set_callerid(i->owner, NULL, callername, NULL);
+#else
 			i->owner->cid.cid_name = strdup(callername);	/* Save name to callerid */
+#endif
 			break;
 		case 1:	/* Called Name */
 		case 2: /* Connected Name */
@@ -112,7 +116,7 @@ void cc_qsig_op_ecma_isdn_namepres(struct cc_qsig_invokedata *invoke, struct cap
  * returns
  * 	always 0
  */
-int cc_qsig_encode_ecma_name_invoke(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke, struct capi_pvt *i, int nametype, char * name)
+int cc_qsig_encode_ecma_name_invoke(unsigned char * buf, unsigned int *idx, struct cc_qsig_invokedata *invoke, struct capi_pvt *i, int nametype, const char * name)
 {
 	unsigned char namebuf[51];
 	unsigned char data[255];
@@ -408,10 +412,17 @@ void cc_qsig_encode_ecma_calltransfer(unsigned char * buf, unsigned int *idx, st
 			
 			if (ii) {
 				/* send callers name to user B */
+#ifdef CC_AST_HAS_VERSION_1_8
+				if (ii->owner->caller.id.name.valid ) {
+					name = ast_strdupa(S_COR(ii->owner->caller.id.name.valid, ii->owner->caller.id.name.str, ""));
+					namelength = strlen(name);
+				}
+#else
 				if (ii->owner->cid.cid_name) {
 					name = ast_strdupa(ii->owner->cid.cid_name);
 					namelength = strlen(name);
 				}
+#endif
 			}
 		} else { /* have to build first facility - send destination number back to inbound channel */
 			struct capi_pvt *ii = capi_find_interface_by_plci(i->qsig_data.partner_plci);

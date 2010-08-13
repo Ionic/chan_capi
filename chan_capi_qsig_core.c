@@ -1003,7 +1003,7 @@ unsigned int cc_qsig_add_call_setup_data(unsigned char *data, struct capi_pvt *i
 	}
 		
 	cc_qsig_build_facility_struct(data, &dataidx, protocolvar, APDUINTERPRETATION_IGNORE, &nfe);
-	cc_qsig_encode_ecma_name_invoke(data, &dataidx, &invoke, i, 0, i->owner->cid.cid_name);
+	cc_qsig_encode_ecma_name_invoke(data, &dataidx, &invoke, i, 0, pbx_capi_get_callername (i->owner));
 	cc_qsig_add_invoke(data, &dataidx, &invoke, i);
 	
 	if (add_externalinfo) {
