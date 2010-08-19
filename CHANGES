@@ -13,6 +13,7 @@ HEAD
 - added variable DISCONNECT_IND_REASON to get real reason code from CAPI
 - added capicommand(keypad)
 - added log of FACILITY_IND for call deflect suplementary service
+- malloc,strdup,free -> ast_(malloc,strdup,free)
 
 chan_capi-1.1.5
 ------------------
