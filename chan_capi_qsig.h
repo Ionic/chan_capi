@@ -190,7 +190,7 @@ struct rose_component {
 } while (0)
 
 
-#define free_null(x)	{ free(x); x = NULL; }
+#define free_null(x)	{ ast_free(x); x = NULL; }
 
 /* Common QSIG structs */
 

@@ -33,7 +33,7 @@ void* diva_os_malloc (unsigned long flags, unsigned long size) {
 	void* ret = 0;
 
 	if (size != 0) {
-		ret = malloc (size);
+		ret = ast_malloc (size);
 	}
 
 	return (ret);
@@ -41,7 +41,7 @@ void* diva_os_malloc (unsigned long flags, unsigned long size) {
 
 void diva_os_free (unsigned long flags, void* ptr) {
 	if (ptr != 0) {
-		free (ptr);
+		ast_free (ptr);
 	}
 }
 

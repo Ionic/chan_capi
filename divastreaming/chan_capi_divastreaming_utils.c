@@ -151,7 +151,7 @@ void capi_DivaStreamingOn(struct capi_pvt *i, byte streamCommand, _cword message
 	if (diva_streaming_disabled)
 		return;
 
-	pE = malloc (sizeof(*pE));
+	pE = ast_malloc (sizeof(*pE));
 	if (pE == 0)
 		return;
 
@@ -195,7 +195,7 @@ void capi_DivaStreamingOn(struct capi_pvt *i, byte streamCommand, _cword message
 			diva_q_add_tail (&diva_streaming_new, &pE->link);
 		} else {
 			pE->diva_stream->release (pE->diva_stream);
-			free (pE);
+			ast_free (pE);
 		}
 	}
 
@@ -320,7 +320,7 @@ void divaStreamingWakeup (void)
 			if (pE->i != 0) {
 				pE->i->diva_stream_entry = 0;
 			}
-			free (pE);
+			ast_free (pE);
 		}
 		cc_mutex_unlock(&stream_write_lock);
 

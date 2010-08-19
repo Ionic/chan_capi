@@ -146,7 +146,7 @@ unsigned int cc_qsig_asn197ade_get_pns(unsigned char *data, int *idx, struct asn
 			
 			myidx += res;
 			if (strlen(buf)) {
-				ns->partyNumber = strdup(buf);
+				ns->partyNumber = ast_strdup(buf);
 			}
 			
 			/* get screening indicator */
@@ -170,7 +170,7 @@ unsigned int cc_qsig_asn197ade_get_pns(unsigned char *data, int *idx, struct asn
 			
 			myidx += res;
 			if (strlen(buf)) {
-				ns->partyNumber = strdup(buf);
+				ns->partyNumber = ast_strdup(buf);
 			}
 			
 			/* get screening indicator */

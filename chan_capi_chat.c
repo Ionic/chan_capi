@@ -287,7 +287,7 @@ static void update_all_capi_mixers(unsigned int roomnumber)
 		unsigned int PLCIS[overall_found];
 		int i, j, nr;
 
-		segments = malloc (sizeof(*segments)*overall_found*nr_segments);
+		segments = ast_malloc (sizeof(*segments)*overall_found*nr_segments);
 		if (segments == 0) {
 			cc_mutex_unlock(&chat_lock);
 			return;
@@ -324,7 +324,7 @@ static void update_all_capi_mixers(unsigned int roomnumber)
 			}
 		}
 
-		free(segments);
+		ast_free(segments);
 	}
 }
 
@@ -349,7 +349,7 @@ static void del_chat_member(struct capichat_s *room)
 			}
 			cc_verbose(3, 0, VERBOSE_PREFIX_3 "%s: removed chat member from room '%s' (%d)\n",
 				room->i->vname, room->name, room->number);
-			free(room);
+			ast_free(room);
 		}
 		tmproom2 = tmproom;
 		tmproom = tmproom->next;
@@ -369,7 +369,7 @@ static struct capichat_s *add_chat_member(char *roomname, struct capi_pvt *i, ro
 	unsigned int roomnumber = 1;
 	room_mode_t room_mode = RoomModeDefault;
 
-	room = malloc(sizeof(struct capichat_s));
+	room = ast_malloc(sizeof(struct capichat_s));
 	if (room == NULL) {
 		cc_log(LOG_ERROR, "Unable to allocate chan_capi chat struct.\n");
 		return NULL;

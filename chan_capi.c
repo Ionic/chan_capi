@@ -2307,10 +2307,8 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state, const char *l
 		tmp->connected.id.number.str = ast_strdup(i->cid);
 		tmp->connected.id.number.plan = i->cid_ton;
 #else
-		if (tmp->cid.cid_num) {
-			free(tmp->cid.cid_num);
-		}
-		tmp->cid.cid_num = strdup(i->cid);
+		ast_free(tmp->cid.cid_num);
+		tmp->cid.cid_num = ast_strdup(i->cid);
 #endif
 	}
 	if (!ast_strlen_zero(i->dnid)) {
@@ -2904,7 +2902,7 @@ static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 		return -1;
 	}
 
-	ldata_mem = ldata = strdup(data);
+	ldata_mem = ldata = ast_strdup(data);
 	if (!ldata_mem) {
 		cc_log(LOG_WARNING, CC_MESSAGE_NAME " out of memory\n");
 		capi_remove_nullif(i);
@@ -2928,7 +2926,7 @@ static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 		ldata++;
 	}
 
-	free(ldata_mem);
+	ast_free(ldata_mem);
 
 	if ((force_extended != 0) && (capi_controllers[i->controller]->fax_t30_extended == 0)) {
 		force_extended = 0;
@@ -3362,7 +3360,7 @@ static int pbx_capi_send_fax(struct ast_channel *c, char *data)
 		return -1;
 	}
 
-	ldata_mem = ldata = strdup(data);
+	ldata_mem = ldata = ast_strdup(data);
 	if (!ldata_mem) {
 		cc_log(LOG_WARNING, CC_MESSAGE_NAME " out of memory\n");
 		capi_remove_nullif(i);
@@ -3386,7 +3384,7 @@ static int pbx_capi_send_fax(struct ast_channel *c, char *data)
 		ldata++;
 	}
 
-	free(ldata_mem);
+	ast_free(ldata_mem);
 
 	if ((force_extended != 0) && (capi_controllers[i->controller]->fax_t30_extended == 0)) {
 		force_extended = 0;
@@ -3963,10 +3961,8 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 				ast_channel_set_redirecting(i->owner, &redirecting, &update_redirecting);
 			}
 #else
-			if (i->owner->cid.cid_rdnis) {
-				free(i->owner->cid.cid_rdnis);
-			}
-			i->owner->cid.cid_rdnis = strdup(p);
+			ast_free(i->owner->cid.cid_rdnis);
+			i->owner->cid.cid_rdnis = ast_strdup(p);
 #endif
 		}
 		capidev_sendback_info(i, CMSG);
@@ -7397,7 +7393,7 @@ int mkif(struct cc_capi_conf *conf)
 	u_int16_t unit;
 
 	for (i = 0; i <= conf->devices; i++) {
-		tmp = malloc(sizeof(struct capi_pvt));
+		tmp = ast_malloc(sizeof(struct capi_pvt));
 		if (!tmp) {
 			return -1;
 		}
@@ -7449,7 +7445,7 @@ int mkif(struct cc_capi_conf *conf)
 
 		if ((unit > capi_num_controllers) ||
 		    (!(capi_controllers[unit]))) {
-			free(tmp);
+			ast_free(tmp);
 			cc_verbose(2, 0, VERBOSE_PREFIX_3 "controller %d invalid, ignoring interface.\n",
 				unit);
 			return 0;
@@ -8109,7 +8105,7 @@ static int cc_init_capi(void)
 #else
 		capi20_get_profile(controller, (unsigned char *)&profile);
 #endif
-		cp = malloc(sizeof(struct cc_capi_controller));
+		cp = ast_malloc(sizeof(struct cc_capi_controller));
 		if (!cp) {
 			cc_log(LOG_ERROR, "Error allocating memory for struct cc_capi_controller\n");
 			return -1;
@@ -8590,7 +8586,7 @@ int unload_module(void)
 
 	for (controller = 1; controller <= CAPI_MAX_CONTROLLERS; controller++) {
 		if (capi_controllers[controller])
-			free(capi_controllers[controller]);
+			ast_free(capi_controllers[controller]);
 	}
 	
 	i = capi_iflist;
@@ -8606,7 +8602,7 @@ int unload_module(void)
 		ast_cond_destroy(&i->event_trigger);
 		itmp = i;
 		i = i->next;
-		free(itmp);
+		ast_free(itmp);
 	}
 
 	cc_mutex_unlock(&iflock);

@@ -111,7 +111,7 @@ int pbx_capi_voicecommand(struct ast_channel *c, char *param)
 		while ((cmd = pbx_capi_find_command (i, command[0])) != 0) {
 			cc_verbose(2, 0, VERBOSE_PREFIX_4"%s: voicecommand:%s removed\n", i->vname, cmd->command_name);
 			diva_q_remove (&i->channel_command_q, &cmd->link);
-			free (cmd);
+			ast_free (cmd);
 		}
 		cc_mutex_unlock(&i->lock);
 	} else {
@@ -148,7 +148,7 @@ int pbx_capi_voicecommand(struct ast_channel *c, char *param)
 			}
 		}
 
-		cmd = malloc(sizeof(*cmd));
+		cmd = ast_malloc(sizeof(*cmd));
 		if (cmd == NULL) {
 			cc_log(LOG_WARNING, CC_MESSAGE_NAME " can not allocate memory for voice command\n");
 			return -1;
@@ -187,7 +187,7 @@ int pbx_capi_voicecommand(struct ast_channel *c, char *param)
 			cc_mutex_unlock(&i->lock);
 
 			if (present_cmd != 0) {
-				free (present_cmd);
+				ast_free (present_cmd);
 			}
 		}
 	}
@@ -235,7 +235,7 @@ int pbx_capi_voicecommand_cleanup(struct capi_pvt *i)
 
 	while ((link = diva_q_get_head(&i->channel_command_q)) != NULL) {
 		diva_q_remove(&i->channel_command_q, link);
-		free(link);
+		ast_free(link);
 	}
 
 	i->channel_command_digit      = 0;

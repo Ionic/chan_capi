@@ -78,7 +78,7 @@ void cc_qsig_op_ecma_isdn_namepres(struct cc_qsig_invokedata *invoke, struct cap
 #ifdef CC_AST_HAS_VERSION_1_8
 			ast_set_callerid(i->owner, NULL, callername, NULL);
 #else
-			i->owner->cid.cid_name = strdup(callername);	/* Save name to callerid */
+			i->owner->cid.cid_name = ast_strdup(callername);	/* Save name to callerid */
 #endif
 			break;
 		case 1:	/* Called Name */
@@ -86,9 +86,9 @@ void cc_qsig_op_ecma_isdn_namepres(struct cc_qsig_invokedata *invoke, struct cap
 		case 3: /* Busy Name */
  			if (i->qsig_data.dnameid) {	/* this facility may come more than once - if so, then update this value */
 				cc_qsig_verbose( 1, VERBOSE_PREFIX_4 "  * deleting previously received name.\n", nametype, namelength, callername); 
-			 	free(i->qsig_data.dnameid);
+			 	ast_free(i->qsig_data.dnameid);
 			}
-			i->qsig_data.dnameid = strdup(callername);	/* save name as destination in qsig specific fields */
+			i->qsig_data.dnameid = ast_strdup(callername);	/* save name as destination in qsig specific fields */
 									/* there's no similarly field in asterisk */
 			break;
 		default:
@@ -403,11 +403,11 @@ void cc_qsig_encode_ecma_calltransfer(unsigned char * buf, unsigned int *idx, st
 				icanswer = ccanswer[0] - 0x30;
 		}
 	} else {
-/* 		cid = strdup(i->owner->cid.cid_num);*/ /* Here we get the Asterisk extension */
+/* 		cid = ast_strdup(i->owner->cid.cid_num);*/ /* Here we get the Asterisk extension */
 		if (info) { /* info is >0 on outbound channel (second facility) */
  			struct capi_pvt *ii = capi_find_interface_by_plci(i->qsig_data.partner_plci);
 			
-			cid = strdup(i->cid);
+			cid = ast_strdup(i->cid);
 			cidlen = strlen(cid);
 			
 			if (ii) {
@@ -426,7 +426,7 @@ void cc_qsig_encode_ecma_calltransfer(unsigned char * buf, unsigned int *idx, st
 			}
 		} else { /* have to build first facility - send destination number back to inbound channel */
 			struct capi_pvt *ii = capi_find_interface_by_plci(i->qsig_data.partner_plci);
-			cid = strdup(ii->dnid);
+			cid = ast_strdup(ii->dnid);
 			cidlen = strlen(cid);
 			
 			if (ii) {
@@ -490,7 +490,7 @@ void cc_qsig_encode_ecma_calltransfer(unsigned char * buf, unsigned int *idx, st
 	cc_qsig_verbose( 0, VERBOSE_PREFIX_4 "  * Sending QSIG_CT: %i->%s\n", info, cid);
 	
 	if (cid)
-		free(cid);
+		ast_free(cid);
 	
 }
 
@@ -563,7 +563,7 @@ unsigned int cc_qsig_decode_ecma_calltransfer(struct cc_qsig_invokedata *invoke,
 		if (data[myidx] == ASN1_TC_APPLICATION) {
 			myidx++;
 			/* TODO: check size -> could be bigger than 256 bytes - MSB is set then */
-			ctc->basicCallInfoElements = malloc(data[myidx]);
+			ctc->basicCallInfoElements = ast_malloc(data[myidx]);
 			if (ctc->basicCallInfoElements) {
 				memcpy(ctc->basicCallInfoElements, &data[myidx+1], data[myidx] );
 			} else {
@@ -577,7 +577,7 @@ unsigned int cc_qsig_decode_ecma_calltransfer(struct cc_qsig_invokedata *invoke,
 		if (data[myidx] != ASN1_ENUMERATED) { /* Maybe we get an name (OPTIONAL) */
 			myidx += cc_qsig_asn197no_get_name(ct_name, ASN197NO_NAME_STRSIZE+1, &namelength, &myidx, data );
 			if (namelength)
-				ctc->redirectionName = strdup(ct_name);
+				ctc->redirectionName = ast_strdup(ct_name);
 		}
 	}
 	
@@ -729,8 +729,8 @@ void cc_qsig_op_ecma_isdn_prpropose(struct cc_qsig_invokedata *invoke, struct ca
 	}
 	
 
-	i->qsig_data.pr_propose_cid  = strdup(callid);
-	i->qsig_data.pr_propose_pn = strdup(reroutingnr);
+	i->qsig_data.pr_propose_cid  = ast_strdup(callid);
+	i->qsig_data.pr_propose_pn = ast_strdup(reroutingnr);
 	
 	cc_qsig_verbose( 0, VERBOSE_PREFIX_4 "  * Got QSIG_PATHREPLACEMENT_PROPOSE Call identity: %s, Party number: %s (%i)\n", callid, reroutingnr, temp);
 	

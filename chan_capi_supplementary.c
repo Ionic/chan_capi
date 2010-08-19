@@ -65,7 +65,7 @@ static void del_old_ccbsnr(void)
 			} else {
 				tmp->next = ccbsnr->next;
 			}
-			free(ccbsnr);
+			ast_free(ccbsnr);
 			break;
 		}
 		tmp = ccbsnr;
@@ -86,7 +86,7 @@ void cleanup_ccbsnr(void)
 	while (ccbsnr) {
 		tmp = ccbsnr;
 		ccbsnr = ccbsnr->next;
-		free(tmp);
+		ast_free(tmp);
 	}
 	cc_mutex_unlock(&ccbsnr_lock);
 }
@@ -122,7 +122,7 @@ static void new_ccbsnr_id(char type, unsigned int plci,
 	char buffer[CAPI_MAX_STRING];
 	struct ccbsnr_s *ccbsnr;
 
-	ccbsnr = malloc(sizeof(struct ccbsnr_s));
+	ccbsnr = ast_malloc(sizeof(struct ccbsnr_s));
 	if (ccbsnr == NULL) {
 		cc_log(LOG_ERROR, "Unable to allocate CCBS/CCNR struct.\n");
 		return;
@@ -259,7 +259,7 @@ static void del_ccbsnr_ref(unsigned int plci, _cword ref)
 			} else {
 				tmp->next = ccbsnr->next;
 			}
-			free(ccbsnr);
+			ast_free(ccbsnr);
 			cc_verbose(1, 1, VERBOSE_PREFIX_3 CC_MESSAGE_NAME
 				": PLCI=%#x CCBS/CCNR removed ref=0x%04x\n", plci, ref);
 			break;
@@ -319,7 +319,7 @@ static void del_ccbsnr_id(unsigned int plci, _cword id)
 				} else {
 					tmp->next = ccbsnr->next;
 				}
-				free(ccbsnr);
+				ast_free(ccbsnr);
 				cc_verbose(1, 1, VERBOSE_PREFIX_3 CC_MESSAGE_NAME ": PLCI=%#x CCBS/CCNR removed "
 					"id=0x%04x state=%d\n",	plci, id, oldstate);
 			} else {
@@ -409,13 +409,13 @@ static void	ccbsnr_remote_user_free(_cmsg *CMSG, char type, unsigned int PLCI, _
 	c->dialed.number.str = ast_strdup (ccbsnr->exten);
 #else
 	if (c->cid.cid_num) {
-		free(c->cid.cid_num);
+		ast_free(c->cid.cid_num);
 	}
-	c->cid.cid_num = strdup(handlename);
+	c->cid.cid_num = ast_strdup(handlename);
 	if (c->cid.cid_dnid) {
-		free(c->cid.cid_dnid);
+		ast_free(c->cid.cid_dnid);
 	}
-	c->cid.cid_dnid = strdup(ccbsnr->exten);
+	c->cid.cid_dnid = ast_strdup(ccbsnr->exten);
 #endif
 
 #ifndef CC_AST_HAS_EXT2_CHAN_ALLOC

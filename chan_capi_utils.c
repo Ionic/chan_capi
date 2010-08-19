@@ -132,7 +132,7 @@ void capi_remove_nullif(struct capi_pvt *i)
 			cc_mutex_destroy(&i->lock);
 			ast_cond_destroy(&i->event_trigger);
 			controller_nullplcis[i->controller - 1]--;
-			free(i);
+			ast_free(i);
 			break;
 		}
 		tmp = ii;
@@ -175,7 +175,7 @@ struct capi_pvt *capi_mknullif(struct ast_channel *c, unsigned long long control
 		}
 	}
 
-	tmp = malloc(sizeof(struct capi_pvt));
+	tmp = ast_malloc(sizeof(struct capi_pvt));
 	if (!tmp) {
 		return NULL;
 	}
@@ -208,7 +208,7 @@ struct capi_pvt *capi_mknullif(struct ast_channel *c, unsigned long long control
 	capi_gains(&tmp->g, 1.0, 1.0);
 
 	if (!(capi_create_reader_writer_pipe(tmp))) {
-		free(tmp);
+		ast_free(tmp);
 		return NULL;
 	}
 
@@ -264,7 +264,7 @@ struct capi_pvt *capi_mkresourceif(struct ast_channel *c, unsigned long long con
 		controller = data_plci_ifc->controller;
 	}
 
-	data_ifc = malloc(sizeof(struct capi_pvt));
+	data_ifc = ast_malloc(sizeof(struct capi_pvt));
 	if (data_ifc == 0) {
 		return NULL;
 	}
@@ -299,7 +299,7 @@ struct capi_pvt *capi_mkresourceif(struct ast_channel *c, unsigned long long con
 
 	if (data_plci_ifc == 0) {
 		if (!(capi_create_reader_writer_pipe(data_ifc))) {
-			free(data_ifc);
+			ast_free(data_ifc);
 			return NULL;
 		}
 	} else {
