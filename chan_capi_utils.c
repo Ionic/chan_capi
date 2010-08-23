@@ -228,6 +228,13 @@ struct capi_pvt *capi_mknullif(struct ast_channel *c, unsigned long long control
 	tmp->state = CAPI_STATE_CONNECTPENDING;
 	tmp->MessageNumber = get_capi_MessageNumber();
 
+#ifdef DIVA_STREAMING
+	tmp->diva_stream_entry = 0;
+	if (pbx_capi_streaming_supported (tmp) != 0) {
+		capi_DivaStreamingOn(tmp, 1, tmp->MessageNumber);
+	}
+#endif
+
 	capi_sendf(NULL, 0, CAPI_CONNECT_REQ, controller, tmp->MessageNumber,
 		"w()()()()(www()()()())()()()((wwbbb)()()())",
 		 0,       1,1,0,              3,0,0,0,0);

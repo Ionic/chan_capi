@@ -1572,7 +1572,7 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 
 #ifdef DIVA_STREAMING
 			i->diva_stream_entry = 0;
-			if (capi_controllers[i->controller]->divaStreaming != 0) {
+			if (pbx_capi_streaming_supported (i) != 0) {
 				capi_DivaStreamingOn(i, 1, i->MessageNumber);
 			}
 #endif
@@ -5026,7 +5026,7 @@ static void capidev_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, un
 
 #ifdef DIVA_STREAMING
 			i->diva_stream_entry = 0;
-			if (capi_controllers[i->controller]->divaStreaming != 0) {
+			if (pbx_capi_streaming_supported (i) != 0) {
 				capi_DivaStreamingOn(i, 0, 0);
 			}
 #endif
@@ -8724,3 +8724,10 @@ char *key()
 	return ASTERISK_GPL_KEY;
 }
 #endif /* CC_AST_HAS_VERSION_1_4 */
+
+#ifdef DIVA_STREAMING
+int pbx_capi_streaming_supported (struct capi_pvt *i)
+{
+	return (i != 0 && i->controller <= CAPI_MAX_CONTROLLERS && capi_controllers[i->controller]->divaStreaming != 0);
+}
+#endif

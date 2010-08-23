@@ -729,6 +729,10 @@ struct _diva_streaming_vector;
 void capidev_handle_data_b3_indication_vector (struct capi_pvt *i,
 																							 struct _diva_streaming_vector* vind,
 																							 int vind_nr);
+/*!
+ * \brief Return true if Diva streaming supported by CAPI controller
+ */
+int pbx_capi_streaming_supported (struct capi_pvt *i);
 #endif
 
 /* DIVA specific MANUFACTURER definitions */
