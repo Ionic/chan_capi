@@ -331,6 +331,18 @@ struct capi_pvt *capi_mkresourceif(struct ast_channel *c, unsigned long long con
 	data_ifc->MessageNumber = get_capi_MessageNumber();
 
 	cc_mutex_lock(&data_ifc->lock);
+
+#ifdef DIVA_STREAMING
+	data_ifc->diva_stream_entry = 0;
+	if (data_plci_ifc == 0) {
+		capi_DivaStreamingStreamNotUsed(data_ifc, 1, data_ifc->MessageNumber);
+	} else {
+		if (pbx_capi_streaming_supported (data_ifc) != 0) {
+			capi_DivaStreamingOn(data_ifc, 1, data_ifc->MessageNumber);
+		}
+	}
+#endif
+
 	capi_sendf(data_ifc,
 		1,
 		CAPI_MANUFACTURER_REQ,

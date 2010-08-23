@@ -247,12 +247,29 @@ void capi_DivaStreamingRemoveInfo(struct capi_pvt *i)
 											"dws", _DI_MANU_ID, _DI_STREAM_CTRL, description);
 }
 
-void capi_DivaStreamingStreamNotUsed (struct capi_pvt *i)
+/*!
+ * \brief Send empty stream to inform no Diva streaming is used for this PLCI
+ */
+void capi_DivaStreamingStreamNotUsed(struct capi_pvt *i, byte streamCommand, _cword messageNumber)
 {
 	byte description[] = { 0x04, 0x00, 0x02, 0x00, 0x00 };
+	unsigned int effectivePLCI;
 	MESSAGE_EXCHANGE_ERROR error;
 
-	error = capi_sendf (NULL, 0, CAPI_MANUFACTURER_REQ, i->PLCI, get_capi_MessageNumber(),
+	description[1] = streamCommand;
+
+	if (streamCommand == 0) {
+		messageNumber = get_capi_MessageNumber();
+		effectivePLCI = i->PLCI;
+	} else {
+		/*
+			PLCI still not assigned. Send to controller and tag with message number
+			where command receives effective
+			*/
+		effectivePLCI = i->controller;
+	}
+
+	error = capi_sendf (NULL, 0, CAPI_MANUFACTURER_REQ, effectivePLCI, messageNumber,
 											"dws", _DI_MANU_ID, _DI_STREAM_CTRL, description);
 }
 
