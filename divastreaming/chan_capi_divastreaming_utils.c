@@ -170,6 +170,27 @@ void capi_DivaStreamingOn(struct capi_pvt *i, byte streamCommand, _cword message
 
 		description[3] |= 0x01;
 
+#if 0 /*! \todo create function to add info elements to stream description */
+	byte* start = &description[3];
+
+	start[0] |= 2U;
+	start = start + start[-1];
+	*start++ = 0x2c;
+	*start++ = 8;
+	*start++ = 1;
+	*start++ = 2;
+	*start++ = 3;
+	*start++ = 4;
+	*start++ = 'a';
+	*start++ = 'b';
+	*start++ = 'c';
+	*start++ = 'd';
+	*start++ = 0;
+
+	description[2] += 11;
+	description[0] += 11;
+#endif
+
 		if (streamCommand == 0) {
 			messageNumber = get_capi_MessageNumber();
 			effectivePLCI = i->PLCI;
