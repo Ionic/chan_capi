@@ -14,6 +14,7 @@ HEAD
 - added capicommand(keypad)
 - added log of FACILITY_IND for call deflect suplementary service
 - malloc,strdup,free -> ast_(malloc,strdup,free)
+- Use Diva streaming for NULL PLCI and for resource PLCI
 
 chan_capi-1.1.5
 ------------------
