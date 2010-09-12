@@ -664,7 +664,7 @@ int handle_facility_indication_supplementary(
  * CAPI FACILITY_CONF supplementary
  */
 void handle_facility_confirmation_supplementary(
-	_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt **i)
+	_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt **i, struct ast_channel** interface_owner)
 {
 	_cword function;
 	_cword serviceinfo;
@@ -709,7 +709,7 @@ void handle_facility_confirmation_supplementary(
 	case 0x0012: /* CCBS call */
 		cc_verbose(2, 1, VERBOSE_PREFIX_3 "%s: CCBS call confirmation (0x%04x) (PLCI=%#x)\n",
 			name, serviceinfo, PLCI);
-		capidev_handle_connection_conf(i, PLCI, FACILITY_CONF_INFO(CMSG), HEADER_MSGNUM(CMSG));
+		capidev_handle_connection_conf(i, PLCI, FACILITY_CONF_INFO(CMSG), HEADER_MSGNUM(CMSG), interface_owner);
 		break;
 	default:
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: unhandled FACILITY_CONF supplementary function %04x\n",

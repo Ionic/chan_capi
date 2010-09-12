@@ -221,6 +221,7 @@ static int pbx_capi_indicate(struct ast_channel *c, int condition);
 static struct capi_pvt* get_active_plci (struct ast_channel *c);
 static _cstruct diva_get_b1_conf (struct capi_pvt *i);
 static void clear_channel_fax_loop (struct ast_channel *c,  struct capi_pvt *i);
+static struct ast_channel* capidev_acquire_locks_from_thread_context (struct capi_pvt *i);
 
 /*
  * B protocol settings
@@ -4839,7 +4840,11 @@ static void capidev_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI,
 /*
  * CAPI CONNECT_IND
  */
-static void capidev_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt **interface)
+static void capidev_handle_connect_indication(_cmsg *CMSG,
+																							unsigned int PLCI,
+																							unsigned int NCCI,
+																							struct capi_pvt **interface,
+																							struct ast_channel** interface_owner)
 {
 	struct capi_pvt *i;
 	char *DNID;
@@ -4999,7 +5004,7 @@ static void capidev_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, un
 
 			*interface = i;
 			cc_mutex_unlock(&iflock);
-			cc_mutex_lock(&i->lock);
+			*interface_owner = capidev_acquire_locks_from_thread_context (i);
 		
 			pbx_builtin_setvar_helper(i->owner, "TRANSFERCAPABILITY", transfercapability2str(i->transfercapability));
 			pbx_builtin_setvar_helper(i->owner, "BCHANNELINFO", bchannelinfo);
@@ -5057,14 +5062,15 @@ static void capidev_handle_connect_indication(_cmsg *CMSG, unsigned int PLCI, un
 /*
  * CAPI FACILITY_CONF
  */
-static void capidev_handle_facility_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt **i)
+static void capidev_handle_facility_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt **i,
+																								 struct ast_channel** interface_owner)
 {
 	int selector;
 
 	selector = FACILITY_CONF_FACILITYSELECTOR(CMSG);
 
 	if (selector == FACILITYSELECTOR_SUPPLEMENTARY) {
-		handle_facility_confirmation_supplementary(CMSG, PLCI, NCCI, i);
+		handle_facility_confirmation_supplementary(CMSG, PLCI, NCCI, i, interface_owner);
 		return;
 	}
 	
@@ -5217,7 +5223,7 @@ static void capidev_post_handling(struct capi_pvt *i, _cmsg *CMSG)
  * handle CONNECT_CONF or FACILITY_CONF(CCBS call)
  */
 void capidev_handle_connection_conf(struct capi_pvt **i, unsigned int PLCI,
-	unsigned short wInfo, unsigned short wMsgNum)
+	unsigned short wInfo, unsigned short wMsgNum, struct ast_channel** interface_owner)
 {
 	struct capi_pvt *ii;
 	struct ast_frame fr = { AST_FRAME_CONTROL, };
@@ -5236,7 +5242,9 @@ void capidev_handle_connection_conf(struct capi_pvt **i, unsigned int PLCI,
 	}
 	cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: received CONNECT_CONF PLCI = %#x\n",
 		ii->vname, PLCI);
-	cc_mutex_lock(&ii->lock);
+
+	*interface_owner = capidev_acquire_locks_from_thread_context (ii);
+
 	if (wInfo == 0) {
 		ii->PLCI = PLCI;
 	} else {
@@ -5246,6 +5254,47 @@ void capidev_handle_connection_conf(struct capi_pvt **i, unsigned int PLCI,
 			local_queue_frame(ii, &fr);
 		}
 	}
+}
+
+/*! \brief acquire locks in the correct order
+	*/
+static struct ast_channel* capidev_acquire_locks_from_thread_context (struct capi_pvt *i)
+{
+	struct ast_channel *owner = 0;
+
+	if (unlikely(i == 0))
+		return (0);
+
+#ifdef CC_AST_HAS_VERSION_1_8
+	cc_mutex_lock(&i->lock);
+	owner = i->owner;
+	if (likely(owner != 0)) {
+		ast_channel_ref (owner);
+		cc_mutex_unlock(&i->lock);
+		ast_channel_lock(owner);
+		ast_channel_unref (owner);
+		cc_mutex_lock(&i->lock);
+		if (unlikely(i->owner == 0)) {
+			cc_mutex_unlock (&i->lock);
+			ast_channel_unlock (owner);
+			cc_mutex_lock (&i->lock);
+			owner = 0;
+		}
+	}
+#else
+	for (;;) {
+		cc_mutex_lock(&i->lock);
+		owner = i->owner;
+		if (unlikely(owner == 0))
+			break;
+		if (likely(ast_channel_trylock(owner) == 0))
+			break;
+		cc_mutex_unlock(&i->lock);
+		usleep (100);
+	}
+#endif
+
+	return (owner);
 }
 
 /*
@@ -5259,6 +5308,7 @@ static void capidev_handle_msg(_cmsg *CMSG)
 	unsigned short wMsgNum = HEADER_MSGNUM(CMSG);
 	unsigned short wInfo = 0xffff;
 	struct capi_pvt *i = capi_find_interface_by_plci(PLCI);
+	struct ast_channel* owner;
 
 	if ((wCmd == CAPI_P_IND(DATA_B3)) ||
 	    (wCmd == CAPI_P_CONF(DATA_B3))) {
@@ -5271,8 +5321,7 @@ static void capidev_handle_msg(_cmsg *CMSG)
 		cc_verbose(4, 1, "%s\n", capi_cmsg2str(CMSG));
 	}
 
-	if (i != NULL)
-		cc_mutex_lock(&i->lock);
+	owner = capidev_acquire_locks_from_thread_context (i);
 
 	/* main switch table */
 
@@ -5282,7 +5331,7 @@ static void capidev_handle_msg(_cmsg *CMSG)
 	   * CAPI indications
 	   */
 	case CAPI_P_IND(CONNECT):
-		capidev_handle_connect_indication(CMSG, PLCI, NCCI, &i);
+		capidev_handle_connect_indication(CMSG, PLCI, NCCI, &i, &owner);
 		break;
 	case CAPI_P_IND(DATA_B3):
 		capidev_handle_data_b3_indication(CMSG, PLCI, NCCI, i, 0, 0);
@@ -5318,11 +5367,11 @@ static void capidev_handle_msg(_cmsg *CMSG)
 
 	case CAPI_P_CONF(FACILITY):
 		wInfo = FACILITY_CONF_INFO(CMSG);
-		capidev_handle_facility_confirmation(CMSG, PLCI, NCCI, &i);
+		capidev_handle_facility_confirmation(CMSG, PLCI, NCCI, &i, &owner);
 		break;
 	case CAPI_P_CONF(CONNECT):
 		wInfo = CONNECT_CONF_INFO(CMSG);
-		capidev_handle_connection_conf(&i, PLCI, wInfo, wMsgNum);
+		capidev_handle_connection_conf(&i, PLCI, wInfo, wMsgNum, &owner);
 		break;
 	case CAPI_P_CONF(CONNECT_B3):
 		wInfo = CONNECT_B3_CONF_INFO(CMSG);
@@ -5400,7 +5449,7 @@ static void capidev_handle_msg(_cmsg *CMSG)
 				break;
 			case _DI_ASSIGN_PLCI:
 				wInfo = (unsigned short)(CMSG->Class >> 16);
-				capidev_handle_connection_conf(&i, PLCI, wInfo, wMsgNum);
+				capidev_handle_connection_conf(&i, PLCI, wInfo, wMsgNum, &owner);
 				break;
 #ifdef DIVA_STREAMING
 			case _DI_STREAM_CTRL:
@@ -5408,16 +5457,20 @@ static void capidev_handle_msg(_cmsg *CMSG)
 				if (wInfo != 0) {
 					int do_lock = (i == 0);
 					struct capi_pvt *ii = (i != 0) ? i : capi_find_interface_by_msgnum(wMsgNum);
+					struct ast_channel* streaming_interface_owner = 0;
 
 					cc_log(LOG_ERROR, "stream error %04x for %s=%#x\n", wInfo, PLCI != 0 ? "PLCI" : "MsgNr", PLCI != 0 ? PLCI : wMsgNum);
 
 					if (ii != 0) {
 						if (do_lock) {
-							cc_mutex_lock(&ii->lock);
+							streaming_interface_owner = capidev_acquire_locks_from_thread_context (ii);
 						}
 						capi_DivaStreamingRemove(ii);
 						if (do_lock) {
 							cc_mutex_unlock(&ii->lock);
+							if (streaming_interface_owner != 0) {
+								ast_channel_unlock (streaming_interface_owner);
+							}
 						}
 					} else {
 						cc_log(LOG_ERROR, "stream error %04x for MsgNr %04x, unexpected", wInfo, wMsgNum);
@@ -5454,6 +5507,10 @@ static void capidev_handle_msg(_cmsg *CMSG)
 	} else {
 		capidev_post_handling(i, CMSG);
 		cc_mutex_unlock(&i->lock);
+	}
+
+	if (owner != 0) {
+		ast_channel_unlock (owner);
 	}
 
 	return;

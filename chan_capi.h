@@ -712,7 +712,7 @@ extern void cc_start_b3(struct capi_pvt *i);
 extern unsigned char capi_tcap_is_digital(unsigned short tcap);
 extern void capi_queue_cause_control(struct capi_pvt *i, int control);
 extern void capidev_handle_connection_conf(struct capi_pvt **i, unsigned int PLCI,
-    unsigned short wInfo, unsigned short wMsgNum);
+    unsigned short wInfo, unsigned short wMsgNum, struct ast_channel** interface_owner);
 extern void capi_wait_for_answered(struct capi_pvt *i);
 extern int capi_wait_for_b3_up(struct capi_pvt *i);
 extern void capi_activehangup(struct capi_pvt *i, int state);

@@ -19,7 +19,8 @@ extern void ListenOnSupplementary(unsigned controller);
 extern int handle_facility_indication_supplementary(
 	_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt *i);
 extern void handle_facility_confirmation_supplementary(
-	_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt **i);
+	_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt **i,
+	struct ast_channel** interface_owner);
 extern int pbx_capi_ccbs(struct ast_channel *c, char *data);
 extern int pbx_capi_ccbsstop(struct ast_channel *c, char *data);
 extern int pbx_capi_ccpartybusy(struct ast_channel *c, char *data);
