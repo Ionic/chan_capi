@@ -15,6 +15,7 @@ HEAD
 - added log of FACILITY_IND for call deflect suplementary service
 - malloc,strdup,free -> ast_(malloc,strdup,free)
 - Use Diva streaming for NULL PLCI and for resource PLCI
+- Resolved http://www.ipphoneforum.eu/showthread.php?t=220051
 
 chan_capi-1.1.5
 ------------------
