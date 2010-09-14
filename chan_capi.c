@@ -1572,8 +1572,8 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 	} else {
 		char* cid_name = 0;
 #ifdef CC_AST_HAS_VERSION_1_8
-		if (i->owner->caller.id.name.valid ) {
-			cid_name = ast_strdupa(S_COR(i->owner->caller.id.name.valid, i->owner->caller.id.name.str, ""));
+		if (i->owner->connected.id.name.valid ) {
+			cid_name = ast_strdupa(S_COR(i->owner->connected.id.name.valid, i->owner->connected.id.name.str, ""));
 		}
 #else
 		if (i->owner->cid.cid_name && *i->owner->cid.cid_name) {
