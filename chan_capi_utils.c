@@ -1594,3 +1594,20 @@ const char* pbx_capi_get_callername (struct ast_channel* c)
 	return (name);
 }
 
+/*
+	 ast_channel_lock(chan) to be held while
+	 while accessing returned pointer
+	*/
+const char* pbx_capi_get_connectedname (struct ast_channel* c)
+{
+	const char* name;
+
+#ifdef CC_AST_HAS_VERSION_1_8
+	name = S_COR(c->connected.id.name.valid, c->connected.id.name.str, "");
+#else
+	name = (c->cid.cid_name) ? c->cid.cid_name : "";
+#endif
+
+	return (name);
+}
+
