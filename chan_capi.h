@@ -76,11 +76,11 @@ static inline void write_capi_word(void *m, unsigned short val)
 	((unsigned char *)m)[0] = val & 0xff;
 	((unsigned char *)m)[1] = (val >> 8) & 0xff;
 }
-static inline unsigned short read_capi_word(void *m)
+static inline unsigned short read_capi_word(const void *m)
 {
 	unsigned short val;
 
-	val = ((unsigned char *)m)[0] | (((unsigned char *)m)[1] << 8);	
+	val = ((const unsigned char *)m)[0] | (((const unsigned char *)m)[1] << 8);	
 	return (val);
 }
 static inline void write_capi_dword(void *m, unsigned int val)
@@ -90,12 +90,12 @@ static inline void write_capi_dword(void *m, unsigned int val)
 	((unsigned char *)m)[2] = (val >> 16) & 0xff;
 	((unsigned char *)m)[3] = (val >> 24) & 0xff;
 }
-static inline unsigned int read_capi_dword(void *m)
+static inline unsigned int read_capi_dword(const void *m)
 {
 	unsigned int val;
 
-	val = ((unsigned char *)m)[0] | (((unsigned char *)m)[1] << 8) |	
-	      (((unsigned char *)m)[2] << 16) | (((unsigned char *)m)[3] << 24);	
+	val = ((const unsigned char *)m)[0] | (((const unsigned char *)m)[1] << 8) |	
+	      (((const unsigned char *)m)[2] << 16) | (((const unsigned char *)m)[3] << 24);	
 	return (val);
 }
 

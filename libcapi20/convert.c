@@ -395,7 +395,11 @@ static unsigned char *cpars[] = {
     /*39 CONNECT_ACTIVE_RESP*/  (unsigned char*)"\x03\x01",
     /*3a DISCONNECT_RESP*/      (unsigned char*)"\x03\x01",
     /*3b*/ 0,
+#if 0
     /*3c MANUFACTURER_IND*/     (unsigned char*)"\x03\x2b\x15\x22\x2a\x01",
+#else
+    /*3c MANUFACTURER_IND dw(...)*/ (unsigned char*)"\x03\x2b\x24\x2a\x01",
+#endif
     /*3d*/ 0,
     /*3e INFO_RESP*/            (unsigned char*)"\x03\x01",
     /*3f FACILITY_RESP*/        (unsigned char*)"\x03\x20\x1f\x01",

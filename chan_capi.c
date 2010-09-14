@@ -1569,6 +1569,31 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 	if (doqsig) {
 		facilityarray = alloca(CAPI_MAX_FACILITYDATAARRAY_SIZE);
 		cc_qsig_add_call_setup_data(facilityarray, i, c);
+	} else {
+		char* cid_name = 0;
+#ifdef CC_AST_HAS_VERSION_1_8
+		if (i->owner->caller.id.name.valid ) {
+			cid_name = ast_strdupa(S_COR(i->owner->caller.id.name.valid, i->owner->caller.id.name.str, ""));
+		}
+#else
+		if (i->owner->cid.cid_name && *i->owner->cid.cid_name) {
+			cid_name = ast_strdupa(i->owner->cid.cid_name);
+		}
+#endif
+		if (cid_name != 0) {
+			unsigned char* p;
+			int length = strlen (cid_name);
+			const unsigned char t[] =
+		{  0x0d /* 0 - len */, 0x1c, 0x0b /* 2 - len */, 0x9f, 0xa1, 0x08 /* 5 - len */, 0x02, 0x01, 0x01, 0x02, 0x01, 0x00, 0x80, 0x00 /* 12+1 - len */ };
+			facilityarray = alloca(CAPI_MAX_FACILITYDATAARRAY_SIZE);
+			p = facilityarray;
+			memcpy (p, t, sizeof(t));
+			memcpy (p+sizeof(t), cid_name, MIN(length, (CAPI_MAX_FACILITYDATAARRAY_SIZE-sizeof(t))));
+			p[0] += length;
+			p[2] += length;
+			p[5] += length;
+			p[12+1] += length;
+		}
 	}
 
 #ifdef DIVA_STREAMING
@@ -4524,6 +4549,78 @@ static void capidev_send_faxdata(struct capi_pvt *i)
 		"()");
 }
 
+static void capidev_read_name_from_diva_manufacturer_infications (const unsigned char* src,
+																																	const unsigned char* end,
+																																	char* dst,
+																																	int max_length,
+																																	unsigned char* octet3a,
+																																	const char *channelname,
+																																	const char *nametype) {
+	int length;
+
+	*dst = 0;
+	*octet3a = *src++;
+	if (src < end) {
+		length = MIN(max_length-1, (end - src));
+		memcpy (dst, src, length);
+		dst[length] = 0;
+	}
+
+	cc_verbose(3, 0, VERBOSE_PREFIX_3 "%s: received %s Name %02x '%s'\n", channelname, nametype, *octet3a, dst);
+}
+
+static void capidev_handle_diva_signaling_manufacturer_infications (struct capi_pvt *i, const unsigned char* data) {
+	int length = *data++;
+	char buffer[CAPI_MAX_STRING];
+	unsigned char octet3a;
+/*
+ Bits: 7   : set to 1
+       6-5 : Presentation indicator, 00 - Presentation allowed, 01 - Presentation restricted, 10 - Number not available due to internetworking, 11 - Reserved
+       4-2 : Set to zeero
+       1-0 : Screening indicator, 00 - User provided not screened, 01 - User provided, verified and passed, 10 - User provided verified and failed, 11 - Nnetwork provided
+	*/
+
+
+	if (length >= 2) {
+		unsigned short command = read_capi_word(data);
+		data   += 2;
+		length -= 2;
+
+		switch (command) {
+			case 0x0005: /* Display */
+				break;
+			case 0x0006: /* CalledPartyName */
+				if (length != 0) {
+					capidev_read_name_from_diva_manufacturer_infications (data, &data[length], buffer, sizeof(buffer), &octet3a, i->vname, "Called Party");
+				}
+				break;
+			case 0x0007: /* CallingPartyName */
+				if (length != 0) {
+					capidev_read_name_from_diva_manufacturer_infications (data, &data[length], buffer, sizeof(buffer), &octet3a, i->vname, "Calling Party");
+#ifdef CC_AST_HAS_VERSION_1_8
+					ast_set_callerid(i->owner, NULL, buffer, NULL);
+#else
+					ast_free (i->owner->cid.cid_name);
+					i->owner->cid.cid_name = ast_strdup(buffer);	/* Save name to callerid */
+#endif
+				}
+				break;
+			case 0x0008: /* ConnectedPartyName */
+				if (length != 0) {
+					capidev_read_name_from_diva_manufacturer_infications (data, &data[length], buffer, sizeof(buffer), &octet3a, i->vname, "Connected Party");
+				}
+				break;
+			case 0x000a: /* BusyPartyName */
+				if (length != 0) {
+					capidev_read_name_from_diva_manufacturer_infications (data, &data[length], buffer, sizeof(buffer), &octet3a, i->vname, "Busy Party");
+				}
+				break;
+			case 0x0009: /* CQ_Events */
+				break;
+		}
+	}
+}
+
 /*
  * CAPI MANUFACTURER_IND
  */
@@ -4534,10 +4631,16 @@ static void capidev_handle_manufacturer_indication(_cmsg *CMSG, unsigned int PLC
 	
 	return_on_no_interface("MANUFACTURER_IND");
 
-	cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: Ignored MANUFACTURER_IND Id=0x%x \n",
-		i->vname, MANUFACTURER_IND_MANUID(CMSG));
-
-	return;
+	if (MANUFACTURER_IND_MANUID(CMSG) == _DI_MANU_ID) {
+		if (CMSG->Info == 0x000a && i->owner != 0) {
+			capidev_handle_diva_signaling_manufacturer_infications (i, MANUFACTURER_IND_MANUDATA(CMSG));
+		} else {
+			cc_verbose(3, 0, VERBOSE_PREFIX_3 "%s: Ignored Diva MANUFACTURER_IND Id=0x%04x \n", i->vname, CMSG->Info);
+		}
+	} else {
+		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: Ignored MANUFACTURER_IND Id=0x%x \n",
+								i->vname, MANUFACTURER_IND_MANUID(CMSG));
+	}
 }
 
 /*

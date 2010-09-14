@@ -16,6 +16,7 @@ HEAD
 - malloc,strdup,free -> ast_(malloc,strdup,free)
 - Use Diva streaming for NULL PLCI and for resource PLCI
 - Resolved http://www.ipphoneforum.eu/showthread.php?t=220051
+- Use Diva QSIG CAPI extensions for processing of Calling Party Name
 
 chan_capi-1.1.5
 ------------------
