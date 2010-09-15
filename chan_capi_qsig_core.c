@@ -1330,6 +1330,7 @@ void cc_pbx_qsig_conf_interface_value(struct cc_capi_conf *conf, struct ast_vari
 }
 
 	CONF_INTEGER(conf->qsigfeat, "qsig")
+	CONF_TRUE(conf->divaqsig, "divaqsig", 1)
 	CONF_STRING(conf->qsigconf.if_pr_propose_pn, "qsig_prnum")
 
 	

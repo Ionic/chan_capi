@@ -18,8 +18,8 @@ on the QSIG dialect and on the vendor-specific implementation of QSIG dialect.
 |  Use Diva QSIG abstraction with chan_capi                         |
 +-------------------------------------------------------------------+
 
-To use Diva QSIG abstraction please do not set (remove if set) 'qsig'
-configuratioin variable(s) from capi.conf.
+To use Diva QSIG abstraction please add 'divaqsig=1' to configuration
+of CAPI controller (capi.conf).
 
 +-------------------------------------------------------------------+
 |  QSIG abstraction                                                 |

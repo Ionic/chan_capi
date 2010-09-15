@@ -538,6 +538,7 @@ struct capi_pvt {
 
 	/* Q.SIG features */
 	int qsigfeat;
+	int divaqsig;
 	struct cc_qsig_data qsig_data;
 
 	/* Resource PLCI data */
@@ -598,6 +599,7 @@ struct cc_capi_conf {
 	int bridge;
 	int amaflags;
 	int qsigfeat;
+	int divaqsig;
 	struct cc_capi_qsig_conf qsigconf;
 	unsigned int faxsetting;
 	unsigned int faxdetecttime;

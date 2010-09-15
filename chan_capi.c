@@ -222,6 +222,7 @@ static struct capi_pvt* get_active_plci (struct ast_channel *c);
 static _cstruct diva_get_b1_conf (struct capi_pvt *i);
 static void clear_channel_fax_loop (struct ast_channel *c,  struct capi_pvt *i);
 static struct ast_channel* capidev_acquire_locks_from_thread_context (struct capi_pvt *i);
+static int pbx_capi_add_diva_protocol_independent_extension (struct capi_pvt *i, unsigned char (*facilityarray)[CAPI_MAX_FACILITYDATAARRAY_SIZE]);
 
 /*
  * B protocol settings
@@ -1026,7 +1027,6 @@ static int pbx_capi_alert(struct ast_channel *c)
 
 	facilityarray = alloca(CAPI_MAX_FACILITYDATAARRAY_SIZE);
 	cc_qsig_add_call_alert_data(facilityarray, i, c);
-
 	if (capi_sendf(NULL, 0, CAPI_ALERT_REQ, i->PLCI, get_capi_MessageNumber(),
 	    "(()()()s())",
 		facilityarray
@@ -1424,7 +1424,7 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 	i->doB3 = CAPI_B3_DONT;
 	i->doOverlap = 0;
 	memset(i->overlapdigits, 0, sizeof(i->overlapdigits));
-	doqsig = i->qsigfeat;
+	doqsig = i->qsigfeat || i->divaqsig;
 
 	/* parse the parameters */
 	while ((param) && (*param)) {
@@ -1566,33 +1566,16 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 
 	pbx_capi_call_build_calling_party_number (c, calling, sizeof(calling), use_defaultcid, ocid);
 
-	if (doqsig) {
-		facilityarray = alloca(CAPI_MAX_FACILITYDATAARRAY_SIZE);
-		cc_qsig_add_call_setup_data(facilityarray, i, c);
-	} else {
-		char* cid_name = 0;
-#ifdef CC_AST_HAS_VERSION_1_8
-		if (i->owner->connected.id.name.valid ) {
-			cid_name = ast_strdupa(S_COR(i->owner->connected.id.name.valid, i->owner->connected.id.name.str, ""));
-		}
-#else
-		if (i->owner->cid.cid_name && *i->owner->cid.cid_name) {
-			cid_name = ast_strdupa(i->owner->cid.cid_name);
-		}
-#endif
-		if (cid_name != 0) {
-			unsigned char* p;
-			int length = strlen (cid_name);
-			const unsigned char t[] =
-		{  0x0d /* 0 - len */, 0x1c, 0x0b /* 2 - len */, 0x9f, 0xa1, 0x08 /* 5 - len */, 0x02, 0x01, 0x01, 0x02, 0x01, 0x00, 0x80, 0x00 /* 12+1 - len */ };
+	if (doqsig != 0) {
+		if (i->qsigfeat != 0) {
 			facilityarray = alloca(CAPI_MAX_FACILITYDATAARRAY_SIZE);
-			p = facilityarray;
-			memcpy (p, t, sizeof(t));
-			memcpy (p+sizeof(t), cid_name, MIN(length, (CAPI_MAX_FACILITYDATAARRAY_SIZE-sizeof(t))));
-			p[0] += length;
-			p[2] += length;
-			p[5] += length;
-			p[12+1] += length;
+			cc_qsig_add_call_setup_data(facilityarray, i, c);
+		} else {
+			unsigned char tmp[CAPI_MAX_FACILITYDATAARRAY_SIZE];
+			if (pbx_capi_add_diva_protocol_independent_extension (i, &tmp) == 0) {
+				facilityarray = alloca(CAPI_MAX_FACILITYDATAARRAY_SIZE);
+				memcpy (facilityarray, tmp, CAPI_MAX_FACILITYDATAARRAY_SIZE);
+			}
 		}
 	}
 
@@ -7647,6 +7630,7 @@ int mkif(struct cc_capi_conf *conf)
 
 		/* Initialize QSIG code */
 		cc_qsig_interface_init(conf, tmp);
+		tmp->divaqsig = conf->divaqsig;
 		
 		tmp->next = capi_iflist; /* prepend */
 		capi_iflist = tmp;
@@ -8891,3 +8875,37 @@ int pbx_capi_streaming_supported (struct capi_pvt *i)
 	return (i != 0 && i->controller <= CAPI_MAX_CONTROLLERS && capi_controllers[i->controller]->divaStreaming != 0);
 }
 #endif
+
+static int pbx_capi_add_diva_protocol_independent_extension (struct capi_pvt *i, unsigned char (*facilityarray)[CAPI_MAX_FACILITYDATAARRAY_SIZE])
+{
+	char* cid_name = 0;
+
+	if (i->divaqsig == 0)
+		return (-1);
+
+#ifdef CC_AST_HAS_VERSION_1_8
+	if (i->owner->connected.id.name.valid ) {
+		cid_name = ast_strdupa(S_COR(i->owner->connected.id.name.valid, i->owner->connected.id.name.str, ""));
+	}
+#else
+	if (i->owner->cid.cid_name && *i->owner->cid.cid_name) {
+		cid_name = ast_strdupa(i->owner->cid.cid_name);
+	}
+#endif
+	if (cid_name != 0) {
+		unsigned char* p;
+		int length = strlen (cid_name);
+		const unsigned char t[] =
+	{  0x0d /* 0 - len */, 0x1c, 0x0b /* 2 - len */, 0x9f, 0xa1, 0x08 /* 5 - len */, 0x02, 0x01, 0x01, 0x02, 0x01, 0x00, 0x80, 0x00 /* 12+1 - len */ };
+		p = *facilityarray;
+		memcpy (p, t, sizeof(t));
+		memcpy (p+sizeof(t), cid_name, MIN(length, (CAPI_MAX_FACILITYDATAARRAY_SIZE-sizeof(t))));
+		p[0] += length;
+		p[2] += length;
+		p[5] += length;
+		p[12+1] += length;
+	}
+
+	return (0);
+}
+
