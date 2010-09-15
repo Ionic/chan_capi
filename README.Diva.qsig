@@ -15,11 +15,26 @@ The coding of the messages and the type of the transfer invoked, depends
 on the QSIG dialect and on the vendor-specific implementation of QSIG dialect.
 
 +-------------------------------------------------------------------+
+|  Use Diva QSIG abstraction with chan_capi                         |
++-------------------------------------------------------------------+
+
+To use Diva QSIG abstraction please do not set (remove if set) 'qsig'
+configuratioin variable(s) from capi.conf.
+
++-------------------------------------------------------------------+
 |  QSIG abstraction                                                 |
 +-------------------------------------------------------------------+
 
 Dialogic(R) Diva(R) System Release Software abstraction allows to write
 QSIG applications independent of the used QSIG dialect.
+
+Name and Display information elements
+  Name (Calling Pary Name, Called Party Name, Connected Party Name,
+  Busy Party Name) and Display information elementss are converted to protocol
+  independent format and delivered to (received from) application using
+  Diva manufacturer extensions. Information elements encoded as facility array
+  (for example in CONNECT_REQ) are converted in accordance with rules of active
+  QSIG protocol.
 
 Unassisted call transfer:
   The application can use CAPI call deflection. The Diva System Release software 
