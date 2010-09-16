@@ -1416,7 +1416,7 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 	char calledsubaddress[AST_MAX_EXTENSION];
 	int doqsig;
 	char *sending_complete;
-	unsigned char *facilityarray = NULL;
+	unsigned char *facilityarray = NULL, *bc_s = NULL, *llc_s = 0, *hlc_s = 0;
 	
 	MESSAGE_EXCHANGE_ERROR  error;
 
@@ -1541,6 +1541,33 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 		cip = tcap2cip(i->transfercapability);
 	}
 
+#if defined(AST_FORMAT_G722) || defined(AST_FORMAT_SIREN7) || defined(AST_FORMAT_SIREN14)
+	if (capi_tcap_is_digital(i->transfercapability) == 0 && i->bproto == CC_BPROTO_VOCODER) {
+		static unsigned char llc_s_template[] = { 0x04, 0x00, 0xc0, 0x90, 0xa5 };
+		static unsigned char hlc_s_template[] = { 0x02, 0x91, 0x81 };
+		switch(i->codec) {
+#if defined(AST_FORMAT_G722)
+			case AST_FORMAT_G722:
+				llc_s = llc_s_template;
+				hlc_s = hlc_s_template;
+				break;
+#endif
+#if defined(AST_FORMAT_SIREN7)
+			case AST_FORMAT_SIREN7:
+				llc_s = llc_s_template;
+				hlc_s = hlc_s_template;
+				break;
+#endif
+#if defined(AST_FORMAT_SIREN14)
+			case AST_FORMAT_SIREN14:
+				llc_s = llc_s_template;
+				hlc_s = hlc_s_template;
+				break;
+#endif
+		}
+	}
+#endif
+
 	if (capi_tcap_is_digital(i->transfercapability)) {
 		i->bproto = CC_BPROTO_TRANSPARENT;
 		cc_verbose(4, 0, VERBOSE_PREFIX_2 "%s: is digital call, set proto to TRANSPARENT\n",
@@ -1585,7 +1612,7 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 #endif
 
 	error = capi_sendf(NULL, 0, CAPI_CONNECT_REQ, i->controller, i->MessageNumber,
-		"wssss(wwwsss())()()()((w)()()ss)",
+		"wssss(wwwsss())sss((w)()()ss)",
 		cip, /* CIP value */
 		called, /* called party number */
 		calling, /* calling party number */
@@ -1598,9 +1625,9 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 		diva_get_b1_conf(i),
 		b_protocol_table[i->bproto].b2configuration,
 		b_protocol_table[i->bproto].b3configuration,
-		 /* BC */
-		 /* LLC */
-		 /* HLC */
+		 bc_s, /* BC */
+		 llc_s, /* LLC */
+		 hlc_s, /* HLC */
 		 /* Additional Info */
 		  0x0000, /* B channel info */
 		   /* Keypad facility */
@@ -1645,6 +1672,32 @@ static _cstruct diva_get_b1_conf (struct capi_pvt *i) {
 		case AST_FORMAT_G729A:
 			b1conf = (_cstruct)"\x06\x12\x04\x0f\x00\xa0\x00";
 			break;
+#ifdef AST_FORMAT_G722
+		case AST_FORMAT_G722:
+			b1conf = (_cstruct)"\x06\x09\x04\x03\x00\xa0\x00";
+			break;
+#endif
+#ifdef AST_FORMAT_SIREN7
+		case AST_FORMAT_SIREN7:
+			b1conf = (_cstruct)"\x06\x24\x04\x0f\x02\xa0\x00"; /* 32 kBit/s */
+			break;
+#endif
+#ifdef AST_FORMAT_SIREN14
+		case AST_FORMAT_SIREN14:
+			b1conf = (_cstruct)"\x06\x24\x04\x0f\x07\xa0\x00"; /* 48 kBit/s */
+			break;
+#endif
+#if defined(AST_FORMAT_SLINEAR)
+		case AST_FORMAT_SLINEAR:
+			b1conf = (_cstruct)"\x06\x01\x04\x0f\x01\xa0\x00";
+			break;
+#endif
+#if defined(AST_FORMAT_SLINEAR16)
+		case AST_FORMAT_SLINEAR16:
+			b1conf = (_cstruct)"\x06\x01\x04\x0f\x05\xa0\x00";
+			break;
+#endif
+
 		default:
 			cc_log(LOG_ERROR, "%s: format %s(%d) invalid.\n",
 				i->vname, ast_getformatname(i->codec), i->codec);
@@ -1666,6 +1719,7 @@ static int capi_send_answer(struct ast_channel *c, _cstruct b3conf)
 	const char *connectednumber;
 	unsigned char *facilityarray = NULL;
 	_cstruct b1conf;
+	unsigned char* llc_s = NULL;
     
 	if (i->state == CAPI_STATE_DISCONNECTED) {
 		cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: Not answering disconnected call.\n",
@@ -1710,8 +1764,31 @@ static int capi_send_answer(struct ast_channel *c, _cstruct b3conf)
 		capi_facility_add_datetime(facilityarray);
 	}
 
+#if defined(AST_FORMAT_G722) || defined(AST_FORMAT_SIREN7) || defined(AST_FORMAT_SIREN14)
+	if (i->bproto == CC_BPROTO_VOCODER) {
+		static unsigned char llc_s_template[] = { 0x03, 0x91, 0x90, 0xa5 };
+		switch(i->codec) {
+#if defined(AST_FORMAT_G722)
+			case AST_FORMAT_G722:
+				llc_s = llc_s_template;
+				break;
+#endif
+#if defined(AST_FORMAT_SIREN7)
+			case AST_FORMAT_SIREN7:
+				llc_s = llc_s_template;
+				break;
+#endif
+#if defined(AST_FORMAT_SIREN14)
+			case AST_FORMAT_SIREN14:
+				llc_s = llc_s_template;
+				break;
+#endif
+		}
+	}
+#endif
+
 	if (capi_sendf(NULL, 0, CAPI_CONNECT_RESP, i->PLCI, i->MessageNumber,
-	    "w(wwwssss)s()()(()()()s())",
+	    "w(wwwssss)s()s(()()()s())",
 		0, /* accept call */
 		/* B protocol */
 		b_protocol_table[i->bproto].b1protocol,
@@ -1723,7 +1800,7 @@ static int capi_send_answer(struct ast_channel *c, _cstruct b3conf)
 		capi_set_global_configuration(i),
 		buf, /* connected number */
 		/* connected subaddress */
-		/* LLC */
+		llc_s,/* LLC */
 		/* Additional info */
 		facilityarray		
 		) != 0) {
@@ -4333,6 +4410,25 @@ static void capidev_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, u
 	}
 }
 
+static int pbx_capi_get_samples (struct capi_pvt *i, int length) {
+	switch (i->codec) {
+		case AST_FORMAT_SLINEAR:
+		case AST_FORMAT_SLINEAR16:
+			return (length/2);
+
+		case AST_FORMAT_G722:
+			return (length*2);
+
+		case AST_FORMAT_SIREN7:
+			return (length *  (320 / 80));
+
+		case AST_FORMAT_SIREN14:
+			return ((typeof(length)) length * ((float) 640 / 120));
+	}
+
+	return (length);
+}
+
 /*
  * CAPI DATA_B3_IND
  */
@@ -4453,7 +4549,7 @@ static void capidev_handle_data_b3_indication(_cmsg *CMSG,
 	fr.frametype = AST_FRAME_VOICE;
 	fr.FRAME_DATA_PTR = b3buf;
 	fr.datalen = b3len;
-	fr.samples = b3len;
+	fr.samples = (i->bproto == CC_BPROTO_VOCODER) ? pbx_capi_get_samples (i, b3len) : b3len;
 	fr.offset = AST_FRIENDLY_OFFSET;
 	fr.mallocd = 0;
 	fr.delivery = ast_tv(0,0);

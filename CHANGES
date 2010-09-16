@@ -17,6 +17,8 @@ HEAD
 - Use Diva streaming for NULL PLCI and for resource PLCI
 - Resolved http://www.ipphoneforum.eu/showthread.php?t=220051
 - Use Diva QSIG CAPI extensions for processing of Calling Party Name
+- Add Slinear
+- Add HD voice using G.722, Siren7, Siren14 and Slinear16
 
 chan_capi-1.1.5
 ------------------

@@ -425,12 +425,43 @@ void voice_over_ip_profile(struct cc_capi_controller *cp)
 	}
 	if (payload1 & 0x00040000) {
 		cp->rtpcodec |= AST_FORMAT_G729A;
-		cc_verbose(3, 0, "G.729");
+		cc_verbose(3, 0, "G.729 ");
 	}
 	if (payload1 & (1U << 27)) {
 		cp->rtpcodec |= AST_FORMAT_ILBC;
-		cc_verbose(3, 0, "iLBC");
+		cc_verbose(3, 0, "iLBC ");
 	}
+#ifdef AST_FORMAT_G722
+	if (payload1 & (1U << 9)) {
+		cp->rtpcodec |= AST_FORMAT_G722;
+		cc_verbose(3, 0, "G.722 ");
+	}
+#endif
+#if defined(AST_FORMAT_SIREN7) && defined(AST_FORMAT_SIREN14)
+	if (payload1 & (1U << 24)) {
+#ifdef AST_FORMAT_SIREN7
+		cp->rtpcodec |= AST_FORMAT_SIREN7;
+		cc_verbose(3, 0, "siren7 ");
+#endif
+#ifdef AST_FORMAT_SIREN14
+		cp->rtpcodec |= AST_FORMAT_SIREN14;
+		cc_verbose(3, 0, "siren14 ");
+#endif
+	}
+#endif
+#if defined(AST_FORMAT_SLINEAR) || defined(AST_FORMAT_SLINEAR16)
+	if (payload1 & (1U << 1)) {
+#if defined(AST_FORMAT_SLINEAR)
+		cp->rtpcodec |= AST_FORMAT_SLINEAR;
+		cc_verbose(3, 0, "slin ");
+#endif
+#if defined(AST_FORMAT_SLINEAR16)
+		cp->rtpcodec |= AST_FORMAT_SLINEAR16;
+		cc_verbose(3, 0, "slin16 ");
+#endif
+	}
+#endif
+
 	cc_verbose(3, 0, "\n");
 }
 

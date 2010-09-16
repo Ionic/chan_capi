@@ -58,8 +58,9 @@ struct _diva_stream_scheduling_entry;
 
 /* was : 130 bytes Alaw = 16.25 ms audio not suitable for VoIP */
 /* now : 160 bytes Alaw = 20 ms audio */
+/* now : 640 bytes slinear 16000Hz = 20 ms audio */
 /* you can tune this to your need. higher value == more latency */
-#define CAPI_MAX_B3_BLOCK_SIZE          160
+#define CAPI_MAX_B3_BLOCK_SIZE          640
 
 #define ALL_SERVICES             0x1FFF03FF
 
