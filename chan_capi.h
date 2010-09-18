@@ -726,6 +726,11 @@ extern char chatinfo_usage[];
 
 typedef int (*pbx_capi_command_proc_t)(struct ast_channel *, char *);
 pbx_capi_command_proc_t pbx_capi_lockup_command_by_name(const char* name);
+/*!
+ * \brief returns list of supported by this controller RTP codecs
+ */
+int pbx_capi_get_controller_codecs (int controller);
+_cstruct diva_get_b1_conf (struct capi_pvt *i);
 
 #ifdef DIVA_STREAMING
 struct _diva_streaming_vector;

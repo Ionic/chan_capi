@@ -446,9 +446,10 @@ static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i,
 
 	waitfd = i->readerfd;
 	if (i->channeltype == CAPI_CHANNELTYPE_NULL) {
+		int fmt = (i->bproto == CC_BPROTO_VOCODER) ? i->codec : capi_capability;
 		nfds = 1;
-		ast_set_read_format(chan, capi_capability);
-		ast_set_write_format(chan, capi_capability);
+		ast_set_read_format(chan, fmt);
+		ast_set_write_format(chan, fmt);
 	}
 
 	if ((flags & CHAT_FLAG_MOH) && ((room->active < 2) || (voice_message != NULL))) {

@@ -219,7 +219,6 @@ static int pbx_capi_indicate(struct ast_channel *c, int condition, const void *d
 static int pbx_capi_indicate(struct ast_channel *c, int condition);
 #endif
 static struct capi_pvt* get_active_plci (struct ast_channel *c);
-static _cstruct diva_get_b1_conf (struct capi_pvt *i);
 static void clear_channel_fax_loop (struct ast_channel *c,  struct capi_pvt *i);
 static struct ast_channel* capidev_acquire_locks_from_thread_context (struct capi_pvt *i);
 static void pbx_capi_add_diva_protocol_independent_extension (struct capi_pvt *i, unsigned char *facilityarray, struct  ast_channel *c, const char* variable);
@@ -1646,7 +1645,7 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 	return 0;
 }
 
-static _cstruct diva_get_b1_conf (struct capi_pvt *i) {
+_cstruct diva_get_b1_conf (struct capi_pvt *i) {
 	_cstruct b1conf = b_protocol_table[i->bproto].b1configuration;
 
 	if (i->bproto == CC_BPROTO_VOCODER) {
@@ -9019,4 +9018,10 @@ static void pbx_capi_add_diva_protocol_independent_extension (struct capi_pvt *i
 
 	return;
 }
+
+int pbx_capi_get_controller_codecs (int controller) {
+	return (capi_controllers[controller]->rtpcodec);
+}
+
+
 

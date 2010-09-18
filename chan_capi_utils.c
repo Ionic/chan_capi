@@ -248,6 +248,7 @@ struct capi_pvt *capi_mknullif(struct ast_channel *c, unsigned long long control
 struct capi_pvt *capi_mkresourceif(struct ast_channel *c, unsigned long long controllermask, struct capi_pvt *data_plci_ifc) {
 	struct capi_pvt *data_ifc /*, *line_ifc */;
 	unsigned int controller = 1;
+	int fmt = 0;
 
 	if (data_plci_ifc == 0) {
 		int contrcount;
@@ -269,6 +270,9 @@ struct capi_pvt *capi_mkresourceif(struct ast_channel *c, unsigned long long con
 		}
 	} else {
 		controller = data_plci_ifc->controller;
+		fmt = pbx_capi_get_controller_codecs (controller) & c->nativeformats;
+		if (fmt != 0)
+			fmt = ast_best_codec(fmt);
 	}
 
 	data_ifc = ast_malloc(sizeof(struct capi_pvt));
@@ -298,7 +302,8 @@ struct capi_pvt *capi_mkresourceif(struct ast_channel *c, unsigned long long con
 	data_ifc->ecTail = EC_DEFAULT_TAIL;
 	data_ifc->isdnmode = CAPI_ISDNMODE_MSN;
 	data_ifc->ecSelector = FACILITYSELECTOR_ECHO_CANCEL;
-	data_ifc->capability = capi_capability;
+	data_ifc->capability = (fmt != 0 && data_plci_ifc != 0) ? fmt : capi_capability;
+	data_ifc->codec      = (fmt != 0 && data_plci_ifc != 0) ? fmt : data_ifc->codec;
 
 	data_ifc->rxgain = 1.0;
 	data_ifc->txgain = 1.0;
@@ -314,7 +319,7 @@ struct capi_pvt *capi_mkresourceif(struct ast_channel *c, unsigned long long con
 		data_ifc->writerfd = -1;
 	}
 
-	data_ifc->bproto = CC_BPROTO_TRANSPARENT;	
+	data_ifc->bproto = (fmt != 0 && data_plci_ifc != 0) ? CC_BPROTO_VOCODER : CC_BPROTO_TRANSPARENT;
 	data_ifc->doB3 = CAPI_B3_DONT;
 	data_ifc->smoother = ast_smoother_new(CAPI_MAX_B3_BLOCK_SIZE);
 	data_ifc->isdnstate |= CAPI_ISDN_STATE_PBX;
@@ -348,13 +353,14 @@ struct capi_pvt *capi_mkresourceif(struct ast_channel *c, unsigned long long con
 		CAPI_MANUFACTURER_REQ,
 		controller,
 		data_ifc->MessageNumber,
-		"dw(wbb(www()()()()))",
+		"dw(wbb(wwws()()()))",
 		_DI_MANU_ID,
 		_DI_ASSIGN_PLCI,
 		(data_plci_ifc == 0) ? 4 : 5, /* data */
 		(data_plci_ifc == 0) ? 0 : (unsigned char)(data_plci_ifc->PLCI >> 8), /* bchannel */
 		1, /* connect */
-		1, 1, 0);
+		(data_ifc->bproto == CC_BPROTO_VOCODER) ? 0x1f : 1, 1, 0,
+		diva_get_b1_conf(data_ifc));
 	cc_mutex_unlock(&data_ifc->lock);
 
 	if (data_plci_ifc != 0) {
