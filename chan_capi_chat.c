@@ -932,12 +932,15 @@ struct capi_pvt* pbx_check_resource_plci(struct ast_channel *c)
 int pbx_capi_chat_associate_resource_plci(struct ast_channel *c, char *param)
 {
 	struct capi_pvt *i = NULL; 
-	char *controller;
+	char *controller, *codeclist;
 	char *p;
 	ast_group_t tmpcntr;
 	unsigned long long contr = 0;
+	cc_format_t codecs = 0; /* codecs are disabled by default */
+	int all = 0;
 
-	controller = param;
+	controller = strsep(&param, "|");
+	codeclist  = param;
 
 	if (controller) {
 		for (p = controller; p && *p; p++) {
@@ -946,9 +949,20 @@ int pbx_capi_chat_associate_resource_plci(struct ast_channel *c, char *param)
 		tmpcntr = ast_get_group(controller);
 		contr = (unsigned long long)(tmpcntr >> 1);
 	}
+	if (param != 0) { /* Separated by '+' list of codecs */
+		char* currentcodec;
+
+		while (all == 0 && (currentcodec = strsep (&param, "+")) != 0) {
+			if (strcmp (currentcodec, "all") == 0) {
+				all = 1; /* All supported by selected controller codecs */
+			} else {
+				codecs |= ast_getformatbyname (currentcodec);
+			}
+		}
+	}
 
 	if (c->tech != &capi_tech) {
-		i = capi_mkresourceif(c, contr, 0);
+		i = capi_mkresourceif(c, contr, 0, codecs, all);
 		if (i != NULL) {
 			char buffer[24];
 			snprintf(buffer, sizeof(buffer)-1, "%p", i);
@@ -964,7 +978,7 @@ int pbx_capi_chat_associate_resource_plci(struct ast_channel *c, char *param)
 				*/
 			pbx_builtin_setvar_helper(c, "RESOURCEPLCI", buffer);
 
-			capi_mkresourceif(c, contr, i);
+			capi_mkresourceif(c, contr, i, codecs, all);
 		}
 	}
 

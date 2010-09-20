@@ -245,7 +245,7 @@ struct capi_pvt *capi_mknullif(struct ast_channel *c, unsigned long long control
 	return tmp;
 }
 
-struct capi_pvt *capi_mkresourceif(struct ast_channel *c, unsigned long long controllermask, struct capi_pvt *data_plci_ifc) {
+struct capi_pvt *capi_mkresourceif(struct ast_channel *c, unsigned long long controllermask, struct capi_pvt *data_plci_ifc, cc_format_t codecs, int all) {
 	struct capi_pvt *data_ifc /*, *line_ifc */;
 	unsigned int controller = 1;
 	int fmt = 0;
@@ -270,7 +270,8 @@ struct capi_pvt *capi_mkresourceif(struct ast_channel *c, unsigned long long con
 		}
 	} else {
 		controller = data_plci_ifc->controller;
-		fmt = pbx_capi_get_controller_codecs (controller) & c->nativeformats;
+		codecs = (all != 0) ? pbx_capi_get_controller_codecs (controller) : codecs;
+		fmt = pbx_capi_get_controller_codecs (controller) & codecs & c->nativeformats;
 		if (fmt != 0)
 			fmt = ast_best_codec(fmt);
 	}

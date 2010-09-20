@@ -189,11 +189,7 @@ static char capi_subscriber_prefix[AST_MAX_EXTENSION];
 
 static char default_language[MAX_LANGUAGE] = "";
 
-#ifdef CC_AST_HAS_FORMAT_T
-format_t capi_capability = AST_FORMAT_ALAW;
-#else
-int capi_capability = AST_FORMAT_ALAW;
-#endif
+cc_format_t capi_capability = AST_FORMAT_ALAW;
 
 static int null_plci_dtmf_support = 1;
 
@@ -9019,7 +9015,7 @@ static void pbx_capi_add_diva_protocol_independent_extension (struct capi_pvt *i
 	return;
 }
 
-int pbx_capi_get_controller_codecs (int controller) {
+cc_format_t pbx_capi_get_controller_codecs (int controller) {
 	return (capi_controllers[controller]->rtpcodec);
 }
 

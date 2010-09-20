@@ -71,6 +71,12 @@ struct _diva_stream_scheduling_entry;
 
 #define CAPI_MAX_FACILITYDATAARRAY_SIZE 300
 
+#ifdef CC_AST_HAS_FORMAT_T
+typedef format_t cc_format_t;
+#else
+typedef int cc_format_t;
+#endif
+
 /* some helper functions */
 static inline void write_capi_word(void *m, unsigned short val)
 {
@@ -528,11 +534,7 @@ struct capi_pvt {
 #else
 	struct ast_rtp *rtp;
 #endif
-#ifdef CC_AST_HAS_FORMAT_T
-	format_t capability;
-#else
-	int capability;
-#endif
+	cc_format_t capability;
 	int rtpcodec;
 	int codec;
 	unsigned int timestamp;
@@ -729,7 +731,7 @@ pbx_capi_command_proc_t pbx_capi_lockup_command_by_name(const char* name);
 /*!
  * \brief returns list of supported by this controller RTP codecs
  */
-int pbx_capi_get_controller_codecs (int controller);
+cc_format_t pbx_capi_get_controller_codecs (int controller);
 _cstruct diva_get_b1_conf (struct capi_pvt *i);
 
 #ifdef DIVA_STREAMING
@@ -748,6 +750,5 @@ int pbx_capi_streaming_supported (struct capi_pvt *i);
 #define _DI_ASSIGN_PLCI     0x0001
 #define _DI_DSP_CTRL        0x0003
 #define _DI_OPTIONS_REQUEST 0x0009
-
 
 #endif
