@@ -3487,6 +3487,7 @@ static int pbx_capi_send_fax(struct ast_channel *c, char *data)
 static void capi_handle_dtmf_fax(struct capi_pvt *i)
 {
 	struct ast_channel *c = i->owner;
+	char *faxcontext;
 
 	if (!c) {
 		/* no channel, ignore */
@@ -3516,21 +3517,26 @@ static void capi_handle_dtmf_fax(struct capi_pvt *i)
 			return;
 		}
 	}
+
+	faxcontext = c->context;
+	if (strlen(i->faxcontext) > 0)
+		faxcontext = i->faxcontext;
 	
-	if (!strcmp(c->exten, "fax")) {
-		cc_log(LOG_DEBUG, "Already in a fax extension, not redirecting\n");
+	if ((!strcmp(c->exten, i->faxexten)) &&
+	    (!strcmp(c->context, faxcontext))) {
+		cc_log(LOG_DEBUG, "Already in fax context/extension, not redirecting\n");
 		return;
 	}
 
-	if (!ast_exists_extension(c, c->context, "fax", 1, i->cid)) {
+	if (!ast_exists_extension(c, faxcontext, i->faxexten, i->faxpriority, i->cid)) {
 		cc_verbose(3, 0, VERBOSE_PREFIX_3
-			"Fax tone detected, but no fax extension for %s in context '%s'\n",
-			c->name, c->context);
+			"Fax tone detected, but no extension '%s' for %s in context '%s'\n",
+			i->faxexten, c->name, faxcontext);
 		return;
 	}
 
-	cc_verbose(2, 0, VERBOSE_PREFIX_3 "%s: Redirecting %s to fax extension\n",
-		i->vname, c->name);
+	cc_verbose(2, 0, VERBOSE_PREFIX_3 "%s: Redirecting %s for fax to context,extension, %s,%s,%d\n",
+		i->vname, c->name, faxcontext, i->faxexten, i->faxpriority);
 			
 	capi_channel_task(c, CAPI_CHANNEL_TASK_GOTOFAX);
 
@@ -5419,7 +5425,7 @@ void capidev_handle_connection_conf(struct capi_pvt **i, unsigned int PLCI,
 	cc_verbose(1, 1, VERBOSE_PREFIX_3 "%s: received CONNECT_CONF PLCI = %#x\n",
 		ii->vname, PLCI);
 
-	*interface_owner = capidev_acquire_locks_from_thread_context (ii);
+	*interface_owner = capidev_acquire_locks_from_thread_context(ii);
 
 	if (wInfo == 0) {
 		ii->PLCI = PLCI;
@@ -5434,7 +5440,7 @@ void capidev_handle_connection_conf(struct capi_pvt **i, unsigned int PLCI,
 
 /*! \brief acquire locks in the correct order
 	*/
-static struct ast_channel* capidev_acquire_locks_from_thread_context (struct capi_pvt *i)
+static struct ast_channel* capidev_acquire_locks_from_thread_context(struct capi_pvt *i)
 {
 	struct ast_channel *owner = 0;
 
@@ -5639,7 +5645,7 @@ static void capidev_handle_msg(_cmsg *CMSG)
 
 					if (ii != 0) {
 						if (do_lock) {
-							streaming_interface_owner = capidev_acquire_locks_from_thread_context (ii);
+							streaming_interface_owner = capidev_acquire_locks_from_thread_context(ii);
 						}
 						capi_DivaStreamingRemove(ii);
 						if (do_lock) {
@@ -7448,6 +7454,8 @@ static void capi_do_interface_task(void)
 
 static void capi_do_channel_task(void)
 {
+	struct capi_pvt *i;
+
 	if (chan_for_task == NULL)
 		return;
 
@@ -7471,10 +7479,12 @@ static void capi_do_channel_task(void)
 		/* deferred (out of lock) async goto fax extension */
 		/* Save the DID/DNIS when we transfer the fax call to a "fax" extension */
 		pbx_builtin_setvar_helper(chan_for_task, "FAXEXTEN", chan_for_task->exten);
-	
-		if (ast_async_goto(chan_for_task, chan_for_task->context, "fax", 1)) {
-			cc_log(LOG_WARNING, "Failed to async goto '%s' into fax of '%s'\n",
-				chan_for_task->name, chan_for_task->context);
+		i = CC_CHANNEL_PVT(chan_for_task);
+		if (i) {
+			if (ast_async_goto(chan_for_task, i->faxcontext, i->faxexten, i->faxpriority)) {
+				cc_log(LOG_WARNING, "Failed to async goto '%s,%s,%d' for '%s'\n",
+					i->faxcontext, i->faxexten, i->faxpriority, chan_for_task->name);
+			}
 		}
 		break;
 	default:
@@ -7708,6 +7718,9 @@ int mkif(struct cc_capi_conf *conf)
 		tmp->bridge = conf->bridge;
 		tmp->FaxState = conf->faxsetting;
 		tmp->faxdetecttime = conf->faxdetecttime;
+		cc_copy_string(tmp->faxcontext, conf->faxcontext, sizeof(tmp->faxcontext));
+		cc_copy_string(tmp->faxexten, conf->faxexten, sizeof(tmp->faxexten));
+		tmp->faxpriority = conf->faxpriority;
 		
 		tmp->smoother = ast_smoother_new(CAPI_MAX_B3_BLOCK_SIZE);
 
@@ -8483,6 +8496,15 @@ static int cc_post_init_capi(void)
 static int conf_interface(struct cc_capi_conf *conf, struct ast_variable *v)
 {
 	int y;
+	char faxcontext[AST_MAX_EXTENSION+1];
+	char faxexten[AST_MAX_EXTENSION+1];
+	int faxpriority = 1;
+	char faxdest[AST_MAX_EXTENSION+1];
+	char *p, *q;
+
+	memset(faxdest, 0, sizeof(faxdest));
+	cc_copy_string(faxcontext, "", sizeof(faxcontext));
+	cc_copy_string(faxexten, "fax", sizeof(faxexten));
 
 #define CONF_STRING(var, token)            \
 	if (!strcasecmp(v->name, token)) { \
@@ -8517,6 +8539,7 @@ static int conf_interface(struct cc_capi_conf *conf, struct ast_variable *v)
 		CONF_STRING(conf->prefix, "prefix")
 		CONF_STRING(conf->accountcode, "accountcode")
 		CONF_STRING(conf->language, "language")
+		CONF_STRING(faxdest, "faxdestination")
 
 		if (!strcasecmp(v->name, "softdtmf")) {
 			if ((!conf->softdtmf) && (ast_true(v->value))) {
@@ -8660,6 +8683,25 @@ static int conf_interface(struct cc_capi_conf *conf, struct ast_variable *v)
 #undef CONF_STRING
 #undef CONF_INTEGER
 #undef CONF_TRUE
+
+	/* faxdestination */
+	if (strlen(faxdest) > 0) {
+		p = faxdest;
+		q = strsep(&p, ",");
+		cc_copy_string(faxcontext, q, sizeof(faxcontext));
+		if (p) {
+			q = strsep(&p, ",");
+			cc_copy_string(faxexten, q, sizeof(faxexten));
+		}
+		if (p) {
+			faxpriority = atoi(p);
+		}
+	}
+	cc_copy_string(conf->faxcontext, faxcontext, sizeof(conf->faxcontext));
+	cc_copy_string(conf->faxexten, faxexten, sizeof(conf->faxexten));
+	if (faxpriority < 1) faxpriority = 1;
+	conf->faxpriority = faxpriority;
+
 	return 0;
 }
 
@@ -8722,9 +8764,6 @@ static int capi_eval_config(struct ast_config *cfg)
 			}
 #endif
 		}
-
-
-
 	}
 
 	/* go through all other sections, which are our interfaces */

@@ -543,7 +543,7 @@ DISCONNECT_IND_REASON
 	connection is physically broken (cable).
 
 FAXEXTEN
-    If chan_capi sends the call to extensions 'fax', the original extension number
+    If chan_capi sends the call to configured fax extension, the original extension number
     is saved in this variable.
 
 PRI_CAUSE

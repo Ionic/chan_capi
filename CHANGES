@@ -19,6 +19,7 @@ HEAD
 - Use Diva QSIG CAPI extensions for processing of Calling Party Name
 - Add Slinear
 - Add HD voice using G.722, Siren7, Siren14 and Slinear16
+- added faxdestination= to capi.conf to configure custom context,exten,prio.
 
 chan_capi-1.1.5
 ------------------

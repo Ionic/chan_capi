@@ -476,6 +476,10 @@ struct capi_pvt {
 	unsigned int FaxState;
 	/* Window for fax detection */
 	unsigned int faxdetecttime;
+	/* custom fax context,exten,prio */
+	char faxcontext[AST_MAX_EXTENSION+1];
+	char faxexten[AST_MAX_EXTENSION+1];
+	int faxpriority;
 
 	/* handle for CCBS/CCNR callback */
 	unsigned int ccbsnrhandle;
@@ -606,6 +610,10 @@ struct cc_capi_conf {
 	struct cc_capi_qsig_conf qsigconf;
 	unsigned int faxsetting;
 	unsigned int faxdetecttime;
+	/* custom fax context,exten,prio */
+	char faxcontext[AST_MAX_EXTENSION+1];
+	char faxexten[AST_MAX_EXTENSION+1];
+	int faxpriority;
 	ast_group_t callgroup;
 	ast_group_t pickupgroup;
 	ast_group_t group;
