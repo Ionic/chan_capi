@@ -4414,17 +4414,20 @@ static void capidev_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, u
 static int pbx_capi_get_samples (struct capi_pvt *i, int length) {
 	switch (i->codec) {
 		case AST_FORMAT_SLINEAR:
+#if defined(AST_FORMAT_SLINEAR16)
 		case AST_FORMAT_SLINEAR16:
+#endif
 			return (length/2);
-
 		case AST_FORMAT_G722:
 			return (length*2);
-
+#if defined(AST_FORMAT_SIREN7)
 		case AST_FORMAT_SIREN7:
 			return (length *  (320 / 80));
-
+#endif
+#if defined(AST_FORMAT_SIREN14)
 		case AST_FORMAT_SIREN14:
 			return ((typeof(length)) length * ((float) 640 / 120));
+#endif
 	}
 
 	return (length);
