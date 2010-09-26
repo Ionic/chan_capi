@@ -58,7 +58,7 @@ The QSIG support includes:
     its subchannels
     
 - Simple Call Transfer
-    With capicommand(qsig_ct|src-id|dst-id), you can transfer an inbound call back to the qsig switch.
+    With capicommand(qsig_ct,src-id,dst-id), you can transfer an inbound call back to the qsig switch.
     The B-channel of this call will be relased, so that the line is free for a next call.
     Unfortunately, the call will be completely released by the switch if the target is busy.
     If you need to know whether your target is busy, you can use the call transfer feature below.

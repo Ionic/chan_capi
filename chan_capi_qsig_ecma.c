@@ -386,19 +386,19 @@ void cc_qsig_encode_ecma_calltransfer(unsigned char * buf, unsigned int *idx, st
 
 	if (param) { /* got Call Transfer Parameters */
 		if (info) {
-			cid = strsep(&param, "|");
+			cid = strsep(&param, COMMANDSEPARATOR);
 			cidlen = strlen(cid);
 			if (cidlen > 20)	/* HACK: stop action here, maybe we have invalid data */
 				cidlen = 20;
 		} else {
-			char *tmp = strsep(&param, "|");
+			char *tmp = strsep(&param, COMMANDSEPARATOR);
 			tmp = NULL;
-			cid = strsep(&param, "|");
+			cid = strsep(&param, COMMANDSEPARATOR);
 			cidlen = strlen(cid);
 			if (cidlen > 20)	/* HACK: stop action here, maybe we have invalid data */
 				cidlen = 20;
 			
-			ccanswer = strsep(&param, "|");
+			ccanswer = strsep(&param, COMMANDSEPARATOR);
 			if (ccanswer[0])
 				icanswer = ccanswer[0] - 0x30;
 		}
@@ -618,12 +618,12 @@ void cc_qsig_encode_ecma_sscalltransfer(unsigned char * buf, unsigned int *idx, 
 	char c[255];
 	int ix = 0;
 
-	cidsrc = strsep(&param, "|");
+	cidsrc = strsep(&param, COMMANDSEPARATOR);
 	srclen = strlen(cidsrc);
 	if (srclen > 20)	/* HACK: stop action here, maybe we have invalid data */
 		srclen = 20;
 	
-	ciddst = strsep(&param, "|");
+	ciddst = strsep(&param, COMMANDSEPARATOR);
 	dstlen = strlen(ciddst);
 	if (dstlen > 20)	/* HACK: stop action here, maybe we have invalid data */
 		dstlen = 20;

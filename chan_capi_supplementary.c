@@ -727,7 +727,7 @@ int pbx_capi_ccpartybusy(struct ast_channel *c, char *data)
 	struct ccbsnr_s *ccbsnr;
 	char partybusy = 0;
 
-	slinkageid = strsep(&data, "|");
+	slinkageid = strsep(&data, COMMANDSEPARATOR);
 	yesno = data;
 	
 	if (slinkageid) {
@@ -821,9 +821,9 @@ int pbx_capi_ccbs(struct ast_channel *c, char *data)
 	MESSAGE_EXCHANGE_ERROR error;
 	unsigned int ccbsnrstate;
 
-	slinkageid = strsep(&data, "|");
-	context = strsep(&data, "|");
-	exten = strsep(&data, "|");
+	slinkageid = strsep(&data, COMMANDSEPARATOR);
+	context = strsep(&data, COMMANDSEPARATOR);
+	exten = strsep(&data, COMMANDSEPARATOR);
 	priority = data;
 
 	if (slinkageid) {

@@ -158,7 +158,7 @@ ECT Example:
 /////////////////////////////////////////////////////////////////////
 [macro-capiect]
 ; Activate suppressor of ambient noise for consultation call
-exten => s,1,capicommand(noisesuppressor|yes)
+exten => s,1,capicommand(noisesuppressor,yes)
 ; Invoke ECT command
 exten => s,n,capicommand(ect)
 
@@ -172,7 +172,7 @@ exten => 12345,n,Playback(demo-enterkeywords,noanswer,us)
 ; Accept incoming call
 exten => 12345,n,Answer
 ; Activate suppressor of ambient noises for incoming call
-exten => 12345,n,capicommand(noisesuppressor|yes)
+exten => 12345,n,capicommand(noisesuppressor,yes)
 ; Save PLCI of incoming call to CAPIPLCI variable
 exten => 12345,n,capicommand(getplci)
 ; Set CAPIECTPLCI variable to PLCI of incoming call

@@ -212,7 +212,7 @@ Reception of fax documents
 You can use the Dialogic (R) Diva(R) chan_capi configuration to activate fax support ("Fax detection" and "Fax detection time").
 The reception of the fax message is started using 'receivefax' capi command:
 
-  capicommand(receivefax|<filename>[|<stationid>|<headline>|<options>])
+  capicommand(receivefax,<filename>[,<stationid>,<headline>,<options>])
 
   Parameters:
     'filename'  - Contains the full path and file name for the resulting fax file, mandatory
@@ -256,15 +256,15 @@ exten => fax,1,Goto(handle_fax,s,1)       ; Fax calling tone detected, change to
 exten => i,1,Hangup()                     ; Received unexpected event
 
 [handle_fax]
-exten => s,1,capicommand(receivefax|/tmp/${UNIQUEID}[|<stationid>|<headline>|<options>])
+exten => s,1,capicommand(receivefax,/tmp/${UNIQUEID}[,<stationid>,<headline>,<options>])
 exten => s,n,Hangup()
 exten => h,1,deadagi,fax.php ; Run sfftobmp and mail it
 
 Example with Clear Channel fax support:
 
 [handle_fax]
-exten => s,1,capicommand(resource|1-4) ; Assign resource PLCI (use controllers 1 to 4)
-exten => s,n,capicommand(receivefax|/tmp/${UNIQUEID}[|<stationid>|<headline>|<options>])
+exten => s,1,capicommand(resource,1-4) ; Assign resource PLCI (use controllers 1 to 4)
+exten => s,n,capicommand(receivefax,/tmp/${UNIQUEID}[,<stationid>,<headline>,<options>])
 exten => s,n,Hangup()
 exten => h,1,deadagi,fax.php ; Run sfftobmp and mail it
 
@@ -274,7 +274,7 @@ Transmission of fax documents
 
 The transmission of the fax message is started using 'sendfax' capi command:
 
-  capicommand(sendfax|<filename>[|<stationid>|<headline>|<options>])
+  capicommand(sendfax,<filename>[,<stationid>,<headline>,<options>])
 
   Parameters:
     'filename'  - Contains the full path and file name to be sent, mandatory
@@ -309,7 +309,7 @@ Example:
 exten => 1,1,Dial(capi/ISDN1/1234512345,20,G(handle_sendfax,s,1))
 
 [handle_sendfax]
-exten => s,1,capicommand(sendfax|/tmp/sendfax001.sff|1234 1234 1234|Outgoing Fax)
+exten => s,1,capicommand(sendfax,/tmp/sendfax001.sff,1234 1234 1234,Outgoing Fax)
 exten => s,n,deadagi,faxlog.php ; Log result and schedule restart if necessary
 exten => s,n,Hangup
 
@@ -317,8 +317,8 @@ exten => s,n,Hangup
 Example with Clear Channel fax support:
 
 [handle_sendfax]
-exten => s,1,capicommand(resource|1-4) ; Assign resource PLCI
-exten => s,n,capicommand(sendfax|/tmp/sendfax001.sff|1234 1234 1234|Outgoing Fax)
+exten => s,1,capicommand(resource,1-4) ; Assign resource PLCI
+exten => s,n,capicommand(sendfax,/tmp/sendfax001.sff,1234 1234 1234,Outgoing Fax)
 exten => s,n,deadagi,faxlog.php ; Log result and schedule restart if necessary
 exten => s,n,Hangup
 

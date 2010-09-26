@@ -2643,9 +2643,9 @@ static int pbx_capi_receive_extended_fax(struct ast_channel *c, struct capi_pvt 
 	unsigned short b3_protocol_options = 0x0001;
 	int extended_resolution = 0;
 
-	filename = strsep(&data, "|");
-	stationid = strsep(&data, "|");
-	headline = strsep(&data, "|");
+	filename = strsep(&data, COMMANDSEPARATOR);
+	stationid = strsep(&data, COMMANDSEPARATOR);
+	headline = strsep(&data, COMMANDSEPARATOR);
 	options = data;
 
 	if (!stationid)
@@ -2835,9 +2835,9 @@ static int pbx_capi_receive_basic_fax(struct ast_channel *c, struct capi_pvt *i,
 	B3_PROTO_FAXG3 b3conf;
 	char buffer[CAPI_MAX_STRING];
 
-	filename = strsep(&data, "|");
-	stationid = strsep(&data, "|");
-	headline = strsep(&data, "|");
+	filename = strsep(&data, COMMANDSEPARATOR);
+	stationid = strsep(&data, COMMANDSEPARATOR);
+	headline = strsep(&data, COMMANDSEPARATOR);
 	options = data;
 
 	if (!stationid)
@@ -2989,9 +2989,9 @@ static int pbx_capi_receive_fax(struct ast_channel *c, char *data)
 		return -1;
 	}
 
-	(void)strsep(&ldata, "|");
-	(void)strsep(&ldata, "|");
-	(void)strsep(&ldata, "|");
+	(void)strsep(&ldata, COMMANDSEPARATOR);
+	(void)strsep(&ldata, COMMANDSEPARATOR);
+	(void)strsep(&ldata, COMMANDSEPARATOR);
 	while ((ldata) && (*ldata)) {
 		switch (*ldata) {
 			case 'X':
@@ -3110,9 +3110,9 @@ static int pbx_capi_send_extended_fax(struct ast_channel *c, struct capi_pvt *i,
 	unsigned short b3_protocol_options = 0;
 	int extended_resolution = 0;
 
-	filename = strsep(&data, "|");
-	stationid = strsep(&data, "|");
-	headline = strsep(&data, "|");
+	filename = strsep(&data, COMMANDSEPARATOR);
+	stationid = strsep(&data, COMMANDSEPARATOR);
+	headline = strsep(&data, COMMANDSEPARATOR);
 	options = data;
 
 	if (!stationid)
@@ -3319,9 +3319,9 @@ static int pbx_capi_send_basic_fax(struct ast_channel *c, struct capi_pvt *i, ch
 	B3_PROTO_FAXG3 b3conf;
 	char buffer[CAPI_MAX_STRING];
 
-	filename = strsep(&data, "|");
-	stationid = strsep(&data, "|");
-	headline = strsep(&data, "|");
+	filename = strsep(&data, COMMANDSEPARATOR);
+	stationid = strsep(&data, COMMANDSEPARATOR);
+	headline = strsep(&data, COMMANDSEPARATOR);
 	options = data;
 
 	if (!stationid)
@@ -3447,9 +3447,9 @@ static int pbx_capi_send_fax(struct ast_channel *c, char *data)
 		return -1;
 	}
 
-	(void)strsep(&ldata, "|");
-	(void)strsep(&ldata, "|");
-	(void)strsep(&ldata, "|");
+	(void)strsep(&ldata, COMMANDSEPARATOR);
+	(void)strsep(&ldata, COMMANDSEPARATOR);
+	(void)strsep(&ldata, COMMANDSEPARATOR);
 	while ((ldata) && (*ldata)) {
 		switch (*ldata) {
 			case 'X':
@@ -5730,7 +5730,7 @@ static int pbx_capi_call_deflect(struct ast_channel *c, char *param)
 			" deflection requires an argument (destination phone number)\n");
 		return -1;
 	}
-	number = strsep(&param, "|");
+	number = strsep(&param, COMMANDSEPARATOR);
 	numberlen = strlen(number);
 
 	if (!numberlen) {
@@ -5919,7 +5919,7 @@ static int pbx_capi_ect(struct ast_channel *c, char *param)
 		plci = (unsigned int)strtoul(id, NULL, 0);
 	}
 	
-	holdid = strsep(&param, "|");
+	holdid = strsep(&param, COMMANDSEPARATOR);
 
 	if (holdid) {
 		plci = (unsigned int)strtoul(holdid, NULL, 0);
@@ -7197,7 +7197,7 @@ static int pbx_capicommand_exec(struct ast_channel *chan, void *data)
 
 	s = ast_strdupa(data);
 	stringp = s;
-	command = strsep(&stringp, "|");
+	command = strsep(&stringp, COMMANDSEPARATOR);
 	params = stringp;
 	cc_verbose(2, 1, VERBOSE_PREFIX_3 "capicommand: '%s' '%s'\n",
 		command, params);

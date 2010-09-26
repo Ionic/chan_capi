@@ -602,8 +602,8 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 	unsigned int hangup_timeout = 0;
 	room_member_type_t room_member_type = RoomMemberDefault;
 
-	roomname = strsep(&param, "|");
-	options = strsep(&param, "|");
+	roomname = strsep(&param, COMMANDSEPARATOR);
+	options = strsep(&param, COMMANDSEPARATOR);
 	controller = param;
 
 	if (!roomname) {
@@ -709,9 +709,9 @@ int pbx_capi_chat_play(struct ast_channel *c, char *param)
 		return (-1);
 	}
 
-	roomname = strsep(&param, "|");
-	options = strsep(&param, "|");
-	file_name = strsep(&param, "|");
+	roomname = strsep(&param, COMMANDSEPARATOR);
+	options = strsep(&param, COMMANDSEPARATOR);
+	file_name = strsep(&param, COMMANDSEPARATOR);
 	controller = param;
 
 	if (!roomname) {
@@ -829,7 +829,7 @@ int pbx_capi_chat_command(struct ast_channel *c, char *param)
 	struct capichat_s *room, *tmproom;
 	struct capi_pvt *i;
 	unsigned int roomnumber, ret = 0;
-	const char* options   = strsep(&param, "|");
+	const char* options   = strsep(&param, COMMANDSEPARATOR);
 	const char* roomname  = param;
 	unsigned int disconnect_command = 0;
 
@@ -939,7 +939,7 @@ int pbx_capi_chat_associate_resource_plci(struct ast_channel *c, char *param)
 	cc_format_t codecs = 0; /* codecs are disabled by default */
 	int all = 0;
 
-	controller = strsep(&param, "|");
+	controller = strsep(&param, COMMANDSEPARATOR);
 	codeclist  = param;
 
 	if (controller) {
@@ -1068,7 +1068,7 @@ int pbx_capi_chat_mute(struct ast_channel *c, char *param)
 	struct capichat_s *room;
 	unsigned int roomnumber;
 	room_mode_t room_mode;
-	const char* roommode = strsep(&param, "|");
+	const char* roommode = strsep(&param, COMMANDSEPARATOR);
 	const char* roomname  = param;
 	struct capi_pvt *i;
 

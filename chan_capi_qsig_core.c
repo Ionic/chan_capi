@@ -1203,7 +1203,7 @@ int pbx_capi_qsig_ct(struct ast_channel *c, char *param)
 		return -1;
 	}
 
-	marker = strsep(&param, "|");
+	marker = strsep(&param, COMMANDSEPARATOR);
 	
 	callmark = atoi(marker);
 	cc_qsig_verbose( 1, VERBOSE_PREFIX_4 "  * QSIG_CT: using call marker %i(%s)\n", callmark, marker);

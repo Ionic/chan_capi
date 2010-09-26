@@ -21,11 +21,11 @@ Supported hardware:
   feature only together with RTP.
 
 Syntax:
-noisesuppressor|yes,no
+noisesuppressor,[yes|no]
 
 Syntax example:
-s,n,capicommand(noisesuppressor|yes)
-s,n,capicommand(noisesuppressor|no)
+s,n,capicommand(noisesuppressor,yes)
+s,n,capicommand(noisesuppressor,no)
 
 IVR example:
 /////////////////////////////////////////////////////////////////////
@@ -36,9 +36,9 @@ exten => s,1,Set(TIMEOUT(digit)=5)  ; Set Digit Timeout to 5 seconds
 exten => s,n,Set(TIMEOUT(response)=10)  ; Set Response Timeout to 10 seconds
 exten => s,n(restart),BackGround(demo-instruct) ; Play some instructions
 exten => s,n,WaitExten      ; Wait for an extension to be dialed.
-exten => 1,1,capicommand(noisesuppressor|yes)
+exten => 1,1,capicommand(noisesuppressor,yes)
 exten => 1,n,Goto(s,restart)
-exten => 2,1,capicommand(noisesuppressor|no)
+exten => 2,1,capicommand(noisesuppressor,no)
 exten => 2,n,Goto(s,restart)
 exten => 99,1,Echo
 exten => i,1,Playback(invalid)
@@ -49,7 +49,7 @@ exten => h,1,Hangup
 PBX Example:
 /////////////////////////////////////////////////////////////////////
 [macro-capinoisesuppressor]
-exten => s,1,capicommand(noisesuppressor|yes)
+exten => s,1,capicommand(noisesuppressor,yes)
 
 [isdn-in]
 exten => 12345,1,Progress()
@@ -58,7 +58,7 @@ exten => 12345,n,Set(TIMEOUT(response)=5) ; Set Response Timeout to 10 seconds
 exten => 12345,n,Playback(demo-enterkeywords,noanswer,us)
 exten => 12345,n,Answer
 exten => 12345,n,Wait(2)
-exten => 12345,n,capicommand(noisesuppressor|yes)
+exten => 12345,n,capicommand(noisesuppressor,yes)
 exten => 12345,n,Dial(DIALOGICDIVA/ISDN1/100,10,M(capinoisesuppressor))
 exten => 12345,n,Hangup()
 /////////////////////////////////////////////////////////////////////
@@ -79,14 +79,14 @@ Supported hardware:
   Requires one Dialogic(R) Diva(R) Media Board equipped with DSPs.
 
 Syntax:
-clamping|N
+clamping,N
   N - estimated duration of DTMF tones to be suppressed in ms
     0         - deactivate clamping
     1 ... 250 - activate clamping
 
 Syntax example:
-s,n,capicommand(clamping|100)
-s,n,capicommand(clamping|0)
+s,n,capicommand(clamping,100)
+s,n,capicommand(clamping,0)
 
 IVR example:
 /////////////////////////////////////////////////////////////////////
@@ -97,9 +97,9 @@ exten => s,1,Set(TIMEOUT(digit)=5)  ; Set Digit Timeout to 5 seconds
 exten => s,n,Set(TIMEOUT(response)=10)  ; Set Response Timeout to 10 seconds
 exten => s,n(restart),BackGround(demo-instruct) ; Play some instructions
 exten => s,n,WaitExten      ; Wait for an extension to be dialed.
-exten => 1,1,capicommand(clamping|100)
+exten => 1,1,capicommand(clamping,100)
 exten => 1,n,Goto(s,restart)
-exten => 2,1,capicommand(clamping|0)
+exten => 2,1,capicommand(clamping,0)
 exten => 2,n,Goto(s,restart)
 exten => 99,1,Echo
 exten => i,1,Playback(invalid)
@@ -110,7 +110,7 @@ exten => h,1,Hangup
 PBX Example:
 /////////////////////////////////////////////////////////////////////
 [macro-capiclamping]
-exten => s,1,capicommand(clamping|100)
+exten => s,1,capicommand(clamping,100)
 
 [isdn-in]
 exten => 12345,1,Progress()
@@ -119,7 +119,7 @@ exten => 12345,n,Set(TIMEOUT(response)=5) ; Set Response Timeout to 10 seconds
 exten => 12345,n,Playback(demo-enterkeywords,noanswer,us)
 exten => 12345,n,Answer
 exten => 12345,n,Wait(2)
-exten => 12345,n,capicommand(clamping|100)
+exten => 12345,n,capicommand(clamping,100)
 exten => 12345,n,Dial(DIALOGICDIVA/ISDN1/100,10,M(capiclamping))
 exten => 12345,n,Hangup()
 /////////////////////////////////////////////////////////////////////
@@ -140,11 +140,11 @@ Supported hardware:
   Requires one Diva Media Board equipped with DSPs.
 
 Syntax:
-rxagc|yes,no
+rxagc,[yes|no]
 
 Syntax example:
-s,n,capicommand(rxagc|yes)
-s,n,capicommand(rxagc|no)
+s,n,capicommand(rxagc,yes)
+s,n,capicommand(rxagc,no)
 
 IVR example:
 /////////////////////////////////////////////////////////////////////
@@ -155,9 +155,9 @@ exten => s,1,Set(TIMEOUT(digit)=5)  ; Set Digit Timeout to 5 seconds
 exten => s,n,Set(TIMEOUT(response)=10)  ; Set Response Timeout to 10 seconds
 exten => s,n(restart),BackGround(demo-instruct) ; Play some instructions
 exten => s,n,WaitExten      ; Wait for an extension to be dialed.
-exten => 1,1,capicommand(rxagc|yes)
+exten => 1,1,capicommand(rxagc,yes)
 exten => 1,n,Goto(s,restart)
-exten => 2,1,capicommand(rxagc|no)
+exten => 2,1,capicommand(rxagc,no)
 exten => 2,n,Goto(s,restart)
 exten => 99,1,Echo
 exten => i,1,Playback(invalid)
@@ -168,7 +168,7 @@ exten => h,1,Hangup
 PBX Example:
 /////////////////////////////////////////////////////////////////////
 [macro-capirxagc]
-exten => s,1,capicommand(rxagc|yes)
+exten => s,1,capicommand(rxagc,yes)
 
 [isdn-in]
 exten => 12345,1,Progress()
@@ -177,7 +177,7 @@ exten => 12345,n,Set(TIMEOUT(response)=5) ; Set Response Timeout to 10 seconds
 exten => 12345,n,Playback(demo-enterkeywords,noanswer,us)
 exten => 12345,n,Answer
 exten => 12345,n,Wait(2)
-exten => 12345,n,capicommand(rxagc|yes)
+exten => 12345,n,capicommand(rxagc,yes)
 exten => 12345,n,Dial(DIALOGICDIVA/ISDN1/100,10,M(capirxagc))
 exten => 12345,n,Hangup()
 /////////////////////////////////////////////////////////////////////
@@ -198,11 +198,11 @@ Supported hardware:
   Requires one Diva Media Board equipped with DSPs.
 
 Syntax:
-txagc|yes,no
+txagc,[yes|no]
 
 Syntax example:
-s,n,capicommand(txagc|yes)
-s,n,capicommand(txagc|no)
+s,n,capicommand(txagc,yes)
+s,n,capicommand(txagc,no)
 
 IVR example:
   See rxagc
@@ -226,14 +226,14 @@ Supported hardware:
   Requires one Diva Media Board equipped with DSPs.
 
 Syntax:
-rxdgain|N
+rxdgain,N
   N - gain in dBm, float
   -127 ... +6  - gain
   -128 or less - infinite attenuation
 
 Syntax example:
-s,n,capicommand(rxdgain|5.5)
-s,n,capicommand(rxdgain|-14.2)
+s,n,capicommand(rxdgain,5.5)
+s,n,capicommand(rxdgain,-14.2)
 
 IVR example:
 /////////////////////////////////////////////////////////////////////
@@ -244,9 +244,9 @@ exten => s,1,Set(TIMEOUT(digit)=5)  ; Set Digit Timeout to 5 seconds
 exten => s,n,Set(TIMEOUT(response)=10)  ; Set Response Timeout to 10 seconds
 exten => s,n(restart),BackGround(demo-instruct) ; Play some instructions
 exten => s,n,WaitExten      ; Wait for an extension to be dialed.
-exten => 1,1,capicommand(rxdgain|5.5)
+exten => 1,1,capicommand(rxdgain,5.5)
 exten => 1,n,Goto(s,restart)
-exten => 2,1,capicommand(rxdgain|-70)
+exten => 2,1,capicommand(rxdgain,-70)
 exten => 2,n,Goto(s,restart)
 exten => 99,1,Echo
 exten => i,1,Playback(invalid)
@@ -270,12 +270,12 @@ Supported hardware:
   Requires one Diva Media Board equipped with DSPs.
 
 incSyntax:
-rxdgain|N
+rxdgain,N
   N - gain increment in dBm, float
 
 Syntax example:
-s,n,capicommand(incrxdgain|2.5)   // add 2.5 dBm to actiall gain
-s,n,capicommand(incrxdgain|-2.5)  // substract 2.5 dBm from actual gain
+s,n,capicommand(incrxdgain,2.5)   // add 2.5 dBm to actiall gain
+s,n,capicommand(incrxdgain,-2.5)  // substract 2.5 dBm from actual gain
 
 IVR example:
 /////////////////////////////////////////////////////////////////////
@@ -286,9 +286,9 @@ exten => s,1,Set(TIMEOUT(digit)=5)  ; Set Digit Timeout to 5 seconds
 exten => s,n,Set(TIMEOUT(response)=10)  ; Set Response Timeout to 10 seconds
 exten => s,n(restart),BackGround(demo-instruct) ; Play some instructions
 exten => s,n,WaitExten      ; Wait for an extension to be dialed.
-exten => 1,1,capicommand(incrxdgain|2.5)
+exten => 1,1,capicommand(incrxdgain,2.5)
 exten => 1,n,Goto(s,restart)
-exten => 2,1,capicommand(incrxdgain|-2.5)
+exten => 2,1,capicommand(incrxdgain,-2.5)
 exten => 2,n,Goto(s,restart)
 exten => 99,1,Echo
 exten => i,1,Playback(invalid)
@@ -312,14 +312,14 @@ Supported hardware:
   Requires one Diva Media Board equipped with DSPs.
 
 Syntax:
-txdgain|N
+txdgain,N
   N - gain in dBm, float
   -127 ... +6  - gain
   -128 or less - infinite attenuation
 
 Syntax example:
-s,n,capicommand(txdgain|5.5)
-s,n,capicommand(txdgain|-14.2)
+s,n,capicommand(txdgain,5.5)
+s,n,capicommand(txdgain,-14.2)
 
 IVR example:
 /////////////////////////////////////////////////////////////////////
@@ -330,9 +330,9 @@ exten => s,1,Set(TIMEOUT(digit)=5)  ; Set Digit Timeout to 5 seconds
 exten => s,n,Set(TIMEOUT(response)=10)  ; Set Response Timeout to 10 seconds
 exten => s,n(restart),BackGround(demo-instruct) ; Play some instructions
 exten => s,n,WaitExten      ; Wait for an extension to be dialed.
-exten => 1,1,capicommand(txdgain|5.5)
+exten => 1,1,capicommand(txdgain,5.5)
 exten => 1,n,Goto(s,restart)
-exten => 2,1,capicommand(txdgain|-70)
+exten => 2,1,capicommand(txdgain,-70)
 exten => 2,n,Goto(s,restart)
 exten => 99,1,Echo
 exten => i,1,Playback(invalid)
@@ -356,12 +356,12 @@ Supported hardware:
   Requires one Diva Media Board equipped with DSPs.
 
 incSyntax:
-rxtgain|N
+rxtgain,N
   N - gain increment in dBm, float
 
 Syntax example:
-s,n,capicommand(inctxdgain|2.5)   // add 2.5 dBm to actiall gain
-s,n,capicommand(inctxdgain|-2.5)  // substract 2.5 dBm from actual gain
+s,n,capicommand(inctxdgain,2.5)   // add 2.5 dBm to actiall gain
+s,n,capicommand(inctxdgain,-2.5)  // substract 2.5 dBm from actual gain
 
 IVR example:
 /////////////////////////////////////////////////////////////////////
@@ -372,9 +372,9 @@ exten => s,1,Set(TIMEOUT(digit)=5)  ; Set Digit Timeout to 5 seconds
 exten => s,n,Set(TIMEOUT(response)=10)  ; Set Response Timeout to 10 seconds
 exten => s,n(restart),BackGround(demo-instruct) ; Play some instructions
 exten => s,n,WaitExten      ; Wait for an extension to be dialed.
-exten => 1,1,capicommand(inctxdgain|2.5)
+exten => 1,1,capicommand(inctxdgain,2.5)
 exten => 1,n,Goto(s,restart)
-exten => 2,1,capicommand(inctxdgain|-2.5)
+exten => 2,1,capicommand(inctxdgain,-2.5)
 exten => 2,n,Goto(s,restart)
 exten => 99,1,Echo
 exten => i,1,Playback(invalid)
@@ -404,15 +404,15 @@ Supported hardware:
   Requires one Diva Media Board equipped with DSPs.
 
 Syntax:
-pitchcontrol|RxN|TxN - set Rx and Tx rate to different values
-pitchcontrol|N       - set Rx and Tx rate to same value
+pitchcontrol,RxN,TxN - set Rx and Tx rate to different values
+pitchcontrol,N       - set Rx and Tx rate to same value
 pitchcontrol         - deactivate rate control
 
   RxN, TxN, N - rate in the range 1250 ... 51200 Hz.
 
 Syntax example:
-s,n,capicommand(pitchcontrol|8200,8100) ; Set Rx rate to 8200 Hz and Tx rate to 8100 Hz
-s,n,capicommand(pitchcontrol|8400)      ; Set Rx and Tx rate to 8400 Hz
+s,n,capicommand(pitchcontrol,8200,8100) ; Set Rx rate to 8200 Hz and Tx rate to 8100 Hz
+s,n,capicommand(pitchcontrol,8400)      ; Set Rx and Tx rate to 8400 Hz
 
 IVR example:
 /////////////////////////////////////////////////////////////////////
@@ -423,9 +423,9 @@ exten => s,1,Set(TIMEOUT(digit)=5)  ; Set Digit Timeout to 5 seconds
 exten => s,n,Set(TIMEOUT(response)=10)  ; Set Response Timeout to 10 seconds
 exten => s,n(restart),BackGround(demo-instruct) ; Play some instructions
 exten => s,n,WaitExten      ; Wait for an extension to be dialed.
-exten => 1,1,capicommand(pitchcontrol|8200)
+exten => 1,1,capicommand(pitchcontrol,8200)
 exten => 1,n,Goto(s,restart)
-exten => 2,1,capicommand(pitchcontrol|8000)
+exten => 2,1,capicommand(pitchcontrol,8000)
 exten => 2,n,Goto(s,restart)
 exten => 99,1,Echo
 exten => i,1,Playback(invalid)
@@ -455,14 +455,14 @@ Supported hardware:
   Requires one Diva Media Board equipped with DSPs.
 
 Syntax:
-incpitchcontrol|RxN|TxN - change Rx and Tx rate using different values
-incpitchcontrol|N       - change Rx and Tx rate using same value
+incpitchcontrol,RxN,TxN - change Rx and Tx rate using different values
+incpitchcontrol,N       - change Rx and Tx rate using same value
 
   RxN, TxN, N - rate change in Hz
 
 Syntax example:
-s,n,capicommand(incpitchcontrol|100)   // Increase Rx and Tx rate by 100 Hz
-s,n,capicommand(incpitchcontrol|-100)  // Decrease Rx and Tx rate by 100 Hz
+s,n,capicommand(incpitchcontrol,100)   // Increase Rx and Tx rate by 100 Hz
+s,n,capicommand(incpitchcontrol,-100)  // Decrease Rx and Tx rate by 100 Hz
 
 IVR example:
 /////////////////////////////////////////////////////////////////////
@@ -473,9 +473,9 @@ exten => s,1,Set(TIMEOUT(digit)=5)  ; Set Digit Timeout to 5 seconds
 exten => s,n,Set(TIMEOUT(response)=10)  ; Set Response Timeout to 10 seconds
 exten => s,n(restart),BackGround(demo-instruct) ; Play some instructions
 exten => s,n,WaitExten      ; Wait for an extension to be dialed.
-exten => 1,1,capicommand(incpitchcontrol|100)
+exten => 1,1,capicommand(incpitchcontrol,100)
 exten => 1,n,Goto(s,restart)
-exten => 2,1,capicommand(incpitchcontrol|100)
+exten => 2,1,capicommand(incpitchcontrol,100)
 exten => 2,n,Goto(s,restart)
 exten => 99,1,Echo
 exten => i,1,Playback(invalid)
@@ -501,11 +501,11 @@ Supported hardware:
   Requires one Diva Media Board equipped with DSPs.
 
 Syntax:
-mftonedetection|yes,no
+mftonedetection,[yes|no]
 
 Syntax example:
-s,n,capicommand(mftonedetection|yes)
-s,n,capicommand(mftonedetection|no)
+s,n,capicommand(mftonedetection,yes)
+s,n,capicommand(mftonedetection,no)
 
 IVR example:
 /////////////////////////////////////////////////////////////////////
@@ -516,9 +516,9 @@ exten => s,1,Set(TIMEOUT(digit)=5)  ; Set Digit Timeout to 5 seconds
 exten => s,n,Set(TIMEOUT(response)=10)  ; Set Response Timeout to 10 seconds
 exten => s,n(restart),BackGround(demo-instruct) ; Play some instructions
 exten => s,n,WaitExten      ; Wait for an extension to be dialed.
-exten => 1,1,capicommand(mftonedetection|yes)
+exten => 1,1,capicommand(mftonedetection,yes)
 exten => 1,n,Goto(s,restart)
-exten => 2,1,capicommand(mftonedetection|no)
+exten => 2,1,capicommand(mftonedetection,no)
 exten => 2,n,Goto(s,restart)
 exten => 99,1,Echo
 exten => i,1,Playback(invalid)
@@ -542,11 +542,11 @@ Supported hardware:
   Requires one Diva Media Board equipped with DSPs.
 
 Syntax:
-pulsedetection|yes,no
+pulsedetection,[yes|no]
 
 Syntax example:
-s,n,capicommand(pulsedetection|yes)
-s,n,capicommand(pulsedetection|no)
+s,n,capicommand(pulsedetection,yes)
+s,n,capicommand(pulsedetection,no)
 
 IVR example:
 /////////////////////////////////////////////////////////////////////
@@ -557,9 +557,9 @@ exten => s,1,Set(TIMEOUT(digit)=5)  ; Set Digit Timeout to 5 seconds
 exten => s,n,Set(TIMEOUT(response)=10)  ; Set Response Timeout to 10 seconds
 exten => s,n(restart),BackGround(demo-instruct) ; Play some instructions
 exten => s,n,WaitExten      ; Wait for an extension to be dialed.
-exten => 1,1,capicommand(pulsedetection|yes)
+exten => 1,1,capicommand(pulsedetection,yes)
 exten => 1,n,Goto(s,restart)
-exten => 2,1,capicommand(pulsedetection|no)
+exten => 2,1,capicommand(pulsedetection,no)
 exten => 2,n,Goto(s,restart)
 exten => 99,1,Echo
 exten => i,1,Playback(invalid)
@@ -584,7 +584,7 @@ Supported hardware:
   Requires one Diva Media Board equipped with DSPs.
 
 Syntax:
-sendtone|N
+sendtone,N
 stoptone
 
   N - tone to be sent
@@ -633,7 +633,7 @@ stoptone
     0xCB - Tone Alerting Signal (for Caller ID in PSTN)
 
 Syntax example:
-s,n,capicommand(sendtone|0x83) ; Send PABX internal dial tone
+s,n,capicommand(sendtone,0x83) ; Send PABX internal dial tone
 s,n,capicommand(stoptone)      ; stop tone transmission
 
 IVR example
@@ -645,7 +645,7 @@ exten => s,1,Set(TIMEOUT(digit)=5)  ; Set Digit Timeout to 5 seconds
 exten => s,n,Set(TIMEOUT(response)=10)  ; Set Response Timeout to 10 seconds
 exten => s,n(restart),BackGround(demo-instruct) ; Play some instructions
 exten => s,n,WaitExten      ; Wait for an extension to be dialed.
-exten => 1,1,capicommand(sendtone|0x83)
+exten => 1,1,capicommand(sendtone,0x83)
 exten => 1,n,Goto(s,restart)
 exten => 2,1,capicommand(stoptone)
 exten => 2,n,Goto(s,restart)
@@ -673,7 +673,7 @@ Supported hardware:
   Not available if RTP is active.
 
 Syntax:
-starttonedetection|N
+starttonedetection,N
 stoptonedetection
 
   N - Extension number to be used in case a tone is detected.
@@ -729,7 +729,7 @@ stoptonedetection
         0xCB - Tone Alerting Signal detected (for Caller ID in PSTN)
 
 Syntax example:
-s,n,capicommand(starttonedetection|98) ; Change to extension 98 after detection of tone
+s,n,capicommand(starttonedetection,98) ; Change to extension 98 after detection of tone
 s,n,capicommand(stoptonedetection)     ; Disable detection of tones
 
 IVR example:
@@ -746,7 +746,7 @@ exten => s,n,WaitExten      ; Wait for an extension to be dialed.
 
 exten => 1,1,Set(TIMEOUT(digit)=1)
 exten => 1,n,Set(TIMEOUT(response)=5)
-exten => 1,n,capicommand(starttonedetection|98) ; Change to 98 once tone is detected
+exten => 1,n,capicommand(starttonedetection,98) ; Change to 98 once tone is detected
 exten => 1,n,Goto(s,restart)
 
 ; Continue after detection of the tone
@@ -786,13 +786,13 @@ Description:
   independent from the dialplan.
 
 Syntax:
-vc|command|key|param|param1|...|paranN
-  Add to menu: on detection of key execute command using parameters param1|...|paramN
+vc,command,key,param,param1,...,paranN
+  Add to menu: on detection of key execute command using parameters param1,...,paramN
 
-vc|command|key
+vc,command,key
   Add to menu: on detection of key execute command without parameters
 
-vc|command
+vc,command
   Remove all instances of command from menu
 
 vc
@@ -800,12 +800,12 @@ vc
 
 In case one command will use a key that is already in use, then a new command will overwrite
 the existing command:
-exten => s,n,capicommand(vc|txagc|3|yes)
-exten => s,n,capicommand(vc|inctxdgain|3|1.5)
+exten => s,n,capicommand(vc,txagc,3,yes)
+exten => s,n,capicommand(vc,inctxdgain,3,1.5)
 
 is equivalent to:
 
-exten => s,n,capicommand(vc|inctxdgain|3|1.5)
+exten => s,n,capicommand(vc,inctxdgain,3,1.5)
 
 It is better to use only one digit as key for commands in menu if using the menu for IVR and
 voice mailbox. This provides short response time.
@@ -814,8 +814,8 @@ In case the menu is used for conference or for connection between two parties, i
 two or three digits for the key. This will prevent an activation by accidentally pressing a key.
 
 Syntax example:
-exten => s,n,capicommand(vc|inctxdgain|5|1.5) ; Execute inctxdgain|1.5 if received DTMF digit 5
-exten => s,n,capicommand(vc|txagc|3|yes)      ; Execute txagc|yes if received DTMF digit 3
+exten => s,n,capicommand(vc,inctxdgain,5,1.5) ; Execute inctxdgain,1.5 if received DTMF digit 5
+exten => s,n,capicommand(vc,txagc,3,yes)      ; Execute txagc,yes if received DTMF digit 3
 
 IVR Example:
 /////////////////////////////////////////////////////////////////////
@@ -823,14 +823,14 @@ IVR Example:
 exten => _X.,1,Answer
 exten => _X.,n,Goto(s,1)
 exten => s,1,Wait(1)
-exten => s,n,capicommand(vc|sendtone|1|0x82)
-exten => s,n,capicommand(vc|stoptone|2)
-exten => s,n,capicommand(vc|txagc|3|yes)
-exten => s,n,capicommand(vc|txagc|4|no)
-exten => s,n,capicommand(vc|inctxdgain|5|1.5)
-exten => s,n,capicommand(vc|inctxdgain|7|-2.5)
-exten => s,n,capicommand(vc|incpitchcontrol|8|0|100)
-exten => s,n,capicommand(vc|incpitchcontrol|9|0|-400)
+exten => s,n,capicommand(vc,sendtone,1,0x82)
+exten => s,n,capicommand(vc,stoptone,2)
+exten => s,n,capicommand(vc,txagc,3,yes)
+exten => s,n,capicommand(vc,txagc,4,no)
+exten => s,n,capicommand(vc,inctxdgain,5,1.5)
+exten => s,n,capicommand(vc,inctxdgain,7,-2.5)
+exten => s,n,capicommand(vc,incpitchcontrol,8,0,100)
+exten => s,n,capicommand(vc,incpitchcontrol,9,0,-400)
 exten => s,n(restart),Playback(demo-instruct)
 exten => s,n,Goto(s,restart)
 exten => s,n,Hangup
@@ -870,7 +870,7 @@ Supported hardware:
   Diva
 
 Syntax:
-capicommand(chat|<roomname>|<options>|controller)
+capicommand(chat,<roomname>,<options>,controller)
   roomname - conference room name
   options
       m - The first caller will get music-on-hold until the second caller arrives
@@ -880,12 +880,12 @@ capicommand(chat|<roomname>|<options>|controller)
   controller - CAPI controller
 
 Syntax example:
-exten => s,n,capicommand(chat|test|m|1)
-exten => s,n,capicommand(chat|test|m|1,3)
-exten => s,n,capicommand(chat|test|m|1-4)
-exten => s,n,capicommand(chat|test|m|1-4,7)
-exten => s,n,capicommand(chat|test|m|1-4,7-10)
-exten => s,n,capicommand(chat|test|mh300|1-4)
+exten => s,n,capicommand(chat,test,m,1)
+exten => s,n,capicommand(chat,test,m,1,3)
+exten => s,n,capicommand(chat,test,m,1-4)
+exten => s,n,capicommand(chat,test,m,1-4,7)
+exten => s,n,capicommand(chat,test,m,1-4,7-10)
+exten => s,n,capicommand(chat,test,mh300,1-4)
 
 IVR example:
 /////////////////////////////////////////////////////////////////////
@@ -898,21 +898,21 @@ exten => s,n(restart),BackGround(demo-instruct) ; Play some instructions
 exten => s,n,WaitExten      ; Wait for an extension to be dialed, use to select conference room
 
 ; You can create macro to set up vc menu
-exten => 1,1,capicommand(clamping|100)         ; Activate suppression of DTMF tones
-exten => 1,n,capicommand(vc|incrxdgain|0|1.5)  ; Install voice command menu for volume control, '0' to increase volume
-exten => 1,n,capicommand(vc|incrxdgain|1|-1.5) ; Install voice command menu for volume control, '1' to decrease volume
-exten => 1,n,capicommand(vc|txdgain|2|-128) ; Install voice command menu for volume control, '2' to mute tx path
-exten => 1,n,capicommand(vc|txdgain|3|0) ; Install voice command menu for volume control, '3' to activate tx path
-exten => 1,n,capicommand(chat|test1|m|1-4)     ; Create/enter conference room 'test1'
+exten => 1,1,capicommand(clamping,100)         ; Activate suppression of DTMF tones
+exten => 1,n,capicommand(vc,incrxdgain,0,1.5)  ; Install voice command menu for volume control, '0' to increase volume
+exten => 1,n,capicommand(vc,incrxdgain,1,-1.5) ; Install voice command menu for volume control, '1' to decrease volume
+exten => 1,n,capicommand(vc,txdgain,2,-128) ; Install voice command menu for volume control, '2' to mute tx path
+exten => 1,n,capicommand(vc,txdgain,3,0) ; Install voice command menu for volume control, '3' to activate tx path
+exten => 1,n,capicommand(chat,test1,m,1-4)     ; Create/enter conference room 'test1'
 
-exten => 2,1,capicommand(clamping|100)         ; Activate suppression of DTMF tones
-exten => 2,n,capicommand(txdgain|-128)         ; Deactivate tx path
-exten => 2,n,capicommand(vc|incrxdgain|0|1.5)  ; Install voice command menu for volume control, '0' to increase volume
-exten => 2,n,capicommand(vc|incrxdgain|1|-1.5) ; Install voice command menu for volume control, '1' to decrease volume
-exten => 2,n,capicommand(vc|txdgain|2|-128) ; Install voice command menu for volume control, '2' to mute tx path
-exten => 2,n,capicommand(vc|txdgain|3|0) ; Install voice command menu for volume control, '3' to activate tx path
-exten => 2,n,capicommand(chat|test1|m|1-4)     ; Create/enter conference room 'test1
-exten => 2,n,capicommand(chat|test2|m|1-4)     ; Create/enter conference room 'test2'
+exten => 2,1,capicommand(clamping,100)         ; Activate suppression of DTMF tones
+exten => 2,n,capicommand(txdgain,-128)         ; Deactivate tx path
+exten => 2,n,capicommand(vc,incrxdgain,0,1.5)  ; Install voice command menu for volume control, '0' to increase volume
+exten => 2,n,capicommand(vc,incrxdgain,1,-1.5) ; Install voice command menu for volume control, '1' to decrease volume
+exten => 2,n,capicommand(vc,txdgain,2,-128) ; Install voice command menu for volume control, '2' to mute tx path
+exten => 2,n,capicommand(vc,txdgain,3,0) ; Install voice command menu for volume control, '3' to activate tx path
+exten => 2,n,capicommand(chat,test1,m,1-4)     ; Create/enter conference room 'test1
+exten => 2,n,capicommand(chat,test2,m,1-4)     ; Create/enter conference room 'test2'
 
 exten => i,1,Playback(invalid)
 exten => i,n,Goto(s,restart)
@@ -1006,32 +1006,32 @@ Supported hardware:
   
 
 Syntax:
-capicommand(ressource|controller)
+capicommand(ressource,controller)
   controller - CAPI controller
 
 
 Syntax example:
-exten => s,n,capicommand(resource|1)
-exten => s,n,capicommand(resource|1,3)
-exten => s,n,capicommand(resource|1-4)
-exten => s,n,capicommand(resource|1-4,7)
-exten => s,n,capicommand(resource|1-4,7-10)
+exten => s,n,capicommand(resource,1)
+exten => s,n,capicommand(resource,1,3)
+exten => s,n,capicommand(resource,1-4)
+exten => s,n,capicommand(resource,1-4,7)
+exten => s,n,capicommand(resource,1-4,7-10)
 
 IVR example:
 /////////////////////////////////////////////////////////////////////
 [isdn-in]
 exten => _X.,1,Answer     ; Answer the line
 exten => _X.,n,Goto(s,1)
-exten => s,1,capicommand(resource|1-4) ; Create DSP resource on CAPI controllers 1-4 for IP members,
+exten => s,1,capicommand(resource,1-4) ; Create DSP resource on CAPI controllers 1-4 for IP members,
                                        ; ignore command for E.1/T.1/S0/POTS members
-exten => s,n,capicommand(clamping|100)         ; Activate suppression of DTMF tones
-exten => s,n,capicommand(rxagc|yes)            ; Activate Rx AGC
-exten => s,n,capicommand(noisesuppressor|yes)  ; Activate suppression of ambient noises
-exten => s,n,capicommand(vc|incrxdgain|0|1.5)  ; Install voice command menu for volume control, '0' to increase volume
-exten => s,n,capicommand(vc|incrxdgain|1|-1.5) ; Install voice command menu for volume control, '1' to decrease volume
-exten => s,n,capicommand(vc|txdgain|2|-128) ; Install voice command menu for volume control, '2' to mute tx path
-exten => s,n,capicommand(vc|txdgain|3|0) ; Install voice command menu for volume control, '3' to activate tx path
-exten => s,n,capicommand(chat|test1|m|1-4)     ; Craete/enter conference toom 'test1', controller field is ignored if
+exten => s,n,capicommand(clamping,100)         ; Activate suppression of DTMF tones
+exten => s,n,capicommand(rxagc,yes)            ; Activate Rx AGC
+exten => s,n,capicommand(noisesuppressor,yes)  ; Activate suppression of ambient noises
+exten => s,n,capicommand(vc,incrxdgain,0,1.5)  ; Install voice command menu for volume control, '0' to increase volume
+exten => s,n,capicommand(vc,incrxdgain,1,-1.5) ; Install voice command menu for volume control, '1' to decrease volume
+exten => s,n,capicommand(vc,txdgain,2,-128) ; Install voice command menu for volume control, '2' to mute tx path
+exten => s,n,capicommand(vc,txdgain,3,0) ; Install voice command menu for volume control, '3' to activate tx path
+exten => s,n,capicommand(chat,test1,m,1-4)     ; Craete/enter conference toom 'test1', controller field is ignored if
                                                ; media processing resource is assigned by 'resource' command or for
                                                ; E.1/T.1/S0/POTS members
 
@@ -1071,14 +1071,14 @@ Direction:
 
 Note:
 	The voice stream of regular users is active by default. If the conference mode was changed to half duplex
-  ('chat_mute|yes'), then new regular users are created with a deactivated voice stream until the conference
-  mode is changed back to full duplex ('chat_mute|no')
+  ('chat_mute,yes'), then new regular users are created with a deactivated voice stream until the conference
+  mode is changed back to full duplex ('chat_mute,no')
 
 Supported hardware:
   Diva
 
 Syntax:
-capicommand(chat_mute|<action>[|<roomname>])
+capicommand(chat_mute,<action>[,<roomname>])
   action - mandatory
            yes - Change conference mode to half duplex, deactivate voice stream from regular
                  users to conference.
@@ -1090,32 +1090,32 @@ capicommand(chat_mute|<action>[|<roomname>])
              functionality of a common conference operator.
 
 Syntax example:
-exten => s,n,capicommand(chat_mute|yes)
-exten => s,n,capicommand(char_mute|no)
-exten => s,n,capicommand(chat_mute|yes|test_room)
-exten => s,n,capicommand(char_mute|no|test_room)
+exten => s,n,capicommand(chat_mute,yes)
+exten => s,n,capicommand(char_mute,no)
+exten => s,n,capicommand(chat_mute,yes,test_room)
+exten => s,n,capicommand(char_mute,no,test_room)
 
 Conference example:
 /////////////////////////////////////////////////////////////////////
 [isdn-in]
 exten => 1291,1,Answer                             ; Accept call
-exten => 1291,n,capicommand(resource|1-4)          ; assign resource PLCI if call from IP
-exten => 1291,n,capicommand(clamping|200)          ; Activate DTMF suppression
-exten => 1291,n,capicommand(vc|chat_mute|0|yes)    ; Voice command, key 0 - change to half duplex mode
-exten => 1291,n,capicommand(vc|chat_mute|1|no)     ; Voice command, key 0 - change to full duplex mode
-exten => 1291,n,capicommand(chat|test_chat|mo|1-4) ; Add to conference as operator
+exten => 1291,n,capicommand(resource,1-4)          ; assign resource PLCI if call from IP
+exten => 1291,n,capicommand(clamping,200)          ; Activate DTMF suppression
+exten => 1291,n,capicommand(vc,chat_mute,0,yes)    ; Voice command, key 0 - change to half duplex mode
+exten => 1291,n,capicommand(vc,chat_mute,1,no)     ; Voice command, key 0 - change to full duplex mode
+exten => 1291,n,capicommand(chat,test_chat,mo,1-4) ; Add to conference as operator
 exten => 1291,n,Hangup()
 
 exten => 1292,1,Answer                             ; Accept call
-exten => 1292,n,capicommand(resource|1-4)          ; Assign resource PLCI if call from IP
-exten => 1292,n,capicommand(clamping|200)          ; Activate DTMF suppression
-exten => 1292,n,capicommand(chat|test_chat|m|1-4)  ; Add to conference as regular user
+exten => 1292,n,capicommand(resource,1-4)          ; Assign resource PLCI if call from IP
+exten => 1292,n,capicommand(clamping,200)          ; Activate DTMF suppression
+exten => 1292,n,capicommand(chat,test_chat,m,1-4)  ; Add to conference as regular user
 exten => 1292,n,Hangup()
 
 exten => 1293,1,Answer                             ; Accept call
-exten => 1293,n,capicommand(resource|1-4)          ; Assign resource PLCI if call from IP
-exten => 1293,n,capicommand(clamping|200)          ; Activate DTMF suppression
-exten => 1293,n,capicommand(chat|test_chat|ml|1-4) ; Add to conference as listener
+exten => 1293,n,capicommand(resource,1-4)          ; Assign resource PLCI if call from IP
+exten => 1293,n,capicommand(clamping,200)          ; Activate DTMF suppression
+exten => 1293,n,capicommand(chat,test_chat,ml,1-4) ; Add to conference as listener
 exten => 1293,n,Hangup()
 
 exten => _X.,1,Answer
@@ -1142,7 +1142,7 @@ Supported hardware:
   Diva
 
 Syntax:
-capicommand(chat_play|<roomname>|<options>|<filename>|controller)
+capicommand(chat_play,<roomname>,<options>,<filename>,controller)
   roomname   - conference room name
   options
       m - The caller will get music-on-hold while message is played
@@ -1151,22 +1151,22 @@ capicommand(chat_play|<roomname>|<options>|<filename>|controller)
   controller - CAPI controller
 
 Syntax example:
-exten => s,n,capicommand(chat|test|m|/tmp/file.alaw|1)
-exten => s,n,capicommand(chat|test||/tmp/file.alaw|1-4,7-10)
+exten => s,n,capicommand(chat,test,m,/tmp/file.alaw,1)
+exten => s,n,capicommand(chat,test,,/tmp/file.alaw,1-4,7-10)
 
 IVR example:
 /////////////////////////////////////////////////////////////////////
 [isdn-in]
 exten => _X.,1,Answer     ; Answer the line
 exten => _X.,n,Goto(s,1)
-exten => s,1,capicommand(clamping|100)         ; Activate suppression of DTMF tones
+exten => s,1,capicommand(clamping,100)         ; Activate suppression of DTMF tones
 exten => s,n,Playback(record-name)             ; Ask for name
-exten => s,n,capicommand(rxagc|yes)            ; Activate Rx AGC
+exten => s,n,capicommand(rxagc,yes)            ; Activate Rx AGC
 exten => s,n,Record(/tmp/${UNIQUEID}-info:alaw) ; Record message
-exten => s,n,capicommand(rxagc|no)             ; Deactivate Rx AGC
-exten => s,n,capicommand(chat_play|test|m|/tmp/${UNIQUEID}-info.alaw|1-4) ; Play message to conference,
+exten => s,n,capicommand(rxagc,no)             ; Deactivate Rx AGC
+exten => s,n,capicommand(chat_play,test,m,/tmp/${UNIQUEID}-info.alaw,1-4) ; Play message to conference,
                                                                           ; play music on hold to caller
-exten => s,n,capicommand(chat|test|m|1-4)     ; Create/enter conference room 'test'
+exten => s,n,capicommand(chat,test,m,1-4)     ; Create/enter conference room 'test'
 
 /////////////////////////////////////////////////////////////////////
 
@@ -1181,7 +1181,7 @@ Supported hardware:
   Diva
 
 Syntax:
-capicommand(chat_command|<options>|<roomname>)
+capicommand(chat_command,<options>,<roomname>)
   options    - mandatory
       r - Remove newest user from conference.
 					Command does not apply to calling member and  be used by operators only.
@@ -1194,9 +1194,9 @@ capicommand(chat_command|<options>|<roomname>)
   roomname   - optional, room caller assigned to is used if not present
 
 Syntax example:
-exten => s,n,capicommand(chat_command|r)
-exten => s,n,capicommand(chat_command|lo|test)
-exten => s,n,capicommand(chat_command|a|test)
+exten => s,n,capicommand(chat_command,r)
+exten => s,n,capicommand(chat_command,lo,test)
+exten => s,n,capicommand(chat_command,a,test)
 
 Conference example:
 /////////////////////////////////////////////////////////////////////
@@ -1205,15 +1205,15 @@ exten => _X.,1,Answer
 exten => _X.,n,Authenticate(12345)
 exten => _X.,n,Playback(vm-rec-name)
 exten => _X.,n,Record(/tmp/name${UNIQUEID}.alaw,5,15)   ; Record name
-exten => _X.,n,capicommand(chat_play|c1||/tmp/name${UNIQUEID}.alaw|1-4) ; Play name to conference
-exten => _X.,n,capicommand(resource|1-4)                ; Create resource PLCI if call from IP
-exten => _X.,n,capicommand(clamping|200)                ; Activate suppression of DTMF codes
-exten => _X.,n,capicommand(vc|chat_mute|1|yes)          ; Voice command, key 1 - mute all members except operators
-exten => _X.,n,capicommand(vc|chat_mute|2|no)           ; Voice command, key 2 - unmute all members except operators
-exten => _X.,n,capicommand(vc|chat_command|0|a|c1)      ; Voice command, key 0 - remove all members from conference
-exten => _X.,n,capicommand(vc|noisesuppressor|3|yes)    ; Voice command, key 3 - turn noise suppression on
-exten => _X.,n,capicommand(vc|noisesuppressor|4|no)     ; Voice command, key 4 - turn noise suppression off
-exten => _X.,n,capicommand(chat|c1|mo|1-4)              ; Add caller to conference as operator
+exten => _X.,n,capicommand(chat_play,c1,,/tmp/name${UNIQUEID}.alaw,1-4) ; Play name to conference
+exten => _X.,n,capicommand(resource,1-4)                ; Create resource PLCI if call from IP
+exten => _X.,n,capicommand(clamping,200)                ; Activate suppression of DTMF codes
+exten => _X.,n,capicommand(vc,chat_mute,1,yes)          ; Voice command, key 1 - mute all members except operators
+exten => _X.,n,capicommand(vc,chat_mute,2,no)           ; Voice command, key 2 - unmute all members except operators
+exten => _X.,n,capicommand(vc,chat_command,0,a,c1)      ; Voice command, key 0 - remove all members from conference
+exten => _X.,n,capicommand(vc,noisesuppressor,3,yes)    ; Voice command, key 3 - turn noise suppression on
+exten => _X.,n,capicommand(vc,noisesuppressor,4,no)     ; Voice command, key 4 - turn noise suppression off
+exten => _X.,n,capicommand(chat,c1,mo,1-4)              ; Add caller to conference as operator
 
 /////////////////////////////////////////////////////////////////////
 
@@ -1253,11 +1253,11 @@ Supported hardware:
   Diva Media Boards equipped with DSPs. 
 
 Syntax:
-echocancel|yes,no
+echocancel,[yes|no]
 
 Syntax example:
-s,n,capicommand(echocancel|yes)
-s,n,capicommand(echocancel|no)
+s,n,capicommand(echocancel,yes)
+s,n,capicommand(echocancel,no)
 
 IVR example:
 /////////////////////////////////////////////////////////////////////
@@ -1268,9 +1268,9 @@ exten => s,1,Set(TIMEOUT(digit)=5)  ; Set Digit Timeout to 5 seconds
 exten => s,n,Set(TIMEOUT(response)=10)  ; Set Response Timeout to 10 seconds
 exten => s,n(restart),BackGround(demo-instruct) ; Play some instructions
 exten => s,n,WaitExten      ; Wait for an extension to be dialed.
-exten => 1,1,capicommand(echocancel|yes)
+exten => 1,1,capicommand(echocancel,yes)
 exten => 1,n,Goto(s,restart)
-exten => 2,1,capicommand(echocancel|no)
+exten => 2,1,capicommand(echocancel,no)
 exten => 2,n,Goto(s,restart)
 exten => 99,1,Echo
 exten => i,1,Playback(invalid)
@@ -1281,13 +1281,13 @@ exten => h,1,Hangup
 PBX Example:
 /////////////////////////////////////////////////////////////////////
 [macro-capiechocancel]
-exten => s,1,capicommand(echocancel|yes)
+exten => s,1,capicommand(echocancel,yes)
 
 [isdn-in]
 exten => 12345,1,Progress()
 exten => 12345,n,Set(TIMEOUT(digit)=1)    ; Set Digit Timeout to 5 seconds
 exten => 12345,n,Set(TIMEOUT(response)=5) ; Set Response Timeout to 10 seconds
-exten => 12345,n,capicommand(echocancel|yes)
+exten => 12345,n,capicommand(echocancel,yes)
 exten => 12345,n,Playback(demo-enterkeywords,noanswer,us)
 exten => 12345,n,Answer
 exten => 12345,n,Wait(2)

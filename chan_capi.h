@@ -71,6 +71,8 @@ struct _diva_stream_scheduling_entry;
 
 #define CAPI_MAX_FACILITYDATAARRAY_SIZE 300
 
+#define COMMANDSEPARATOR "|,"
+
 #ifdef CC_AST_HAS_FORMAT_T
 typedef format_t cc_format_t;
 #else

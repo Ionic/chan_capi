@@ -20,6 +20,7 @@ HEAD
 - Add Slinear
 - Add HD voice using G.722, Siren7, Siren14 and Slinear16
 - added faxdestination= to capi.conf to configure custom context,exten,prio.
+- allow capicommand option separator "|" and ",".
 
 chan_capi-1.1.5
 ------------------

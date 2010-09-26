@@ -148,27 +148,27 @@ With this application, special CAPI commands and features can be used.
 Call Deflection:
     Forwards an unanswered call to another number.
         Example:
-        exten => s,1,capicommand(deflect|12345678)
+        exten => s,1,capicommand(deflect,12345678)
   
 Fax receive:
     Receives a fax using CAPI.
         Example:
-        exten => s,1,capicommand(receivefax|/tmp/${UNIQUEID}|+49 6137 555123|Asterisk|kX)
+        exten => s,1,capicommand(receivefax,/tmp/${UNIQUEID},+49 6137 555123,Asterisk,kX)
 	(more see below)
 
 Fax send:
     Sends a fax using CAPI.
         Example:
-        exten => s,1,capicommand(sendfax|/path/to/faxfile.sff|+49 6137 555123|Asterisk)
+        exten => s,1,capicommand(sendfax,/path/to/faxfile.sff,+49 6137 555123,Asterisk)
 	(more see below)
 
 Enable/Disable echosquelch:
     Enables or disable a very primitive echo suppressor.
     Disable this option before you start recording voicemail or your files may get choppy.
         Example:
-        exten => s,1,capicommand(echosquelch|yes)
+        exten => s,1,capicommand(echosquelch,yes)
           or
-        exten => s,1,capicommand(echosquelch|no)
+        exten => s,1,capicommand(echosquelch,no)
 
 Enable/Disable echocancel:
     Enables or disables echo-cancel provided by CAPI driver/hardware.
@@ -176,9 +176,9 @@ Enable/Disable echocancel:
     by a non-CAPI application. After hangup, this setting is restored to the value
     set in capi.conf.
         Example:
-        exten => s,1,capicommand(echocancel|yes)
+        exten => s,1,capicommand(echocancel,yes)
           or
-        exten => s,1,capicommand(echocancel|no)
+        exten => s,1,capicommand(echocancel,no)
 
     By default chan_capi deactivates echo-cancel for transit connections
     (Dial command called from existing call). You can use 'econtransitconn'
@@ -191,7 +191,7 @@ Enable/Disable echocancel:
 Send Keypad Facility:
     Send Keypad Faciliaty information.
         Example:
-        exten => s,1,capicommand(keypad|<digits>)
+        exten => s,1,capicommand(keypad,<digits>)
 
 Malicious Call Identification:
     Reports a call of malicious nature.
@@ -206,18 +206,18 @@ Hold:
         Example:
         exten => s,1,capicommand(hold)
          or
-        exten => s,1,capicommand(hold|MYHOLDVAR)
+        exten => s,1,capicommand(hold,MYHOLDVAR)
 
 Holdtype:
     Sets the type of 'hold'. When Asterisk wants to put the call on hold, the specified method
     will be used.
         Example:
-        exten => s,1,capicommand(holdtype|local)  ;no hold, Asterisk can play MOH
+        exten => s,1,capicommand(holdtype,local)  ;no hold, Asterisk can play MOH
          or
-        exten => s,1,capicommand(holdtype|hold)   ;ISDN-HOLD 
+        exten => s,1,capicommand(holdtype,hold)   ;ISDN-HOLD 
          or
         ; not yet implemented
-        exten => s,1,capicommand(holdtype|notify) ;notify the peer only, Asterisk can play MOH
+        exten => s,1,capicommand(holdtype,notify) ;notify the peer only, Asterisk can play MOH
 
        
 Retrieve:
@@ -226,12 +226,12 @@ Retrieve:
         Example:
         exten => s,1,capicommand(retrieve)
          or
-        exten => s,1,capicommand(retrieve|${MYHOLDVAR})
+        exten => s,1,capicommand(retrieve,${MYHOLDVAR})
 
 ECT:
     Explicit Call Transfer of the call on hold (must put call on hold first!)
         Example:
-        exten => s,1,capicommand(ect|${MYHOLDVAR})
+        exten => s,1,capicommand(ect,${MYHOLDVAR})
          or
         [macro-capiect]
         exten => s,1,capicommand(ect)
@@ -241,13 +241,13 @@ ECT:
         exten => s,3,Dial(CAPI/contr1/1234,60,M(capiect))
     Note: Normaly a PBX needs 'implicit call transfer', which is done by default
     with this command. But if the line needs real 'explicit call transfer', use
-        exten => s,1,capicommand(ect|x)
+        exten => s,1,capicommand(ect,x)
     instead.
 
 3PTY:
     Initiates a Three-Party Conference (must have one call on hold and one active call!).
         Example:
-        exten => s,1,capicommand(3pty_begin|${MYHOLDVAR})
+        exten => s,1,capicommand(3pty_begin,${MYHOLDVAR})
          or
         [macro-capi3pty]
         exten => s,1,capicommand(3pty_begin)
@@ -274,9 +274,9 @@ Set local party to 'busy' or 'free':
     about the status of the extension who started the callback.
     By default, chan_capi assumes 'free', but you can change that
     with:
-        exten => s,1,capicommand(ccpartybusy|${CCLINKAGEID}|yes)
+        exten => s,1,capicommand(ccpartybusy,${CCLINKAGEID},yes)
     or 
-        exten => s,1,capicommand(ccpartybusy|${CCLINKAGEID}|no)
+        exten => s,1,capicommand(ccpartybusy,${CCLINKAGEID},no)
 
 Call completion on subscriber busy (CCBS):
     To receive a callback when the dialed and busy party becomes free, aka
@@ -286,7 +286,7 @@ Call completion on subscriber busy (CCBS):
         exten => s,2,Dial(CAPI/contr1/123456,60,g)  ;'g' to go-on with the dialplan on busy.
         exten => s,3,NoOp(${CCLINKAGEID})  ;if this variable now contains a number, CCBS is possible.
             ;here you can ask the caller if CCBS shall be activated...
-        exten => s,4,capicommand(ccbs|${CCLINKAGEID}|<context>|<exten>|<priority>)
+        exten => s,4,capicommand(ccbs,${CCLINKAGEID},<context>,<exten>,<priority>)
         exten => s,5,NoOp(${CCBSSTATUS})  ;if CCBS was successfully enabled, it is set to "ACTIVATED".
     If the remote party becomes 'non-busy', the network initiates the callback that will be
     sent to the provided context/exten/priority. Of course, this only happens if your local
@@ -298,15 +298,15 @@ Call completion on subscriber busy (CCBS):
 Deactivate CCBS:
     To deactivate a previously activated CCBS, use the following command:
         Example:
-        exten => s,1,capicommand(ccbsstop|${CCLINKAGEID})
+        exten => s,1,capicommand(ccbsstop,${CCLINKAGEID})
 
 Chat (MeetMe/Conference):
     See also README.media for details!
     If the CAPI card/driver supports it, the caller can be put into a chat-room:
     (This uses the DSPs onboard a Dialogic(R) Diva(R) Rev.2 Media Board.)
-        exten => s,1,capicommand(chat|<roomname>|<options>|controller)
+        exten => s,1,capicommand(chat,<roomname>,<options>,controller)
 		Example:
-            exten => s,1,capicommand(chat|salesmeeting|m|1,3-6)
+            exten => s,1,capicommand(chat,salesmeeting,m,1,3-6)
     Possible options:
     'm' = The first caller will get music-on-hold until second caller arrives.
     'h<sec>' = Hangup after <sec> seconds if caller is alone in conference.
@@ -385,19 +385,19 @@ Short HOWTO of capicommand(receivefax...) and capicommand(sendfax...):
 For those of you who have a CAPI card with an on-board DSP (like Dialogic(R) Diva(R) Media Boards),
 this allows you to receive/send faxes.
 
-capicommand(receivefax|<filename>[|<stationid>|<headline>|<options>]):
+capicommand(receivefax,<filename>[,<stationid>,<headline>,<options>]):
 -------------------------------------------------------------------------
-If you want to answer a channel in fax mode, use capicommand(receivefax|...)
+If you want to answer a channel in fax mode, use capicommand(receivefax,...)
 instead of Answer(). If you use Answer(), you will be in voice mode. 
 If the hardware DSP detects fax tone, you can switch from voice to fax mode 
-by calling capicommand(receivefax|...).
+by calling capicommand(receivefax,...).
 The parameter <filename> is mandatory and the parameters <stationid>,
 <headline> and <options> are optional.
 By default, if fax reception was not successful, the file is deleted. If you want even
 partly received or broken fax files, use 'k' for "keep bad fax" in the <options>:
-  capicommand(receivefax|/tmp/${UNIQUEID}|+123456789||k)
+  capicommand(receivefax,/tmp/${UNIQUEID},+123456789,,k)
 You can activate extended fax support by 'X' in the <options>:
-  capicommand(receivefax|/tmp/${UNIQUEID}|+123456789||X)
+  capicommand(receivefax,/tmp/${UNIQUEID},+123456789,X)
 Please read details on extended fax options in README.Diva.fax.
 
 To enable fax tone detection and redirect to extension 'fax', use config variable
@@ -415,11 +415,11 @@ exten => 124,1,Goto(handle_fax,s,1)
 exten => fax,1,Goto(handle_fax,s,1)
 
 [handle_fax]
-exten => s,1,capicommand(receivefax|/tmp/${UNIQUEID}[|<stationid>|<headline>|<options>])
+exten => s,1,capicommand(receivefax,/tmp/${UNIQUEID}[,<stationid>,<headline>,<options>])
 exten => s,2,Hangup()
 exten => h,1,deadagi,fax.php // Run sfftobmp and mail it.
 
-The output of capicommand(receivefax|...) is a SFF file.
+The output of capicommand(receivefax,...) is a SFF file.
 Use sfftobmp to convert it.
 With a Dialogic(R) Diva(R) Media Board, the following features are provided:
  - fax up to 33600
@@ -428,12 +428,12 @@ With a Dialogic(R) Diva(R) Media Board, the following features are provided:
  - JPEG Compression is disabled (not tested yet)
 See README.Diva.fax for more details and description of all options.
 
-capicommand(sendfax|<filename>[|<stationid>|<headline>|<options>]):
+capicommand(sendfax,<filename>[,<stationid>,<headline>,<options>]):
 ------------------------------------------------------------
 To send a fax, you can use the same mechanism like with receivefax.
 Just replace the <filename> with the path to the .SFF file to send.
 You can activate extended fax support by 'X' in the <options>:
-  capicommand(sendfax|/tmp/${UNIQUEID}|+123456789||X)
+  capicommand(sendfax,/tmp/${UNIQUEID},+123456789,,X)
 Please read details on extended fax options in README.Diva.fax.
 
 After disconnect of a fax connection, the following variables
@@ -485,7 +485,7 @@ BCHANNELINFO
      '2' : neither B nor D-channel is used (e.g., call waiting)
     Call-Waiting: an incoming call with BCHANNELINFO not '0' cannot be accepted.
     Another connection must be dropped before accepting or use
-    capicommand(deflect|<number>) to initiate call deflection to another destination.
+    capicommand(deflect,<number>) to initiate call deflection to another destination.
 
 CALLEDTON
     Incoming calls: 'type of number' value of the called number is saved in this variable on
@@ -522,7 +522,7 @@ CAPI_CIP
     instead of transfercapability.
 
 CCBSSTATUS
-    When using capicommand(ccbs|....), this variable is set to either "ERROR" or
+    When using capicommand(ccbs,....), this variable is set to either "ERROR" or
     "ACTIVATED".
 
 CCLINKAGEID
