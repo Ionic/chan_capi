@@ -3535,7 +3535,7 @@ static void capi_handle_dtmf_fax(struct capi_pvt *i)
 		return;
 	}
 
-	cc_verbose(2, 0, VERBOSE_PREFIX_3 "%s: Redirecting %s for fax to context,extension, %s,%s,%d\n",
+	cc_verbose(2, 0, VERBOSE_PREFIX_3 "%s: Redirecting %s for fax to %s,%s,%d\n",
 		i->vname, c->name, faxcontext, i->faxexten, i->faxpriority);
 			
 	capi_channel_task(c, CAPI_CHANNEL_TASK_GOTOFAX);
