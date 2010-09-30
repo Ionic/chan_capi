@@ -1536,7 +1536,7 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 		cip = tcap2cip(i->transfercapability);
 	}
 
-#if defined(AST_FORMAT_G722) || defined(AST_FORMAT_SIREN7) || defined(AST_FORMAT_SIREN14)
+#if defined(AST_FORMAT_G722) || defined(AST_FORMAT_SIREN7) || defined(AST_FORMAT_SIREN14) || defined(AST_FORMAT_SLINEAR16)
 	if (capi_tcap_is_digital(i->transfercapability) == 0 && i->bproto == CC_BPROTO_VOCODER) {
 		static unsigned char llc_s_template[] = { 0x04, 0x00, 0xc0, 0x90, 0xa5 };
 		static unsigned char hlc_s_template[] = { 0x02, 0x91, 0x81 };
@@ -1555,6 +1555,12 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 #endif
 #if defined(AST_FORMAT_SIREN14)
 			case AST_FORMAT_SIREN14:
+				llc_s = llc_s_template;
+				hlc_s = hlc_s_template;
+				break;
+#endif
+#if defined(AST_FORMAT_SLINEAR16)
+			case AST_FORMAT_SLINEAR16:
 				llc_s = llc_s_template;
 				hlc_s = hlc_s_template;
 				break;
@@ -1759,7 +1765,7 @@ static int capi_send_answer(struct ast_channel *c, _cstruct b3conf)
 		capi_facility_add_datetime(facilityarray);
 	}
 
-#if defined(AST_FORMAT_G722) || defined(AST_FORMAT_SIREN7) || defined(AST_FORMAT_SIREN14)
+#if defined(AST_FORMAT_G722) || defined(AST_FORMAT_SIREN7) || defined(AST_FORMAT_SIREN14) || defined(AST_FORMAT_SLINEAR16)
 	if (i->bproto == CC_BPROTO_VOCODER) {
 		static unsigned char llc_s_template[] = { 0x03, 0x91, 0x90, 0xa5 };
 		switch(i->codec) {
@@ -1775,6 +1781,11 @@ static int capi_send_answer(struct ast_channel *c, _cstruct b3conf)
 #endif
 #if defined(AST_FORMAT_SIREN14)
 			case AST_FORMAT_SIREN14:
+				llc_s = llc_s_template;
+				break;
+#endif
+#if defined(AST_FORMAT_SLINEAR16)
+			case AST_FORMAT_SLINEAR16:
 				llc_s = llc_s_template;
 				break;
 #endif
