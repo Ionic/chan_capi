@@ -1006,9 +1006,10 @@ Supported hardware:
   
 
 Syntax:
-capicommand(ressource,controller)
+capicommand(ressource,controller[,codeclist])
   controller - CAPI controller
-
+  codeclist  - separated by '+' character list of supported codecs, optional
+               codec oder codec1+codec2+...+codecN
 
 Syntax example:
 exten => s,n,capicommand(resource,1)
@@ -1016,6 +1017,8 @@ exten => s,n,capicommand(resource,1,3)
 exten => s,n,capicommand(resource,1-4)
 exten => s,n,capicommand(resource,1-4,7)
 exten => s,n,capicommand(resource,1-4,7-10)
+exten => s,n,capicommand(resource,1-4,7-10,gsm)
+exten => s,n,capicommand(resource,1-4,7-10,alaw+ulaw+gsm+g722)
 
 IVR example:
 /////////////////////////////////////////////////////////////////////
