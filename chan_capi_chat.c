@@ -446,7 +446,7 @@ static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i,
 
 	waitfd = i->readerfd;
 	if (i->channeltype == CAPI_CHANNELTYPE_NULL) {
-		int fmt = (i->bproto == CC_BPROTO_VOCODER) ? i->codec : capi_capability;
+		int fmt = (i->line_plci != 0 && i->line_plci->bproto == CC_BPROTO_VOCODER) ? i->line_plci->codec : capi_capability;
 		nfds = 1;
 		ast_set_read_format(chan, fmt);
 		ast_set_write_format(chan, fmt);

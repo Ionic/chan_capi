@@ -1442,7 +1442,7 @@ int capi_write_frame(struct capi_pvt *i, struct ast_frame *f)
 		return 0;
 	}
 
-	if (i->bproto == CC_BPROTO_VOCODER) {
+	if (i->bproto == CC_BPROTO_VOCODER || (i->line_plci != 0 && i->line_plci->bproto == CC_BPROTO_VOCODER)) {
 #ifdef DIVA_STREAMING
 		capi_DivaStreamLock();
 		if (i->diva_stream_entry != 0) {
