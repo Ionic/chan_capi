@@ -1740,8 +1740,10 @@ static int capi_send_answer(struct ast_channel *c, _cstruct b3conf)
 	}
 
 	if (strlen(dnid)) {
+		const char *p = pbx_builtin_getvar_helper(c, "CALLEDTON");
+
 		buf[0] = strlen(dnid) + 2;
-		buf[1] = 0x01;
+		buf[1] = (p != 0) ? (((unsigned char)atoi(p)) & ~0x80) : 0x01;
 		buf[2] = 0x80;
 		strncpy(&buf[3], dnid, sizeof(buf) - 4);
 	} else {
