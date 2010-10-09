@@ -588,10 +588,12 @@ static void capi_echo_canceller(struct capi_pvt *i, int function)
 		return;
 	}
 
-	if ((i->channeltype == CAPI_CHANNELTYPE_NULL) && (capi_controllers[i->controller]->ecPath & EC_ECHOCANCEL_PATH_IP) == 0) {
+	if ((i->channeltype == CAPI_CHANNELTYPE_NULL) &&
+	    (capi_controllers[i->controller]->ecPath & EC_ECHOCANCEL_PATH_IP) == 0) {
 		return;
 	}
-	if ((i->channeltype != CAPI_CHANNELTYPE_NULL) && (capi_controllers[i->controller]->ecPath & EC_ECHOCANCEL_PATH_IFC) == 0) {
+	if ((i->channeltype != CAPI_CHANNELTYPE_NULL) &&
+	    (capi_controllers[i->controller]->ecPath & EC_ECHOCANCEL_PATH_IFC) == 0) {
 		return;
 	}
 
@@ -704,8 +706,10 @@ static void capi_diva_tone_processing_function(struct capi_pvt *i, unsigned char
 	if (capi_check_diva_tone_function_allowed(i) != 0)
 		return;
 
-	cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: Apply tone processing function %u (PLCI=%#x)\n", i->vname, function, i->PLCI);
-	capi_sendf (i, 0, CAPI_FACILITY_REQ, i->PLCI, get_capi_MessageNumber(), "w(www())", 1, function, 0, 0);
+	cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: Apply tone processing function %u (PLCI=%#x)\n",
+		i->vname, function, i->PLCI);
+	capi_sendf(i, 0, CAPI_FACILITY_REQ, i->PLCI, get_capi_MessageNumber(),
+		"w(www())", 1, function, 0, 0);
 }
 
 static void capi_diva_send_tone_function(struct capi_pvt *i, unsigned char tone)
@@ -717,7 +721,11 @@ static void capi_diva_send_tone_function(struct capi_pvt *i, unsigned char tone)
 		FACILITYSELECTOR_DTMF, 252, /* send tone */ 0, 0, tone);
 }
 
-static void capi_diva_pitch_control_command(struct capi_pvt *i, int enable, unsigned short rxpitch, unsigned short txpitch)
+static void capi_diva_pitch_control_command(
+	struct capi_pvt *i,
+	int enable,
+	unsigned short rxpitch,
+	unsigned short txpitch)
 {
 	if (capi_check_diva_tone_function_allowed(i) != 0)
 		return;
@@ -744,7 +752,8 @@ static int capi_detect_dtmf(struct capi_pvt *i, int flag)
 		return 0;
 
 	if ((i->channeltype == CAPI_CHANNELTYPE_NULL) &&
-		(((i->line_plci == NULL) && (null_plci_dtmf_support == 0)) || (i->resource_plci_type == CAPI_RESOURCE_PLCI_LINE))) {
+		(((i->line_plci == NULL) && (null_plci_dtmf_support == 0)) ||
+	      (i->resource_plci_type == CAPI_RESOURCE_PLCI_LINE))) {
 		return 0;
 	}
 
@@ -1334,11 +1343,12 @@ static int pbx_capi_hangup(struct ast_channel *c)
 	return 0;
 }
 
-static void pbx_capi_call_build_calling_party_number (struct ast_channel *c,
-																											char* calling,
-																											int max_calling,
-																											int use_defaultcid,
-																											const char* ocid)
+static void pbx_capi_call_build_calling_party_number(
+	struct ast_channel *c,
+	char* calling,
+	int max_calling,
+	int use_defaultcid,
+	const char* ocid)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	const char *ton;
@@ -1595,7 +1605,7 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 	}
 	strncpy(&called[2], dest, sizeof(called) - 3);
 
-	pbx_capi_call_build_calling_party_number (c, calling, sizeof(calling), use_defaultcid, ocid);
+	pbx_capi_call_build_calling_party_number(c, calling, sizeof(calling), use_defaultcid, ocid);
 
 	if (doqsig != 0) {
 		facilityarray = alloca(CAPI_MAX_FACILITYDATAARRAY_SIZE);
@@ -1606,10 +1616,10 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 	}
 
 #ifdef DIVA_STREAMING
-			i->diva_stream_entry = 0;
-			if (pbx_capi_streaming_supported (i) != 0) {
-				capi_DivaStreamingOn(i, 1, i->MessageNumber);
-			}
+	i->diva_stream_entry = 0;
+	if (pbx_capi_streaming_supported (i) != 0) {
+		capi_DivaStreamingOn(i, 1, i->MessageNumber);
+	}
 #endif
 
 	error = capi_sendf(NULL, 0, CAPI_CONNECT_REQ, i->controller, i->MessageNumber,
@@ -1698,7 +1708,6 @@ _cstruct diva_get_b1_conf (struct capi_pvt *i) {
 			b1conf = (_cstruct)"\x06\x01\x04\x0f\x05\xa0\x00";
 			break;
 #endif
-
 		default:
 			cc_log(LOG_ERROR, "%s: format %s(%d) invalid.\n",
 				i->vname, ast_getformatname(i->codec), i->codec);
@@ -1760,7 +1769,7 @@ static int capi_send_answer(struct ast_channel *c, _cstruct b3conf)
 		
 	facilityarray = alloca(CAPI_MAX_FACILITYDATAARRAY_SIZE);
 	cc_qsig_add_call_answer_data(facilityarray, i, c);
-	pbx_capi_add_diva_protocol_independent_extension (i, facilityarray, c, "CONNECTEDNAME");
+	pbx_capi_add_diva_protocol_independent_extension(i, facilityarray, c, "CONNECTEDNAME");
 
 	if (i->ntmode) {
 		/* in NT-mode we send the current local time to device */
@@ -1947,67 +1956,6 @@ static int line_interconnect(struct capi_pvt *i0, struct capi_pvt *i1, int start
 
 	return 0;
 }
-
-#if 0
-/*
- * disconnect b3 and bring it up with another protocol
- */
-static void cc_switch_b_protocol(struct capi_pvt *i)
-{
-	int waitcount = 200;
-
-	cc_disconnect_b3(i, 1);
-
-	i->isdnstate |= CAPI_ISDN_STATE_B3_CHANGE;
-	cc_select_b(i, NULL);
-
-	if (i->outgoing) {
-		/* on outgoing call we must do the connect-b3 request */
-		cc_start_b3(i);
-	}
-
-	/* wait for the B3 layer to come up */
-	while ((waitcount > 0) &&
-	       (!(i->isdnstate & CAPI_ISDN_STATE_B3_UP))) {
-		usleep(10000);
-		waitcount--;
-	}
-	if (!(i->isdnstate & CAPI_ISDN_STATE_B3_UP)) {
-		cc_log(LOG_ERROR, "capi switch b3: no b3 up\n");
-	}
-}
-
-/*
- * set the b3 protocol to transparent
- */
-static int cc_set_transparent(struct capi_pvt *i)
-{
-	if (i->bproto != CC_BPROTO_RTP) {
-		/* nothing to do */
-		return 0;
-	}
-
-	i->bproto = CC_BPROTO_TRANSPARENT;
-	cc_switch_b_protocol(i);
-
-	return 1;
-}
-
-/*
- * set the b3 protocol to RTP (if wanted)
- */
-static void cc_unset_transparent(struct capi_pvt *i, int rtpwanted)
-{
-	if ((!rtpwanted) ||
-	    (i->isdnstate & CAPI_ISDN_STATE_DISCONNECT))
-		return;
-
-	i->bproto = CC_BPROTO_RTP;
-	cc_switch_b_protocol(i);
-
-	return;
-}
-#endif
 
 /*
  * try call transfer instead of bridge
@@ -4424,22 +4372,23 @@ static void capidev_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, u
 	}
 }
 
-static int pbx_capi_get_samples (struct capi_pvt *i, int length) {
+static int pbx_capi_get_samples(struct capi_pvt *i, int length)
+{
 	switch (i->codec) {
-		case AST_FORMAT_SLINEAR:
+	case AST_FORMAT_SLINEAR:
 #if defined(AST_FORMAT_SLINEAR16)
-		case AST_FORMAT_SLINEAR16:
+	case AST_FORMAT_SLINEAR16:
 #endif
-			return (length/2);
-		case AST_FORMAT_G722:
-			return (length*2);
+		return (length/2);
+	case AST_FORMAT_G722:
+		return (length*2);
 #if defined(AST_FORMAT_SIREN7)
-		case AST_FORMAT_SIREN7:
-			return (length *  (320 / 80));
+	case AST_FORMAT_SIREN7:
+		return (length *  (320 / 80));
 #endif
 #if defined(AST_FORMAT_SIREN14)
-		case AST_FORMAT_SIREN14:
-			return ((typeof(length)) length * ((float) 640 / 120));
+	case AST_FORMAT_SIREN14:
+		return ((typeof(length)) length * ((float) 640 / 120));
 #endif
 	}
 
@@ -4449,12 +4398,13 @@ static int pbx_capi_get_samples (struct capi_pvt *i, int length) {
 /*
  * CAPI DATA_B3_IND
  */
-static void capidev_handle_data_b3_indication(_cmsg *CMSG,
-																							unsigned int PLCI,
-																							unsigned int NCCI,
-																							struct capi_pvt *i,
-																							struct _diva_streaming_vector* vind,
-																							int vind_nr)
+static void capidev_handle_data_b3_indication(
+	_cmsg *CMSG,
+	unsigned int PLCI,
+	unsigned int NCCI,
+	struct capi_pvt *i,
+	struct _diva_streaming_vector* vind,
+	int vind_nr)
 {
 	struct ast_frame fr = { AST_FRAME_NULL, };
 	unsigned char *b3buf = NULL;
@@ -4473,7 +4423,8 @@ static void capidev_handle_data_b3_indication(_cmsg *CMSG,
 		} else {
 #ifdef DIVA_STREAMING
 			dword i = 0, k = 0;
-			b3len = (int)diva_streaming_read_vector_data (vind, vind_nr, &i, &k, b3buf, CAPI_MAX_B3_BLOCK_SIZE);
+			b3len = (int)diva_streaming_read_vector_data(vind,
+				vind_nr, &i, &k, b3buf, CAPI_MAX_B3_BLOCK_SIZE);
 #endif
 		}
 	}
@@ -4578,9 +4529,10 @@ static void capidev_handle_data_b3_indication(_cmsg *CMSG,
 }
 
 #if defined(DIVA_STREAMING)
-void capidev_handle_data_b3_indication_vector (struct capi_pvt *i,
-																							 struct _diva_streaming_vector* vind,
-																							 int vind_nr)
+void capidev_handle_data_b3_indication_vector(
+	struct capi_pvt *i,
+	struct _diva_streaming_vector* vind,
+	int vind_nr)
 {
 	capidev_handle_data_b3_indication(0, 0, 0, i, vind, vind_nr);
 }
@@ -4644,13 +4596,15 @@ static void capidev_send_faxdata(struct capi_pvt *i)
 		"()");
 }
 
-static void capidev_read_name_from_diva_manufacturer_infications (const unsigned char* src,
-																																	const unsigned char* end,
-																																	char* dst,
-																																	int max_length,
-																																	unsigned char* octet3a,
-																																	const char *channelname,
-																																	const char *nametype) {
+static void capidev_read_name_from_diva_manufacturer_infications(
+	const unsigned char* src,
+	const unsigned char* end,
+	char* dst,
+	int max_length,
+	unsigned char* octet3a,
+	const char *channelname,
+	const char *nametype)
+{
 	int length;
 
 	*dst = 0;
@@ -4661,10 +4615,12 @@ static void capidev_read_name_from_diva_manufacturer_infications (const unsigned
 		dst[length] = 0;
 	}
 
-	cc_verbose(3, 0, VERBOSE_PREFIX_3 "%s: received %s Name %02x '%s'\n", channelname, nametype, *octet3a, dst);
+	cc_verbose(3, 0, VERBOSE_PREFIX_3 "%s: received %s Name %02x '%s'\n",
+		channelname, nametype, *octet3a, dst);
 }
 
-static void capidev_handle_diva_signaling_manufacturer_infications (struct capi_pvt *i, const unsigned char* data) {
+static void capidev_handle_diva_signaling_manufacturer_infications(struct capi_pvt *i, const unsigned char* data)
+{
 	int length = *data++;
 	char buffer[CAPI_MAX_STRING];
 	unsigned char octet3a;
@@ -4675,43 +4631,42 @@ static void capidev_handle_diva_signaling_manufacturer_infications (struct capi_
        1-0 : Screening indicator, 00 - User provided not screened, 01 - User provided, verified and passed, 10 - User provided verified and failed, 11 - Nnetwork provided
 	*/
 
-
 	if (length >= 2) {
 		unsigned short command = read_capi_word(data);
 		data   += 2;
 		length -= 2;
 
 		switch (command) {
-			case 0x0005: /* Display */
-				break;
-			case 0x0006: /* CalledPartyName */
-				if (length != 0) {
-					capidev_read_name_from_diva_manufacturer_infications (data, &data[length], buffer, sizeof(buffer), &octet3a, i->vname, "Called Party");
-				}
-				break;
-			case 0x0007: /* CallingPartyName */
-				if (length != 0) {
-					capidev_read_name_from_diva_manufacturer_infications (data, &data[length], buffer, sizeof(buffer), &octet3a, i->vname, "Calling Party");
+		case 0x0005: /* Display */
+			break;
+		case 0x0006: /* CalledPartyName */
+			if (length != 0) {
+				capidev_read_name_from_diva_manufacturer_infications (data, &data[length], buffer, sizeof(buffer), &octet3a, i->vname, "Called Party");
+			}
+			break;
+		case 0x0007: /* CallingPartyName */
+			if (length != 0) {
+				capidev_read_name_from_diva_manufacturer_infications (data, &data[length], buffer, sizeof(buffer), &octet3a, i->vname, "Calling Party");
 #ifdef CC_AST_HAS_VERSION_1_8
-					ast_set_callerid(i->owner, NULL, buffer, NULL);
+				ast_set_callerid(i->owner, NULL, buffer, NULL);
 #else
-					ast_free (i->owner->cid.cid_name);
-					i->owner->cid.cid_name = ast_strdup(buffer);	/* Save name to callerid */
+				ast_free (i->owner->cid.cid_name);
+				i->owner->cid.cid_name = ast_strdup(buffer);	/* Save name to callerid */
 #endif
-				}
-				break;
-			case 0x0008: /* ConnectedPartyName */
-				if (length != 0) {
-					capidev_read_name_from_diva_manufacturer_infications (data, &data[length], buffer, sizeof(buffer), &octet3a, i->vname, "Connected Party");
-				}
-				break;
-			case 0x000a: /* BusyPartyName */
-				if (length != 0) {
-					capidev_read_name_from_diva_manufacturer_infications (data, &data[length], buffer, sizeof(buffer), &octet3a, i->vname, "Busy Party");
-				}
-				break;
-			case 0x0009: /* CQ_Events */
-				break;
+			}
+			break;
+		case 0x0008: /* ConnectedPartyName */
+			if (length != 0) {
+				capidev_read_name_from_diva_manufacturer_infications (data, &data[length], buffer, sizeof(buffer), &octet3a, i->vname, "Connected Party");
+			}
+			break;
+		case 0x000a: /* BusyPartyName */
+			if (length != 0) {
+				capidev_read_name_from_diva_manufacturer_infications (data, &data[length], buffer, sizeof(buffer), &octet3a, i->vname, "Busy Party");
+			}
+			break;
+		case 0x0009: /* CQ_Events */
+			break;
 		}
 	}
 }
@@ -4728,9 +4683,10 @@ static void capidev_handle_manufacturer_indication(_cmsg *CMSG, unsigned int PLC
 
 	if (MANUFACTURER_IND_MANUID(CMSG) == _DI_MANU_ID) {
 		if (CMSG->Info == 0x000a && i->owner != 0) {
-			capidev_handle_diva_signaling_manufacturer_infications (i, MANUFACTURER_IND_MANUDATA(CMSG));
+			capidev_handle_diva_signaling_manufacturer_infications(i, MANUFACTURER_IND_MANUDATA(CMSG));
 		} else {
-			cc_verbose(3, 0, VERBOSE_PREFIX_3 "%s: Ignored Diva MANUFACTURER_IND Id=0x%04x \n", i->vname, CMSG->Info);
+			cc_verbose(3, 0, VERBOSE_PREFIX_3 "%s: Ignored Diva MANUFACTURER_IND Id=0x%04x \n",
+				i->vname, CMSG->Info);
 		}
 	} else {
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: Ignored MANUFACTURER_IND Id=0x%x \n",
@@ -5038,11 +4994,12 @@ static void capidev_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI,
 /*
  * CAPI CONNECT_IND
  */
-static void capidev_handle_connect_indication(_cmsg *CMSG,
-																							unsigned int PLCI,
-																							unsigned int NCCI,
-																							struct capi_pvt **interface,
-																							struct ast_channel** interface_owner)
+static void capidev_handle_connect_indication(
+	_cmsg *CMSG,
+	unsigned int PLCI,
+	unsigned int NCCI,
+	struct capi_pvt **interface,
+	struct ast_channel** interface_owner)
 {
 	struct capi_pvt *i;
 	char *DNID;
@@ -5260,8 +5217,12 @@ static void capidev_handle_connect_indication(_cmsg *CMSG,
 /*
  * CAPI FACILITY_CONF
  */
-static void capidev_handle_facility_confirmation(_cmsg *CMSG, unsigned int PLCI, unsigned int NCCI, struct capi_pvt **i,
-																								 struct ast_channel** interface_owner)
+static void capidev_handle_facility_confirmation(
+	_cmsg *CMSG,
+	unsigned int PLCI,
+	unsigned int NCCI,
+	struct capi_pvt **i,
+	struct ast_channel** interface_owner)
 {
 	int selector;
 
@@ -5329,9 +5290,10 @@ static void capidev_handle_facility_confirmation(_cmsg *CMSG, unsigned int PLCI,
 /*
  * show error in confirmation
  */
-static void show_capi_conf_error(struct capi_pvt *i, 
-				 unsigned int PLCI, u_int16_t wInfo, 
-				 u_int16_t wCmd)
+static void show_capi_conf_error(
+	struct capi_pvt *i, 
+	unsigned int PLCI, u_int16_t wInfo, 
+	u_int16_t wCmd)
 {
 	const char *name = channeltype;
 
@@ -5714,8 +5676,8 @@ static void capidev_handle_msg(_cmsg *CMSG)
 	return;
 }
 
-
-static struct capi_pvt* get_active_plci (struct ast_channel *c) {
+static struct capi_pvt* get_active_plci(struct ast_channel *c)
+{
 	struct capi_pvt* i;
 
 	if (c->tech == &capi_tech) {
@@ -6656,7 +6618,7 @@ static int pbx_capi_stoptone(struct ast_channel *c, char *param)
 	return 0;
 }
 
-static const char* pbx_capi_map_detected_tone (unsigned char tone)
+static const char* pbx_capi_map_detected_tone(unsigned char tone)
 {
 	static diva_supported_tones_t diva_detected_tones[] = {
 /*		{ 0x80, "End of signal detected" }, */
@@ -9070,9 +9032,8 @@ static void pbx_capi_add_diva_protocol_independent_extension (struct capi_pvt *i
 	return;
 }
 
-cc_format_t pbx_capi_get_controller_codecs (int controller) {
+cc_format_t pbx_capi_get_controller_codecs(int controller)
+{
 	return (capi_controllers[controller]->rtpcodec);
 }
-
-
 

@@ -245,7 +245,13 @@ struct capi_pvt *capi_mknullif(struct ast_channel *c, unsigned long long control
 	return tmp;
 }
 
-struct capi_pvt *capi_mkresourceif(struct ast_channel *c, unsigned long long controllermask, struct capi_pvt *data_plci_ifc, cc_format_t codecs, int all) {
+struct capi_pvt *capi_mkresourceif(
+	struct ast_channel *c,
+	unsigned long long controllermask,
+	struct capi_pvt *data_plci_ifc,
+	cc_format_t codecs,
+	int all)
+{
 	struct capi_pvt *data_ifc /*, *line_ifc */;
 	unsigned int controller = 1;
 	int fmt = 0;
@@ -1571,7 +1577,7 @@ int capi_write_frame(struct capi_pvt *i, struct ast_frame *f)
 	 ast_channel_lock(chan) to be held while
 	 while accessing returned pointer
 	*/
-const char* pbx_capi_get_cid (struct ast_channel* c)
+const char* pbx_capi_get_cid(struct ast_channel* c)
 {
 	const char* cid;
 
@@ -1588,7 +1594,7 @@ const char* pbx_capi_get_cid (struct ast_channel* c)
 	 ast_channel_lock(chan) to be held while
 	 while accessing returned pointer
 	*/
-const char* pbx_capi_get_callername (struct ast_channel* c)
+const char* pbx_capi_get_callername(struct ast_channel* c)
 {
 	const char* name;
 
@@ -1605,7 +1611,7 @@ const char* pbx_capi_get_callername (struct ast_channel* c)
 	 ast_channel_lock(chan) to be held while
 	 while accessing returned pointer
 	*/
-const char* pbx_capi_get_connectedname (struct ast_channel* c)
+const char* pbx_capi_get_connectedname(struct ast_channel* c)
 {
 	const char* name;
 
