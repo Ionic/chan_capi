@@ -60,7 +60,7 @@ struct _diva_stream_scheduling_entry;
 /* now : 160 bytes Alaw = 20 ms audio */
 /* now : 640 bytes slinear 16000Hz = 20 ms audio */
 /* you can tune this to your need. higher value == more latency */
-#define CAPI_MAX_B3_BLOCK_SIZE          640
+#define CAPI_MAX_B3_BLOCK_SIZE          160
 
 #define ALL_SERVICES             0x1FFF03FF
 
