@@ -634,7 +634,33 @@ struct cc_capi_conf {
 #endif
 	int echocancelpath;
 	int econtransitconn;
+
+	int mwifacptynrtype;
+	int mwifacptynrton;
+	int mwifacptynrpres;
+	int mwibasicservice;
+	int mwiinvocation;
+
+	char* mwimailbox;
 };
+
+struct cc_capi_controller;
+struct _cc_capi_mwi_mailbox;
+typedef struct _cc_capi_mwi_mailbox {
+	AST_LIST_ENTRY(_cc_capi_mwi_mailbox) link;
+	struct cc_capi_controller *controller;
+	unsigned short basicService;
+	unsigned short invocationMode;
+	unsigned char *mailboxNumber;
+	char          *mailboxContext;
+	unsigned char *controllingUserNumber;
+	unsigned char *controllingUserProvidedNumber;
+#if defined(CC_AST_HAS_EVENT_MWI)
+	struct ast_event_sub* mwiSubscribtion;
+#else
+	void* mwiSubscribtion;
+#endif
+} cc_capi_mwi_mailbox_t;
 
 struct cc_capi_controller {
 	/* which controller is this? */
@@ -673,6 +699,7 @@ struct cc_capi_controller {
 #ifdef DIVA_STREAMING
 	int divaStreaming;
 #endif
+	AST_LIST_HEAD_NOLOCK(, _cc_capi_mwi_mailbox) mwiSubscribtions;
 };
 
 /* ETSI 300 102-1 Numbering Plans */

@@ -42,6 +42,9 @@
 #ifdef CC_AST_HAS_VERSION_1_8
 #include <asterisk/callerid.h>
 #endif
+#if defined(CC_AST_HAS_EVENT_MWI)
+#include <asterisk/event.h>
+#endif
 struct _diva_streaming_vector* vind;
 #ifdef DIVA_STREAMING
 #include "platform.h"
@@ -217,7 +220,99 @@ static int pbx_capi_indicate(struct ast_channel *c, int condition);
 static struct capi_pvt* get_active_plci (struct ast_channel *c);
 static void clear_channel_fax_loop (struct ast_channel *c,  struct capi_pvt *i);
 static struct ast_channel* capidev_acquire_locks_from_thread_context (struct capi_pvt *i);
-static void pbx_capi_add_diva_protocol_independent_extension (struct capi_pvt *i, unsigned char *facilityarray, struct  ast_channel *c, const char* variable);
+static void pbx_capi_add_diva_protocol_independent_extension (struct capi_pvt *i,
+																															unsigned char *facilityarray,
+																															struct  ast_channel *c,
+																															const char* variable);
+static unsigned char* pbx_capi_build_facility_number (unsigned char mwifacptynrtype,
+																											unsigned char mwifacptynrton,
+																											unsigned char mwifacptynrpres,
+																											const char* number);
+static void pbx_capi_register_mwi (struct cc_capi_controller *controller);
+static void pbx_capi_refresh_mwi  (struct cc_capi_controller *controller);
+static int pbx_capi_xmit_mwi (struct cc_capi_controller *controller,
+															unsigned short basicService, 
+															unsigned int   numberOfMessages,
+															unsigned short messageStatus,
+															unsigned short messageReference,
+															unsigned short invocationMode,
+															const unsigned char* receivingUserNumber,
+															const unsigned char* controllingUserNumber,
+															const unsigned char* controllingUserProvidedNumber,
+															const unsigned char* timeX208);
+static int pbx_capi_mwi(struct ast_channel *c, char *info);
+static int pbx_capi_xmit_mwi_deactivate (struct cc_capi_controller *controller,
+																				 unsigned short basicService,
+																				 unsigned short invocationMode,
+																				 const unsigned char* receivingUserNumber,
+																				 const unsigned char* controllingUserNumber);
+static void pbx_capi_unregister_mwi(struct cc_capi_controller *controller);
+static void pbx_capi_cleanup_mwi(struct cc_capi_controller *controller);
+
+/*
+	MWI command parameters
+	*/
+typedef enum _mwiAddSubscribtionParams {
+  mwiAddSubscribtionController = 1,
+	mwiAddSubscribtionReceivingUserNumber_TypeOfFacilityPartyNumber,
+	mwiAddSubscribtionReceivingUserNumber_TypeOfNumberAndNumberingPlan,
+	mwiAddSubscribtionReceivingUserNumber_PresentationAndScreening,
+	mwiAddSubscribtionReceivingUserNumber,
+	mwiAddSubscribtionControllingUserNumber_TypeOfFacilityPartyNumber,
+	mwiAddSubscribtionControllingUserNumber_TypeOfNumberAndNumberingPlan,
+	mwiAddSubscribtionControllingUserNumber_PresentationAndScreening,
+	mwiAddSubscribtionControllingUserNumber,
+	mwiAddSubscribtionControllingUserProvidedNumber_TypeOfFacilityPartyNumber,
+	mwiAddSubscribtionControllingUserProvidedNumber_TypeOfNumberAndNumberingPlan,
+	mwiAddSubscribtionControllingUserProvidedNumber_PresentationAndScreening,
+	mwiAddSubscribtionControllingUserProvidedNumber,
+	mwiAddSubscribtionMax
+} mwiAddSubscribtionParams_t;
+
+typedef enum _mwiRemoveSubscribtionParam {
+  mwiRemoveSubscribtionController = 1,
+	mwiRemoveSubscribtionReceivingUserNumber,
+	mwiRemoveSubscribtionMax
+} mwiRemoveSubscribtionParam_t;
+
+typedef enum _mwiXmitActivateParams {
+	mwiXmitActivate = 1,
+	mwiXmitActivateController,
+	mwiXmitActivateBasicService,
+	mwiXmitActivateNumberOfMessages,
+	mwiXmitActivateMessageStatus,
+	mwiXmitActivateMessageReference,
+	mwiXmitActivateInvocationMode,
+	mwiXmitActivateReceivingUserNumber_TypeOfFacilityPartyNumber,
+	mwiXmitActivateReceivingUserNumber_TypeOfNumberAndNumberingPlan,
+	mwiXmitActivateReceivingUserNumber_PresentationAndScreening,
+	mwiXmitActivateReceivingUserNumber,
+	mwiXmitActivateControllingUserNumber_TypeOfFacilityPartyNumber,
+	mwiXmitActivateControllingUserNumber_TypeOfNumberAndNumberingPlan,
+	mwiXmitActivateControllingUserNumber_PresentationAndScreening,
+	mwiXmitActivateControllingUserNumber,
+	mwiXmitActivateControllingUserProvidedNumber_TypeOfFacilityPartyNumber,
+	mwiXmitActivateControllingUserProvidedNumber_TypeOfNumberAndNumberingPlan,
+	mwiXmitActivateControllingUserProvidedNumber_PresentationAndScreening,
+	mwiXmitActivateControllingUserProvidedNumber,
+	mwiXmitActivatesMax
+} mwiXmitActivateParams_t;
+
+typedef enum _mwiXmitDeactivateParams {
+	mwiXmitDeactivate = 1,
+	mwiXmitDeactivateController,
+	mwiXmitDeactivateBasicService,
+	mwiXmitDeactivateInvocationMode,
+	mwiXmitDeactivateReceivingUserNumber_TypeOfFacilityPartyNumber,
+	mwiXmitDeactivateReceivingUserNumber_TypeOfNumberAndNumberingPlan,
+	mwiXmitDeactivateReceivingUserNumber_PresentationAndScreening,
+	mwiXmitDeactivateReceivingUserNumber,
+	mwiXmitDeactivateControllingUserNumber_TypeOfFacilityPartyNumber,
+	mwiXmitDeactivateControllingUserNumber_TypeOfNumberAndNumberingPlan,
+	mwiXmitDeactivateControllingUserNumber_PresentationAndScreening,
+	mwiXmitDeactivateControllingUserNumber,
+	mwiXmitDeactivateMax
+} mwiXmitDeactivateParams_t;
 
 /*
  * B protocol settings
@@ -7118,6 +7213,7 @@ static struct capicommands_s {
 	{ "chat_mute",    pbx_capi_chat_mute,       0, 0 },
 	{ "chat_play",    pbx_capi_chat_play,       0, 0 },
 	{ "resource",         pbx_capi_chat_associate_resource_plci, 0, 0 },
+	{ "mwi",          pbx_capi_mwi,             1, 0 },
 	{ "hangup",       pbx_capi_realhangup,      0, 0 },
  	{ "qsig_ssct",	  pbx_capi_qsig_ssct,	    1, 0 },
   	{ "qsig_ct",      pbx_capi_qsig_ct,         1, 0 },
@@ -7612,6 +7708,7 @@ int mkif(struct cc_capi_conf *conf)
 	struct capi_pvt *tmp;
 	int i = 0;
 	u_int16_t unit;
+	struct cc_capi_controller *mwiController = 0;
 
 	for (i = 0; i <= conf->devices; i++) {
 		tmp = ast_malloc(sizeof(struct capi_pvt));
@@ -7675,6 +7772,7 @@ int mkif(struct cc_capi_conf *conf)
 		capi_controllers[unit]->used = 1;
 		capi_controllers[unit]->ecPath = conf->echocancelpath;
 		capi_controllers[unit]->ecOnTransit = conf->econtransitconn;
+		mwiController = capi_controllers[unit];
 
 		tmp->controller = unit;
 		tmp->doEC = conf->echocancel;
@@ -7721,8 +7819,80 @@ int mkif(struct cc_capi_conf *conf)
 			tmp->vname, tmp->incomingmsn, tmp->context, tmp->controller,
 			conf->devices, tmp->doEC, tmp->ecOption, tmp->ecTail);
 	}
+
+
+	/*
+		Init MWI subscriptions
+		*/
+	if (mwiController != 0 && conf->mwimailbox != 0) {
+		char* mailboxList = conf->mwimailbox;
+		char* mailboxMember;
+
+		while ((mailboxMember = strsep (&mailboxList, ",")) != 0) {
+			/*
+				Mailbox format: extension[:extension1[:extension2]][@context]
+				*/
+			char* mailboxNumbers                      = strsep(&mailboxMember, "@");
+			const char* mailboxContext                = (mailboxMember != 0) ? mailboxMember : "default";
+			const char* mailboxNumber                 = strsep (&mailboxNumbers, ":");
+			const char* controllingUserNumber         = strsep (&mailboxNumbers, ":");
+			const char* controllingUserProvidedNumber = mailboxNumbers;
+			if (mailboxNumber != 0 && *mailboxNumber != 0) {
+				cc_capi_mwi_mailbox_t* mwiSubscribtion = ast_malloc (sizeof(*mwiSubscribtion));
+				if (mwiSubscribtion != 0) {
+					mwiSubscribtion->mailboxNumber = pbx_capi_build_facility_number (conf->mwifacptynrtype, conf->mwifacptynrton, conf->mwifacptynrpres, mailboxNumber);
+					mwiSubscribtion->mailboxContext = ast_strdup(mailboxContext);
+					mwiSubscribtion->controllingUserNumber = pbx_capi_build_facility_number (conf->mwifacptynrtype, conf->mwifacptynrton, conf->mwifacptynrpres, controllingUserNumber);
+					mwiSubscribtion->controllingUserProvidedNumber = pbx_capi_build_facility_number (conf->mwifacptynrtype, conf->mwifacptynrton, conf->mwifacptynrpres, controllingUserProvidedNumber);
+					mwiSubscribtion->controller = mwiController;
+					mwiSubscribtion->mwiSubscribtion = 0;
+					mwiSubscribtion->basicService    = conf->mwibasicservice;
+					mwiSubscribtion->invocationMode  = conf->mwiinvocation;
+
+					if (mwiSubscribtion->mailboxNumber == 0 || mwiSubscribtion->mailboxContext == 0 ||
+							(mwiSubscribtion->controllingUserNumber == 0 && controllingUserNumber != 0) ||
+							(mwiSubscribtion->controllingUserProvidedNumber == 0 && controllingUserProvidedNumber != 0)) {
+						ast_free (mwiSubscribtion->mailboxNumber);
+						ast_free (mwiSubscribtion->mailboxContext);
+						ast_free (mwiSubscribtion->controllingUserNumber);
+						ast_free (mwiSubscribtion->controllingUserProvidedNumber);
+						ast_free (mwiSubscribtion);
+					} else {
+						cc_verbose (4, 0, "CAPI%d add MWI subscribtion for '%s@%s' user '%s' control '%s'\n",
+												mwiSubscribtion->controller->controller,
+												mwiSubscribtion->mailboxNumber+4,
+												mwiSubscribtion->mailboxContext,
+												mwiSubscribtion->controllingUserNumber != 0 ? (char*)mwiSubscribtion->controllingUserNumber+4 : "",
+												mwiSubscribtion->controllingUserProvidedNumber != 0 ? (char*)mwiSubscribtion->controllingUserProvidedNumber+4 : "");
+
+						memset (&mwiSubscribtion->link, 0x00, sizeof(mwiSubscribtion->link));
+						AST_LIST_INSERT_TAIL(&mwiController->mwiSubscribtions, mwiSubscribtion, link);
+					}
+				}
+			}
+		}
+	}
+
 	return 0;
 }
+
+static unsigned char* pbx_capi_build_facility_number (unsigned char mwifacptynrtype, unsigned char mwifacptynrton, unsigned char mwifacptynrpres, const char* number) {
+	unsigned char* fnr = 0;
+
+	if (number != 0) {
+		fnr = ast_malloc (strlen(number)+7);
+		if (fnr != 0) {
+			fnr[0] = strlen(number) + 3;
+			fnr[1] = mwifacptynrtype;
+			fnr[2] = mwifacptynrton;
+			fnr[3] = mwifacptynrpres | 0x80;
+			strcpy((char*)&fnr[4], number);
+		}
+	}
+
+	return (fnr);
+}
+
 
 /*
  * eval supported services
@@ -8413,6 +8583,9 @@ static int cc_init_capi(void)
 		cp->divaStreaming = capi_DivaStreamingSupported(cp->controller);
 		cc_verbose(3, 0, VERBOSE_PREFIX_4 "CAPI %d Diva streaming is supported\n",  cp->controller);
 #endif
+
+		AST_LIST_HEAD_INIT_NOLOCK(&cp->mwiSubscribtions);
+
 		capi_controllers[controller] = cp;
 	}
 	return 0;
@@ -8459,6 +8632,11 @@ static int cc_post_init_capi(void)
 					cc_verbose(2, 0, VERBOSE_PREFIX_3 "enable extended voice features on contr%d\n",
 						controller);
 				}
+				/*
+					Register MWI mailboxes and refresh MWI info
+					*/
+				pbx_capi_register_mwi (capi_controllers[controller]);
+				pbx_capi_refresh_mwi  (capi_controllers[controller]);
 			}
 		} else {
 			cc_log(LOG_NOTICE, "Unused contr%d\n",controller);
@@ -8484,6 +8662,15 @@ static int conf_interface(struct cc_capi_conf *conf, struct ast_variable *v)
 	cc_copy_string(faxcontext, "", sizeof(faxcontext));
 	cc_copy_string(faxexten, "fax", sizeof(faxexten));
 
+	/*
+		Default values for MWI subscribtion
+		*/
+	conf->mwifacptynrtype = 0;
+	conf->mwifacptynrton  = 0;
+	conf->mwifacptynrpres = 0;
+	conf->mwibasicservice = 1;
+	conf->mwiinvocation   = 2;
+
 #define CONF_STRING(var, token)            \
 	if (!strcasecmp(v->name, token)) { \
 		cc_copy_string(var, v->value, sizeof(var)); \
@@ -8492,6 +8679,11 @@ static int conf_interface(struct cc_capi_conf *conf, struct ast_variable *v)
 #define CONF_INTEGER(var, token)           \
 	if (!strcasecmp(v->name, token)) { \
 		var = atoi(v->value);      \
+		continue;                  \
+	} else
+#define CONF_INTEGER_SAFE(var, token, lower, upper) \
+	if (!strcasecmp(v->name, token)) { \
+		typeof((var)) vi = (typeof((var)))atoi(v->value); if (var <= upper && var >= lower) var = vi; \
 		continue;                  \
 	} else
 #define CONF_TRUE(var, token, val)         \
@@ -8540,6 +8732,15 @@ static int conf_interface(struct cc_capi_conf *conf, struct ast_variable *v)
 		CONF_TRUE(conf->es, "echosquelch", 1)
 		CONF_TRUE(conf->bridge, "bridge", 1)
 		CONF_TRUE(conf->ntmode, "ntmode", 1)
+		CONF_INTEGER_SAFE(conf->mwifacptynrtype, "mwifacptynrtype", 0, 1)
+		CONF_INTEGER_SAFE(conf->mwifacptynrton, "mwifacptynrton", 0, 0x7f)
+		CONF_INTEGER_SAFE(conf->mwifacptynrpres, "mwifacptynrpres", 0, 0x7f)
+		CONF_INTEGER_SAFE(conf->mwibasicservice, "mwibasicservice", 0, 0xff)
+		CONF_INTEGER_SAFE(conf->mwiinvocation, "mwiinvocation", 0, 0xffff)
+		if (!strcasecmp(v->name, "mwimailbox")) {
+			conf->mwimailbox = ast_strdup(v->value);
+			continue;
+		} else
 		if (!strcasecmp(v->name, "callgroup")) {
 			conf->callgroup = ast_get_group(v->value);
 			continue;
@@ -8660,6 +8861,7 @@ static int conf_interface(struct cc_capi_conf *conf, struct ast_variable *v)
 	}
 #undef CONF_STRING
 #undef CONF_INTEGER
+#undef CONF_INTEGER_SAFE
 #undef CONF_TRUE
 
 	/* faxdestination */
@@ -8773,14 +8975,17 @@ static int capi_eval_config(struct ast_config *cfg)
 #endif
 
 		if (conf_interface(&conf, ast_variable_browse(cfg, cat))) {
+			ast_free (conf.mwimailbox);
 			cc_log(LOG_ERROR, "Error interface config.\n");
 			return -1;
 		}
 
 		if (mkif(&conf)) {
+			ast_free (conf.mwimailbox);
 			cc_log(LOG_ERROR,"Error creating interface list\n");
 			return -1;
 		}
+		ast_free (conf.mwimailbox);
 	}
 	return 0;
 }
@@ -8836,8 +9041,10 @@ int unload_module(void)
 	}
 
 	for (controller = 1; controller <= CAPI_MAX_CONTROLLERS; controller++) {
-		if (capi_controllers[controller])
+		if (capi_controllers[controller]) {
+			pbx_capi_cleanup_mwi (capi_controllers[controller]);
 			ast_free(capi_controllers[controller]);
+		}
 	}
 	
 	i = capi_iflist;
@@ -9037,3 +9244,344 @@ cc_format_t pbx_capi_get_controller_codecs(int controller)
 	return (capi_controllers[controller]->rtpcodec);
 }
 
+static unsigned char* time2X208 (time_t t) {
+	unsigned char* ret = 0;
+#if defined(CC_AST_HAS_VERSION_1_6)
+	unsigned char tX208[] = { 0x0c, 0x32, 0x30, 0x30, 0x31, 0x30, 0x35, 0x31, 0x31, 0x30, 0x39, 0x33, 0x36, 0x00 };
+  struct timeval tv = {
+    .tv_sec = t,
+  };
+  struct ast_tm tm;
+
+  ast_localtime(&tv, &tm, "utc");
+  ast_strftime((char*)&tX208[1], sizeof(tX208)-1, "%Y%d%m%H%M", &tm);
+
+	ret = ast_malloc (sizeof(tX208));
+	if (ret != 0)
+		memcpy (ret, tX208, sizeof(tX208));
+#endif
+
+	return (ret);
+}
+
+#if defined(CC_AST_HAS_EVENT_MWI)
+static void pbx_capi_mwi_event (const struct ast_event *event, void *userdata) {
+	cc_capi_mwi_mailbox_t* mwiSubscribtion = userdata;
+  /* const char *mbox_context; */
+  const char *mbox_number;
+  int num_messages, num_old_messages;
+	unsigned char* t;
+	int ret;
+
+  mbox_number = ast_event_get_ie_str(event, AST_EVENT_IE_MAILBOX);
+  if (ast_strlen_zero(mbox_number)) {
+    return;
+  }
+
+/*
+  mbox_context = ast_event_get_ie_str(event, AST_EVENT_IE_CONTEXT);
+  if (ast_strlen_zero(mbox_context)) {
+    return;
+  }
+*/
+
+  num_messages = ast_event_get_ie_uint(event, AST_EVENT_IE_NEWMSGS);
+  num_old_messages = ast_event_get_ie_uint(event, AST_EVENT_IE_OLDMSGS);
+
+
+	t = time2X208 (time(NULL));
+
+	cc_verbose (4, 0, "CAPI%d MWI event for '%s@%s' %d messages\n",
+											mwiSubscribtion->controller->controller,
+											mwiSubscribtion->mailboxNumber+4,
+											mwiSubscribtion->mailboxContext,
+											num_messages);
+
+	if (num_messages != 0 || num_old_messages != 0) {
+		ret = pbx_capi_xmit_mwi (mwiSubscribtion->controller,
+														 mwiSubscribtion->basicService, 
+														 num_messages,
+														 0,
+														 0,
+														 mwiSubscribtion->invocationMode,
+														 mwiSubscribtion->mailboxNumber,
+														 mwiSubscribtion->controllingUserNumber,
+														 mwiSubscribtion->controllingUserProvidedNumber,
+														 t);
+	} else {
+		ret = pbx_capi_xmit_mwi_deactivate (mwiSubscribtion->controller,
+																				mwiSubscribtion->basicService,
+																				mwiSubscribtion->invocationMode,
+																				mwiSubscribtion->mailboxNumber,
+																				mwiSubscribtion->controllingUserNumber);
+	}
+
+	ast_free (t);
+}
+#endif
+
+static void pbx_capi_register_mwi (struct cc_capi_controller *controller) {
+	cc_capi_mwi_mailbox_t* mwiSubscribtion;
+
+	AST_LIST_TRAVERSE(&controller->mwiSubscribtions, mwiSubscribtion, link) {
+#if defined(CC_AST_HAS_EVENT_MWI)
+		mwiSubscribtion->mwiSubscribtion = ast_event_subscribe(AST_EVENT_MWI, pbx_capi_mwi_event,
+#ifdef CC_AST_HAS_VERSION_1_8
+      "CHAN_CAPI mbox event",
+#endif
+			mwiSubscribtion,
+      AST_EVENT_IE_MAILBOX, AST_EVENT_IE_PLTYPE_STR, &mwiSubscribtion->mailboxNumber[4],
+      AST_EVENT_IE_CONTEXT, AST_EVENT_IE_PLTYPE_STR,  mwiSubscribtion->mailboxContext,
+      AST_EVENT_IE_END);
+#endif
+		if (mwiSubscribtion->mwiSubscribtion == 0) {
+			cc_log(LOG_WARNING, "CAPI%d failed to activate MWI subscribtion for '%s@%s'\n",
+						 mwiSubscribtion->controller->controller,
+						 &mwiSubscribtion->mailboxNumber[4],
+						 mwiSubscribtion->mailboxContext);
+		}
+	}
+}
+
+static void pbx_capi_refresh_mwi  (struct cc_capi_controller *controller) {
+	cc_capi_mwi_mailbox_t* mwiSubscribtion;
+
+	AST_LIST_TRAVERSE(&controller->mwiSubscribtions, mwiSubscribtion, link) {
+		if (mwiSubscribtion->mwiSubscribtion != 0) {
+#if defined(CC_AST_HAS_EVENT_MWI)
+			struct ast_event *event = ast_event_get_cached(AST_EVENT_MWI,
+																	AST_EVENT_IE_MAILBOX, AST_EVENT_IE_PLTYPE_STR, &mwiSubscribtion->mailboxNumber[4],
+																	AST_EVENT_IE_CONTEXT, AST_EVENT_IE_PLTYPE_STR, mwiSubscribtion->mailboxContext,
+																	AST_EVENT_IE_END);
+			if (event != 0) {
+				pbx_capi_mwi_event (event, mwiSubscribtion);
+				ast_event_destroy(event);
+			}
+#endif
+		}
+	}
+}
+
+static void pbx_capi_unregister_mwi(struct cc_capi_controller *controller) {
+	cc_capi_mwi_mailbox_t* mwiSubscribtion;
+
+	AST_LIST_TRAVERSE(&controller->mwiSubscribtions, mwiSubscribtion, link) {
+		if (mwiSubscribtion->mwiSubscribtion != 0) {
+#if defined(CC_AST_HAS_EVENT_MWI)
+			ast_event_unsubscribe(mwiSubscribtion->mwiSubscribtion);
+#endif
+			mwiSubscribtion->mwiSubscribtion = 0;
+		}
+	}
+}
+
+static void pbx_capi_cleanup_mwi(struct cc_capi_controller *controller) {
+	cc_capi_mwi_mailbox_t* mwiSubscribtion;
+
+	pbx_capi_unregister_mwi(controller);
+
+	while ((mwiSubscribtion = AST_LIST_REMOVE_HEAD(&controller->mwiSubscribtions, link)) != 0) {
+		ast_free (mwiSubscribtion->mailboxNumber);
+		ast_free (mwiSubscribtion->mailboxContext);
+		ast_free (mwiSubscribtion->controllingUserNumber);
+		ast_free (mwiSubscribtion->controllingUserProvidedNumber);
+		ast_free (mwiSubscribtion);
+	}
+}
+
+static int pbx_capi_xmit_mwi (struct cc_capi_controller *controller,
+															unsigned short basicService, 
+															unsigned int   numberOfMessages,
+															unsigned short messageStatus,
+															unsigned short messageReference,
+															unsigned short invocationMode,
+															const unsigned char* receivingUserNumber,
+															const unsigned char* controllingUserNumber,
+															const unsigned char* controllingUserProvidedNumber,
+															const unsigned char* timeX208)
+{
+	MESSAGE_EXCHANGE_ERROR error;
+	_cword messageNumber = get_capi_MessageNumber();
+
+	error = capi_sendf(NULL, 0, CAPI_FACILITY_REQ, controller->controller, messageNumber,
+										 "w(w(wdwwwssssd))",
+										 0x0003, /* Suppl. Service */
+										 0x0013, /* MWI Activate */
+										 basicService, /* Basic Service */
+										 numberOfMessages, /* Number of messages */
+										 messageStatus, /* Added messages */
+										 messageReference, /* Message reference */
+										 invocationMode, /* Invocation mode */
+										 receivingUserNumber, /* Receiving user number */
+										 controllingUserNumber, /* Controlling user number */
+										 controllingUserProvidedNumber, /* Controlling user provided number */
+										 timeX208, /* time */
+										 messageNumber);
+
+	return ((error == CapiNoError) ? 0 : -1);
+}
+
+static int pbx_capi_xmit_mwi_deactivate (struct cc_capi_controller *controller,
+																				 unsigned short basicService,
+																				 unsigned short invocationMode,
+																				 const unsigned char* receivingUserNumber,
+																				 const unsigned char* controllingUserNumber) {
+	MESSAGE_EXCHANGE_ERROR error;
+	_cword messageNumber = get_capi_MessageNumber();
+
+	error = capi_sendf(NULL, 0, CAPI_FACILITY_REQ, controller->controller, messageNumber,
+										 "w(w(wwss))",
+										 0x0003, /* Suppl. Service */
+										 0x0014, /* MWI Activate */
+										 basicService, /* Basic Service */
+										 invocationMode, /* Invocation mode */
+										 receivingUserNumber, /* Receiving user number */
+										 controllingUserNumber /* Controlling user number */);
+
+	return ((error == CapiNoError) ? 0 : -1);
+}
+
+/*
+	add|controller|fpn|ton|pres|receivingUserNumber|fpn|ton|pres|controllingUserNumber|fpn|ton|pres|controllingUserProvidedNumber
+	remove|conntroller|receivingUserNumber
+	xmit|activate|controller|basicService|numberOfMessages|messageStatus|messageReference|invocationMode|
+				fpn|ton|pres|receivingUserNumber|fpn|ton|pres|controllingUserNumber|fpn|ton|pres|controllingUserProvidedNumber
+	xmit|deactivate|controller|basicService|invocationMode|fpn|ton|pres|receivingUserNumber|fpn|ton|pres|controllingUserNumber
+
+	add    - add MWI subscription
+	remoce - remove MWI subscription
+	xmit   - xmit MWI activate or deactivate
+	*/
+static int pbx_capi_mwi(struct ast_channel *c, char *info)
+{
+	const char* params[MAX((MAX(mwiAddSubscribtionMax, mwiXmitActivatesMax)),(MAX(mwiRemoveSubscribtionMax, mwiXmitDeactivateMax)))];
+	int ret = -1;
+	int i;
+
+	for (i = 0; i < sizeof(params)/sizeof(params[0]); i++) {
+		params[i] = strsep (&info, COMMANDSEPARATOR);
+	}
+
+	if (params[0] == NULL)
+		return (-1);
+	if (strcmp(params[0], "add") == 0) {
+
+	} else if (strcmp (params[0], "remove") == 0) {
+
+	} else if (strcmp (params[0], "xmit") == 0) {
+		if (strcmp (params[mwiXmitActivate], "activate") == 0) {
+			int unit;
+
+			if (params[mwiXmitActivateController] != 0 &&  params[mwiXmitActivateController][0] != 0) {
+				unit = atoi(params[mwiXmitActivateController]);
+
+			} else {
+				struct capi_pvt *i = CC_CHANNEL_PVT(c);
+
+				unit = (i != 0) ? i->controller : 0;
+			}
+
+			if (unit > 0 && unit <= capi_num_controllers && capi_controllers[unit] != 0 && params[mwiXmitActivateReceivingUserNumber] != 0) {
+				unsigned short basicService     = params[mwiXmitActivateBasicService] != 0 ? (unsigned short)atoi(params[mwiXmitActivateBasicService]) : 1;
+				unsigned short numberOfMessages = params[mwiXmitActivateNumberOfMessages] != 0 ? (unsigned int)atoi(params[mwiXmitActivateNumberOfMessages]) : 1;
+				unsigned short messageStatus    = params[mwiXmitActivateMessageStatus] != 0 ? (unsigned short)atoi(params[mwiXmitActivateMessageStatus]) : 0;
+				unsigned short messageReference = params[mwiXmitActivateMessageReference] != 0 ? (unsigned short)atoi(params[mwiXmitActivateMessageReference]) : 0;
+				unsigned short invocationMode   = params[mwiXmitActivateInvocationMode] != 0 ? (unsigned short)atoi(params[mwiXmitActivateInvocationMode]) : 2;
+				unsigned char ReceivingUserNumber_TypeOfFacilityPartyNumber = params[mwiXmitActivateReceivingUserNumber_TypeOfFacilityPartyNumber] != 0 ?
+																				(unsigned char)atoi(params[mwiXmitActivateReceivingUserNumber_TypeOfFacilityPartyNumber]) : 0;
+				unsigned char ReceivingUserNumber_TypeOfNumberAndNumberingPlan = params[mwiXmitActivateReceivingUserNumber_TypeOfNumberAndNumberingPlan] != 0 ?
+																				(((unsigned char)atoi(params[mwiXmitActivateReceivingUserNumber_TypeOfNumberAndNumberingPlan])) & ~0x80) : 0;
+				unsigned char ReceivingUserNumber_PresentationAndScreening = params[mwiXmitActivateReceivingUserNumber_PresentationAndScreening] != 0 ?
+																				(((unsigned char)atoi(params[mwiXmitActivateReceivingUserNumber_PresentationAndScreening])) & ~0x80) : 0;
+				const char*   ReceivingUserNumber = params[mwiXmitActivateReceivingUserNumber];
+				unsigned char ControllingUserNumber_TypeOfFacilityPartyNumber = params[mwiXmitActivateControllingUserNumber_TypeOfFacilityPartyNumber] != 0 ?
+																				(unsigned char)atoi(params[mwiXmitActivateControllingUserNumber_TypeOfFacilityPartyNumber]) : 0;
+				unsigned char ControllingUserNumber_TypeOfNumberAndNumberingPlan = params[mwiXmitActivateControllingUserNumber_TypeOfNumberAndNumberingPlan] != 0 ?
+																				(((unsigned char)atoi(params[mwiXmitActivateControllingUserNumber_TypeOfNumberAndNumberingPlan])) & ~0x80) : 0;
+				unsigned char ControllingUserNumber_PresentationAndScreening = params[mwiXmitActivateControllingUserNumber_PresentationAndScreening] != 0 ?
+																				(((unsigned char)atoi(params[mwiXmitActivateControllingUserNumber_PresentationAndScreening])) & ~0x80) : 0;
+				const char*   ControllingUserNumber = params[mwiXmitActivateControllingUserNumber];
+				unsigned char ControllingUserProvidedNumber_TypeOfFacilityPartyNumber = params[mwiXmitActivateControllingUserProvidedNumber_TypeOfFacilityPartyNumber] != 0 ?
+																				(unsigned char)atoi(params[mwiXmitActivateControllingUserProvidedNumber_TypeOfFacilityPartyNumber]) : 0;
+				unsigned char ControllingUserProvidedNumber_TypeOfNumberAndNumberingPlan = params[mwiXmitActivateControllingUserProvidedNumber_TypeOfNumberAndNumberingPlan] != 0 ?
+																				(((unsigned char)atoi(params[mwiXmitActivateControllingUserProvidedNumber_TypeOfNumberAndNumberingPlan])) & ~0x80) : 0;
+				unsigned char ControllingUserProvidedNumber_PresentationAndScreening = params[mwiXmitActivateControllingUserProvidedNumber_PresentationAndScreening] != 0 ?
+																				(((unsigned char)atoi(params[mwiXmitActivateControllingUserProvidedNumber_PresentationAndScreening])) & ~0x80) : 0;
+				const char*   ControllingUserProvidedNumber = params[mwiXmitActivateControllingUserProvidedNumber];
+				unsigned char *facilityReceivingUserNumber = pbx_capi_build_facility_number (ReceivingUserNumber_TypeOfFacilityPartyNumber,
+																																										 ReceivingUserNumber_TypeOfNumberAndNumberingPlan,
+																																										 ReceivingUserNumber_PresentationAndScreening,
+																																										 ReceivingUserNumber);
+				unsigned char *facilityControllingUserNumber = pbx_capi_build_facility_number (ControllingUserNumber_TypeOfFacilityPartyNumber,
+																																											 ControllingUserNumber_TypeOfNumberAndNumberingPlan,
+																																											 ControllingUserNumber_PresentationAndScreening,
+																																											 ControllingUserNumber);
+				unsigned char *facilityControllingUserProvidedNumber = pbx_capi_build_facility_number (ControllingUserProvidedNumber_TypeOfFacilityPartyNumber,
+																																															 ControllingUserProvidedNumber_TypeOfNumberAndNumberingPlan,
+																																															 ControllingUserProvidedNumber_PresentationAndScreening,
+																																															 ControllingUserProvidedNumber);
+				unsigned char* t = time2X208(time(NULL));
+
+				ret = pbx_capi_xmit_mwi (capi_controllers[unit],
+                              basicService,
+                              numberOfMessages,
+                              messageStatus,
+                              messageReference,
+                              invocationMode,
+                              facilityReceivingUserNumber,
+															facilityControllingUserNumber,
+															facilityControllingUserProvidedNumber,
+                              t);
+
+				ast_free(facilityReceivingUserNumber);
+				ast_free(facilityControllingUserNumber);
+				ast_free(facilityControllingUserProvidedNumber);
+				ast_free(t);
+			}
+		} else if (strcmp (params[mwiXmitDeactivate], "deactivate") == 0) {
+			int unit;
+
+			if (params[mwiXmitDeactivateController] != 0 &&  params[mwiXmitDeactivateController][0] != 0) {
+				unit = atoi(params[mwiXmitDeactivateController]);
+
+			} else {
+				struct capi_pvt *i = CC_CHANNEL_PVT(c);
+
+				unit = (i != 0) ? i->controller : 0;
+			}
+			if (unit > 0 && unit <= capi_num_controllers && capi_controllers[unit] != 0 && params[mwiXmitDeactivateReceivingUserNumber] != 0) {
+				unsigned short basicService     = params[mwiXmitDeactivateBasicService] != 0 ? (unsigned short)atoi(params[mwiXmitDeactivateBasicService]) : 1;
+				unsigned short invocationMode   = params[mwiXmitDeactivateInvocationMode] != 0 ? (unsigned short)atoi(params[mwiXmitDeactivateInvocationMode]) : 2;
+				unsigned char ReceivingUserNumber_TypeOfFacilityPartyNumber = params[mwiXmitDeactivateReceivingUserNumber_TypeOfFacilityPartyNumber] != 0 ?
+																				(unsigned char)atoi(params[mwiXmitDeactivateReceivingUserNumber_TypeOfFacilityPartyNumber]) : 0;
+				unsigned char ReceivingUserNumber_TypeOfNumberAndNumberingPlan = params[mwiXmitDeactivateReceivingUserNumber_TypeOfNumberAndNumberingPlan] != 0 ?
+																				(((unsigned char)atoi(params[mwiXmitDeactivateReceivingUserNumber_TypeOfNumberAndNumberingPlan])) & ~0x80) : 0;
+				unsigned char ReceivingUserNumber_PresentationAndScreening = params[mwiXmitDeactivateReceivingUserNumber_PresentationAndScreening] != 0 ?
+																				(((unsigned char)atoi(params[mwiXmitDeactivateReceivingUserNumber_PresentationAndScreening])) & ~0x80) : 0;
+				const char*   ReceivingUserNumber = params[mwiXmitDeactivateReceivingUserNumber];
+				unsigned char ControllingUserNumber_TypeOfFacilityPartyNumber = params[mwiXmitDeactivateControllingUserNumber_TypeOfFacilityPartyNumber] != 0 ?
+																				(unsigned char)atoi(params[mwiXmitDeactivateControllingUserNumber_TypeOfFacilityPartyNumber]) : 0;
+				unsigned char ControllingUserNumber_TypeOfNumberAndNumberingPlan = params[mwiXmitDeactivateControllingUserNumber_TypeOfNumberAndNumberingPlan] != 0 ?
+																				(((unsigned char)atoi(params[mwiXmitDeactivateControllingUserNumber_TypeOfNumberAndNumberingPlan])) & ~0x80) : 0;
+				unsigned char ControllingUserNumber_PresentationAndScreening = params[mwiXmitDeactivateControllingUserNumber_PresentationAndScreening] != 0 ?
+																				(((unsigned char)atoi(params[mwiXmitDeactivateControllingUserNumber_PresentationAndScreening])) & ~0x80) : 0;
+				const char*   ControllingUserNumber = params[mwiXmitDeactivateControllingUserNumber];
+				unsigned char *facilityReceivingUserNumber = pbx_capi_build_facility_number (ReceivingUserNumber_TypeOfFacilityPartyNumber,
+																																										 ReceivingUserNumber_TypeOfNumberAndNumberingPlan,
+																																										 ReceivingUserNumber_PresentationAndScreening,
+																																										 ReceivingUserNumber);
+				unsigned char *facilityControllingUserNumber = pbx_capi_build_facility_number (ControllingUserNumber_TypeOfFacilityPartyNumber,
+																																											 ControllingUserNumber_TypeOfNumberAndNumberingPlan,
+																																											 ControllingUserNumber_PresentationAndScreening,
+																																											 ControllingUserNumber);
+
+				ret = pbx_capi_xmit_mwi_deactivate (capi_controllers[unit], basicService, invocationMode, facilityReceivingUserNumber, facilityControllingUserNumber);
+
+				ast_free (facilityReceivingUserNumber);
+				ast_free (facilityControllingUserNumber);
+			}
+		}
+	}
+
+	return (ret);
+}
