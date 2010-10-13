@@ -53,11 +53,13 @@ case "$AVERSIONNUM" in
 	108*)
 		echo "#define CC_AST_HAS_VERSION_1_6" >>$CONFIGFILE
 		echo "#define CC_AST_HAS_VERSION_1_8" >>$CONFIGFILE
+		echo "#define CC_AST_HAS_EVENT_MWI"   >>$CONFIGFILE
 		echo " * found Asterisk version 1.8"
 		VER=1_8
 		;;
 	106*)
 		echo "#define CC_AST_HAS_VERSION_1_6" >>$CONFIGFILE
+		echo "#define CC_AST_HAS_EVENT_MWI"   >>$CONFIGFILE
 		echo " * found Asterisk version 1.6"
 		VER=1_6
 		;;
