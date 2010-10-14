@@ -6,7 +6,7 @@
 |  Control MWI indicators (MWI Server)                              |
 +-------------------------------------------------------------------+
 
-Using Asterisk 1.6 or newer it iss possible to provide information about state of user
+Using Asterisk 1.6 or newer it is possible to provide information about state of user
 mailbox to ISDN phone.
 Dependent on the state of mailbox this is possible to send MWI Activate or MWI deactivate
 request to activate or to deactivate Message Waiting Indicator on the phone.
@@ -25,7 +25,7 @@ Where:
   controlling user number          - Number where mailbox can be accessed (often same as mailbox)
   controlling user provided number - Password, used by PBX to check permissions
 
-Additiona configuration parameters depends on type of PBX used and on the PBX installation:
+Additional configuration parameters depends on type of PBX used and on the PBX installation:
 mwifacptynrtype     - type of MWI facility party number, 0 - unknown (default), 1 - public
 mwifacptynrton      - MWI facility party number type of number and numbering plan identification
                       (coding as for byte 0 of the calling party number). This byte is only valid
@@ -44,14 +44,14 @@ Example:
 controller=1
 mwimailbox=12345:12345:221122@other,12347:12348,12349
 
-activates monitoring of therr mailboxes: 12345@other, 12347@default and 12349@default and sending
+activates monitoring of the mailboxes: 12345@other, 12347@default and 12349@default and sending
 of MWI requests using CAPI controller 1.
 
 +-------------------------------------------------------------------+
 |  Direct control MWI indicators (MWI Server)                       |
 +-------------------------------------------------------------------+
 
-This iss possible to send MWI Activate and MWI deactivate messages
+This is possible to send MWI Activate and MWI deactivate messages
 directly from dialplan using capicommand(mwi, ...).
 This can be necessary if testing the system, if voice mailbox is managed
 by other software (not by asterisk) or to verify MWI parameters.
