@@ -770,6 +770,7 @@ pbx_capi_command_proc_t pbx_capi_lockup_command_by_name(const char* name);
  */
 cc_format_t pbx_capi_get_controller_codecs (int controller);
 _cstruct diva_get_b1_conf (struct capi_pvt *i);
+struct cc_capi_controller *pbx_capi_get_controller (int controller);
 
 #ifdef DIVA_STREAMING
 struct _diva_streaming_vector;
