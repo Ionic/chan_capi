@@ -22,6 +22,7 @@ HEAD
 - added faxdestination= to capi.conf to configure custom context,exten,prio.
 - allow capicommand option separator "|" and ",".
 - Add MWI server
+- Add MWI client
 
 chan_capi-1.1.5
 ------------------

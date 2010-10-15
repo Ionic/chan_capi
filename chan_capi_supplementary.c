@@ -18,6 +18,9 @@
 #include "chan_capi.h"
 #include "chan_capi_supplementary.h"
 #include "chan_capi_utils.h"
+#if defined(CC_AST_HAS_EVENT_MWI)
+#include <asterisk/event.h>
+#endif
 
 
 #define CCBSNR_TYPE_CCBS 1
@@ -570,6 +573,80 @@ int handle_facility_indication_supplementary(
 	case 0x8012: /* CCBS stop alerting */
 		cc_verbose(1, 1, VERBOSE_PREFIX_3 "contr%d: PLCI=%#x CCBS B-free ref=0x%04x\n",
 			PLCI & 0xff, PLCI, infoword);
+		break;
+	case 0x8014: {/* MWI indication, stateless */
+		const unsigned char* info = &FACILITY_IND_FACILITYINDICATIONPARAMETER(CMSG)[4];
+		unsigned short basicService     = read_capi_word(info);  info += 2;
+		unsigned int   numberOfMessages = read_capi_dword(info); info += 4;
+		unsigned short messageStatus    = read_capi_word(info);  info += 2;
+		unsigned short messageReference = read_capi_word(info);  info += 2;
+		char controllingUserNumberName[AST_MAX_EXTENSION];
+		char controllingUserProvidedNumberName[AST_MAX_EXTENSION];
+		char mwiTimeName[AST_MAX_EXTENSION];
+		char mailboxName[AST_MAX_EXTENSION];
+
+		if (info[0] > 3) {
+			memcpy(controllingUserNumberName,
+						&info[4],
+						MIN(AST_MAX_EXTENSION-1, info[0] - 3));
+			controllingUserNumberName[MIN(AST_MAX_EXTENSION-1, info[0] - 3)] = 0;
+		} else {
+			controllingUserNumberName[0] = 0;
+		}
+		info += info[0] + 1;
+
+		if (info[0] > 3) {
+			memcpy(controllingUserProvidedNumberName,
+						&info[4],
+						MIN(AST_MAX_EXTENSION-1, info[0] - 3));
+			controllingUserProvidedNumberName[MIN(AST_MAX_EXTENSION-1, info[0] - 3)] = 0;
+		} else {
+			controllingUserProvidedNumberName[0] = 0;
+		}
+		info += info[0] + 1;
+
+		if (info[0] != 0) {
+			memcpy(mwiTimeName, &info[1], MIN(AST_MAX_EXTENSION-1, info[0]));
+			mwiTimeName[MIN(AST_MAX_EXTENSION-1, info[0])] = 0;
+		} else {
+			mwiTimeName[0] = 0;
+		}
+		info += info[0] + 1;
+
+		if (info[0] > 1) {
+			memcpy(mailboxName, &info[2], MIN(AST_MAX_EXTENSION-1, info[0]));
+			mailboxName[MIN(AST_MAX_EXTENSION-1, info[0]-1)] = 0;
+		} else {
+			mailboxName[0] = 0;
+		}
+
+		if (messageStatus == 0 || messageStatus == 1) {
+			cc_verbose(4, 0, VERBOSE_PREFIX_4 "CAPI%u Rx MWI %s for '%s@CAPI_Remote %s %s time '%s' %d messages ref %d service %d\n",
+								PLCI & 0xff,
+								messageStatus == 0 ? "add" : "del", mailboxName, controllingUserNumberName, controllingUserProvidedNumberName,
+                mwiTimeName, numberOfMessages, messageReference, basicService);
+			if (messageStatus == 0 && mailboxName[0] != 0) {
+#if defined(CC_AST_HAS_EVENT_MWI)
+				struct ast_event *event;
+
+				if ((event = ast_event_new(AST_EVENT_MWI,
+																		AST_EVENT_IE_MAILBOX, AST_EVENT_IE_PLTYPE_STR, mailboxName,
+																		AST_EVENT_IE_CONTEXT, AST_EVENT_IE_PLTYPE_STR, "CAPI_Remote",
+																		AST_EVENT_IE_NEWMSGS, AST_EVENT_IE_PLTYPE_UINT, MAX(1,numberOfMessages),
+																		AST_EVENT_IE_OLDMSGS, AST_EVENT_IE_PLTYPE_UINT, 0,
+																		AST_EVENT_IE_END))) {
+					ast_event_queue_and_cache(event);
+				}
+#endif
+			}
+		} else {
+			cc_verbose(4, 0, VERBOSE_PREFIX_1 "CAPI%u Rx MWI %s for '%s@default %s %s time '%s' service %d",
+								messageStatus == 0 ? "add" : "del", mailboxName, controllingUserNumberName, controllingUserProvidedNumberName,
+								mwiTimeName, basicService);
+		}
+	} return ret;
+
+	default:
 		break;
 	}
 

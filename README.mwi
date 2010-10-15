@@ -75,6 +75,15 @@ Please refer to COMMON-ISDN-API Version 2.0 Part III Supplementary Services for 
 on parameters.
 
 +-------------------------------------------------------------------+
+|  Receive MWI messages (MWI Client)                                |
++-------------------------------------------------------------------+
+
+Upon reception of MWI Activate messages from network chan_capi automatically
+generates Asterisk MWI events for mailbox N@CAPI_Remote, where N is the
+received as part of MWI Activate message Calling Party Number.
+
+
++-------------------------------------------------------------------+
 |  Notes                                                            |
 +-------------------------------------------------------------------+
 PBX often use one separate BRI trunk for transferring of MWI information (only MWI requests are transmitted
