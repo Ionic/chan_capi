@@ -51,6 +51,9 @@ struct _diva_streaming_vector* vind;
 #include "diva_streaming_manager.h"
 #include "chan_capi_divastreaming_utils.h"
 #endif
+#ifdef DIVA_STATUS
+#include "divastatus_ifc.h"
+#endif
 #include "chan_capi_mwi.h"
 
 /* #define CC_VERSION "x.y.z" */

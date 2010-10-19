@@ -19,6 +19,7 @@
 OSNAME=${shell uname}
 
 DIVA_STREAMING=0
+DIVA_STATUS=0
 
 USE_OWN_LIBCAPI=yes
 
@@ -84,6 +85,10 @@ ifeq (${DIVA_STREAMING},1)
 INCLUDE += -I./divastreaming -I./divastreaming/..
 endif
 
+ifeq (${DIVA_STATUS},1)
+INCLUDE += -I./divastatus -I./divastatus/..
+endif
+
 DEBUG=-g #-pg
 INCLUDE+= -I$(ASTERISK_HEADER_DIR)
 ifndef C4B
@@ -108,6 +113,9 @@ CFLAGS+=$(shell if $(CC) -march=$(PROC) -S -o /dev/null -xc /dev/null >/dev/null
 CFLAGS+=$(shell if uname -m | grep -q "ppc\|arm\|s390"; then echo "-fsigned-char"; fi)
 ifeq (${DIVA_STREAMING},1)
 CFLAGS += -DDIVA_STREAMING=1
+endif
+ifeq (${DIVA_STATUS},1)
+CFLAGS += -DDIVA_STATUS=1
 endif
 
 LIBS=-ldl -lpthread -lm
@@ -135,6 +143,10 @@ OBJECTS += divastreaming/diva_streaming_idi_host_ifc_impl.o \
            divastreaming/runtime.o
 endif
 
+ifeq (${DIVA_STATUS},1)
+OBJECTS += divastatus/divastatus.o
+endif
+
 CFLAGS+=-Wno-missing-prototypes -Wno-missing-declarations
 
 CFLAGS+=-DCRYPTO
@@ -152,6 +164,7 @@ clean:
 	rm -f *.so *.o
 	rm -f libcapi20/*.o
 	rm -f divastreaming/*.o
+	rm -f divastatus/*.o
 
 config.h:
 	./create_config.sh "$(ASTERISK_HEADER_DIR)"
