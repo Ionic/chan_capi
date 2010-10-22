@@ -109,7 +109,7 @@ typedef enum _diva_state_ifcstate_parameters {
 } diva_state_ifcstate_parameters_t;
 
 typedef enum diva_state_ifc_config_parameters {
-	DivaStateIfcConfig_TYPE,
+	DivaStateIfcConfig_TYPE = 0,
 	DivaStateIfcConfig_CHANNELS,
 	DivaStateIfcConfig_PROTOCOL,
 	DivaStateIfcConfig_NT_MODE,

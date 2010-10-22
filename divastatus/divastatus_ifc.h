@@ -27,28 +27,35 @@
 #define __DIVA_STATUS_IFC_H__
 
 typedef enum _diva_status_interface_state {
-  DivaStatusInterfaceStateNotAvailable = -1,
-  DivaStatusInterfaceStateOK           = 0,
-  DivaStatusInterfaceStateERROR        = 1,
+  DivaStatusInterfaceStateNotAvailable = 0,
+  DivaStatusInterfaceStateOK           = 1,
+  DivaStatusInterfaceStateERROR        = -1,
 } diva_status_interface_state_t;
+
+/*!
+	\brief Check if Diva interface is available
+	*/
+int diva_status_available(void);
+
+typedef void (*diva_status_changed_cb_proc_t)(int controller, diva_status_interface_state_t state);
 
 /*!
 	\brief activate event based status notifications
 	*/
-void diva_status_init_interface (int controller);
+diva_status_interface_state_t diva_status_init_interface(int controller, diva_status_changed_cb_proc_t fn);
 /*!
 	\brief deactivate event based status notifications
 	*/
-void diva_status_cleanup_interface (int controller);
+void diva_status_cleanup_interface(int controller);
 /*!
 	\brief retrieve file handle to be used in async
 	I/O operations
 	*/
-int  diva_status_get_waitable_object (void);
+int  diva_status_get_waitable_object(void);
 /*!
 	\brief process status change events
 	*/
-void diva_status_process_events (void);
+void diva_status_process_events(void);
 
 /*!
 	\brief Retrieve state of interface
@@ -57,8 +64,9 @@ void diva_status_process_events (void);
 				 DivaStatusInterfaceStateERROR        - interface state verified and
                                                 can not be used to create calls
 	*/
-diva_status_interface_state_t diva_status_get_interface_state (int controller);
+diva_status_interface_state_t diva_status_get_interface_state(int controller);
 
+const char* diva_status_interface_state_name(diva_status_interface_state_t state);
 
 
 

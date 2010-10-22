@@ -700,6 +700,9 @@ struct cc_capi_controller {
 	int divaStreaming;
 #endif
 	AST_LIST_HEAD_NOLOCK(, _cc_capi_mwi_mailbox) mwiSubscribtions;
+#ifdef DIVA_STATUS
+	int interfaceState;
+#endif
 };
 
 /* ETSI 300 102-1 Numbering Plans */
