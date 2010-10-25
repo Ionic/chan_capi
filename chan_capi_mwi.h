@@ -3,7 +3,7 @@
 
 extern int pbx_capi_mwi(struct ast_channel *c, char *info);
 extern int pbx_capi_xmit_mwi(
-	struct cc_capi_controller *controller,
+	const struct cc_capi_controller *controller,
 	unsigned short basicService, 
 	unsigned int   numberOfMessages,
 	unsigned short messageStatus,
@@ -14,7 +14,7 @@ extern int pbx_capi_xmit_mwi(
 	const unsigned char* controllingUserProvidedNumber,
 	const unsigned char* timeX208);
 extern int pbx_capi_xmit_mwi_deactivate(
-	struct cc_capi_controller *controller,
+	const struct cc_capi_controller *controller,
 	unsigned short basicService,
 	unsigned short invocationMode,
 	const unsigned char* receivingUserNumber,

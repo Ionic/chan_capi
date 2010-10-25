@@ -34,6 +34,13 @@
 #include "diva_streaming_manager.h"
 #include "chan_capi_divastreaming_utils.h"
 #endif
+#ifdef DIVA_STATUS
+#include "divastatus_ifc.h"
+#define CC_HW_STATE_OK(__x__) ((pbx_capi_get_controller((__x__)) == NULL) || \
+																(pbx_capi_get_controller((__x__))->hwState != (int)DivaStatusHardwareStateERROR))
+#else
+#define CC_HW_STATE_OK(__x__) (1)
+#endif
 
 int capidebug = 0;
 char *emptyid = "\0";
@@ -167,7 +174,7 @@ struct capi_pvt *capi_mknullif(struct ast_channel *c, unsigned long long control
 		controllermask);
 	/* find the next controller of mask with least plcis used */	
 	for (contrcount = 0; contrcount < maxcontr; contrcount++) {
-		if ((controllermask & (1ULL << contrcount)) != 0) {
+		if (((controllermask & (1ULL << contrcount)) != 0) && CC_HW_STATE_OK(contrcount + 1)) {
 			if (controller_nullplcis[contrcount] < channelcount) {
 				channelcount = controller_nullplcis[contrcount];
 				controller = contrcount + 1;
@@ -267,7 +274,7 @@ struct capi_pvt *capi_mkresourceif(
 
 		/* find the next controller of mask with least plcis used */	
 		for (contrcount = 0; contrcount < maxcontr; contrcount++) {
-			if ((controllermask & (1ULL << contrcount)) != 0) {
+			if (((controllermask & (1ULL << contrcount)) != 0) && CC_HW_STATE_OK(contrcount + 1)) {
 				if (controller_nullplcis[contrcount] < channelcount) {
 					channelcount = controller_nullplcis[contrcount];
 					controller = contrcount + 1;

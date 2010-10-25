@@ -648,7 +648,7 @@ struct cc_capi_controller;
 struct _cc_capi_mwi_mailbox;
 typedef struct _cc_capi_mwi_mailbox {
 	AST_LIST_ENTRY(_cc_capi_mwi_mailbox) link;
-	struct cc_capi_controller *controller;
+	const struct cc_capi_controller *controller;
 	unsigned short basicService;
 	unsigned short invocationMode;
 	unsigned char *mailboxNumber;
@@ -702,6 +702,7 @@ struct cc_capi_controller {
 	AST_LIST_HEAD_NOLOCK(, _cc_capi_mwi_mailbox) mwiSubscribtions;
 #ifdef DIVA_STATUS
 	int interfaceState;
+	int hwState;
 #endif
 };
 
@@ -773,7 +774,7 @@ pbx_capi_command_proc_t pbx_capi_lockup_command_by_name(const char* name);
  */
 cc_format_t pbx_capi_get_controller_codecs (int controller);
 _cstruct diva_get_b1_conf (struct capi_pvt *i);
-struct cc_capi_controller *pbx_capi_get_controller (int controller);
+const struct cc_capi_controller *pbx_capi_get_controller (int controller);
 
 #ifdef DIVA_STREAMING
 struct _diva_streaming_vector;

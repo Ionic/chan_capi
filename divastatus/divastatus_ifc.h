@@ -32,17 +32,31 @@ typedef enum _diva_status_interface_state {
   DivaStatusInterfaceStateERROR        = -1,
 } diva_status_interface_state_t;
 
+typedef enum _diva_status_hardware_state {
+	DivaStatusHardwareStateUnknown = 0, /*! /brief divalog is not running or old version of divalog */
+	DivaStatusHardwareStateOK      = 1, /*! /brief hardware status veriefied and OK */
+	DivaStatusHardwareStateERROR   = -1 /*! /brief hardware status verified and not OK */
+} diva_status_hardware_state_t;
+
 /*!
 	\brief Check if Diva interface is available
 	*/
 int diva_status_available(void);
 
 typedef void (*diva_status_changed_cb_proc_t)(int controller, diva_status_interface_state_t state);
+typedef void (*diva_hwstatus_changed_cb_proc_t)(int controller, diva_status_hardware_state_t hwstate);
 
 /*!
 	\brief activate event based status notifications
+
+	\param fn called if interface state changes, includes hardware state
+
+	\param hwfn called if hardware status changed, hardware state only, used for processing of IP media streams by resource/chat commands
 	*/
-diva_status_interface_state_t diva_status_init_interface(int controller, diva_status_changed_cb_proc_t fn);
+diva_status_interface_state_t diva_status_init_interface(int controller,
+																												 diva_status_hardware_state_t* hwState,
+																												 diva_status_changed_cb_proc_t fn,
+																												 diva_hwstatus_changed_cb_proc_t hwfn);
 /*!
 	\brief deactivate event based status notifications
 	*/
@@ -67,6 +81,7 @@ void diva_status_process_events(void);
 diva_status_interface_state_t diva_status_get_interface_state(int controller);
 
 const char* diva_status_interface_state_name(diva_status_interface_state_t state);
+const char* diva_status_hw_state_name(diva_status_hardware_state_t hwState);
 
 
 

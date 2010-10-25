@@ -104,6 +104,8 @@ typedef enum _diva_state_ifcstate_parameters {
 	DivaStateIfcState_FAX_RX_PAGES_TOTAL,
 	DivaStateIfcState_FAX_RX_PAGES_RETRAIN,
 	DivaStateIfcState_FAX_RX_PAGES_REJECT,
+	DivaStateIfcState_OUT_ABANDONED,
+	DivaStateIfcState_IN_ABANDONED,
 	DivaStateIfcState_HARDWARE_STATE,
 	DivaStateIfcState_Max
 } diva_state_ifcstate_parameters_t;

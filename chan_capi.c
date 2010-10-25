@@ -230,6 +230,7 @@ static void pbx_capi_add_diva_protocol_independent_extension(
 	const char* variable);
 #ifdef DIVA_STATUS
 static void pbx_capi_interface_status_changed(int controller, diva_status_interface_state_t newInterfaceState);
+static void pbx_capi_hw_status_changed(int controller, diva_status_hardware_state_t newHwState);
 #endif
 static int pbx_capi_check_controller_status(struct capi_pvt *currentChannel, ast_group_t capigroup);
 
@@ -8494,7 +8495,14 @@ static int cc_post_init_capi(void)
 						controller);
 				}
 #ifdef DIVA_STATUS
-				capi_controllers[controller]->interfaceState = diva_status_init_interface(controller, pbx_capi_interface_status_changed);
+				{
+					diva_status_hardware_state_t hwState = DivaStatusHardwareStateUnknown;
+					capi_controllers[controller]->interfaceState = diva_status_init_interface(controller,
+																																	&hwState,
+																																	pbx_capi_interface_status_changed,
+																																	pbx_capi_hw_status_changed);
+					capi_controllers[controller]->hwState = hwState;
+				}
 #endif
 				/*
 					Register MWI mailboxes and refresh MWI info
@@ -9111,7 +9119,7 @@ cc_format_t pbx_capi_get_controller_codecs(int controller)
 	return (capi_controllers[controller]->rtpcodec);
 }
 
-struct cc_capi_controller *pbx_capi_get_controller (int controller) {
+const struct cc_capi_controller *pbx_capi_get_controller (int controller) {
 	return ((controller > 0 && controller <= capi_num_controllers) ? capi_controllers[controller] : 0);
 }
 
@@ -9131,14 +9139,26 @@ static void pbx_capi_interface_status_changed(int controller, diva_status_interf
 	capi_controllers[controller]->interfaceState = newInterfaceState;
 	cc_mutex_unlock(&iflock);
 
-	printf("CAPI%d: interface state changed %s -> %s\n",
-							controller,
-							diva_status_interface_state_name((diva_status_interface_state_t)currentInterfaceState),
-							diva_status_interface_state_name((diva_status_interface_state_t)newInterfaceState));
 	cc_verbose(1, 0, VERBOSE_PREFIX_1 "CAPI%d: interface state changed %s -> %s\n",
 							controller,
 							diva_status_interface_state_name((diva_status_interface_state_t)currentInterfaceState),
 							diva_status_interface_state_name((diva_status_interface_state_t)newInterfaceState));
+}
+
+static void pbx_capi_hw_status_changed(int controller, diva_status_hardware_state_t newHwState)
+{
+	int currentHwState;
+
+	cc_mutex_lock(&iflock);
+	currentHwState = capi_controllers[controller]->hwState;
+	capi_controllers[controller]->hwState = newHwState;
+	cc_mutex_unlock(&iflock);
+
+
+	cc_verbose(1, 0, VERBOSE_PREFIX_1 "CAPI%d: hardware state changed %s -> %s\n",
+							controller,
+							diva_status_hw_state_name((diva_status_hardware_state_t)currentHwState),
+							diva_status_hw_state_name((diva_status_hardware_state_t)newHwState));
 }
 #endif
 

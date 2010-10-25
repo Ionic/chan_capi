@@ -67,7 +67,8 @@ static int diva_status_active(void);
 static int diva_status_get_controller_state(int controller, diva_status_ifc_state_t *state);
 static char* diva_status_read_file(unsigned int controller, const char* fileName);
 static void diva_status_create_wd(int* wd, int controller, const char* fileName, int isDir);
-static diva_status_interface_state_t diva_status_get_interface_state_from_idi_state (diva_status_ifc_state_t* state);
+static diva_status_interface_state_t diva_status_get_interface_state_from_idi_state (const diva_status_ifc_state_t* state);
+static diva_status_hardware_state_t diva_status_get_hw_state_from_idi_state (const diva_status_ifc_state_t* state);
 static int diva_status_map_CAPI2XDI(int capiController);
 static void diva_status_process_event(struct _diva_status_ifc *controllerState, int initialStateIndex, int newStateIndex);
 #ifdef CC_USE_INOTIFY
@@ -87,11 +88,18 @@ typedef struct _diva_status_ifc {
 	int currentState;
 	int ifstateWd;
 	int infoWd;
-	diva_status_changed_cb_proc_t status_changed_notify_proc;
-	time_t changeTime;
+	diva_status_changed_cb_proc_t   status_changed_notify_proc; /*! \brief Notify about interface state change */
+	diva_hwstatus_changed_cb_proc_t hw_status_changed_notify_proc; /*! \brief Notify about hardware state change */
+	time_t changeTime; /*! \brief Time interface state changed */
+	time_t unavailableChangeTime; /*! \brief Time interface state changed to unavailable */
+	time_t hwChangeTime; /*! \brief Time hardware state changed */
+	time_t unavailableHwChangeTime; /*! \brief Time hardware state changed to unavailable */
 } diva_status_ifc_t;
 
-diva_status_interface_state_t diva_status_init_interface (int controller, diva_status_changed_cb_proc_t fn)
+diva_status_interface_state_t diva_status_init_interface(int controller,
+																												 diva_status_hardware_state_t* hwState,
+																												 diva_status_changed_cb_proc_t fn,
+																												 diva_hwstatus_changed_cb_proc_t hwfn)
 {
 	int idiController = diva_status_map_CAPI2XDI(controller);
 	diva_status_ifc_t* controllerState = idiController > 0 ? (ast_malloc(sizeof(*controllerState))) : 0;
@@ -100,7 +108,8 @@ diva_status_interface_state_t diva_status_init_interface (int controller, diva_s
   if (controllerState != 0) {
 		controllerState->capiController = controller;
 		controllerState->idiController  = idiController;
-		controllerState->status_changed_notify_proc      = fn;
+		controllerState->status_changed_notify_proc    = fn;
+		controllerState->hw_status_changed_notify_proc = hwfn;
 		controllerState->ifstateWd = -1;
 		controllerState->infoWd    = -1;
 		diva_status_create_wd(&controllerState->ifstateWd, idiController, DIVA_STATUS_FILE, 0);
@@ -110,6 +119,7 @@ diva_status_interface_state_t diva_status_init_interface (int controller, diva_s
 		diva_status_get_controller_state(idiController, &controllerState->state[controllerState->currentState]);
 		diva_q_add_tail(&controller_q, &controllerState->link);
 		ret = diva_status_get_interface_state_from_idi_state(&controllerState->state[controllerState->currentState]);
+		*hwState = diva_status_get_hw_state_from_idi_state(&controllerState->state[controllerState->currentState]);
 	}
 
 	return ret;
@@ -241,10 +251,26 @@ static void diva_status_process_event(diva_status_ifc_t *controllerState, int in
 	diva_status_ifc_state_t* newState     = &controllerState->state[newStateIndex];
 	diva_status_interface_state_t initialIfcState = diva_status_get_interface_state_from_idi_state (initialState);
 	diva_status_interface_state_t newIfcState     = diva_status_get_interface_state_from_idi_state (newState);
+	diva_status_hardware_state_t initalHwState    = diva_status_get_hw_state_from_idi_state(initialState);
+	diva_status_hardware_state_t newHwState       = diva_status_get_hw_state_from_idi_state(newState);
+	time_t t = time(NULL);
 
 	if (initialIfcState != newIfcState) {
-		controllerState->changeTime = time(NULL);
+		controllerState->changeTime = t;
+
+		if (newIfcState == DivaStatusInterfaceStateERROR)
+			controllerState->unavailableChangeTime = t;
+
 		controllerState->status_changed_notify_proc(controllerState->capiController, newIfcState);
+	}
+
+	if (initalHwState != newHwState) {
+		controllerState->hwChangeTime = t;
+
+		if (newHwState == DivaStatusHardwareStateERROR)
+			controllerState->unavailableHwChangeTime = t;
+
+		controllerState->hw_status_changed_notify_proc(controllerState->capiController, newHwState);
 	}
 }
 
@@ -496,7 +522,8 @@ diva_status_interface_state_t diva_status_get_interface_state(int controller)
 	return DivaStatusInterfaceStateERROR;
 }
 
-static diva_status_interface_state_t diva_status_get_interface_state_from_idi_state (diva_status_ifc_state_t* state) {
+static diva_status_interface_state_t diva_status_get_interface_state_from_idi_state(const diva_status_ifc_state_t* state)
+{
 	if ((state->ifcType    != DivaStatusIfcPri)          ||
 			(state->ifcL1State == DivaStatusIfcL2DoNotApply) ||
 			(state->hwState    == DivaStatusHwStateUnknown)) {
@@ -512,6 +539,21 @@ static diva_status_interface_state_t diva_status_get_interface_state_from_idi_st
 	}
 
 	return DivaStatusInterfaceStateERROR;
+}
+
+static diva_status_hardware_state_t diva_status_get_hw_state_from_idi_state(const diva_status_ifc_state_t* state)
+{
+	switch(state->hwState) {
+		case DivaStateHwStateActive:
+			return (DivaStatusHardwareStateOK);
+
+		case DivaStateHwStateInactive:
+			return (DivaStatusHardwareStateERROR);
+
+		case DivaStatusHwStateUnknown:
+		default:
+			return (DivaStatusHardwareStateUnknown);
+	}
 }
 
 /*!
@@ -534,7 +576,7 @@ int diva_status_available(void)
 
 const char* diva_status_interface_state_name(diva_status_interface_state_t state)
 {
-	switch (state) {
+	switch(state) {
 		case DivaStatusInterfaceStateOK:
 			return "active";
 
@@ -544,5 +586,20 @@ const char* diva_status_interface_state_name(diva_status_interface_state_t state
 		case DivaStatusInterfaceStateNotAvailable:
 		default:
 			return "not available";
+	}
+}
+
+const char* diva_status_hw_state_name(diva_status_hardware_state_t hwState)
+{
+	switch(hwState) {
+		case DivaStatusHardwareStateOK:
+			return "active";
+
+		case DivaStatusHardwareStateERROR:
+			return "not running";
+
+		case DivaStatusHardwareStateUnknown:
+		default:
+			return "unknown";
 	}
 }
