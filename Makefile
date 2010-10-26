@@ -116,6 +116,10 @@ CFLAGS += -DDIVA_STREAMING=1
 endif
 ifeq (${DIVA_STATUS},1)
 CFLAGS += -DDIVA_STATUS=1
+
+CFLAGS+=$(shell echo '\#include <sys/inotify.h>' > /tmp/test.c 2>/dev/null && \
+                echo 'int main(int argc,char**argv){if(inotify_init()>=0)return 0; return 1;}' >> /tmp/test.c 2>/dev/null && \
+                $(CC) /tmp/test.c -o /tmp/test && /tmp/test >/dev/null 2>&1 && echo '-DCC_USE_INOTIFY=1'; rm -f /tmp/test.c /tmp/test)
 endif
 
 LIBS=-ldl -lpthread -lm
