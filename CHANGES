@@ -23,6 +23,7 @@ HEAD
 - allow capicommand option separator "|" and ",".
 - Add MWI server
 - Add MWI client
+- Improved call distribution algorithm for outgoing calls
 
 chan_capi-1.1.5
 ------------------
