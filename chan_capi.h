@@ -642,6 +642,9 @@ struct cc_capi_conf {
 	int mwiinvocation;
 
 	char* mwimailbox;
+
+	int hlimit;
+	int slimit;
 };
 
 struct cc_capi_controller;
@@ -671,6 +674,13 @@ struct cc_capi_controller {
 	int nbchannels;
 	/* free bchans */
 	int nfreebchannels;
+	/* Controller considered BUSY amount if free channels below
+		of this level */
+	int nfreebchannelsHardThr;
+	/* If amount of free channels is below this level then
+		try to allocate call on other controler in group
+		where this level is not reached or difference is less */
+	int nfreebchannelsSoftThr;
 	/* features: */
 	int broadband;
 	int dtmf;

@@ -211,7 +211,9 @@ static char global_mohinterpret[MAX_MUSICCLASS] = "default";
 #endif
 
 /* local prototypes */
-#define CC_B_INTERFACE_NOT_FREE(__x__) (((__x__)->used) || ((__x__)->channeltype != CAPI_CHANNELTYPE_B))
+#define CC_B_INTERFACE_NOT_FREE(__x__) (((__x__)->used) || \
+	((__x__)->channeltype != CAPI_CHANNELTYPE_B) || \
+	(capi_controllers[(__x__)->controller]->nfreebchannels < capi_controllers[(__x__)->controller]->nfreebchannelsHardThr))
 
 static int pbx_capi_hold(struct ast_channel *c, char *param);
 static int pbx_capi_retrieve(struct ast_channel *c, char *param);
@@ -232,7 +234,7 @@ static void pbx_capi_add_diva_protocol_independent_extension(
 static void pbx_capi_interface_status_changed(int controller, diva_status_interface_state_t newInterfaceState);
 static void pbx_capi_hw_status_changed(int controller, diva_status_hardware_state_t newHwState);
 #endif
-static int pbx_capi_check_controller_status(struct capi_pvt *currentChannel, ast_group_t capigroup);
+static int pbx_capi_check_controller_status(int controller);
 
 /*
  * B protocol settings
@@ -2440,7 +2442,7 @@ static struct ast_channel *
 pbx_capi_request(const char *type, int format, void *data, int *cause)
 #endif
 {
-	struct capi_pvt *i;
+	struct capi_pvt *i, *bestChannel;
 	struct ast_channel *tmp = NULL;
 	char *dest, *interface, *param, *ocid;
 	char buffer[CAPI_MAX_STRING];
@@ -2484,7 +2486,7 @@ pbx_capi_request(const char *type, int format, void *data, int *cause)
 
 	cc_mutex_lock(&iflock);
 	
-	for (i = capi_iflist; i; i = i->next) {
+	for (i = capi_iflist, bestChannel = 0; i; i = i->next) {
 		if (CC_B_INTERFACE_NOT_FREE(i)) {
 			/* if already in use or no real channel */
 			continue;
@@ -2495,7 +2497,7 @@ pbx_capi_request(const char *type, int format, void *data, int *cause)
 			if (i->controller != controller) {
 				/* keep on running! */
 				continue;
-			} else if (pbx_capi_check_controller_status(i, 0) != 0) {
+			} else if (pbx_capi_check_controller_status(i->controller) < 0) {
 				break;
 			}
 		} else {
@@ -2503,16 +2505,32 @@ pbx_capi_request(const char *type, int format, void *data, int *cause)
 			if (interface[0] == 'g') {
 				if ((i->group & capigroup) == 0)
 					continue; /* not in group, keep on running! */
-				if (pbx_capi_check_controller_status(i, capigroup) != 0)
+				if (pbx_capi_check_controller_status(i->controller) < 0)
 					continue; /* not active or better interface found, keep on running! */
+				if (capi_controllers[i->controller]->nfreebchannelsSoftThr != 0) {
+					if (bestChannel == 0) {
+						bestChannel = i;
+					} else if (i->controller != bestChannel->controller) {
+						int idiff = capi_controllers[i->controller]->nfreebchannels - capi_controllers[i->controller]->nfreebchannelsSoftThr;
+						int bdiff = capi_controllers[bestChannel->controller]->nfreebchannels - capi_controllers[bestChannel->controller]->nfreebchannelsSoftThr;
+						int c = (i->controller < bestChannel->controller);
+
+						if ((c && (idiff >= 0)) || ((bdiff < 0) && (idiff >= 0)) || ((bdiff < 0) && (idiff > bdiff))) {
+							bestChannel = i;
+						}
+					}
+					continue; /* Continue search for best channel */
+				}
 			} else if (strcmp(interface, i->name) != 0) {
 			/* DIAL(CAPI/<interface-name>/...) */
 				/* keep on running! */
 				continue;
-			} else if (pbx_capi_check_controller_status(i, 0) != 0) {
+			} else if (pbx_capi_check_controller_status(i->controller) < 0) {
 				break;
 			}
 		}
+
+found_best_channel:
 		/* when we come here, we found a free controller match */
 		cc_copy_string(i->dnid, dest, sizeof(i->dnid));
 		tmp = capi_new(i, AST_STATE_RESERVED,
@@ -2532,6 +2550,11 @@ pbx_capi_request(const char *type, int format, void *data, int *cause)
 		cc_mutex_unlock(&iflock);
 		return tmp;
 	}
+	if (bestChannel != 0) {
+		i = bestChannel;
+		goto found_best_channel;
+	}
+
 	cc_mutex_unlock(&iflock);
 	cc_verbose(2, 0, VERBOSE_PREFIX_3 "didn't find " CC_MESSAGE_NAME
 		" device for interface '%s'\n", interface);
@@ -7700,6 +7723,8 @@ int mkif(struct cc_capi_conf *conf)
 		capi_controllers[unit]->used = 1;
 		capi_controllers[unit]->ecPath = conf->echocancelpath;
 		capi_controllers[unit]->ecOnTransit = conf->econtransitconn;
+		capi_controllers[unit]->nfreebchannelsHardThr = conf->hlimit;
+		capi_controllers[unit]->nfreebchannelsSoftThr = conf->slimit;
 		mwiController = capi_controllers[unit];
 
 		tmp->controller = unit;
@@ -8627,6 +8652,8 @@ static int conf_interface(struct cc_capi_conf *conf, struct ast_variable *v)
 		CONF_INTEGER_SAFE(conf->mwifacptynrpres, "mwifacptynrpres", 0, 0x7f)
 		CONF_INTEGER_SAFE(conf->mwibasicservice, "mwibasicservice", 0, 0xff)
 		CONF_INTEGER_SAFE(conf->mwiinvocation, "mwiinvocation", 0, 0xffff)
+		CONF_INTEGER_SAFE(conf->hlimit, "hlimit", 0, 0xff)
+		CONF_INTEGER_SAFE(conf->slimit, "slimit", 0, 0xff)
 		if (!strcasecmp(v->name, "mwimailbox")) {
 			conf->mwimailbox = ast_strdup(v->value);
 			continue;
@@ -9194,12 +9221,9 @@ static void pbx_capi_hw_status_changed(int controller, diva_status_hardware_stat
 		\note The core runs twice over the interface list, but this allows to preserve
 					the structure of the original code which uses this function.
 	*/
-static int pbx_capi_check_controller_status(struct capi_pvt *currentChannel, ast_group_t capigroup)
+static int pbx_capi_check_controller_status(int capiController)
 {
 #ifdef DIVA_STATUS
-	int capiController = currentChannel->controller;
-	struct capi_pvt *newChannel;
-
 	if (capi_controllers[capiController]->interfaceState == (int)DivaStatusInterfaceStateOK) /* known, OK */
 		return 0;
 
@@ -9207,28 +9231,10 @@ static int pbx_capi_check_controller_status(struct capi_pvt *currentChannel, ast
 		return -1;
 
 	/*
-		The state of interface is unknown. Look if it is other interface which belongs
-		to requested group with known state and free capi_pvt associated with this interface
-		*/
-	if ((capigroup == 0) || (diva_status_available() != 0))
-		return (0); /* Status information not available, use this interface */
-
-	for (newChannel = currentChannel->next; (newChannel != 0); newChannel = newChannel->next) {
-		if (CC_B_INTERFACE_NOT_FREE(newChannel)) {
-			continue;
-		}
-		if ((newChannel->controller != capiController) &&
-				((newChannel->group & capigroup) != 0) &&
-				(capi_controllers[newChannel->controller]->interfaceState == (int)DivaStatusInterfaceStateOK)) {
-			return (-1); /* Found better interface */
-		}
-	}
-
-	/*
-		No better channel found, use this interface
+		Unknown interface state
 		*/
 #endif
 
-	return 0;
+	return 1;
 }
 
