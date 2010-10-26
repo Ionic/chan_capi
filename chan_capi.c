@@ -7976,6 +7976,10 @@ static int pbxcli_capi_show_channels(int fd, int argc, char *argv[])
 	char iochar;
 	char i_state[80];
 	char b3q[32];
+	int required_args;
+	int provided_args;
+	const char* required_channel_name = NULL;
+
 #ifdef CC_AST_HAS_VERSION_1_6
 	int fd = a->fd;
 
@@ -7985,14 +7989,19 @@ static int pbxcli_capi_show_channels(int fd, int argc, char *argv[])
 		return NULL;
 	} else if (cmd == CLI_GENERATE)
 		return NULL;
-	if (a->argc != e->args)
-		return CLI_SHOWUSAGE;
+	required_args = e->args;
+	provided_args = a->argc;
+	if (required_args < provided_args) {
+		required_channel_name = a->argv[required_args];
+	}
 #else
-	
-	if (argc != 3)
-		return RESULT_SHOWUSAGE;
+	required_args = 3;
+	provided_args = argc;
+	if (required_args < provided_args) {
+		required_channel_name = argv[required_args];
+	}
 #endif
-	
+
 	ast_cli(fd, CC_MESSAGE_BIGNAME " B-channel information:\n");
 	ast_cli(fd, "Line-Name       NTmode state i/o bproto isdnstate   ton  number\n");
 	ast_cli(fd, "----------------------------------------------------------------\n");
@@ -8001,6 +8010,8 @@ static int pbxcli_capi_show_channels(int fd, int argc, char *argv[])
 
 	for (i = capi_iflist; i; i = i->next) {
 		if (i->channeltype != CAPI_CHANNELTYPE_B)
+			continue;
+		if ((required_channel_name != NULL) && (strcmp(required_channel_name, i->vname) != 0))
 			continue;
 
 		if ((i->state == 0) || (i->state == CAPI_STATE_DISCONNECTED))
