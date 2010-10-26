@@ -42,7 +42,7 @@
 #include "divastatus_parameters.h"
 #include "divastatus_ifc.h"
 #include "divastatus.h"
-#define CC_USE_INOTIFY
+//#define CC_USE_INOTIFY
 #ifdef CC_USE_INOTIFY
 #include <fcntl.h>
 #include <sys/inotify.h>
@@ -76,6 +76,14 @@ static pcchar DIVA_DIVA_FS_PATH       = "/usr/lib/eicon/divas/registry/ifc";
 static void diva_status_cleanup_wd(int wd);
 static int divaFsWd  = -1; /*! \brief Diva fs state */
 #endif
+
+#ifdef CC_AST_HAS_VERSION_1_6
+static
+#endif
+char diva_status_ifc_state_usage[] =
+"Usage: " CC_MESSAGE_NAME " ifcstate\n"
+"       Show info about interfaces.\n";
+
 
 static int inotifyFd = -1; /*! \brief inotify descriptor */
 static diva_entity_queue_t controller_q; /*! \brief Active controllers. \note List changed only while CAPI thread is not running */
@@ -431,26 +439,26 @@ static int diva_status_get_controller_state(int controller, diva_status_ifc_stat
 
 			case DivaStateIfcState_LAYER2_STATE:
 				if (state->ifcType == DivaStatusIfcPri) {
-					state->ifcL1State = (strcmp ("'Layer2 UP'", v) == 0) ? DivaStatusIfcL2OK : DivaStatusIfcL2Error;
+					state->ifcL2State = (strcmp ("'Layer2 UP'", v) == 0) ? DivaStatusIfcL2OK : DivaStatusIfcL2Error;
 				}
 				break;
 
-			case DivaStateIfcState_D2_X_FRAMES:
+			case DivaStateIfcState_D1_X_FRAMES:
 				state->ifcTxDStatistics.Frames = (unsigned int)atol(v);
 				break;
-			case DivaStateIfcState_D2_X_BYTES:
+			case DivaStateIfcState_D1_X_BYTES:
 				state->ifcTxDStatistics.Bytes = (unsigned int)atol(v);
 				break;
-			case DivaStateIfcState_D2_X_ERRORS:
+			case DivaStateIfcState_D1_X_ERRORS:
 				state->ifcTxDStatistics.Errors = (unsigned int)atol(v);
 				break;
-			case DivaStateIfcState_D2_R_FRAMES:
+			case DivaStateIfcState_D1_R_FRAMES:
 				state->ifcRxDStatistics.Frames = (unsigned int)atol(v);
 				break;
-			case DivaStateIfcState_D2_R_BYTES:
+			case DivaStateIfcState_D1_R_BYTES:
 				state->ifcRxDStatistics.Bytes = (unsigned int)atol(v);
 				break;
-			case DivaStateIfcState_D2_R_ERRORS:
+			case DivaStateIfcState_D1_R_ERRORS:
 				state->ifcRxDStatistics.Errors = (unsigned int)atol(v);
 				break;
 
@@ -475,15 +483,15 @@ static int diva_status_get_controller_state(int controller, diva_status_ifc_stat
 	ast_free (data);
 
 	if ((data = diva_status_read_file(controller, DIVA_READ_ALARM_FILE)) != 0) {
-		state->ifcAlarms.Red = strcmp("TRUE", data);
+		state->ifcAlarms.Red = strcmp("TRUE", data) == 0;
 		ast_free(data);
 	}
 	if ((data = diva_status_read_file(controller, DIVA_YELLOW_ALARM_FILE)) != 0) {
-		state->ifcAlarms.Yellow = strcmp("TRUE", data);
+		state->ifcAlarms.Yellow = strcmp("TRUE", data) == 0;
 		ast_free(data);
 	}
 	if ((data = diva_status_read_file(controller, DIVA_BLUE_ALARM_FILE)) != 0) {
-		state->ifcAlarms.Blue = strcmp("TRUE", data);
+		state->ifcAlarms.Blue = strcmp("TRUE", data) == 0;
 		ast_free(data);
 	}
 	if ((data = diva_status_read_file(controller, DIVA_SERIAL_FILE)) != 0) {
@@ -585,7 +593,7 @@ const char* diva_status_interface_state_name(diva_status_interface_state_t state
 
 		case DivaStatusInterfaceStateNotAvailable:
 		default:
-			return "not available";
+			return "unknown";
 	}
 }
 
@@ -602,4 +610,67 @@ const char* diva_status_hw_state_name(diva_status_hardware_state_t hwState)
 		default:
 			return "unknown";
 	}
+}
+
+
+#ifdef CC_AST_HAS_VERSION_1_6
+char *pbxcli_capi_ifc_status(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+#else
+int pbxcli_capi_ifc_status(int fd, int argc, char *argv[])
+#endif
+{
+	diva_entity_link_t* link;
+#ifdef CC_AST_HAS_VERSION_1_6
+	int fd = a->fd;
+
+	if (cmd == CLI_INIT) {
+		e->command = CC_MESSAGE_NAME " ifcstate";
+		e->usage = diva_status_ifc_state_usage;
+		return NULL;
+	} else if (cmd == CLI_GENERATE)
+		return NULL;
+	if (a->argc != e->args)
+		return CLI_SHOWUSAGE;
+#else
+	
+	if (argc != 2)
+		return RESULT_SHOWUSAGE;
+#endif
+
+	if ( diva_q_get_head(&controller_q) == NULL) {
+		ast_cli(fd, "There are no interraces in " CC_MESSAGE_NAME " instance.\n");
+		return RESULT_SUCCESS;
+	}
+
+	ast_cli(fd, CC_MESSAGE_NAME " interfaces\n");
+	ast_cli(fd, "%s %-9s%-4s%-4s%-4s%-7s%-5s%8s%12s%12s%12s%12s\n",
+							"CAPI#", "State", "L1", "L2", "RED", "YELLOW", "BLUE", "D-Rx-Frames", "D-Rx-Bytes","D-Tx-Frames", "D-Tx-Bytes", "D-Errors");
+
+	for (link = diva_q_get_head(&controller_q); link != 0; link = diva_q_get_next(link)) {
+		diva_status_ifc_t *controllerState = DIVAS_CONTAINING_RECORD(link, diva_status_ifc_t, link);
+		diva_status_ifc_state_t* state = &controllerState->state[controllerState->currentState];
+		ast_cli(fd, "%3d%-2s %-9s%-4s%-4s%-4s%-7s%-3s %12d %11d %11d %11d %11d\n",
+						controllerState->capiController, "",
+						diva_status_interface_state_name(diva_status_get_interface_state_from_idi_state (state)),
+						((state->ifcType == DivaStatusIfcPri) && (state->hwState == DivaStatusHardwareStateOK)) ?
+												(state->ifcL1State == DivaStatusIfcL1OK ? "On" : "Off") : "-",
+						((state->ifcType == DivaStatusIfcPri) && (state->hwState == DivaStatusHardwareStateOK)) ?
+												(state->ifcL2State == DivaStatusIfcL2OK ? "On" : "Off") : "-",
+						((state->ifcType == DivaStatusIfcPri) && (state->hwState == DivaStatusHardwareStateOK)) ?
+												(state->ifcAlarms.Red    != 0 ? "On" : "Off") : "-",
+						((state->ifcType == DivaStatusIfcPri) && (state->hwState == DivaStatusHardwareStateOK)) ?
+												(state->ifcAlarms.Yellow != 0 ? "On" : "Off") : "-",
+						((state->ifcType == DivaStatusIfcPri) && (state->hwState == DivaStatusHardwareStateOK)) ?
+												(state->ifcAlarms.Blue   != 0 ? "On" : "Off") : "-",
+						state->ifcRxDStatistics.Frames, state->ifcRxDStatistics.Bytes,
+						state->ifcTxDStatistics.Frames, state->ifcTxDStatistics.Bytes,
+						state->ifcRxDStatistics.Errors + state->ifcTxDStatistics.Errors
+						);
+	}
+
+#ifdef CC_AST_HAS_VERSION_1_6
+	return CLI_SUCCESS;
+#else
+	return RESULT_SUCCESS;
+#endif
 }

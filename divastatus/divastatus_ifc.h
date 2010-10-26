@@ -83,6 +83,15 @@ diva_status_interface_state_t diva_status_get_interface_state(int controller);
 const char* diva_status_interface_state_name(diva_status_interface_state_t state);
 const char* diva_status_hw_state_name(diva_status_hardware_state_t hwState);
 
+#ifdef CC_AST_HAS_VERSION_1_6
+char *pbxcli_capi_ifc_status(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a);
+#else
+int pbxcli_capi_ifc_status(int fd, int argc, char *argv[]);
+#endif
 
+#define CC_CLI_TEXT_IFC_STATUSINFO "Show " CC_MESSAGE_BIGNAME " interface info"
+#ifndef CC_AST_HAS_VERSION_1_6
+extern char diva_status_ifc_state_usage[];
+#endif
 
 #endif

@@ -8237,6 +8237,9 @@ static struct ast_cli_entry cc_cli_cmd[] = {
 	AST_CLI_DEFINE(pbxcli_capi_qsig_do_debug, CC_CLI_TEXT_QSIG_DEBUG),
 	AST_CLI_DEFINE(pbxcli_capi_qsig_no_debug, CC_CLI_TEXT_QSIG_NO_DEBUG),
 	AST_CLI_DEFINE(pbxcli_capi_chatinfo, CC_CLI_TEXT_CHATINFO),
+#ifdef DIVA_STATUS
+	AST_CLI_DEFINE(pbxcli_capi_ifc_status, CC_CLI_TEXT_IFC_STATUSINFO),
+#endif
 };
 #else
 static struct ast_cli_entry  cli_info =
@@ -8253,6 +8256,10 @@ static struct ast_cli_entry  cli_qsig_no_debug =
 	{ { CC_MESSAGE_NAME, "qsig", "no", "debug", NULL }, pbxcli_capi_qsig_no_debug, CC_CLI_TEXT_QSIG_NO_DEBUG, qsig_no_debug_usage };
 static struct ast_cli_entry  cli_chatinfo =
 	{ { CC_MESSAGE_NAME, "chatinfo", NULL }, pbxcli_capi_chatinfo, CC_CLI_TEXT_CHATINFO, chatinfo_usage };
+#ifdef DIVA_STATUS
+static struct ast_cli_entry  cli_ifcstate =
+	{ { CC_MESSAGE_NAME, "ifcstate", NULL }, pbxcli_capi_ifc_status, CC_CLI_TEXT_IFC_STATUSINFO, diva_status_ifc_state_usage };
+#endif
 #endif
 
 const struct ast_channel_tech capi_tech = {
@@ -8893,6 +8900,9 @@ int unload_module(void)
 	ast_cli_unregister(&cli_qsig_debug);
 	ast_cli_unregister(&cli_qsig_no_debug);
 	ast_cli_unregister(&cli_chatinfo);
+#ifdef DIVA_STATUS
+	ast_cli_unregister(&cli_ifcstate);
+#endif
 #endif
 
 #ifdef CC_AST_HAS_VERSION_1_4
@@ -9016,6 +9026,9 @@ int load_module(void)
 	ast_cli_register(&cli_qsig_debug);
 	ast_cli_register(&cli_qsig_no_debug);
 	ast_cli_register(&cli_chatinfo);
+#ifdef DIVA_STATUS
+	ast_cli_register(&cli_ifcstate);
+#endif
 #endif
 	
 	ast_register_application(commandapp, pbx_capicommand_exec, commandsynopsis, commandtdesc);
