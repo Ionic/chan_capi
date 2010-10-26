@@ -42,7 +42,6 @@
 #include "divastatus_parameters.h"
 #include "divastatus_ifc.h"
 #include "divastatus.h"
-//#define CC_USE_INOTIFY
 #ifdef CC_USE_INOTIFY
 #include <fcntl.h>
 #include <sys/inotify.h>
