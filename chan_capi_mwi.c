@@ -31,7 +31,9 @@
 	LOCALS
 	*/
 static unsigned char* time2X208(time_t t);
+#if defined(CC_AST_HAS_EVENT_MWI)
 static void pbx_capi_mwi_event(const struct ast_event *event, void *userdata);
+#endif
 
 /*
 	MWI command parameters of pbx_capi_mwi
