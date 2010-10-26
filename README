@@ -565,3 +565,22 @@ REDIRECTIONNUMBER
 ISDNPI1 and ISDNPI2
     The two values of the information element PI (Progress Indicator).
 
+Asterisk outgoing calls
+==========================================================
+
+Distribution of outgoing calls is controlled by two
+configuration variables (capi.conf, controller specific).
+
+hlimit - Number of reserved channels. If number of free
+         channels is below the one specified by 'hlimit' value then
+         no new outgoing calls are delivered to this controller.
+
+slimit - If value is set for multiple belonging to same dialout group
+         controllers then the outgoing calls are distributd as follows:
+         Calls are delivered to the controller with smalest (in group)
+         number and the amount of free channels bigger then or equal to
+         one speciefied by 'slimit'. After amount of free channels for all
+         included in the group controllers is decreased below one specified
+         by 'slimit' value calls are distributed in rount robin fashion
+         between all (in group) controllers.
+
