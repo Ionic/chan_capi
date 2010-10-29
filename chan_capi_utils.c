@@ -1631,3 +1631,18 @@ const char* pbx_capi_get_connectedname(struct ast_channel* c)
 	return (name);
 }
 
+const struct capi_pvt *pbx_capi_get_nulliflist(void)
+{
+	return nulliflist;
+}
+
+void pbx_capi_nulliflist_lock(void)
+{
+	cc_mutex_lock(&nullif_lock);
+}
+
+void pbx_capi_nulliflist_unlock(void)
+{
+	cc_mutex_unlock(&nullif_lock);
+}
+

@@ -138,6 +138,12 @@ capi show channels:
 capi chatinfo:
     Show status of CAPI CHAT.
 
+capi ifcstate:
+    Show state of interfaces. (Diva only, chan_capi
+    compiled with 'make DIVA_STATUS=1')
+
+capi show resources:
+    Show resources in use.
 
 CAPI command application
 ========================================

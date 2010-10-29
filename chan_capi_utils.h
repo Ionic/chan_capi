@@ -80,4 +80,17 @@ extern MESSAGE_EXCHANGE_ERROR capi_sendf(
 	struct capi_pvt *capii, int waitconf,
 	_cword command, _cdword Id, _cword Number, char * format, ...);
 
+/*!
+	\brief nulliflist
+	*/
+const struct capi_pvt *pbx_capi_get_nulliflist(void);
+/*!
+		\brief cc_mutex_lock(&nullif_lock)
+	*/
+void pbx_capi_nulliflist_lock(void);
+/*!
+		\brief cc_mutex_unlock(&nullif_lock)
+	*/
+void pbx_capi_nulliflist_unlock(void);
+
 #endif
