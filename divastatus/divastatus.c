@@ -643,12 +643,12 @@ int pbxcli_capi_ifc_status(int fd, int argc, char *argv[])
 
 	ast_cli(fd, CC_MESSAGE_NAME " interfaces\n");
 	ast_cli(fd, "%s %-9s%-4s%-4s%-4s%-7s%-5s%8s%12s%12s%12s%12s\n",
-							"CAPI#", "State", "L1", "L2", "RED", "YELLOW", "BLUE", "D-Rx-Frames", "D-Rx-Bytes","D-Tx-Frames", "D-Tx-Bytes", "D-Errors");
+							"INTERFACE", "State", "L1", "L2", "RED", "YELLOW", "BLUE", "D-Rx-Frames", "D-Rx-Bytes","D-Tx-Frames", "D-Tx-Bytes", "D-Errors");
 
 	for (link = diva_q_get_head(&controller_q); link != 0; link = diva_q_get_next(link)) {
 		diva_status_ifc_t *controllerState = DIVAS_CONTAINING_RECORD(link, diva_status_ifc_t, link);
 		diva_status_ifc_state_t* state = &controllerState->state[controllerState->currentState];
-		ast_cli(fd, "%3d%-2s %-9s%-4s%-4s%-4s%-7s%-3s %12d %11d %11d %11d %11d\n",
+		ast_cli(fd, "ISDN%-3d%-2s %-9s%-4s%-4s%-4s%-7s%-3s %12d %11d %11d %11d %11d\n",
 						controllerState->capiController, "",
 						diva_status_interface_state_name(diva_status_get_interface_state_from_idi_state (state)),
 						((state->ifcType == DivaStatusIfcPri) && (state->hwState == DivaStatusHardwareStateOK)) ?

@@ -782,9 +782,28 @@ pbx_capi_command_proc_t pbx_capi_lockup_command_by_name(const char* name);
 /*!
  * \brief returns list of supported by this controller RTP codecs
  */
-cc_format_t pbx_capi_get_controller_codecs (int controller);
-_cstruct diva_get_b1_conf (struct capi_pvt *i);
-const struct cc_capi_controller *pbx_capi_get_controller (int controller);
+cc_format_t pbx_capi_get_controller_codecs(int controller);
+_cstruct diva_get_b1_conf(struct capi_pvt *i);
+/*!
+	\brief &capi_controllers[controller]
+	*/
+const struct cc_capi_controller *pbx_capi_get_controller(int controller);
+/*!
+	\brief capi_num_controllers
+	*/
+int pbx_capi_get_num_controllers(void);
+/*!
+	\brief tdesc
+	*/
+const char* pbx_capi_get_module_description(void);
+/*!
+	\brief cc_mutex_lock(&iflock)
+	*/
+void pbx_capi_lock_interfaces(void);
+/*!
+	\brief cc_mutex_unlock(&iflock)
+	*/
+void pbx_capi_unlock_interfaces(void);
 
 #ifdef DIVA_STREAMING
 struct _diva_streaming_vector;
