@@ -24,6 +24,7 @@ HEAD
 - Add MWI server
 - Add MWI client
 - Improved call distribution algorithm for outgoing calls
+- Add 'capi ifcstate' and 'capi show resources' CLI commands
 
 chan_capi-1.1.5
 ------------------
