@@ -145,6 +145,10 @@ capi ifcstate:
 capi show resources:
     Show resources in use.
 
+capi exec:
+    'capi exec CHANNEL command,parameter1,parameter2,....,parameterN'
+    Exec capicommand 'command' for selected channel.
+
 CAPI command application
 ========================================
 chan_capi provides an additional Asterisk application
