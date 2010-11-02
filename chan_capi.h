@@ -804,6 +804,10 @@ void pbx_capi_lock_interfaces(void);
 	\brief cc_mutex_unlock(&iflock)
 	*/
 void pbx_capi_unlock_interfaces(void);
+/*!
+	\brief Exec cappicommand using CLI
+ */
+int pbx_capi_cli_exec_capicommand(struct ast_channel *chan, const char *data);
 
 #ifdef DIVA_STREAMING
 struct _diva_streaming_vector;

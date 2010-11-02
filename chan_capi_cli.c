@@ -26,6 +26,11 @@
 #endif
 
 /*
+	LOCALS
+	*/
+static int pbx_capi_cli_get_locks(struct capi_pvt *i);
+
+/*
  * usages
  */
 static char info_usage[] =
@@ -56,6 +61,10 @@ static char qsig_no_debug_usage[] =
 "Usage: " CC_MESSAGE_NAME " qsig no debug\n"
 "       Disables dumping of QSIG facilities for debugging purposes\n";
 
+static char show_exec_usage[] =
+"Usage: " CC_MESSAGE_NAME " info\n"
+"       Exec chancapi command on selected interface (exec interface command parameters).\n";
+
 #ifndef CC_AST_HAS_VERSION_1_6
 static
 #endif
@@ -71,6 +80,7 @@ char chatinfo_usage[] =
 #define CC_CLI_TEXT_QSIG_NO_DEBUG "Disable QSIG debugging"
 #define CC_CLI_TEXT_CHATINFO "Show " CC_MESSAGE_BIGNAME " chat info"
 #define CC_CLI_TEXT_SHOW_RESOURCES "Show used resources"
+#define CC_CLI_TEXT_EXEC_CAPICOMMAND "Exec command"
 
 /*
  * helper functions to convert conf value to string
@@ -237,7 +247,7 @@ static int pbxcli_capi_show_channels(int fd, int argc, char *argv[])
 #ifdef CC_AST_HAS_VERSION_1_6
 static char *pbxcli_capi_show_resources(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
 #else
-static int pbxcli_capi_show_ressources(int fd, int argc, char *argv[])
+static int pbxcli_capi_show_resources(int fd, int argc, char *argv[])
 #endif
 {
 	int ifc_type;
@@ -289,16 +299,29 @@ static int pbxcli_capi_show_ressources(int fd, int argc, char *argv[])
 		data[ifc_type].lock_proc();
 
 		for (i = data[ifc_type].head; i; i = i->next) {
+			char* name;
+
 			if ((i->used == 0) || ((i->channeltype != CAPI_CHANNELTYPE_B) &&
 				(i->channeltype != CAPI_CHANNELTYPE_NULL)))
 				continue;
 			if (i->data_plci != 0)
 				continue;
-			if ((required_channel_name != NULL) && (strcmp(required_channel_name, i->vname) != 0))
+
+			name = ast_strdup(i->vname);
+			if ((i->channeltype == CAPI_CHANNELTYPE_NULL) && (name != NULL)) {
+				char* p = strstr(name, "-DATAPLCI");
+				if (p != NULL)
+					*p = 0;
+			}
+
+			if ((required_channel_name != NULL) &&
+					(strcmp(required_channel_name, (name == 0) ? i->vname : name) != 0)) {
+				ast_free(name);
 				continue;
+			}
 
 			ast_cli(fd, "%-40s %-6s %-4s %-10s %-9s %-5s %-5s %-.1f%-3s %-.1f%-3s\n",
-							i->vname,
+							(name == 0) ? i->vname : name,
 							(i->channeltype == CAPI_CHANNELTYPE_B) ? "TDM" : "IP",
 							(i->isdnstate & CAPI_ISDN_STATE_DTMF) ? "Y" : "N",
 							(i->isdnstate & CAPI_ISDN_STATE_EC)   ? "Y" : "N",
@@ -307,6 +330,7 @@ static int pbxcli_capi_show_ressources(int fd, int argc, char *argv[])
 							(i->divaAudioFlags & 0x0004) ? "Y" : "N", /* Tx AGC */
 							i->divaDigitalRxGainDB, "dB",
 							i->divaDigitalTxGainDB, "dB");
+			ast_free (name);
 		}
 
 		data[ifc_type].unlock_proc();
@@ -505,6 +529,120 @@ static int pbxcli_capi_qsig_no_debug(int fd, int argc, char *argv[])
 }
 
 /*
+ * exec capi command
+ */
+#ifdef CC_AST_HAS_VERSION_1_6
+static char *pbxcli_capi_exec_capicommand(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+#else
+static int pbxcli_capi_exec_capicommand(int fd, int argc, char *argv[])
+#endif
+{
+	int ifc_type, found, retry_search, search_loops = 10;
+	struct capi_pvt *i;
+	int required_args = 4;
+	int provided_args;
+	const char* requiredChannelName = NULL;
+#ifdef CC_AST_HAS_VERSION_1_6
+	const char * const *cli_argv;
+#else
+	char * const *cli_argv;
+#endif
+	int ret = -1;
+	struct {
+		struct capi_pvt *head;
+		void (*lock_proc)(void);
+		void (*unlock_proc)(void);
+	} data[2];
+
+	data[0].head        = capi_iflist;
+	data[0].lock_proc   = pbx_capi_lock_interfaces;
+	data[0].unlock_proc = pbx_capi_unlock_interfaces;
+	data[1].head        = (struct capi_pvt*)pbx_capi_get_nulliflist();
+	data[1].lock_proc   = pbx_capi_nulliflist_lock;
+	data[1].unlock_proc = pbx_capi_nulliflist_unlock;
+
+#ifdef CC_AST_HAS_VERSION_1_6
+	if (cmd == CLI_INIT) {
+		e->command = CC_MESSAGE_NAME " exec";
+		e->usage = show_exec_usage;
+		return NULL;
+	} else if (cmd == CLI_GENERATE) {
+		return NULL;
+	}
+	provided_args = a->argc;
+	cli_argv = a->argv;
+	if (provided_args < required_args) {
+		return CLI_SHOWUSAGE;
+	}
+#else
+	provided_args = argc;
+	cli_argv = argv;
+	if (provided_args < required_args) {
+		return RESULT_SHOWUSAGE;
+	}
+#endif
+	requiredChannelName = cli_argv[2];
+
+	do {
+		retry_search = 0;
+
+		for (ifc_type = 0, found = 0; (found == 0) && (ifc_type < sizeof(data)/sizeof(data[0])); ifc_type++) {
+			data[ifc_type].lock_proc();
+			for (i = data[ifc_type].head; (i != 0); i = i->next) {
+				char* name;
+
+				if ((i->used == 0) || ((i->channeltype != CAPI_CHANNELTYPE_B) &&
+						(i->channeltype != CAPI_CHANNELTYPE_NULL)))
+					continue;
+				if (i->data_plci != 0)
+					continue;
+
+				name = ast_strdup(i->vname);
+				if ((i->channeltype == CAPI_CHANNELTYPE_NULL) && (name != NULL)) {
+					char* p = strstr(name, "-DATAPLCI");
+					if (p != NULL)
+						*p = 0;
+				}
+
+				if (strcmp(requiredChannelName, (name == 0) ? i->vname : name) == 0) {
+					found = 1;
+					ast_free(name);
+					retry_search = pbx_capi_cli_get_locks(i);
+					break;
+				}
+
+				ast_free(name);
+			}
+			data[ifc_type].unlock_proc();
+		}
+
+		if (retry_search != 0) {
+			usleep (100);
+			i = 0;
+		}
+	} while ((retry_search != 0) && (search_loops-- > 0));
+
+	if (i != NULL) {
+		if (i->channeltype != CAPI_CHANNELTYPE_NULL) {
+			struct ast_channel* c = i->owner;
+			ret = pbx_capi_cli_exec_capicommand(c, cli_argv[3]);
+			cc_mutex_unlock(&i->lock);
+			if (c)
+				ast_channel_unlock (c);
+		} else {
+			ret = pbx_capi_cli_exec_capicommand(i->used, cli_argv[3]);
+			cc_mutex_unlock(&i->lock);
+		}
+	}
+
+#ifdef CC_AST_HAS_VERSION_1_6
+	return ((ret == 0) ? CLI_SUCCESS : CLI_FAILURE);
+#else
+	return ((ret == 0) ? RESULT_SUCCESS : RESULT_FAILURE);
+#endif
+}
+
+/*
  * define commands
  */
 #ifdef CC_AST_HAS_VERSION_1_6
@@ -520,6 +658,7 @@ static struct ast_cli_entry cc_cli_cmd[] = {
 	AST_CLI_DEFINE(pbxcli_capi_ifc_status, CC_CLI_TEXT_IFC_STATUSINFO),
 #endif
 	AST_CLI_DEFINE(pbxcli_capi_show_resources, CC_CLI_TEXT_SHOW_RESOURCES),
+	AST_CLI_DEFINE(pbxcli_capi_exec_capicommand, CC_CLI_TEXT_EXEC_CAPICOMMAND),
 };
 #else
 static struct ast_cli_entry  cli_info =
@@ -542,6 +681,8 @@ static struct ast_cli_entry  cli_ifcstate =
 #endif
 static struct ast_cli_entry  cli_show_resources =
 	{ { CC_MESSAGE_NAME, "show", "resources", NULL }, pbxcli_capi_show_resources, CC_CLI_TEXT_SHOW_RESOURCES, show_resources_usage };
+static struct ast_cli_entry  cli_exec_capicommand =
+	{ { CC_MESSAGE_NAME, "exec", NULL }, pbxcli_capi_exec_capicommand, CC_CLI_TEXT_EXEC_CAPICOMMAND, show_exec_usage };
 #endif
 
 
@@ -562,6 +703,7 @@ void pbx_capi_cli_register(void)
 	ast_cli_register(&cli_ifcstate);
 #endif
 	ast_cli_register(&cli_show_resources);
+	ast_cli_register(&cli_exec_capicommand);
 #endif
 }
 
@@ -581,5 +723,34 @@ void pbx_capi_cli_unregister(void)
 	ast_cli_unregister(&cli_ifcstate);
 #endif
 	ast_cli_unregister(&cli_show_resources);
+	ast_cli_unregister(&cli_exec_capicommand);
 #endif
 }
+
+static int pbx_capi_cli_get_locks(struct capi_pvt *i)
+{
+	if (i->channeltype != CAPI_CHANNELTYPE_NULL) {
+		struct ast_channel* c = i->owner;
+		if (c != 0) {
+			if (ast_channel_trylock(c) == 0) {
+				if (ast_mutex_trylock(&i->lock) == 0) {
+					if (i->owner == c) {
+						return (0);
+					} else {
+						ast_mutex_unlock(&i->lock);
+						ast_channel_unlock (c);
+					}
+				} else {
+					ast_channel_unlock (c);
+				}
+			}
+		}
+	} else {
+		if (ast_mutex_trylock(&i->lock) == 0) {
+			return (0);
+		}
+	}
+
+	return (-1);
+}
+
