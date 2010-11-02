@@ -1117,3 +1117,43 @@ int pbx_capi_chat_mute(struct ast_channel *c, char *param)
 	return -1;
 }
 
+/*
+	CLI interface
+	*/
+int pbx_capi_chat_remove_user(const char* roomName, const char* memberName)
+{
+	struct capichat_s *room;
+	unsigned int roomnumber;
+	int ret = -1;
+
+	cc_mutex_lock(&chat_lock);
+
+	for (room = chat_list; room != 0; room = room->next) {
+		if (strcmp(room->name, roomName) == 0) {
+			roomnumber = room->number;
+			break;
+		}
+	}
+	if (room != 0) {
+		for (room = chat_list; room != 0; room = room->next) {
+			if ((roomnumber == room->number) && (room->i != 0)) {
+				struct ast_channel *c = room->i->owner;
+				if (c == 0) {
+					c = room->i->used;
+				}
+				if (c != 0) {
+					if (strcmp (memberName, c->name) == 0) {
+						room->info |= PBX_CHAT_MEMBER_INFO_REMOVE;
+						ret = 0;
+					}
+				}
+			}
+		}
+	}
+
+	cc_mutex_unlock(&chat_lock);
+
+	return ret;
+}
+
+

@@ -65,6 +65,10 @@ static char show_exec_usage[] =
 "Usage: " CC_MESSAGE_NAME " info\n"
 "       Exec chancapi command on selected interface (exec interface command parameters).\n";
 
+static char show_chat_manage_usage[] =
+"Usage: " CC_MESSAGE_NAME " chat manage\n"
+"       Manage chat conference (chat manage room member command parameters).\n";
+
 #ifndef CC_AST_HAS_VERSION_1_6
 static
 #endif
@@ -81,6 +85,7 @@ char chatinfo_usage[] =
 #define CC_CLI_TEXT_CHATINFO "Show " CC_MESSAGE_BIGNAME " chat info"
 #define CC_CLI_TEXT_SHOW_RESOURCES "Show used resources"
 #define CC_CLI_TEXT_EXEC_CAPICOMMAND "Exec command"
+#define CC_CLI_TEXT_CHAT_MANAGE "Manager chat conference"
 
 /*
  * helper functions to convert conf value to string
@@ -643,6 +648,66 @@ static int pbxcli_capi_exec_capicommand(int fd, int argc, char *argv[])
 }
 
 /*
+ * exec capi command
+ */
+#ifdef CC_AST_HAS_VERSION_1_6
+static char *pbxcli_capi_chat_manage_capicommand(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+#else
+static int pbxcli_capi_chat_manage_capicommand(int fd, int argc, char *argv[])
+#endif
+{
+	int required_args = 6;
+	int provided_args;
+	const char* roomName          = NULL;
+	const char* memberName        = NULL;
+	const char* chatCommand       = NULL;
+	const char* commandParameters = NULL;
+#ifdef CC_AST_HAS_VERSION_1_6
+	const char * const *cli_argv;
+#else
+	char * const *cli_argv;
+#endif
+	int ret = -1;
+
+#ifdef CC_AST_HAS_VERSION_1_6
+	if (cmd == CLI_INIT) {
+		e->command = CC_MESSAGE_NAME " chat manage";
+		e->usage = show_chat_manage_usage;
+		return NULL;
+	} else if (cmd == CLI_GENERATE) {
+		return NULL;
+	}
+	provided_args = a->argc;
+	cli_argv = a->argv;
+	if (provided_args < required_args) {
+		return CLI_SHOWUSAGE;
+	}
+#else
+	provided_args = argc;
+	cli_argv = argv;
+	if (provided_args < required_args) {
+		return RESULT_SHOWUSAGE;
+	}
+#endif
+
+	roomName          = cli_argv[3];
+	memberName        = cli_argv[4];
+	chatCommand       = cli_argv[5];
+	if (provided_args > required_args)
+		commandParameters = cli_argv[6];
+
+	if (strcmp(chatCommand, "remove") == 0) {
+		ret = pbx_capi_chat_remove_user (roomName, memberName);
+	}
+
+#ifdef CC_AST_HAS_VERSION_1_6
+	return ((ret == 0) ? CLI_SUCCESS : CLI_FAILURE);
+#else
+	return ((ret == 0) ? RESULT_SUCCESS : RESULT_FAILURE);
+#endif
+}
+
+/*
  * define commands
  */
 #ifdef CC_AST_HAS_VERSION_1_6
@@ -659,6 +724,7 @@ static struct ast_cli_entry cc_cli_cmd[] = {
 #endif
 	AST_CLI_DEFINE(pbxcli_capi_show_resources, CC_CLI_TEXT_SHOW_RESOURCES),
 	AST_CLI_DEFINE(pbxcli_capi_exec_capicommand, CC_CLI_TEXT_EXEC_CAPICOMMAND),
+	AST_CLI_DEFINE(pbxcli_capi_chat_manage_capicommand, CC_CLI_TEXT_CHAT_MANAGE),
 };
 #else
 static struct ast_cli_entry  cli_info =
@@ -683,6 +749,7 @@ static struct ast_cli_entry  cli_show_resources =
 	{ { CC_MESSAGE_NAME, "show", "resources", NULL }, pbxcli_capi_show_resources, CC_CLI_TEXT_SHOW_RESOURCES, show_resources_usage };
 static struct ast_cli_entry  cli_exec_capicommand =
 	{ { CC_MESSAGE_NAME, "exec", NULL }, pbxcli_capi_exec_capicommand, CC_CLI_TEXT_EXEC_CAPICOMMAND, show_exec_usage };
+	{ { CC_MESSAGE_NAME, "chat", "manage" NULL }, pbxcli_capi_chat_manage_capicommand, CC_CLI_TEXT_EXEC_CAPICOMMAND, show_chat_manage_usage };
 #endif
 
 
