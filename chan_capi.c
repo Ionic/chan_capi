@@ -216,6 +216,11 @@ static char global_mohinterpret[MAX_MUSICCLASS] = "default";
 	((__x__)->channeltype != CAPI_CHANNELTYPE_B) || \
 	(capi_controllers[(__x__)->controller]->nfreebchannels < capi_controllers[(__x__)->controller]->nfreebchannelsHardThr))
 
+/*!
+ * \brief Acquire lock in correct order. Called if locking from non
+ *        ast_channel context (thread, ...)
+ */
+static struct ast_channel* capidev_acquire_locks_from_thread_context(struct capi_pvt *i);
 static int pbx_capi_hold(struct ast_channel *c, char *param);
 static int pbx_capi_retrieve(struct ast_channel *c, char *param);
 #ifdef CC_AST_HAS_INDICATE_DATA
@@ -225,7 +230,6 @@ static int pbx_capi_indicate(struct ast_channel *c, int condition);
 #endif
 static struct capi_pvt* get_active_plci(struct ast_channel *c);
 static void clear_channel_fax_loop(struct ast_channel *c,  struct capi_pvt *i);
-static struct ast_channel* capidev_acquire_locks_from_thread_context(struct capi_pvt *i);
 static void pbx_capi_add_diva_protocol_independent_extension(
 	struct capi_pvt *i,
 	unsigned char *facilityarray,
@@ -647,7 +651,7 @@ static void capi_echo_canceller(struct capi_pvt *i, int function)
 	return;
 }
 
-static int capi_check_diva_tone_function_allowed(struct capi_pvt *i)
+static int capi_check_diva_tone_function_allowed(struct capi_pvt *i, int useLinePLCI)
 {
 	int ecAvail = 0;
 
@@ -657,6 +661,13 @@ static int capi_check_diva_tone_function_allowed(struct capi_pvt *i)
 	if ((i->channeltype == CAPI_CHANNELTYPE_NULL) &&
 			(i->line_plci == NULL)) {
 		return -1;
+	}
+
+	if ((i->channeltype == CAPI_CHANNELTYPE_NULL) && (useLinePLCI != 0)) {
+		if ((i->line_plci->isdnstate & CAPI_ISDN_STATE_DISCONNECT))
+			return -1;
+		if (capi_verify_resource_plci(i->line_plci) != 0)
+			return -1;
 	}
 
 	/* check for old echo-cancel configuration */
@@ -686,15 +697,18 @@ static int capi_check_diva_tone_function_allowed(struct capi_pvt *i)
 /*
  * diva audio features
  */
-static void capi_diva_audio_features(struct capi_pvt *i)
+static void capi_diva_audio_features(struct capi_pvt *i, int useLinePLCI)
 {
-	if (capi_check_diva_tone_function_allowed(i) != 0)
+	struct capi_pvt *effectiveIfc;
+	if (capi_check_diva_tone_function_allowed(i, useLinePLCI) != 0)
 		return;
+
+	effectiveIfc = ((i->channeltype == CAPI_CHANNELTYPE_NULL) && (useLinePLCI != 0)) ? i->line_plci : i;
 
 	cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: Setting up audio features (PLCI=%#x, function=%04x, rx=%u, tx=%u)\n",
 			i->vname, i->PLCI, i->divaAudioFlags, i->divaDigitalRxGain, i->divaDigitalTxGain);
 
-	capi_sendf (i, 0, CAPI_MANUFACTURER_REQ, i->PLCI, get_capi_MessageNumber(),
+	capi_sendf (effectiveIfc, 0, CAPI_MANUFACTURER_REQ, effectiveIfc->PLCI, get_capi_MessageNumber(),
 			"dw(b(bwww))",
 			_DI_MANU_ID,
 			_DI_DSP_CTRL,
@@ -707,7 +721,7 @@ static void capi_diva_audio_features(struct capi_pvt *i)
 
 static void capi_diva_clamping(struct capi_pvt *i, unsigned int duration)
 {
-	if (capi_check_diva_tone_function_allowed(i) != 0)
+	if (capi_check_diva_tone_function_allowed(i, 0) != 0)
 		return;
 
 	if (duration != 0) {
@@ -721,7 +735,7 @@ static void capi_diva_clamping(struct capi_pvt *i, unsigned int duration)
 
 static void capi_diva_tone_processing_function(struct capi_pvt *i, unsigned char function)
 {
-	if (capi_check_diva_tone_function_allowed(i) != 0)
+	if (capi_check_diva_tone_function_allowed(i, 0) != 0)
 		return;
 
 	cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: Apply tone processing function %u (PLCI=%#x)\n",
@@ -732,7 +746,7 @@ static void capi_diva_tone_processing_function(struct capi_pvt *i, unsigned char
 
 static void capi_diva_send_tone_function(struct capi_pvt *i, unsigned char tone)
 {
-	if (capi_check_diva_tone_function_allowed(i) != 0)
+	if (capi_check_diva_tone_function_allowed(i, 0) != 0)
 		return;
 
 	capi_sendf (i, 0, CAPI_FACILITY_REQ, i->PLCI, get_capi_MessageNumber(), "w(www(b)())",
@@ -745,7 +759,7 @@ static void capi_diva_pitch_control_command(
 	unsigned short rxpitch,
 	unsigned short txpitch)
 {
-	if (capi_check_diva_tone_function_allowed(i) != 0)
+	if (capi_check_diva_tone_function_allowed(i, 0) != 0)
 		return;
 
 	capi_sendf (i, 0, CAPI_MANUFACTURER_REQ, i->PLCI, get_capi_MessageNumber(),
@@ -6212,10 +6226,10 @@ static int pbx_capi_noisesuppressor(struct ast_channel *c, char *param)
 
 	if (ast_true(param)) {
 		i->divaAudioFlags |= 0x0080;
-		capi_diva_audio_features(i);
+		capi_diva_audio_features(i, 0);
 	} else if (ast_false(param)) {
 		i->divaAudioFlags &= ~0x0080;
-		capi_diva_audio_features(i);
+		capi_diva_audio_features(i, 0);
 	} else {
 		cc_log(LOG_WARNING, "Parameter for noise suppressor invalid.\n");
 		return -1;
@@ -6273,7 +6287,7 @@ static int pbx_capi_rxdgain(struct ast_channel *c, char *param)
 	i->divaDigitalRxGain   = dbGain2DivaGain (dbGain);
 	cc_mutex_unlock(&i->lock);
 
-	capi_diva_audio_features(i);
+	capi_diva_audio_features(i, 1);
 
 	cc_verbose(2, 0, VERBOSE_PREFIX_4 "%s: rx gain %f : %04x\n",
 		i->vname, dbGain, i->divaDigitalRxGain);
@@ -6305,7 +6319,7 @@ static int pbx_capi_incrxdgain(struct ast_channel *c, char *param)
 	i->divaDigitalRxGain = dbGain2DivaGain(i->divaDigitalRxGainDB);
 	cc_mutex_unlock(&i->lock);
 
-	capi_diva_audio_features(i);
+	capi_diva_audio_features(i, 1);
 
 	cc_verbose(2, 0, VERBOSE_PREFIX_4 "%s: inc rx gain %f : %04x\n",
 		i->vname, i->divaDigitalRxGainDB, i->divaDigitalRxGain);
@@ -6337,7 +6351,7 @@ static int pbx_capi_txdgain(struct ast_channel *c, char *param)
 	i->divaDigitalTxGain = dbGain2DivaGain(dbGain);
 	cc_mutex_unlock(&i->lock);
 
-	capi_diva_audio_features(i);
+	capi_diva_audio_features(i, 1);
 
 	cc_verbose(2, 0, VERBOSE_PREFIX_4 "%s: tx gain %f : %04x\n",
 		i->vname, dbGain, i->divaDigitalTxGain);
@@ -6372,7 +6386,7 @@ static int pbx_capi_inctxdgain(struct ast_channel *c, char *param)
 	i->divaDigitalTxGain = dbGain2DivaGain(i->divaDigitalTxGainDB);
 	cc_mutex_unlock(&i->lock);
 
-	capi_diva_audio_features(i);
+	capi_diva_audio_features(i, 1);
 
 	cc_verbose(2, 0, VERBOSE_PREFIX_4 "%s: inc tx gain %f : %04x\n",
 		i->vname, i->divaDigitalTxGainDB, i->divaDigitalTxGain);
@@ -6399,10 +6413,10 @@ static int pbx_capi_rxagc(struct ast_channel *c, char *param)
 
 	if (ast_true(param)) {
 		i->divaAudioFlags |= 0x0008;
-		capi_diva_audio_features(i);
+		capi_diva_audio_features(i, 1);
 	} else if (ast_false(param)) {
 		i->divaAudioFlags &= ~0x0008;
-		capi_diva_audio_features(i);
+		capi_diva_audio_features(i, 1);
 	} else {
 		cc_log(LOG_WARNING, "Parameter for rx agc invalid.\n");
 		return -1;
@@ -6433,10 +6447,10 @@ static int pbx_capi_txagc(struct ast_channel *c, char *param)
 
 	if (ast_true(param)) {
 		i->divaAudioFlags |= 0x0004;
-		capi_diva_audio_features(i);
+		capi_diva_audio_features(i, 1);
 	} else if (ast_false(param)) {
 		i->divaAudioFlags &= ~0x0004;
-		capi_diva_audio_features(i);
+		capi_diva_audio_features(i, 1);
 	} else {
 		cc_log(LOG_WARNING, "Parameter for noise suppressor invalid.\n");
 		return -1;
@@ -7265,6 +7279,11 @@ static int pbx_capicommand_exec(struct ast_channel *chan, void *data)
 	LOCAL_USER_REMOVE(u);
 #endif
 	return res;
+}
+
+int pbx_capi_cli_exec_capicommand(struct ast_channel *chan, const char *data)
+{
+	return (pbx_capicommand_exec(chan, data));
 }
 
 /*
