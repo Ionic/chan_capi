@@ -1036,7 +1036,7 @@ int pbxcli_capi_chatinfo(int fd, int argc, char *argv[])
 			ast_channel_lock(c);
 			ast_cli(fd, "%3d   %-12s%-30s\"%s\" <%s>\n",
 				room->number, room->name, c->name,
-				pbx_capi_get_callername (c), pbx_capi_get_cid (c));
+				pbx_capi_get_callername (c, ""), pbx_capi_get_cid (c, ""));
 			ast_channel_unlock(c);
 		}
 		room = room->next;
@@ -1156,4 +1156,140 @@ int pbx_capi_chat_remove_user(const char* roomName, const char* memberName)
 	return ret;
 }
 
+/*!
+ * \brief Chat Room enumerator
+ *
+ * \note called unter protection of chat_lock
+ */
+const struct capichat_s *pbx_capi_chat_get_room_c(const struct capichat_s * room)
+{
+	if (room == 0)
+		return chat_list;
+
+	return room->next;
+}
+
+/*!
+ * \brief Get room name
+ *
+ * \note called unter protection of chat_lock
+ */
+const char* pbx_capi_chat_get_room_name(const struct capichat_s * room)
+{
+	return room->name;
+}
+
+/*!
+ * \brief Get room number
+ *
+ * \note called unter protection of chat_lock
+ */
+unsigned int pbx_capi_chat_get_room_number(const struct capichat_s * room)
+{
+	return room->number;
+}
+
+/*!
+ * \brief Get number of members in room
+ *
+ * \note called unter protection of chat_lock
+ */
+unsigned int pbx_capi_chat_get_room_members(const struct capichat_s * room)
+{
+	return room->active;
+}
+
+/*!
+ * \brief Is entire room muted
+ *
+ * \note called unter protection of chat_lock
+ */
+int pbx_capi_chat_is_room_muted(const struct capichat_s * room)
+{
+	return (room->room_mode == RoomModeMuted);
+}
+
+/*!
+ * \brief Get room channel
+ *
+ * \note called unter protection of chat_lock
+ */
+struct ast_channel *pbx_capi_chat_get_room_channel(const struct capichat_s * room)
+{
+	struct ast_channel *c = NULL;
+
+	if ((room != NULL) && (room->i != NULL)) {
+		c = (room->i->owner != 0) ? room->i->owner : room->i->used;
+	}
+
+	return (c);
+}
+
+/*!
+ * \brief Is user operator
+ *
+ * \note called unter protection of chat_lock
+ */
+int pbx_capi_chat_is_member_operator(const struct capichat_s * room)
+{
+	return (room->room_member_type == RoomMemberOperator);
+}
+
+/*!
+ * \brief Is member muted
+ *
+ * \note called unter protection of chat_lock
+ */
+int pbx_capi_chat_is_member_muted(const struct capichat_s * room)
+{
+	int isMuted = 0;
+
+	isMuted |= ((room->i != 0)  &&
+							(room->i->divaDigitalTxGain            == 0x100));
+	isMuted |= ((room->i != 0 ) &&
+							(room->i->line_plci != 0) &&
+							(room->i->line_plci->divaDigitalTxGain == 0x100));
+	isMuted |= ((room->i != 0 ) &&
+							(room->i->data_plci != 0) &&
+							(room->i->data_plci->divaDigitalTxGain == 0x100));
+
+	return (isMuted);
+}
+
+/*!
+ * \brief Is user listener
+ *
+ * \note called unter protection of chat_lock
+ */
+int pbx_capi_chat_is_member_listener(const struct capichat_s * room)
+{
+	return (room->room_member_type == RoomMemberListener);
+}
+
+/*!
+ * \brief Is most recent user
+ *
+ * \note called unter protection of chat_lock
+ */
+int pbx_capi_chat_is_most_recent_user(const struct capichat_s * room)
+{
+	return ((room->info & PBX_CHAT_MEMBER_INFO_RECENT) != 0);
+}
+
+
+/*!
+ * \brief Lock chat list
+ */
+void pbx_capi_lock_chat_rooms(void)
+{
+	cc_mutex_lock(&chat_lock);
+}
+
+/*!
+ * \brief Unlock chat list
+ */
+void pbx_capi_unlock_chat_rooms(void)
+{
+	cc_mutex_unlock(&chat_lock);
+}
 

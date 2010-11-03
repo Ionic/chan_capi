@@ -59,9 +59,9 @@ extern int capi_create_reader_writer_pipe(struct capi_pvt *i);
 extern struct ast_frame *capi_read_pipeframe(struct capi_pvt *i);
 extern int capi_write_frame(struct capi_pvt *i, struct ast_frame *f);
 extern int capi_verify_resource_plci(const struct capi_pvt *i);
-extern const char* pbx_capi_get_cid (struct ast_channel* c);
-extern const char* pbx_capi_get_callername (struct ast_channel* c);
-const char* pbx_capi_get_connectedname (struct ast_channel* c);
+extern const char* pbx_capi_get_cid (const struct ast_channel* c, const char *notAvailableVisual);
+extern const char* pbx_capi_get_callername (const struct ast_channel* c, const char *notAvailableVisual);
+const char* pbx_capi_get_connectedname (const struct ast_channel* c, const char *notAvailableVisual);
 
 #define capi_number(data, strip) \
   capi_number_func(data, strip, alloca(AST_MAX_EXTENSION))

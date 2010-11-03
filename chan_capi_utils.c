@@ -1584,12 +1584,12 @@ int capi_write_frame(struct capi_pvt *i, struct ast_frame *f)
 	 ast_channel_lock(chan) to be held while
 	 while accessing returned pointer
 	*/
-const char* pbx_capi_get_cid(struct ast_channel* c)
+const char* pbx_capi_get_cid(const struct ast_channel* c, const char* notAvailableVisual)
 {
 	const char* cid;
 
 #ifdef CC_AST_HAS_VERSION_1_8
-	cid = S_COR(c->caller.id.number.valid, c->caller.id.number.str, "");
+	cid = S_COR(c->caller.id.number.valid, c->caller.id.number.str, notAvailableVisual);
 #else
 	cid = c->cid.cid_num;
 #endif
@@ -1601,14 +1601,14 @@ const char* pbx_capi_get_cid(struct ast_channel* c)
 	 ast_channel_lock(chan) to be held while
 	 while accessing returned pointer
 	*/
-const char* pbx_capi_get_callername(struct ast_channel* c)
+const char* pbx_capi_get_callername(const struct ast_channel* c, const char* notAvailableVisual)
 {
 	const char* name;
 
 #ifdef CC_AST_HAS_VERSION_1_8
-	name = S_COR(c->caller.id.name.valid, c->caller.id.name.str, "");
+	name = S_COR(c->caller.id.name.valid, c->caller.id.name.str, notAvailableVisual);
 #else
-	name = (c->cid.cid_name) ? c->cid.cid_name : "";
+	name = (c->cid.cid_name) ? c->cid.cid_name : notAvailableVisual;
 #endif
 
 	return (name);
@@ -1618,14 +1618,14 @@ const char* pbx_capi_get_callername(struct ast_channel* c)
 	 ast_channel_lock(chan) to be held while
 	 while accessing returned pointer
 	*/
-const char* pbx_capi_get_connectedname(struct ast_channel* c)
+const char* pbx_capi_get_connectedname(const struct ast_channel* c, const char* notAvailableVisual)
 {
 	const char* name;
 
 #ifdef CC_AST_HAS_VERSION_1_8
-	name = S_COR(c->connected.id.name.valid, c->connected.id.name.str, "");
+	name = S_COR(c->connected.id.name.valid, c->connected.id.name.str, notAvailableVisual);
 #else
-	name = (c->cid.cid_name) ? c->cid.cid_name : "";
+	name = (c->cid.cid_name) ? c->cid.cid_name : notAvailableVisual;
 #endif
 
 	return (name);

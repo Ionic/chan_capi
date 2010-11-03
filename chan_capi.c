@@ -56,6 +56,7 @@ struct _diva_streaming_vector* vind;
 #endif
 #include "chan_capi_mwi.h"
 #include "chan_capi_cli.h"
+#include "chan_capi_ami.h"
 
 /* #define CC_VERSION "x.y.z" */
 #define CC_VERSION "$Revision$"
@@ -7283,7 +7284,11 @@ static int pbx_capicommand_exec(struct ast_channel *chan, void *data)
 
 int pbx_capi_cli_exec_capicommand(struct ast_channel *chan, const char *data)
 {
+#ifdef CC_AST_HAS_CONST_CHAR_IN_REGAPPL
 	return (pbx_capicommand_exec(chan, data));
+#else
+	return (pbx_capicommand_exec(chan, (void*)data));
+#endif
 }
 
 /*
@@ -8528,6 +8533,7 @@ int unload_module(void)
 
 	ast_unregister_application(commandapp);
 
+	pbx_capi_ami_unregister();
 	pbx_capi_cli_unregister();
 
 #ifdef CC_AST_HAS_VERSION_1_4
@@ -8642,6 +8648,7 @@ int load_module(void)
 	}
 
 	pbx_capi_cli_register();
+	pbx_capi_ami_register();
 	
 	ast_register_application(commandapp, pbx_capicommand_exec, commandsynopsis, commandtdesc);
 
