@@ -547,11 +547,7 @@ static int pbxcli_capi_exec_capicommand(int fd, int argc, char *argv[])
 	int required_args = 4;
 	int provided_args;
 	const char* requiredChannelName = NULL;
-#ifdef CC_AST_HAS_VERSION_1_6
-	const char * const *cli_argv;
-#else
-	char * const *cli_argv;
-#endif
+	const char* chancapiCommand = NULL;
 	int ret = -1;
 	struct {
 		struct capi_pvt *head;
@@ -575,18 +571,19 @@ static int pbxcli_capi_exec_capicommand(int fd, int argc, char *argv[])
 		return NULL;
 	}
 	provided_args = a->argc;
-	cli_argv = a->argv;
 	if (provided_args < required_args) {
 		return CLI_SHOWUSAGE;
 	}
+	requiredChannelName = a->argv[2];
+	chancapiCommand     = a->argv[3];
 #else
 	provided_args = argc;
-	cli_argv = argv;
 	if (provided_args < required_args) {
 		return RESULT_SHOWUSAGE;
 	}
+	requiredChannelName = argv[2];
+	chancapiCommand     = argv[3];
 #endif
-	requiredChannelName = cli_argv[2];
 
 	do {
 		retry_search = 0;
@@ -630,12 +627,12 @@ static int pbxcli_capi_exec_capicommand(int fd, int argc, char *argv[])
 	if (i != NULL) {
 		if (i->channeltype != CAPI_CHANNELTYPE_NULL) {
 			struct ast_channel* c = i->owner;
-			ret = pbx_capi_cli_exec_capicommand(c, cli_argv[3]);
+			ret = pbx_capi_cli_exec_capicommand(c, chancapiCommand);
 			cc_mutex_unlock(&i->lock);
 			if (c)
 				ast_channel_unlock (c);
 		} else {
-			ret = pbx_capi_cli_exec_capicommand(i->used, cli_argv[3]);
+			ret = pbx_capi_cli_exec_capicommand(i->used, chancapiCommand);
 			cc_mutex_unlock(&i->lock);
 		}
 	}
@@ -662,8 +659,10 @@ static int pbxcli_capi_chat_manage_capicommand(int fd, int argc, char *argv[])
 	const char* memberName        = NULL;
 	const char* chatCommand       = NULL;
 	const char* commandParameters = NULL;
-#ifdef CC_AST_HAS_VERSION_1_6
+#ifdef CC_AST_HAS_VERSION_1_8
 	const char * const *cli_argv;
+#elif (defined(CC_AST_HAS_VERSION_1_6) && !defined(CC_AST_HAS_VERSION_1_8))
+	char **cli_argv;
 #else
 	char * const *cli_argv;
 #endif
@@ -748,8 +747,9 @@ static struct ast_cli_entry  cli_ifcstate =
 static struct ast_cli_entry  cli_show_resources =
 	{ { CC_MESSAGE_NAME, "show", "resources", NULL }, pbxcli_capi_show_resources, CC_CLI_TEXT_SHOW_RESOURCES, show_resources_usage };
 static struct ast_cli_entry  cli_exec_capicommand =
-	{ { CC_MESSAGE_NAME, "exec", NULL }, pbxcli_capi_exec_capicommand, CC_CLI_TEXT_EXEC_CAPICOMMAND, show_exec_usage };
-	{ { CC_MESSAGE_NAME, "chat", "manage" NULL }, pbxcli_capi_chat_manage_capicommand, CC_CLI_TEXT_EXEC_CAPICOMMAND, show_chat_manage_usage };
+	{ { CC_MESSAGE_NAME, "exec", NULL }, pbxcli_capi_exec_capicommand, CC_CLI_TEXT_CHAT_MANAGE, show_exec_usage };
+static struct ast_cli_entry  cli_chat_manage =
+	{ { CC_MESSAGE_NAME, "chat", "manage", NULL }, pbxcli_capi_chat_manage_capicommand, CC_CLI_TEXT_EXEC_CAPICOMMAND, show_chat_manage_usage };
 #endif
 
 
@@ -771,6 +771,7 @@ void pbx_capi_cli_register(void)
 #endif
 	ast_cli_register(&cli_show_resources);
 	ast_cli_register(&cli_exec_capicommand);
+	ast_cli_register(&cli_chat_manage);
 #endif
 }
 
@@ -791,6 +792,7 @@ void pbx_capi_cli_unregister(void)
 #endif
 	ast_cli_unregister(&cli_show_resources);
 	ast_cli_unregister(&cli_exec_capicommand);
+	ast_cli_unregister(&cli_chat_manage);
 #endif
 }
 
