@@ -24,6 +24,7 @@
 #include "chan_capi_chat.h"
 #include "chan_capi_utils.h"
 #include "chan_capi_command.h"
+#include "asterisk/manager.h"
 
 #define CHAT_FLAG_MOH      0x0001
 #define CHAT_FLAG_SAMEMSG  0x0002
@@ -70,6 +71,11 @@ AST_MUTEX_DEFINE_STATIC(chat_lock);
  * LOCALS
  */
 static const char* room_member_type_2_name(room_member_type_t room_member_type);
+static void pbx_capi_chat_join_event(struct ast_channel* c, const struct capichat_s * room);
+static void pbx_capi_chat_leave_event(struct ast_channel* c,
+																			const struct capichat_s *room,
+																			long duration);
+static void pbx_capi_chat_conference_end_event(const struct capichat_s *room);
 
 /*
  * partial update the capi mixer for the given char room
@@ -601,6 +607,7 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 	unsigned int flags = 0;
 	unsigned int hangup_timeout = 0;
 	room_member_type_t room_member_type = RoomMemberDefault;
+	time_t conferenceConnectTime;
 
 	roomname = strsep(&param, COMMANDSEPARATOR);
 	options = strsep(&param, COMMANDSEPARATOR);
@@ -681,8 +688,16 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 		return -1;
 	}
 
+	pbx_capi_chat_join_event(c, room);
+	conferenceConnectTime = time(NULL);
+
 	/* main loop */
 	chat_handle_events(c, i, room, flags, 0, 0, hangup_timeout);
+
+	pbx_capi_chat_leave_event(c, room, time(NULL)-conferenceConnectTime);
+	if (room->active == 1) {
+		pbx_capi_chat_conference_end_event (room);
+	}
 
 	del_chat_member(room);
 
@@ -1294,3 +1309,51 @@ void pbx_capi_unlock_chat_rooms(void)
 	cc_mutex_unlock(&chat_lock);
 }
 
+static void pbx_capi_chat_join_event(struct ast_channel* c, const struct capichat_s * room)
+{
+#ifdef CC_AST_HAS_VERSION_1_8
+	ast_manager_event(c,
+#else
+	manager_event(
+#endif
+		EVENT_FLAG_CALL, "CapichatJoin",
+		"Channel: %s\r\n"
+		"Uniqueid: %s\r\n"
+		"Conference: %s\r\n"
+		"Conferencenum: %u\r\n"
+		"CallerIDnum: %s\r\n"
+		"CallerIDname: %s\r\n",
+		c->name, c->uniqueid, room->name,
+		room->number,
+		pbx_capi_get_cid (c, "<unknown>"),
+		pbx_capi_get_callername (c, "<no name>"));
+}
+
+static void pbx_capi_chat_leave_event(struct ast_channel* c,
+																			const struct capichat_s *room,
+																			long duration)
+{
+#ifdef CC_AST_HAS_VERSION_1_8
+	ast_manager_event(c,
+#else
+	manager_event(
+#endif
+		EVENT_FLAG_CALL, "CapichatLeave",
+		"Channel: %s\r\n"
+		"Uniqueid: %s\r\n"
+		"Conference: %s\r\n"
+		"Conferencenum: %u\r\n"
+		"CallerIDNum: %s\r\n"
+		"CallerIDName: %s\r\n"
+		"Duration: %ld\r\n",
+		c->name, c->uniqueid, room->name,
+		room->number,
+		pbx_capi_get_cid (c, "<unknown>"),
+		pbx_capi_get_callername (c, "<no name>"),
+		duration);
+}
+
+static void pbx_capi_chat_conference_end_event(const struct capichat_s *room)
+{
+	manager_event(EVENT_FLAG_CALL, "CapichatEnd", "Conference: %s\r\n", room->name);
+}
