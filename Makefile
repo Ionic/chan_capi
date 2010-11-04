@@ -131,7 +131,7 @@ SHAREDOS=chan_capi.so
 OBJECTS=chan_capi.o chan_capi_utils.o chan_capi_rtp.o chan_capi_command.o xlaw.o dlist.o	\
 	chan_capi_qsig_core.o chan_capi_qsig_ecma.o chan_capi_qsig_asn197ade.o	\
 	chan_capi_qsig_asn197no.o chan_capi_supplementary.o chan_capi_chat.o \
-	chan_capi_mwi.o chan_capi_cli.o chan_capi_ami.o
+	chan_capi_mwi.o chan_capi_cli.o chan_capi_ami.o chan_capi_management_common.o
 
 ifeq (${USE_OWN_LIBCAPI},yes)
 OBJECTS += libcapi20/convert.o libcapi20/capi20.o libcapi20/capifunc.o

@@ -916,13 +916,16 @@ int pbx_capi_chat_command(struct ast_channel *c, char *param)
 struct capi_pvt* pbx_check_resource_plci(struct ast_channel *c)
 {
 	struct capi_pvt *i = NULL; 
-	const char* id = pbx_builtin_getvar_helper(c, "RESOURCEPLCI");
 
-	if (id != 0) {
-		i = (struct capi_pvt*)strtoul(id, NULL, 0);
-		if (i != 0 && capi_verify_resource_plci(i) != 0) {
-			cc_log(LOG_ERROR, "resource PLCI lost\n");
-			i = 0;
+	if (c != NULL) {
+		const char* id = pbx_builtin_getvar_helper(c, "RESOURCEPLCI");
+
+		if (id != 0) {
+			i = (struct capi_pvt*)strtoul(id, NULL, 0);
+			if (i != 0 && capi_verify_resource_plci(i) != 0) {
+				cc_log(LOG_ERROR, "resource PLCI lost\n");
+				i = 0;
+			}
 		}
 	}
 

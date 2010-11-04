@@ -25,23 +25,34 @@
  * Based on apps/app_meetme.c
  *
  */
-#ifdef CC_AST_HAS_VERSION_1_6
 #include "chan_capi_platform.h"
 #include "chan_capi20.h"
 #include "chan_capi.h"
+#ifdef CC_AST_HAS_VERSION_1_6
 #include "chan_capi_qsig.h"
 #include "chan_capi_utils.h"
 #include "chan_capi_chat.h"
+#include "chan_capi_management_common.h"
 #include "asterisk/manager.h"
 
 
-#define CC_AMI_ACTION_NAME_CHATLIST "CapichatList"
+#define CC_AMI_ACTION_NAME_CHATLIST   "CapichatList"
+#define CC_AMI_ACTION_NAME_CHATMUTE   "CapichatMute"
+#define CC_AMI_ACTION_NAME_CHATUNMUTE "CapichatUnmute"
+#define CC_AMI_ACTION_NAME_CAPICOMMAND "CapiCommand"
 
 /*
 	LOCALS
 	*/
 static int pbx_capi_ami_capichat_list(struct mansession *s, const struct message *m);
+static int pbx_capi_ami_capichat_mute(struct mansession *s, const struct message *m);
+static int pbx_capi_ami_capichat_unmute(struct mansession *s, const struct message *m);
+static int pbx_capi_ami_capichat_control(struct mansession *s, const struct message *m, int chatMute);
+static int pbx_capi_ami_capicommand(struct mansession *s, const struct message *m);
 static int capiChatListRegistered;
+static int capiChatMuteRegistered;
+static int capiChatUnmuteRegistered;
+static int capiCommandRegistered;
 
 static char mandescr_capichatlist[] =
 "Description: Lists all users in a particular CapiChat conference.\n"
@@ -51,6 +62,28 @@ static char mandescr_capichatlist[] =
 "    *ActionId: <id>\n"
 "    *Conference: <confname>\n";
 
+static char mandescr_capichatmute[] =
+"Description: Mutes user in a particular CapiChat conference.\n"
+"Variables:\n"
+"    *ActionId: <id>\n"
+"    *Conference: <confname>\n"
+"    *Member: <membername>\n"
+"    *Path: <Rx or Tx>\n";
+
+static char mandescr_capichatunmute[] =
+"Description: Unmutes user in a particular CapiChat conference.\n"
+"Variables:\n"
+"    *ActionId: <id>\n"
+"    *Conference: <confname>\n"
+"    *Member: <membername>\n"
+"    *Path: <Rx or Tx>\n";
+
+static char mandescr_capicommand[] =
+"Description: Exec capicommand.\n"
+"Variables:\n"
+"    *ActionId: <id>\n"
+"    *Channel: <channame>\n"
+"    *Capicommand: <capicommand>\n";
 
 void pbx_capi_ami_register(void)
 {
@@ -59,12 +92,39 @@ void pbx_capi_ami_register(void)
 																								pbx_capi_ami_capichat_list,
 																								"List participants in a conference",
 																								mandescr_capichatlist) == 0;
+
+	capiChatMuteRegistered = ast_manager_register2(CC_AMI_ACTION_NAME_CHATMUTE,
+																								EVENT_FLAG_CALL,
+																								pbx_capi_ami_capichat_mute,
+																								"Mute a conference user",
+																								mandescr_capichatmute) == 0;
+
+	capiChatUnmuteRegistered = ast_manager_register2(CC_AMI_ACTION_NAME_CHATUNMUTE,
+																								EVENT_FLAG_CALL,
+																								pbx_capi_ami_capichat_unmute,
+																								"Unmute a conference user",
+																								mandescr_capichatunmute) == 0;
+
+	capiCommandRegistered = ast_manager_register2(CC_AMI_ACTION_NAME_CAPICOMMAND,
+																								EVENT_FLAG_CALL,
+																								pbx_capi_ami_capicommand,
+																								"Exec capicommand",
+																								mandescr_capicommand) == 0;
 }
 
 void pbx_capi_ami_unregister(void)
 {
 	if (capiChatListRegistered != 0)
 		ast_manager_unregister(CC_AMI_ACTION_NAME_CHATLIST);
+
+	if (capiChatMuteRegistered != 0)
+		ast_manager_unregister(CC_AMI_ACTION_NAME_CHATMUTE);
+
+	if (capiChatUnmuteRegistered != 0)
+		ast_manager_unregister(CC_AMI_ACTION_NAME_CHATUNMUTE);
+
+	if (capiCommandRegistered != 0)
+		ast_manager_unregister(CC_AMI_ACTION_NAME_CAPICOMMAND);
 }
 
 static int pbx_capi_ami_capichat_list(struct mansession *s, const struct message *m) {
@@ -165,6 +225,98 @@ static int pbx_capi_ami_capichat_list(struct mansession *s, const struct message
 	"\r\n", total, idText);
 	return 0;
 }
+
+static int pbx_capi_ami_capichat_mute(struct mansession *s, const struct message *m)
+{
+	return pbx_capi_ami_capichat_control(s, m, 1);
+}
+
+static int pbx_capi_ami_capichat_unmute(struct mansession *s, const struct message *m)
+{
+	return pbx_capi_ami_capichat_control(s, m, 0);
+}
+
+static int pbx_capi_ami_capichat_control(struct mansession *s, const struct message *m, int chatMute)
+{
+	const char *roomName  = astman_get_header(m, "Conference");
+	const char *userName  = astman_get_header(m, "Member");
+	const char *voicePath = astman_get_header(m, "Path");
+	const char* capiCommand;
+	int ret;
+
+	if (ast_strlen_zero(roomName)) {
+		astman_send_error(s, m, "Capi Chat conference not specified");
+		return 0;
+	}
+
+	if (ast_strlen_zero(userName)) {
+		char* param = ast_strdupa((chatMute != 0) ? "yes" : "no");
+		int ret = pbx_capi_chat_mute(NULL, param);
+		if (ret == 0) {
+			astman_send_ack(s, m, (chatMute != 0) ? "Conference muted" : "Conference unmuted");
+		} else {
+			astman_send_error(s, m, "Failed to change mode of Capi Chat conference");
+		}
+		return 0;
+	}
+
+	if ((voicePath != NULL) && (strcmp(voicePath, "Rx") == 0)) {
+		capiCommand = (chatMute != 0) ? "rxdgain,-128" : "rxdgain,0";
+	} else {
+		capiCommand = (chatMute != 0) ? "txdgain,-128" : "txdgain,0";
+	}
+
+	ret = pbx_capi_management_capicommand(userName, capiCommand);
+
+	switch (ret) {
+		case 0:
+			astman_send_ack(s, m, (chatMute != 0) ? "User muted" : "User unmuted");
+			break;
+
+		case -4:
+			astman_send_error(s, m, "User not found");
+			break;
+
+		default:
+			astman_send_error(s, m, "Command error");
+			break;
+	}
+
+	return (0);
+}
+
+static int pbx_capi_ami_capicommand(struct mansession *s, const struct message *m)
+{
+	const char *requiredChannelName  = astman_get_header(m, "Channel");
+	const char *chancapiCommand      = astman_get_header(m, "Command");
+	int ret = pbx_capi_management_capicommand(requiredChannelName, chancapiCommand);
+
+	switch (ret) {
+		case 0:
+			astman_send_ack(s, m, "OK");
+			break;
+
+		case -2:
+			astman_send_error(s, m, "Channel name not specified");
+			break;
+
+		case -3:
+			astman_send_error(s, m, "Capi command name not specified");
+			break;
+
+		case -4:
+			astman_send_error(s, m, "Channel not found");
+			break;
+
+		case -1:
+		default:
+			astman_send_error(s, m, "Command error");
+			break;
+	}
+
+	return 0;
+}
+
 #else
 void pbx_capi_ami_register(void)
 {
