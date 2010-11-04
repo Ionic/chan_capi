@@ -167,10 +167,8 @@ static int pbx_capi_ami_capichat_list(struct mansession *s, const struct message
 			char* cidVisual;
 			char* callerNameVisual;
 
-			ast_channel_lock(c);
 			cidVisual        = ast_strdup(pbx_capi_get_cid (c, "<unknown>"));
 			callerNameVisual = ast_strdup(pbx_capi_get_callername (c, "<no name>"));
-			ast_channel_unlock(c);
 
 			if (isCapiChatMemberListener || isCapiChatRoomMuted || isCapiChatMemberMuted) {
 				if (isMemberOperator) {

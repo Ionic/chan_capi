@@ -1036,11 +1036,9 @@ int pbxcli_capi_chatinfo(int fd, int argc, char *argv[])
 				room->number, room->name, room->i->vname,
 				"?", "?");
 		} else {
-			ast_channel_lock(c);
 			ast_cli(fd, "%3d   %-12s%-30s\"%s\" <%s>\n",
 				room->number, room->name, c->name,
 				pbx_capi_get_callername (c, ""), pbx_capi_get_cid (c, ""));
-			ast_channel_unlock(c);
 		}
 		room = room->next;
 	}
