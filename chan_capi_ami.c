@@ -158,6 +158,7 @@ static int pbx_capi_ami_capichat_list(struct mansession *s, const struct message
 		{
 			unsigned int roomNumber      = pbx_capi_chat_get_room_number(capiChatRoom);
 			struct ast_channel *c        = pbx_capi_chat_get_room_channel(capiChatRoom);
+			const struct capi_pvt* i     = pbx_capi_chat_get_room_interface_c(capiChatRoom);
 			int isMemberOperator         = pbx_capi_chat_is_member_operator(capiChatRoom);
 			int isCapiChatRoomMuted      = pbx_capi_chat_is_room_muted(capiChatRoom);
 			int isCapiChatMemberMuted    = pbx_capi_chat_is_member_muted(capiChatRoom);
@@ -166,6 +167,9 @@ static int pbx_capi_ami_capichat_list(struct mansession *s, const struct message
 			const char* mutedVisualName = "No";
 			char* cidVisual;
 			char* callerNameVisual;
+
+			if ((c == NULL) || (i == NULL))
+				continue;
 
 			cidVisual        = ast_strdup(pbx_capi_get_cid (c, "<unknown>"));
 			callerNameVisual = ast_strdup(pbx_capi_get_callername (c, "<no name>"));
@@ -195,6 +199,14 @@ static int pbx_capi_ami_capichat_list(struct mansession *s, const struct message
 				"MarkedUser: %s\r\n"
 				"Muted: %s\r\n"
 				"Talking: %s\r\n"
+				"Domain: %s\r\n"
+				"DTMF: %s\r\n"
+				"EchoCancel: %s\r\n"
+				"NoiseSupp: %s\r\n"
+				"RxAGC: %s\r\n"
+				"TxAGC: %s\r\n"
+				"RxGain: %.1f%s\r\n"
+				"TxGain: %.1f%s\r\n"
 				"\r\n",
 				idText,
 				roomName,
@@ -207,7 +219,15 @@ static int pbx_capi_ami_capichat_list(struct mansession *s, const struct message
 				(isCapiChatMemberListener != 0) ? "Listen only" : "Talk and listen" /* "Talk only" */,
 				(isCapiChatMostRecentMember != 0) ? "Yes" : "No",
 				mutedVisualName,
-				/* "Yes" "No" */ "Not monitored");
+				/* "Yes" "No" */ "Not monitored",
+				(i->channeltype == CAPI_CHANNELTYPE_B) ? "TDM" : "IP",
+				(i->isdnstate & CAPI_ISDN_STATE_DTMF) ? "Y" : "N",
+				(i->isdnstate & CAPI_ISDN_STATE_EC)   ? "Y" : "N",
+				(i->divaAudioFlags & 0x0080) ? "Y" : "N", /* Noise supression */
+				(i->divaAudioFlags & 0x0008) ? "Y" : "N", /* Rx AGC */
+				(i->divaAudioFlags & 0x0004) ? "Y" : "N", /* Tx AGC */
+				i->divaDigitalRxGainDB, "dB",
+				i->divaDigitalTxGainDB, "dB");
 
 				ast_free (cidVisual);
 				ast_free (callerNameVisual);

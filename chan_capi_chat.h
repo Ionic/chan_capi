@@ -34,6 +34,7 @@ const char* pbx_capi_chat_get_room_name(const struct capichat_s * room);
 unsigned int pbx_capi_chat_get_room_number(const struct capichat_s * room);
 unsigned int pbx_capi_chat_get_room_members(const struct capichat_s * room);
 struct ast_channel *pbx_capi_chat_get_room_channel(const struct capichat_s * room);
+const struct capi_pvt* pbx_capi_chat_get_room_interface_c(const struct capichat_s * room);
 int pbx_capi_chat_is_member_operator(const struct capichat_s * room);
 int pbx_capi_chat_is_room_muted(const struct capichat_s * room);
 int pbx_capi_chat_is_member_muted(const struct capichat_s * room);

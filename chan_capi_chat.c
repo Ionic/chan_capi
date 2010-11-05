@@ -1242,6 +1242,15 @@ struct ast_channel *pbx_capi_chat_get_room_channel(const struct capichat_s * roo
 }
 
 /*!
+ * \brief Get room interface
+ *
+ * \note called unter protection of chat_lock
+ */
+const struct capi_pvt* pbx_capi_chat_get_room_interface_c(const struct capichat_s * room) {
+	return (room->i);
+}
+
+/*!
  * \brief Is user operator
  *
  * \note called unter protection of chat_lock
