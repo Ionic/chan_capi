@@ -28,13 +28,13 @@
 #include "chan_capi_platform.h"
 #include "chan_capi20.h"
 #include "chan_capi.h"
-#ifdef CC_AST_HAS_VERSION_1_6
 #include "chan_capi_qsig.h"
 #include "chan_capi_utils.h"
 #include "chan_capi_chat.h"
 #include "chan_capi_management_common.h"
 #include "asterisk/manager.h"
 
+#ifdef CC_AST_HAS_VERSION_1_6
 
 #define CC_AMI_ACTION_NAME_CHATLIST   "CapichatList"
 #define CC_AMI_ACTION_NAME_CHATMUTE   "CapichatMute"
@@ -343,3 +343,56 @@ void pbx_capi_ami_unregister(void)
 {
 }
 #endif
+
+void pbx_capi_chat_join_event(struct ast_channel* c, const struct capichat_s * room)
+{
+#ifdef CC_AST_HAS_VERSION_1_8
+	ast_manager_event(c,
+#else
+	manager_event(
+#endif
+		EVENT_FLAG_CALL, "CapichatJoin",
+		"Channel: %s\r\n"
+		"Uniqueid: %s\r\n"
+		"Conference: %s\r\n"
+		"Conferencenum: %u\r\n"
+		"CallerIDnum: %s\r\n"
+		"CallerIDname: %s\r\n",
+		c->name, c->uniqueid,
+		pbx_capi_chat_get_room_name(room),
+		pbx_capi_chat_get_room_number(room),
+		pbx_capi_get_cid (c, "<unknown>"),
+		pbx_capi_get_callername (c, "<no name>"));
+}
+
+void pbx_capi_chat_leave_event(struct ast_channel* c,
+															 const struct capichat_s *room,
+															 long duration)
+{
+#ifdef CC_AST_HAS_VERSION_1_8
+	ast_manager_event(c,
+#else
+	manager_event(
+#endif
+		EVENT_FLAG_CALL, "CapichatLeave",
+		"Channel: %s\r\n"
+		"Uniqueid: %s\r\n"
+		"Conference: %s\r\n"
+		"Conferencenum: %u\r\n"
+		"CallerIDNum: %s\r\n"
+		"CallerIDName: %s\r\n"
+		"Duration: %ld\r\n",
+		c->name, c->uniqueid,
+		pbx_capi_chat_get_room_name(room),
+		pbx_capi_chat_get_room_number(room),
+		pbx_capi_get_cid (c, "<unknown>"),
+		pbx_capi_get_callername (c, "<no name>"),
+		duration);
+}
+
+void pbx_capi_chat_conference_end_event(const char* roomName)
+{
+	manager_event(EVENT_FLAG_CALL, "CapichatEnd", "Conference: %s\r\n", roomName);
+}
+
+
