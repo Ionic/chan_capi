@@ -45,7 +45,22 @@ static int capiChatProviderRegistered;
 
 void pbx_capi_register_device_state_providers(void)
 {
+	int i, capi_num_controllers;
+
 	capiChatProviderRegistered = (ast_devstate_prov_add("Capichat", pbx_capi_chat_room_state) == 0);
+
+	/*
+		Set initial device state for all supported interface
+		*/
+	for (i = 1, capi_num_controllers = pbx_capi_get_num_controllers();
+			 i <= capi_num_controllers;
+			 i++) {
+		const struct cc_capi_controller *capiController = pbx_capi_get_controller(i);
+
+		if (capiController != NULL) {
+			pbx_capi_ifc_state_event(capiController, 0);
+		}
+	}
 }
 
 void pbx_capi_unregister_device_state_providers(void)
@@ -89,12 +104,30 @@ pbx_capi_chat_room_state(const char *data)
 /*!
  * \brief Conference room state change
  */
-void pbx_capi_chat_room_state_event(const char* roomName, int inUse) {
+void pbx_capi_chat_room_state_event(const char* roomName, int inUse)
+{
 	if (capiChatProviderRegistered != 0) {
 #ifdef CC_AST_HAS_VERSION_1_6
 		ast_devstate_changed((inUse != 0) ? AST_DEVICE_INUSE : AST_DEVICE_NOT_INUSE, "capichat:%s", roomName);
 #else
 		ast_device_state_changed("capichat:%s", roomName);
+#endif
+	}
+}
+
+void pbx_capi_ifc_state_event(const struct cc_capi_controller* capiController, int channelsChanged)
+{
+	if ((channelsChanged == 0) ||
+			(capiController->nbchannels == capiController->nfreebchannels) ||
+			(capiController->nfreebchannels == 0) ||
+			((capiController->nfreebchannels < capiController->nfreebchannelsHardThr) &&
+				(capiController->nfreebchannels - channelsChanged >= capiController->nfreebchannelsHardThr)) ||
+			((capiController->nfreebchannels >= capiController->nfreebchannelsHardThr) &&
+				(capiController->nfreebchannels - channelsChanged < capiController->nfreebchannelsHardThr))) {
+#ifdef CC_AST_HAS_VERSION_1_6
+		ast_devstate_changed(AST_DEVICE_UNKNOWN, CC_MESSAGE_BIGNAME"/I%d/congestion", capiController->controller);
+#else
+		ast_device_state_changed (CC_MESSAGE_BIGNAME"/I%d/congestion", capiController->controller);
 #endif
 	}
 }

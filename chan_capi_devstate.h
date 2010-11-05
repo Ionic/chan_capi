@@ -4,6 +4,7 @@
 void pbx_capi_register_device_state_providers(void);
 void pbx_capi_unregister_device_state_providers(void);
 void pbx_capi_chat_room_state_event(const char* roomName, int inUse);
+void pbx_capi_ifc_state_event(const struct cc_capi_controller* capiController, int channelsChanged);
 
 
 #endif

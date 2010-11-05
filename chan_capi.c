@@ -4946,6 +4946,7 @@ static void capidev_handle_disconnect_b3_indication(_cmsg *CMSG, unsigned int PL
 
 	if (i->channeltype != CAPI_CHANNELTYPE_NULL) {
 		capi_controllers[i->controller]->nfreebchannels++;
+		pbx_capi_ifc_state_event(capi_controllers[i->controller], 1);
 	}
 }
 
@@ -4966,6 +4967,7 @@ static void capidev_handle_connect_b3_indication(_cmsg *CMSG, unsigned int PLCI,
 
 	if (i->channeltype != CAPI_CHANNELTYPE_NULL) {
 		capi_controllers[i->controller]->nfreebchannels--;
+		pbx_capi_ifc_state_event(capi_controllers[i->controller], -1);
 	}
 
 	return;
@@ -5600,6 +5602,7 @@ static void capidev_handle_msg(_cmsg *CMSG)
 			i->NCCI = NCCI;
 			if (i->channeltype != CAPI_CHANNELTYPE_NULL) {
 				capi_controllers[i->controller]->nfreebchannels--;
+				pbx_capi_ifc_state_event(capi_controllers[i->controller], -1);
 			}
 		} else {
 			i->isdnstate &= ~(CAPI_ISDN_STATE_B3_UP | CAPI_ISDN_STATE_B3_PEND);
@@ -7421,7 +7424,7 @@ static int pbx_capi_devicestate(void *data)
 	char *s;
 	char *target;
 	int res = AST_DEVICE_UNKNOWN;
-	struct capi_pvt *i;
+	struct capi_pvt *i = NULL;
 
 	if (!data) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "No data for "
@@ -7432,16 +7435,44 @@ static int pbx_capi_devicestate(void *data)
 	s = ast_strdupa(data);
 	target = strsep(&s, "/");
 
-	cc_mutex_lock(&iflock);
-	for (i = capi_iflist; i; i = i->next) {
-		if (!(strcmp(target, i->vname)))
-			break;
+	if (target != NULL) {
+		cc_mutex_lock(&iflock);
+		for (i = capi_iflist; i; i = i->next) {
+			if (!(strcmp(target, i->vname)))
+				break;
+		}
+		cc_mutex_unlock(&iflock);
 	}
-	cc_mutex_unlock(&iflock);
 
 	if (!i) {
-		cc_log(LOG_WARNING, "Unknown target '%s' for devicestate.\n",
-			target);
+		const char* interfaceEvent = strsep(&s, "/");
+
+		if ((target != NULL) && (*target == 'I') &&
+				(interfaceEvent != NULL) && (strcmp(interfaceEvent, "congestion") == 0)) {
+			const struct cc_capi_controller *capiController;
+
+			capiController = pbx_capi_get_controller(atoi(&target[1]));
+			if (capiController != NULL) {
+				if (pbx_capi_check_controller_status(capiController->controller) < 0) {
+					res = AST_DEVICE_UNAVAILABLE;
+				} else {
+					if (capiController->nbchannels == capiController->nfreebchannels) {
+						res = AST_DEVICE_NOT_INUSE;
+					} else if ((capiController->nfreebchannels == 0) ||
+											(capiController->nfreebchannels < capiController->nfreebchannelsHardThr)) {
+						res = AST_DEVICE_BUSY;
+					} else {
+						res = AST_DEVICE_INUSE;
+					}
+				}
+			} else {
+				cc_log(LOG_WARNING, "Unknown controller '%s' for devicestate.\n",
+					target);
+			}
+		} else {
+			cc_log(LOG_WARNING, "Unknown target '%s' for devicestate.\n",
+				target);
+		}
 	} else {
 		switch (i->state) {
 		case 0:
@@ -8774,16 +8805,23 @@ int pbx_capi_get_num_controllers(void)
 static void pbx_capi_interface_status_changed(int controller, diva_status_interface_state_t newInterfaceState)
 {
 	int currentInterfaceState;
+	int originalControllerStatus = (pbx_capi_check_controller_status(controller) != -1);
+	int newControllerStatus;
 
 	cc_mutex_lock(&iflock);
 	currentInterfaceState = capi_controllers[controller]->interfaceState;
 	capi_controllers[controller]->interfaceState = newInterfaceState;
 	cc_mutex_unlock(&iflock);
 
+	newControllerStatus = (pbx_capi_check_controller_status(controller) != -1);
+
 	cc_verbose(1, 0, VERBOSE_PREFIX_1 "CAPI%d: interface state changed %s -> %s\n",
 							controller,
 							diva_status_interface_state_name((diva_status_interface_state_t)currentInterfaceState),
 							diva_status_interface_state_name((diva_status_interface_state_t)newInterfaceState));
+
+	if (originalControllerStatus != newControllerStatus)
+		pbx_capi_ifc_state_event(capi_controllers[controller], 0);
 }
 
 static void pbx_capi_hw_status_changed(int controller, diva_status_hardware_state_t newHwState)
@@ -8794,7 +8832,6 @@ static void pbx_capi_hw_status_changed(int controller, diva_status_hardware_stat
 	currentHwState = capi_controllers[controller]->hwState;
 	capi_controllers[controller]->hwState = newHwState;
 	cc_mutex_unlock(&iflock);
-
 
 	cc_verbose(1, 0, VERBOSE_PREFIX_1 "CAPI%d: hardware state changed %s -> %s\n",
 							controller,
