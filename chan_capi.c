@@ -57,6 +57,7 @@ struct _diva_streaming_vector* vind;
 #include "chan_capi_mwi.h"
 #include "chan_capi_cli.h"
 #include "chan_capi_ami.h"
+#include "chan_capi_devstate.h"
 
 /* #define CC_VERSION "x.y.z" */
 #define CC_VERSION "$Revision$"
@@ -8533,6 +8534,7 @@ int unload_module(void)
 
 	ast_unregister_application(commandapp);
 
+	pbx_capi_unregister_device_state_providers();
 	pbx_capi_ami_unregister();
 	pbx_capi_cli_unregister();
 
@@ -8649,6 +8651,7 @@ int load_module(void)
 
 	pbx_capi_cli_register();
 	pbx_capi_ami_register();
+	pbx_capi_register_device_state_providers();
 	
 	ast_register_application(commandapp, pbx_capicommand_exec, commandsynopsis, commandtdesc);
 
