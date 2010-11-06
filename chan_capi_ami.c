@@ -36,9 +36,10 @@
 
 #ifdef CC_AST_HAS_VERSION_1_6
 
-#define CC_AMI_ACTION_NAME_CHATLIST   "CapichatList"
-#define CC_AMI_ACTION_NAME_CHATMUTE   "CapichatMute"
-#define CC_AMI_ACTION_NAME_CHATUNMUTE "CapichatUnmute"
+#define CC_AMI_ACTION_NAME_CHATLIST    "CapichatList"
+#define CC_AMI_ACTION_NAME_CHATMUTE    "CapichatMute"
+#define CC_AMI_ACTION_NAME_CHATUNMUTE  "CapichatUnmute"
+#define CC_AMI_ACTION_NAME_CHATREMOVE  "CapichatRemove"
 #define CC_AMI_ACTION_NAME_CAPICOMMAND "CapiCommand"
 
 /*
@@ -47,11 +48,13 @@
 static int pbx_capi_ami_capichat_list(struct mansession *s, const struct message *m);
 static int pbx_capi_ami_capichat_mute(struct mansession *s, const struct message *m);
 static int pbx_capi_ami_capichat_unmute(struct mansession *s, const struct message *m);
+static int pbx_capi_ami_capichat_remove(struct mansession *s, const struct message *m);
 static int pbx_capi_ami_capichat_control(struct mansession *s, const struct message *m, int chatMute);
 static int pbx_capi_ami_capicommand(struct mansession *s, const struct message *m);
 static int capiChatListRegistered;
 static int capiChatMuteRegistered;
 static int capiChatUnmuteRegistered;
+static int capiChatRemoveRegistered;
 static int capiCommandRegistered;
 
 static char mandescr_capichatlist[] =
@@ -77,6 +80,13 @@ static char mandescr_capichatunmute[] =
 "    *Conference: <confname>\n"
 "    *Member: <membername>\n"
 "    *Path: <Rx or Tx>\n";
+
+static char mandescr_capichatremove[] =
+"Description: Removes user in a particular CapiChat conference.\n"
+"Variables:\n"
+"    *ActionId: <id>\n"
+"    *Conference: <confname>\n"
+"    *Member: <membername>\n";
 
 static char mandescr_capicommand[] =
 "Description: Exec capicommand.\n"
@@ -105,6 +115,12 @@ void pbx_capi_ami_register(void)
 																								"Unmute a conference user",
 																								mandescr_capichatunmute) == 0;
 
+	capiChatRemoveRegistered = ast_manager_register2(CC_AMI_ACTION_NAME_CHATREMOVE,
+																								EVENT_FLAG_CALL,
+																								pbx_capi_ami_capichat_remove,
+																								"Remove a conference user",
+																								mandescr_capichatremove) == 0;
+
 	capiCommandRegistered = ast_manager_register2(CC_AMI_ACTION_NAME_CAPICOMMAND,
 																								EVENT_FLAG_CALL,
 																								pbx_capi_ami_capicommand,
@@ -122,6 +138,9 @@ void pbx_capi_ami_unregister(void)
 
 	if (capiChatUnmuteRegistered != 0)
 		ast_manager_unregister(CC_AMI_ACTION_NAME_CHATUNMUTE);
+
+	if (capiChatRemoveRegistered != 0)
+		ast_manager_unregister(CC_AMI_ACTION_NAME_CHATREMOVE);
 
 	if (capiCommandRegistered != 0)
 		ast_manager_unregister(CC_AMI_ACTION_NAME_CAPICOMMAND);
@@ -300,7 +319,32 @@ static int pbx_capi_ami_capichat_control(struct mansession *s, const struct mess
 			break;
 	}
 
-	return (0);
+	return 0;
+}
+
+static int pbx_capi_ami_capichat_remove(struct mansession *s, const struct message *m)
+{
+	const char *roomName  = astman_get_header(m, "Conference");
+	const char *userName  = astman_get_header(m, "Member");
+	int ret;
+
+	if (ast_strlen_zero(roomName)) {
+		astman_send_error(s, m, "Capi Chat conference not specified");
+		return 0;
+	}
+	if (ast_strlen_zero(userName)) {
+		astman_send_error(s, m, "Capi Chat member not specified");
+		return 0;
+	}
+
+	ret = pbx_capi_chat_remove_user (roomName, userName);
+	if (ret == 0) {
+		astman_send_ack(s, m, "Member removed");
+	} else {
+		astman_send_error(s, m, "Member not found");
+	}
+
+	return 0;
 }
 
 static int pbx_capi_ami_capicommand(struct mansession *s, const struct message *m)

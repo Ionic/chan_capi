@@ -41,7 +41,7 @@ txdgain,-128
 
 Mute all regular users if conference or mute selected user.
 
-Conference: Conference room to mute
+Conference: Conference room to unmute
 Member:     User to mute (Channel name)
 Path:       Path to mute (Rx or Tx)
 
@@ -59,6 +59,7 @@ txdgain,0
 
 Remove member from conference
 
+Conference: Conference room name
 Member:     User to remove (Channel name)
 
 +-------------------------------------------------------------------+
