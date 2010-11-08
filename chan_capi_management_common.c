@@ -21,9 +21,6 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
- *
- * Based on apps/app_meetme.c
- *
  */
 #include "chan_capi_platform.h"
 #include "chan_capi20.h"

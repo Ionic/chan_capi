@@ -5,8 +5,6 @@
   This source file is supplied for the use with
   Eicon Networks range of DIVA Server Adapters.
  *
-  Dialogic (R) File Revision :    1.9
- *
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2, or (at your option)
