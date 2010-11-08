@@ -24,8 +24,12 @@ HEAD
 - Add MWI server
 - Add MWI client
 - Improved call distribution algorithm for outgoing calls
-- Add 'capi ifcstate' and 'capi show resources' CLI commands
-- Add 'capi exec' CLI command
+- Add 'capi ifcstate', 'capi exec', 'capi show resources' and
+  'chat manage remove' CLI commands
+- Add AMI 'Capichat[List,Mute,Unmute,Remove]' and 'CapiCommand' actions and
+  Capichat[List,ListComplete,Join,Leave,End] events
+- Add device state events for char rooms (capichat:[roomname]) and for
+  interface state (ISDN/I[N]/congestion)
 
 chan_capi-1.1.5
 ------------------
