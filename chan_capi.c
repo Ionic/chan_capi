@@ -4679,6 +4679,78 @@ static void capidev_read_name_from_diva_manufacturer_infications(
 		channelname, nametype, *octet3a, dst);
 }
 
+static void capidev_read_connected_number_from_diva_manufacturer_infications(
+	const unsigned char* src,
+	const unsigned char* end,
+	char* dst,
+	int max_length,
+	unsigned char* presentation,
+	unsigned char* plan,
+	const char *channelname,
+	const char *numbertype)
+{
+	int length;
+
+	*dst = 0;
+	*presentation = 0;
+	*plan = *src++;
+	if (src < end)
+		*presentation = *src++;
+
+	presentation[0] &= 0x7f;
+	
+	if (src < end) {
+		length = MIN(max_length-1, (end - src));
+		memcpy (dst, src, length);
+		dst[length] = 0;
+	}
+
+	cc_verbose(3, 0, VERBOSE_PREFIX_3 "%s: received %s Number %02x/%02x '%s'\n",
+		channelname, numbertype, *presentation, *plan, dst);
+}
+
+#ifdef CC_AST_HAS_VERSION_1_8
+static void pbx_capi_update_connected_number(struct ast_channel* c,
+																						 unsigned char presentation,
+																						 unsigned char plan,
+																						 const char* number,
+																						 enum AST_CONNECTED_LINE_UPDATE_SOURCE source)
+{
+  struct ast_party_connected_line connected;
+  struct ast_set_party_connected_line update_connected;
+
+  ast_party_connected_line_init(&connected);
+  memset(&update_connected, 0, sizeof(update_connected));
+  update_connected.id.number = 1;
+  connected.id.number.valid = 1;
+  connected.id.number.str = (char*)number;
+  connected.id.number.plan = plan;
+  connected.id.number.presentation = presentation;
+  connected.id.tag = NULL;
+  connected.source = source;
+  ast_channel_queue_connected_line_update(c, &connected, &update_connected);
+}
+
+static void pbx_capi_update_connected_name(struct ast_channel* c,
+																					 const char* name,
+																					 unsigned char presentation,
+																					 enum AST_CONNECTED_LINE_UPDATE_SOURCE source)
+{
+  struct ast_party_connected_line connected;
+  struct ast_set_party_connected_line update_connected;
+
+  ast_party_connected_line_init(&connected);
+  memset(&update_connected, 0, sizeof(update_connected));
+  update_connected.id.name = 1;
+  connected.id.name.valid = 1;
+  connected.id.name.str = (char*)name;
+  connected.id.name.presentation = presentation;
+  connected.id.tag = NULL;
+  connected.source = source;
+  ast_channel_queue_connected_line_update(c, &connected, &update_connected);
+}
+#endif
+
 static void capidev_handle_diva_signaling_manufacturer_infications(struct capi_pvt *i, const unsigned char* data)
 {
 	int length = *data++;
@@ -4690,7 +4762,6 @@ static void capidev_handle_diva_signaling_manufacturer_infications(struct capi_p
        4-2 : Set to zeero
        1-0 : Screening indicator, 00 - User provided not screened, 01 - User provided, verified and passed, 10 - User provided verified and failed, 11 - Nnetwork provided
 	*/
-
 	if (length >= 2) {
 		unsigned short command = read_capi_word(data);
 		data   += 2;
@@ -4718,6 +4789,11 @@ static void capidev_handle_diva_signaling_manufacturer_infications(struct capi_p
 		case 0x0008: /* ConnectedPartyName */
 			if (length != 0) {
 				capidev_read_name_from_diva_manufacturer_infications (data, &data[length], buffer, sizeof(buffer), &octet3a, i->vname, "Connected Party");
+#ifdef CC_AST_HAS_VERSION_1_8
+					if (buffer[0] != 0) {
+						pbx_capi_update_connected_name(i->owner, buffer, octet3a & 0x7f, AST_CONNECTED_LINE_UPDATE_SOURCE_UNKNOWN);
+					}
+#endif
 			}
 			break;
 		case 0x000a: /* BusyPartyName */
@@ -4726,6 +4802,21 @@ static void capidev_handle_diva_signaling_manufacturer_infications(struct capi_p
 			}
 			break;
 		case 0x0009: /* CQ_Events */
+			if (data[0] == 0) { /* CQ_RemoteTransfer */
+				if (data[1] > 2) {
+					unsigned char presentation;
+					unsigned char plan;
+					capidev_read_connected_number_from_diva_manufacturer_infications (&data[2],
+									&data[length], buffer, sizeof(buffer), &presentation, &plan, i->vname, "Changed Called Party");
+#ifdef CC_AST_HAS_VERSION_1_8
+					if (buffer[0] != 0) {
+						pbx_capi_update_connected_number(i->owner, presentation, plan, buffer,
+							(i->state == CAPI_STATE_CONNECTPENDING) ? \
+								AST_CONNECTED_LINE_UPDATE_SOURCE_TRANSFER_ALERTING : AST_CONNECTED_LINE_UPDATE_SOURCE_TRANSFER);
+					}
+#endif
+				}
+			}
 			break;
 		}
 	}
