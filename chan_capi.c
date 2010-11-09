@@ -4773,6 +4773,11 @@ static void capidev_handle_diva_signaling_manufacturer_infications(struct capi_p
 		case 0x0006: /* CalledPartyName */
 			if (length != 0) {
 				capidev_read_name_from_diva_manufacturer_infications (data, &data[length], buffer, sizeof(buffer), &octet3a, i->vname, "Called Party");
+#ifdef CC_AST_HAS_VERSION_1_8
+					if (buffer[0] != 0) {
+						pbx_capi_update_connected_name(i->owner, buffer, octet3a & 0x7f, AST_CONNECTED_LINE_UPDATE_SOURCE_UNKNOWN);
+					}
+#endif
 			}
 			break;
 		case 0x0007: /* CallingPartyName */
