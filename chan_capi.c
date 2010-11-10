@@ -577,7 +577,7 @@ static void capi_facility_add_datetime(unsigned char *facilityarray)
 /*
  * Echo cancellation is for cards w/ integrated echo cancellation only
  */
-static void capi_echo_canceller(struct capi_pvt *i, int function)
+void capi_echo_canceller(struct capi_pvt *i, int function)
 {
 	int ecAvail = 0;
 

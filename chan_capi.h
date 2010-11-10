@@ -809,6 +809,11 @@ void pbx_capi_unlock_interfaces(void);
  */
 int pbx_capi_cli_exec_capicommand(struct ast_channel *chan, const char *data);
 
+/*!
+	\brief EC control
+	*/
+void capi_echo_canceller(struct capi_pvt *i, int function);
+
 #ifdef DIVA_STREAMING
 struct _diva_streaming_vector;
 void capidev_handle_data_b3_indication_vector (struct capi_pvt *i,

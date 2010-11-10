@@ -640,11 +640,18 @@ int handle_facility_indication_supplementary(
 #endif
 			}
 		} else {
-			cc_verbose(4, 0, VERBOSE_PREFIX_1 "CAPI%u Rx MWI %s for '%s@default %s %s time '%s' service %d",
+			cc_verbose(4, 0, VERBOSE_PREFIX_1 "CAPI%u Rx MWI %s for '%s@default %s %s time '%s' service %d\n",
 								messageStatus == 0 ? "add" : "del", mailboxName, controllingUserNumberName, controllingUserProvidedNumberName,
 								mwiTimeName, basicService);
 		}
 	} return ret;
+	case 0x8000: /* Hold notification */
+		if ((i->isdnstate & CAPI_ISDN_STATE_EC) != 0) {
+			cc_verbose(4, 0, VERBOSE_PREFIX_1 "%s: EC reset\n", i->vname);
+			capi_echo_canceller(i, EC_FUNCTION_DISABLE);
+			capi_echo_canceller(i, EC_FUNCTION_ENABLE);
+		}
+		return ret;
 
 	default:
 		break;
