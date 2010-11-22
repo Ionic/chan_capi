@@ -82,7 +82,11 @@ int
 pbx_capi_chat_room_state(const char *data)
 {
 	const struct capichat_s *room;
+#ifdef CC_AST_HAS_VERSION_1_6
 	enum ast_device_state ret = AST_DEVICE_NOT_INUSE;
+#else
+	int ret = AST_DEVICE_NOT_INUSE;
+#endif
 
 	if (data == 0)
 		return AST_DEVICE_INVALID;
