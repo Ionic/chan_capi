@@ -26,6 +26,7 @@ extern int pbxcli_capi_chatinfo(int fd, int argc, char *argv[]);
 extern int pbx_capi_chat_command (struct ast_channel *c, char *param);
 extern int pbx_capi_chat_mute(struct ast_channel *c, char *param);
 extern int pbx_capi_chat_play(struct ast_channel *c, char *param);
+extern int pbx_capi_chat_connect(struct ast_channel *c, char *param);
 int pbx_capi_chat_remove_user(const char* room, const char* name);
 
 struct capichat_s;

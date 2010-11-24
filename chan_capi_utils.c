@@ -191,7 +191,7 @@ struct capi_pvt *capi_mknullif(struct ast_channel *c, unsigned long long control
 	cc_mutex_init(&tmp->lock);
 	ast_cond_init(&tmp->event_trigger, NULL);
 	
-	snprintf(tmp->name, sizeof(tmp->name) - 1, "%s-NULLPLCI", c->name);
+	snprintf(tmp->name, sizeof(tmp->name) - 1, "%s-NULLPLCI", (c != 0) ? c->name : "BRIDGE");
 	snprintf(tmp->vname, sizeof(tmp->vname) - 1, "%s", tmp->name);
 
 	tmp->channeltype = CAPI_CHANNELTYPE_NULL;
@@ -214,9 +214,11 @@ struct capi_pvt *capi_mknullif(struct ast_channel *c, unsigned long long control
 	tmp->txgain = 1.0;
 	capi_gains(&tmp->g, 1.0, 1.0);
 
-	if (!(capi_create_reader_writer_pipe(tmp))) {
-		ast_free(tmp);
-		return NULL;
+	if (c != 0) {
+		if (!(capi_create_reader_writer_pipe(tmp))) {
+			ast_free(tmp);
+			return NULL;
+		}
 	}
 
 	tmp->bproto = CC_BPROTO_TRANSPARENT;	
@@ -1646,3 +1648,31 @@ void pbx_capi_nulliflist_unlock(void)
 	cc_mutex_unlock(&nullif_lock);
 }
 
+/*!
+		\brief get list of controllers. Stop parsing
+						after non digit detected after separator
+						character or end of string is reached
+	*/
+char* pbx_capi_strsep_controller_list (char** param)
+{
+	char *src, *p;
+
+	if ((param == NULL) || (*param == NULL) || (**param == 0))
+		return NULL;
+
+	if (strchr(*param, '|') != NULL)
+		return (strsep(param, "|"));
+
+	src = *param;
+	p = src - 1;
+	do {
+		p = strchr(p+1, ',');
+	} while ((p != NULL) && (isdigit(p[1]) != 0));
+
+	if (p != NULL)
+		*p++ = 0;
+
+	*param = p;
+
+	return src;
+}

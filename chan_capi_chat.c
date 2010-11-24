@@ -364,7 +364,7 @@ static void del_chat_member(struct capichat_s *room)
 /*
  * add a new chat member
  */
-static struct capichat_s *add_chat_member(char *roomname, struct capi_pvt *i, room_member_type_t room_member_type)
+static struct capichat_s *add_chat_member(const char *roomname, struct capi_pvt *i, room_member_type_t room_member_type)
 {
 	struct capichat_s *room = NULL;
 	struct capichat_s *tmproom;
@@ -1316,5 +1316,83 @@ void pbx_capi_lock_chat_rooms(void)
 void pbx_capi_unlock_chat_rooms(void)
 {
 	cc_mutex_unlock(&chat_lock);
+}
+
+/*!
+		\brief Connect two conference rooms.
+	*/
+static struct capi_pvt*
+pbx_capi_create_conference_bridge(const char* mainName,
+																	unsigned long long mainController,
+																	const char* additionalName,
+																	unsigned long long additionalController)
+{
+	struct capi_pvt   *capi_ifc[2] = { 0, 0 };
+	struct capichat_s *room[sizeof(capi_ifc)/sizeof(capi_ifc[0])] = { 0, 0 };
+	const char* name[sizeof(capi_ifc)/sizeof(capi_ifc[0])] = { mainName, additionalName };
+	unsigned long long controller[sizeof(capi_ifc)/sizeof(capi_ifc[0])]   = { mainController, additionalController };
+	int error, i;
+
+	if ((mainName == 0) || (additionalName == 0) ||
+			(mainController == 0) || (additionalController == 0))
+		return NULL;
+
+	pbx_capi_nulliflist_lock();
+	for (i = 0, error = 0; (error == 0) && (i < sizeof(name)/sizeof(name[0])); i++) {
+		capi_ifc[i] = capi_mknullif(NULL, controller[i]);
+		error |= (capi_ifc[i] == NULL);
+	}
+	if (error == 0) {
+		capi_ifc[0]->bridgePeer = capi_ifc[1];
+		capi_ifc[1]->bridgePeer = capi_ifc[0];
+	}
+	pbx_capi_nulliflist_unlock();
+
+	for (i = 0; (error == 0) && (i < sizeof(name)/sizeof(name[0])); i++) {
+		room[i] = add_chat_member(name[i], capi_ifc[i], RoomMemberOperator);
+		error |= (room[i] == NULL);
+	}
+
+	if (error != 0) {
+		for (i = 0; i < sizeof(name)/sizeof(name[0]); i++) {
+			if (room[i] != 0) {
+				del_chat_member(room[i]);
+			}
+			if (capi_ifc[i] != 0) {
+				capi_remove_nullif(capi_ifc[i]);
+				capi_ifc[i] = 0;
+			}
+		}
+	}
+
+	return capi_ifc[0];
+}
+
+/*!
+		\brief Connect two conference rooms. "room,controller,room,controller";
+	*/
+int pbx_capi_chat_connect(struct ast_channel *c, char *param) {
+	char* rooms[2];
+	unsigned long long controllers[sizeof(rooms)/sizeof(rooms[0])] = { 0UL, 0UL };
+	struct capi_pvt *capi_ifc;
+	int i;
+
+	for (i = 0; i < sizeof(rooms)/sizeof(rooms[0]); i++) {
+		char* v;
+		rooms[i] = strsep(&param, COMMANDSEPARATOR);
+		v = pbx_capi_strsep_controller_list (&param);
+		controllers[i] = ast_get_group(v);
+	}
+
+	capi_ifc = pbx_capi_create_conference_bridge(rooms[0], controllers[0], rooms[1], controllers[1]);
+
+	if (capi_ifc != NULL) {
+		cc_verbose(3, 0, VERBOSE_PREFIX_3 CC_MESSAGE_NAME
+				"Chat connect '%s' <-> '%s'\n", rooms[0], rooms[1]);
+	} else {
+		cc_log(LOG_WARNING, "Chat failed to connect '%s' <-> '%s'\n", rooms[0], rooms[1]);
+	}
+
+	return ((capi_ifc != NULL) ? 0 : -1);
 }
 

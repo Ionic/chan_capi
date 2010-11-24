@@ -7230,59 +7230,61 @@ static struct capicommands_s {
 	pbx_capi_command_proc_t cmd;
 	int capionly;
 	int resourceplcisupported;
+	int notchannelrelated;
 } capicommands[] = {
-	{ "getid",        pbx_capi_get_id,          0, 0 },
-	{ "peerlink",     pbx_capi_peer_link,       0, 0 },
-	{ "progress",     pbx_capi_signal_progress, 1, 0 },
-	{ "deflect",      pbx_capi_call_deflect,    1, 0 },
-	{ "receivefax",   pbx_capi_receive_fax,     1, 1 },
-	{ "sendfax",      pbx_capi_send_fax,        1, 1 },
-	{ "echosquelch",  pbx_capi_echosquelch,     1, 0 },
-	{ "echocancel",   pbx_capi_echocancel,      1, 1 },
+	{ "getid",        pbx_capi_get_id,          0, 0, 0 },
+	{ "peerlink",     pbx_capi_peer_link,       0, 0, 0 },
+	{ "progress",     pbx_capi_signal_progress, 1, 0, 0 },
+	{ "deflect",      pbx_capi_call_deflect,    1, 0, 0 },
+	{ "receivefax",   pbx_capi_receive_fax,     1, 1, 0 },
+	{ "sendfax",      pbx_capi_send_fax,        1, 1, 0 },
+	{ "echosquelch",  pbx_capi_echosquelch,     1, 0, 0 },
+	{ "echocancel",   pbx_capi_echocancel,      1, 1, 0 },
 
-	{ "noisesuppressor", pbx_capi_noisesuppressor,     1, 1 },
-	{ "rxagc",           pbx_capi_rxagc,               1, 1 },
-	{ "txagc",           pbx_capi_txagc,               1, 1 },
-	{ "rxdgain",         pbx_capi_rxdgain,             1, 1 },
-	{ "incrxdgain",      pbx_capi_incrxdgain,          1, 1 },
-	{ "txdgain",         pbx_capi_txdgain,             1, 1 },
-	{ "inctxdgain",      pbx_capi_inctxdgain,          1, 1 },
-	{ "clamping",        pbx_capi_clamping,            1, 1 },
-	{ "mftonedetection", pbx_capi_mftonedetection,     1, 1 },
-	{ "pulsedetection",  pbx_capi_pulsedetection,      1, 1 },
-	{ "sendtone",        pbx_capi_sendtone,            1, 1 },
-	{ "stoptone",        pbx_capi_stoptone,            1, 1 },
-	{ "starttonedetection", pbx_capi_starttonedetection, 1, 1 },
-	{ "stoptonedetection",  pbx_capi_stoptonedetection,  1, 1 },
-	{ "pitchcontrol",    pbx_capi_pitchcontrol,        1, 1 },
-	{ "incpitchcontrol", pbx_capi_incpitchcontrol,     1, 1 },
+	{ "noisesuppressor", pbx_capi_noisesuppressor,     1, 1, 0 },
+	{ "rxagc",           pbx_capi_rxagc,               1, 1, 0 },
+	{ "txagc",           pbx_capi_txagc,               1, 1, 0 },
+	{ "rxdgain",         pbx_capi_rxdgain,             1, 1, 0 },
+	{ "incrxdgain",      pbx_capi_incrxdgain,          1, 1, 0 },
+	{ "txdgain",         pbx_capi_txdgain,             1, 1, 0 },
+	{ "inctxdgain",      pbx_capi_inctxdgain,          1, 1, 0 },
+	{ "clamping",        pbx_capi_clamping,            1, 1, 0 },
+	{ "mftonedetection", pbx_capi_mftonedetection,     1, 1, 0 },
+	{ "pulsedetection",  pbx_capi_pulsedetection,      1, 1, 0 },
+	{ "sendtone",        pbx_capi_sendtone,            1, 1, 0 },
+	{ "stoptone",        pbx_capi_stoptone,            1, 1, 0 },
+	{ "starttonedetection", pbx_capi_starttonedetection, 1, 1, 0 },
+	{ "stoptonedetection",  pbx_capi_stoptonedetection,  1, 1, 0 },
+	{ "pitchcontrol",    pbx_capi_pitchcontrol,        1, 1, 0 },
+	{ "incpitchcontrol", pbx_capi_incpitchcontrol,     1, 1, 0 },
 
-	{ "vc",              pbx_capi_voicecommand,              1, 1 },
-	{ "vctransparency",  pbx_capi_voicecommand_transparency, 1, 1 },
+	{ "vc",              pbx_capi_voicecommand,              1, 1, 0 },
+	{ "vctransparency",  pbx_capi_voicecommand_transparency, 1, 1, 0 },
 
-	{ "getplci",         pbx_capi_getplci,             1, 0 },
+	{ "getplci",         pbx_capi_getplci,             1, 0, 0 },
 
-	{ "malicious",    pbx_capi_malicious,       1, 0 },
-	{ "keypad",       pbx_capi_keypad,          1, 0 },
-	{ "hold",         pbx_capi_hold,            1, 0 },
-	{ "holdtype",     pbx_capi_holdtype,        1, 0 },
-	{ "retrieve",     pbx_capi_retrieve,        0, 0 },
-	{ "ect",          pbx_capi_ect,             1, 0 },
-	{ "3pty_begin",   pbx_capi_3pty_begin,      1, 0 },
-	{ "ccbs",         pbx_capi_ccbs,            0, 0 },
-	{ "ccbsstop",     pbx_capi_ccbsstop,        0, 0 },
-	{ "ccpartybusy",  pbx_capi_ccpartybusy,     0, 0 },
-	{ "chat",         pbx_capi_chat,            0, 0 },
-	{ "chat_command", pbx_capi_chat_command,    0, 0 },
-	{ "chat_mute",    pbx_capi_chat_mute,       0, 0 },
-	{ "chat_play",    pbx_capi_chat_play,       0, 0 },
-	{ "resource",         pbx_capi_chat_associate_resource_plci, 0, 0 },
-	{ "mwi",          pbx_capi_mwi,             1, 0 },
-	{ "hangup",       pbx_capi_realhangup,      0, 0 },
- 	{ "qsig_ssct",	  pbx_capi_qsig_ssct,	    1, 0 },
-  	{ "qsig_ct",      pbx_capi_qsig_ct,         1, 0 },
-   	{ "qsig_callmark",pbx_capi_qsig_callmark,   1, 0 },
-	{ "qsig_getplci", pbx_capi_qsig_getplci,    1, 0 },
+	{ "malicious",    pbx_capi_malicious,       1, 0, 0 },
+	{ "keypad",       pbx_capi_keypad,          1, 0, 0 },
+	{ "hold",         pbx_capi_hold,            1, 0, 0 },
+	{ "holdtype",     pbx_capi_holdtype,        1, 0, 0 },
+	{ "retrieve",     pbx_capi_retrieve,        0, 0, 0 },
+	{ "ect",          pbx_capi_ect,             1, 0, 0 },
+	{ "3pty_begin",   pbx_capi_3pty_begin,      1, 0, 0 },
+	{ "ccbs",         pbx_capi_ccbs,            0, 0, 0 },
+	{ "ccbsstop",     pbx_capi_ccbsstop,        0, 0, 0 },
+	{ "ccpartybusy",  pbx_capi_ccpartybusy,     0, 0, 0 },
+	{ "chat",         pbx_capi_chat,            0, 0, 0 },
+	{ "chat_command", pbx_capi_chat_command,    0, 0, 0 },
+	{ "chat_mute",    pbx_capi_chat_mute,       0, 0, 0 },
+	{ "chat_play",    pbx_capi_chat_play,       0, 0, 0 },
+	{ "chat_connect", pbx_capi_chat_connect,    0, 0, 1 },
+	{ "resource",         pbx_capi_chat_associate_resource_plci, 0, 0, 0 },
+	{ "mwi",          pbx_capi_mwi,             1, 0, 0 },
+	{ "hangup",       pbx_capi_realhangup,      0, 0, 0 },
+ 	{ "qsig_ssct",	  pbx_capi_qsig_ssct,	    1, 0, 0 },
+  	{ "qsig_ct",      pbx_capi_qsig_ct,         1, 0, 0 },
+   	{ "qsig_callmark",pbx_capi_qsig_callmark,   1, 0, 0 },
+	{ "qsig_getplci", pbx_capi_qsig_getplci,    1, 0, 0 },
   	{ NULL, NULL, 0 }
 };
 
@@ -7324,11 +7326,15 @@ static int pbx_capicommand_exec(struct ast_channel *chan, void *data)
 		return -1;
 	}
 
+	if (chan != NULL) {
 #ifdef CC_AST_HAS_VERSION_1_4
-	u = ast_module_user_add(chan);
+		u = ast_module_user_add(chan);
 #else
-	LOCAL_USER_ADD(u);
+		LOCAL_USER_ADD(u);
 #endif
+	} else {
+		u = NULL;
+	}
 
 	s = ast_strdupa(data);
 	stringp = s;
@@ -7342,18 +7348,21 @@ static int pbx_capicommand_exec(struct ast_channel *chan, void *data)
 			break;
 		capicmd++;
 	}
-	if (!capicmd->cmd) {
+	if ((capicmd->cmd == NULL) ||
+			((chan == NULL) && (capicmd->notchannelrelated == 0))) {
+		if (chan != NULL) {
 #ifdef CC_AST_HAS_VERSION_1_4
-		ast_module_user_remove(u);
+			ast_module_user_remove(u);
 #else
-		LOCAL_USER_REMOVE(u);
+			LOCAL_USER_REMOVE(u);
 #endif
-		cc_log(LOG_WARNING, "Unknown command '%s' for capicommand\n",
-			command);
+		}
+		cc_log(LOG_WARNING, "%s command '%s' for capicommand\n",
+			(capicmd->cmd == NULL) ? "Unknown" : "Channel required for", command);
 		return -1;
 	}
 
-	if (chan->tech != &capi_tech) {
+	if ((chan != NULL) && (chan->tech != &capi_tech)) {
 		if (capicmd->capionly != 0) {
 			struct capi_pvt* resource_plci = pbx_check_resource_plci (chan);
 
@@ -7373,12 +7382,15 @@ static int pbx_capicommand_exec(struct ast_channel *chan, void *data)
 	}
 
 	res = (capicmd->cmd)(chan, params);
-	
+
+	if (chan != NULL) {
 #ifdef CC_AST_HAS_VERSION_1_4
-	ast_module_user_remove(u);
+		ast_module_user_remove(u);
 #else
-	LOCAL_USER_REMOVE(u);
+		LOCAL_USER_REMOVE(u);
 #endif
+	}
+
 	return res;
 }
 

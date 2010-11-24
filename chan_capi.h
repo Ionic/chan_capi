@@ -52,6 +52,7 @@
 #ifdef DIVA_STREAMING
 struct _diva_stream_scheduling_entry;
 #endif
+struct _pbx_capi_conference_bridge;
 
 #define CAPI_MAX_CONTROLLERS             64
 #define CAPI_MAX_B3_BLOCKS                7
@@ -561,6 +562,8 @@ struct capi_pvt {
 #ifdef DIVA_STREAMING
 	struct _diva_stream_scheduling_entry* diva_stream_entry;
 #endif
+	/* Connection between two conference rooms. NULL PLCI */
+	struct capi_pvt *bridgePeer;
 	
 	/*! Next channel in list */
 	struct capi_pvt *next;

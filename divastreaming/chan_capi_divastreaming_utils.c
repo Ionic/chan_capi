@@ -78,8 +78,24 @@ static int divaStreamingMessageRx (void* user_context, dword message, dword leng
 
 			if (likely(process_indication != 0)) {
 				if (likely(Ind == 8)) {
-					if (likely(pE->i != 0 && pE->i->NCCI != 0))
-						capidev_handle_data_b3_indication_vector (pE->i, vind, vind_nr);
+					if (likely(pE->i != 0 && pE->i->NCCI != 0)) {
+						if (pE->i->bridgePeer != 0) {
+							struct capi_pvt* bridgePeer = pE->i->bridgePeer;
+							if (bridgePeer->NCCI != 0 && bridgePeer->diva_stream_entry != 0 &&
+									bridgePeer->diva_stream_entry->diva_stream_state == DivaStreamActive &&
+									bridgePeer->diva_stream_entry->diva_stream->get_tx_free (bridgePeer->diva_stream_entry->diva_stream) > 2*CAPI_MAX_B3_BLOCK_SIZE+128) {
+								dword i = 0, k = 0, b3len;
+								byte b3buf[CAPI_MAX_B3_BLOCK_SIZE];
+								b3len = diva_streaming_read_vector_data(vind, vind_nr, &i, &k, b3buf, CAPI_MAX_B3_BLOCK_SIZE);
+								bridgePeer->diva_stream_entry->diva_stream->write (bridgePeer->diva_stream_entry->diva_stream,
+																																	 8U << 8 | DIVA_STREAM_MESSAGE_TX_IDI_REQUEST,
+																																	 b3buf, b3len);
+								bridgePeer->diva_stream_entry->diva_stream->flush_stream(bridgePeer->diva_stream_entry->diva_stream);
+							}
+						} else {
+							capidev_handle_data_b3_indication_vector (pE->i, vind, vind_nr);
+						}
+					}
 				} else {
 					dword i = 0, k = 0;
 					word data_length;

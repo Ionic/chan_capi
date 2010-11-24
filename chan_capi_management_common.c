@@ -63,6 +63,11 @@ int pbx_capi_management_capicommand(const char *requiredChannelName, const char 
 		return -3;
 	}
 
+	if (strcmp(requiredChannelName, "none") == 0) {
+		int ret = (pbx_capi_cli_exec_capicommand(NULL, chancapiCommand) == 0) ? 0 : -1;
+		return (ret);
+	}
+
 	for (ifc_type = 0; ifc_type < sizeof(data)/sizeof(data[0]); ifc_type++) {
 		search_loops = 10;
 		do {
