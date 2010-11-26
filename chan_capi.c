@@ -8849,7 +8849,9 @@ char *key()
 #ifdef DIVA_STREAMING
 int pbx_capi_streaming_supported (struct capi_pvt *i)
 {
-	return (i != 0 && i->controller <= CAPI_MAX_CONTROLLERS && capi_controllers[i->controller]->divaStreaming != 0);
+	return ((i != 0) && (i->controller <= CAPI_MAX_CONTROLLERS) &&
+					(capi_controllers[i->controller] != NULL) &&
+					(capi_controllers[i->controller]->divaStreaming != 0));
 }
 #endif
 
