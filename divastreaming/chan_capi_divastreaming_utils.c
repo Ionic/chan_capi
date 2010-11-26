@@ -91,6 +91,8 @@ static int divaStreamingMessageRx (void* user_context, dword message, dword leng
 																																	 8U << 8 | DIVA_STREAM_MESSAGE_TX_IDI_REQUEST,
 																																	 b3buf, b3len);
 								bridgePeer->diva_stream_entry->diva_stream->flush_stream(bridgePeer->diva_stream_entry->diva_stream);
+							} else {
+								DBG_ERR(("DROP BRIDGE PACKET"))
 							}
 						} else {
 							capidev_handle_data_b3_indication_vector (pE->i, vind, vind_nr);

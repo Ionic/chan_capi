@@ -564,7 +564,7 @@ struct capi_pvt {
 #endif
 	/* Connection between two conference rooms. NULL PLCI */
 	struct capi_pvt *bridgePeer;
-	
+
 	/*! Next channel in list */
 	struct capi_pvt *next;
 };

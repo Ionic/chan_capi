@@ -1337,16 +1337,19 @@ pbx_capi_create_conference_bridge(const char* mainName,
 			(mainController == 0) || (additionalController == 0))
 		return NULL;
 
-	pbx_capi_nulliflist_lock();
 	for (i = 0, error = 0; (error == 0) && (i < sizeof(name)/sizeof(name[0])); i++) {
 		capi_ifc[i] = capi_mknullif(NULL, controller[i]);
 		error |= (capi_ifc[i] == NULL);
 	}
 	if (error == 0) {
+		cc_mutex_lock(&capi_ifc[0]->lock);
 		capi_ifc[0]->bridgePeer = capi_ifc[1];
+		cc_mutex_unlock(&capi_ifc[0]->lock);
+
+		cc_mutex_lock(&capi_ifc[1]->lock);
 		capi_ifc[1]->bridgePeer = capi_ifc[0];
+		cc_mutex_unlock(&capi_ifc[1]->lock);
 	}
-	pbx_capi_nulliflist_unlock();
 
 	for (i = 0; (error == 0) && (i < sizeof(name)/sizeof(name[0])); i++) {
 		room[i] = add_chat_member(name[i], capi_ifc[i], RoomMemberOperator);

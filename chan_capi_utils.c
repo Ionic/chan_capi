@@ -244,12 +244,24 @@ struct capi_pvt *capi_mknullif(struct ast_channel *c, unsigned long long control
 	}
 #endif
 
-	capi_sendf(NULL, 0, CAPI_CONNECT_REQ, controller, tmp->MessageNumber,
+	if (c == NULL) {
+		cc_mutex_lock(&tmp->lock);
+	}
+	capi_sendf((c != NULL) ? NULL : tmp, c == NULL, CAPI_CONNECT_REQ, controller, tmp->MessageNumber,
 		"w()()()()(www()()()())()()()((wwbbb)()()())",
 		 0,       1,1,0,              3,0,0,0,0);
-
-	cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: created null-interface on controller %d.\n",
-		tmp->vname, tmp->controller);
+	if (c == NULL) {
+		cc_mutex_unlock(&tmp->lock);
+		if (tmp->PLCI == 0) {
+			cc_log(LOG_WARNING, "%s: failed to create\n", tmp->vname);
+			capi_remove_nullif(tmp);
+			tmp = NULL;
+		}
+	}
+	if (tmp != NULL) {
+		cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: created null-interface on controller %d.\n",
+				tmp->vname, tmp->controller);
+	}
 
 	return tmp;
 }
