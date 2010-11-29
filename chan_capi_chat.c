@@ -1384,7 +1384,7 @@ int pbx_capi_chat_connect(struct ast_channel *c, char *param) {
 		char* v;
 		rooms[i] = strsep(&param, COMMANDSEPARATOR);
 		v = pbx_capi_strsep_controller_list (&param);
-		controllers[i] = ast_get_group(v);
+		controllers[i] = (unsigned long long)(ast_get_group(v) >> 1);
 	}
 
 	capi_ifc = pbx_capi_create_conference_bridge(rooms[0], controllers[0], rooms[1], controllers[1]);
