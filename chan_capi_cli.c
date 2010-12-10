@@ -292,9 +292,9 @@ static int pbxcli_capi_show_resources(int fd, int argc, char *argv[])
 #endif
 
 	ast_cli(fd, CC_MESSAGE_BIGNAME " resources in use:\n");
-	ast_cli(fd, "%-40s %-6s %-4s %-10s %-9s %-5s %-5s %-6s %-6s\n",
-							"Line-Name", "Domain", "DTMF", "EchoCancel", "NoiseSupp", "RxAGC", "TxAGC", "RxGain", "TxGain");
-	ast_cli(fd, "------------------------------------------------------------------------------------------------------\n");
+	ast_cli(fd, "%-40s %-6s %-4s %-10s %-9s %-5s %-5s %-6s %-6s %-6s\n",
+							"Line-Name", "Domain", "DTMF", "EchoCancel", "NoiseSupp", "RxAGC", "TxAGC", "RxGain", "TxGain", "CAPI");
+	ast_cli(fd, "----------------------------------------------------------------------------------------------------------\n");
 
 	for (ifc_type = 0; ifc_type < sizeof(data)/sizeof(data[0]); ifc_type++) {
 		data[ifc_type].lock_proc();
@@ -302,7 +302,7 @@ static int pbxcli_capi_show_resources(int fd, int argc, char *argv[])
 		for (i = data[ifc_type].head; i; i = i->next) {
 			char* name;
 
-			if ((i->used == 0) || ((i->channeltype != CAPI_CHANNELTYPE_B) &&
+			if (((i->used == 0) && (i->channeltype != CAPI_CHANNELTYPE_NULL)) || ((i->channeltype != CAPI_CHANNELTYPE_B) &&
 				(i->channeltype != CAPI_CHANNELTYPE_NULL)))
 				continue;
 			if (i->data_plci != 0)
@@ -321,7 +321,7 @@ static int pbxcli_capi_show_resources(int fd, int argc, char *argv[])
 				continue;
 			}
 
-			ast_cli(fd, "%-40s %-6s %-4s %-10s %-9s %-5s %-5s %-.1f%-3s %-.1f%-3s\n",
+			ast_cli(fd, "%-40s %-6s %-4s %-10s %-9s %-5s %-5s %-.1f%-3s %-.1f%-3s%5d\n",
 							(name == 0) ? i->vname : name,
 							(i->channeltype == CAPI_CHANNELTYPE_B) ? "TDM" : "IP",
 							(i->isdnstate & CAPI_ISDN_STATE_DTMF) ? "Y" : "N",
@@ -330,7 +330,8 @@ static int pbxcli_capi_show_resources(int fd, int argc, char *argv[])
 							(i->divaAudioFlags & 0x0008) ? "Y" : "N", /* Rx AGC */
 							(i->divaAudioFlags & 0x0004) ? "Y" : "N", /* Tx AGC */
 							i->divaDigitalRxGainDB, "dB",
-							i->divaDigitalTxGainDB, "dB");
+							i->divaDigitalTxGainDB, "dB",
+							i->controller);
 			ast_free (name);
 		}
 
