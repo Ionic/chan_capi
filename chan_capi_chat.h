@@ -15,6 +15,7 @@
 /*
  * prototypes
  */
+extern void pbx_capi_chat_init_module(void);
 extern int pbx_capi_chat(struct ast_channel *c, char *param);
 extern int pbx_capi_chat_associate_resource_plci(struct ast_channel *c, char *param);
 extern struct capi_pvt* pbx_check_resource_plci(struct ast_channel *c);

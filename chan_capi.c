@@ -8805,6 +8805,7 @@ int load_module(void)
 	pbx_capi_cli_register();
 	pbx_capi_ami_register();
 	pbx_capi_register_device_state_providers();
+	pbx_capi_chat_init_module();
 	
 	ast_register_application(commandapp, pbx_capicommand_exec, commandsynopsis, commandtdesc);
 

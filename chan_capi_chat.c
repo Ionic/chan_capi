@@ -42,11 +42,13 @@ typedef enum {
 } room_mode_t;
 
 #define PLCI_PER_LX_REQUEST 8
+#define PBX_CHAT_GROUP_PREFIX ".G"
+#define PBX_CHAT_MAX_GROUP_MEMBERS 3 /*! \todo value to be calculated at run time dependent on the type of used hardware */
 
 #define PBX_CHAT_MEMBER_INFO_RECENT     0x00000001
 #define PBX_CHAT_MEMBER_INFO_REMOVE     0x00000002
 struct capichat_s {
-	char name[16];
+	char name[16]; /* Name if group == 0 or Name.Ggroup] if group != 0 */
 	unsigned int number;
 	int active;
 	room_member_type_t room_member_type;
@@ -55,6 +57,7 @@ struct capichat_s {
 	struct capichat_s *next;
 	unsigned int info;
 	time_t       time;
+	unsigned int group; /* Group inside of conference, 0 - groups are not used, 1 - group root, > 1 - group in conference */
 };
 
 struct _deffered_chat_capi_message;
@@ -67,11 +70,19 @@ typedef struct _deffered_chat_capi_message {
 
 static struct capichat_s *chat_list = NULL;
 AST_MUTEX_DEFINE_STATIC(chat_lock);
+AST_MUTEX_DEFINE_STATIC(chat_bridge_lock); /* Held until bridge calculated and created */
+static volatile int pbx_capi_bridge_modify_state;
+static ast_cond_t   pbx_capi_bridge_modify_event;
 
 /*
  * LOCALS
  */
 static const char* room_member_type_2_name(room_member_type_t room_member_type);
+static size_t pbx_capi_create_full_room_name(const char* roomName, unsigned int group, char* dst, size_t dstLen);
+static int pbx_capi_chat_get_group_controller(const char* roomName, unsigned int group);
+static unsigned int pbx_capi_find_group (const char* roomName, unsigned long long controllers);
+static void pbx_capi_chat_enter_bridge_modify_state(void);
+static void pbx_capi_chat_leave_bridge_modify_state(void);
 
 /*
  * partial update the capi mixer for the given char room
@@ -364,7 +375,7 @@ static void del_chat_member(struct capichat_s *room)
 /*
  * add a new chat member
  */
-static struct capichat_s *add_chat_member(const char *roomname, struct capi_pvt *i, room_member_type_t room_member_type)
+static struct capichat_s *add_chat_member(const char *roomname, struct capi_pvt *i, room_member_type_t room_member_type, unsigned int groupNumber)
 {
 	struct capichat_s *room = NULL;
 	struct capichat_s *tmproom;
@@ -378,16 +389,22 @@ static struct capichat_s *add_chat_member(const char *roomname, struct capi_pvt 
 	}
 	memset(room, 0, sizeof(struct capichat_s));
 	
-	strncpy(room->name, roomname, sizeof(room->name));
+	if (groupNumber == 0) {
+		strncpy(room->name, roomname, sizeof(room->name));
+	} else {
+		pbx_capi_create_full_room_name(roomname, groupNumber, room->name, sizeof(room->name));
+	}
 	room->name[sizeof(room->name) - 1] = 0;
+
 	room->i = i;
 	room->room_member_type = room_member_type;
+	room->group = groupNumber;
 
 	cc_mutex_lock(&chat_lock);
 
 	tmproom = chat_list;
 	while (tmproom) {
-		if (!strcmp(tmproom->name, roomname)) {
+		if (!strcmp(tmproom->name, room->name)) {
 			roomnumber = tmproom->number;
 			room_mode  = tmproom->room_mode;
 			break;
@@ -604,6 +621,8 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 	unsigned int hangup_timeout = 0;
 	room_member_type_t room_member_type = RoomMemberDefault;
 	time_t conferenceConnectTime;
+	int largeConferenceMode = 0;
+	unsigned int selectedGroup = 0;
 
 	roomname = strsep(&param, COMMANDSEPARATOR);
 	options = strsep(&param, COMMANDSEPARATOR);
@@ -641,6 +660,9 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 		case 'o':
 			room_member_type = RoomMemberOperator;
 			break;
+		case 'g':
+			largeConferenceMode = 1;
+			break;
 
 		default:
 			cc_log(LOG_WARNING, "Unknown chat option '%c'.\n",
@@ -650,9 +672,25 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 		options++;
 	}
 
-	cc_verbose(3, 1, VERBOSE_PREFIX_3 CC_MESSAGE_NAME " chat: %s: roomname=%s "
+
+	if (largeConferenceMode != 0) {
+		int c;
+		pbx_capi_chat_enter_bridge_modify_state();
+		selectedGroup = pbx_capi_find_group (roomname, contr);
+		if (selectedGroup == 0) {
+			pbx_capi_chat_leave_bridge_modify_state();
+			return -1;
+		}
+		c = pbx_capi_chat_get_group_controller(roomname, selectedGroup);
+		if (c > 0) {
+			contr = (1LU << (c - 1));
+		}
+		pbx_capi_chat_leave_bridge_modify_state();
+	}
+
+	cc_verbose(3, 1, VERBOSE_PREFIX_3 CC_MESSAGE_NAME " chat: %s: roomname=%s group=%u "
 		"options=%s hangup_timeout=%d controller=%s (0x%llx)\n",
-		c->name, roomname, options, hangup_timeout, controller, contr);
+		c->name, roomname, selectedGroup, options, hangup_timeout, controller, contr);
 
 	if (c->tech == &capi_tech) {
 		i = CC_CHANNEL_PVT(c); 
@@ -668,6 +706,7 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 		}
 	}
 
+
 	if (c->_state != AST_STATE_UP) {
 		ast_answer(c);
 	}
@@ -677,7 +716,7 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 		goto out;
 	}
 
-	room = add_chat_member(roomname, i, room_member_type);
+	room = add_chat_member(roomname, i, room_member_type, selectedGroup);
 	if (!room) {
 		cc_log(LOG_WARNING, "Unable to open " CC_MESSAGE_NAME " chat room.\n");
 		capi_remove_nullif(i);
@@ -819,7 +858,7 @@ int pbx_capi_chat_play(struct ast_channel *c, char *param)
 		goto out;
 	}
 
-	room = add_chat_member(roomname, i, room_member_type);
+	room = add_chat_member(roomname, i, room_member_type, 0);
 	if (!room) {
 		capi_remove_nullif(i);
 		fclose (f);
@@ -1324,13 +1363,16 @@ void pbx_capi_unlock_chat_rooms(void)
 static struct capi_pvt*
 pbx_capi_create_conference_bridge(const char* mainName,
 																	unsigned long long mainController,
+																	unsigned int mainGroup,
 																	const char* additionalName,
-																	unsigned long long additionalController)
+																	unsigned long long additionalController,
+																	unsigned int additionalGroup)
 {
 	struct capi_pvt   *capi_ifc[2] = { 0, 0 };
 	struct capichat_s *room[sizeof(capi_ifc)/sizeof(capi_ifc[0])] = { 0, 0 };
 	const char* name[sizeof(capi_ifc)/sizeof(capi_ifc[0])] = { mainName, additionalName };
 	unsigned long long controller[sizeof(capi_ifc)/sizeof(capi_ifc[0])]   = { mainController, additionalController };
+	unsigned int roomNumber[2] = { mainGroup, additionalGroup };
 	int error, i;
 
 	if ((mainName == 0) || (additionalName == 0) ||
@@ -1352,7 +1394,7 @@ pbx_capi_create_conference_bridge(const char* mainName,
 	}
 
 	for (i = 0; (error == 0) && (i < sizeof(name)/sizeof(name[0])); i++) {
-		room[i] = add_chat_member(name[i], capi_ifc[i], RoomMemberOperator);
+		room[i] = add_chat_member(name[i], capi_ifc[i], RoomMemberOperator, roomNumber[i]);
 		error |= (room[i] == NULL);
 	}
 
@@ -1365,6 +1407,31 @@ pbx_capi_create_conference_bridge(const char* mainName,
 				capi_remove_nullif(capi_ifc[i]);
 				capi_ifc[i] = 0;
 			}
+		}
+	}
+
+	if (capi_ifc[0] != NULL) {
+		if (mainGroup != 0) {
+			size_t mainFullNameLength       = pbx_capi_create_full_room_name(mainName, mainGroup, NULL, 0);
+			size_t additionalFullNameLength = pbx_capi_create_full_room_name(additionalName, additionalGroup, NULL, 0);
+			char* mainFullName       = alloca(mainFullNameLength);
+			char* additionalFullName = alloca(additionalFullNameLength);
+
+			pbx_capi_create_full_room_name(mainName, mainGroup, mainFullName, mainFullNameLength);
+			pbx_capi_create_full_room_name(additionalName, additionalGroup, additionalFullName, additionalFullNameLength);
+
+			snprintf(capi_ifc[0]->vname, sizeof(capi_ifc[0]->vname)-1, "%s -> %s", mainFullName, additionalFullName);
+			capi_ifc[0]->vname[sizeof(capi_ifc[0]->vname)-1] = 0;
+			snprintf(capi_ifc[0]->name, sizeof(capi_ifc[0]->name)-1, "%s", capi_ifc[0]->vname);
+			capi_ifc[0]->name[sizeof(capi_ifc[0]->name)-1] = 0;
+
+			snprintf(capi_ifc[1]->vname, sizeof(capi_ifc[1]->vname)-1, "%s -> %s", additionalFullName, mainFullName);
+			capi_ifc[1]->vname[sizeof(capi_ifc[1]->vname)-1] = 0;
+			snprintf(capi_ifc[1]->name, sizeof(capi_ifc[1]->name)-1, "%s", capi_ifc[1]->vname);
+			capi_ifc[1]->name[sizeof(capi_ifc[1]->name)-1] = 0;
+
+			cc_verbose(2, 0, VERBOSE_PREFIX_2 CC_MESSAGE_NAME
+				"Create bridge '%s' <-> '%s'\n", mainFullName, additionalFullName);
 		}
 	}
 
@@ -1387,7 +1454,7 @@ int pbx_capi_chat_connect(struct ast_channel *c, char *param) {
 		controllers[i] = (unsigned long long)(ast_get_group(v) >> 1);
 	}
 
-	capi_ifc = pbx_capi_create_conference_bridge(rooms[0], controllers[0], rooms[1], controllers[1]);
+	capi_ifc = pbx_capi_create_conference_bridge(rooms[0], controllers[0], 0, rooms[1], controllers[1], 0);
 
 	if (capi_ifc != NULL) {
 		cc_verbose(3, 0, VERBOSE_PREFIX_3 CC_MESSAGE_NAME
@@ -1397,5 +1464,149 @@ int pbx_capi_chat_connect(struct ast_channel *c, char *param) {
 	}
 
 	return ((capi_ifc != NULL) ? 0 : -1);
+}
+
+/*!
+		\brief Initialize group name with respect to group number
+	*/
+static size_t pbx_capi_create_full_room_name(const char* roomName, unsigned int group, char* dst, size_t dstLen)
+{
+	if (dst != NULL) {
+		snprintf(dst, dstLen - 1, "%s%s%04d", roomName, PBX_CHAT_GROUP_PREFIX, group);
+		dst[dstLen - 1] = 0;
+	} else {
+		return (strlen(roomName)+strlen(PBX_CHAT_GROUP_PREFIX)+32);
+	}
+
+	return (strlen(dst));
+}
+
+/*!
+	\brief Calculate amount of members in group
+	*/
+static unsigned int pbx_capi_chat_get_group_member_count(const char* roomName, unsigned int group)
+{
+	size_t fullRoomNameLength = pbx_capi_create_full_room_name(roomName, group, NULL, 0);
+	char* fullRoomName = alloca(fullRoomNameLength);
+	struct capichat_s *currentRoom;
+	int numberOfMembers;
+
+	pbx_capi_create_full_room_name(roomName, group, fullRoomName, fullRoomNameLength);
+
+	cc_mutex_lock(&chat_lock);
+	for (currentRoom = chat_list, numberOfMembers = 0; ((group != 0) && (currentRoom != 0)); currentRoom = currentRoom->next) {
+		numberOfMembers += ((currentRoom->group == group) && (strcmp(currentRoom->name, fullRoomName) == 0));
+	}
+	cc_mutex_unlock(&chat_lock);
+
+	return numberOfMembers;
+}
+
+static int pbx_capi_chat_get_group_controller(const char* roomName, unsigned int group)
+{
+	size_t fullRoomNameLength = pbx_capi_create_full_room_name(roomName, group, NULL, 0);
+	char* fullRoomName = alloca(fullRoomNameLength);
+	struct capichat_s *currentRoom;
+	int controller;
+
+	pbx_capi_create_full_room_name(roomName, group, fullRoomName, fullRoomNameLength);
+
+	cc_mutex_lock(&chat_lock);
+	for (currentRoom = chat_list, controller = -1;
+				((controller < 0) && (group != 0) && (currentRoom != 0));
+				currentRoom = currentRoom->next) {
+		if ((currentRoom->group == group) && (strcmp(currentRoom->name, fullRoomName) == 0) && currentRoom->i != NULL)
+			controller = currentRoom->i->controller;
+	}
+	cc_mutex_unlock(&chat_lock);
+
+	return controller;
+}
+
+/*!
+		\brief Find froup with max free number
+	*/
+static unsigned int pbx_capi_chat_find_max_group (const char* roomName) {
+	struct capichat_s *currentRoom;
+	char* roomNameTemplate = alloca(strlen(roomName) + strlen(PBX_CHAT_GROUP_PREFIX) + 1);
+	unsigned int maxGroup = 1;
+
+	strcpy(roomNameTemplate, roomName);
+	strcat(roomNameTemplate, PBX_CHAT_GROUP_PREFIX);
+
+	cc_mutex_lock(&chat_lock);
+	for (currentRoom = chat_list; currentRoom != 0; currentRoom = currentRoom->next) {
+		if ((currentRoom->group > maxGroup) &&
+				(strlen(roomNameTemplate) < strlen(currentRoom->name)) &&
+				(memcmp(currentRoom->name, roomNameTemplate, strlen(roomNameTemplate)) == 0) &&
+				((unsigned int)atoi(&currentRoom->name[strlen(roomNameTemplate)]) == currentRoom->group)) {
+			maxGroup = currentRoom->group;
+		}
+	}
+	cc_mutex_unlock(&chat_lock);
+
+	return (maxGroup+1);
+}
+
+static void pbx_capi_chat_enter_bridge_modify_state(void)
+{
+	cc_mutex_lock(&chat_bridge_lock);
+	while (pbx_capi_bridge_modify_state != 0) {
+		ast_cond_wait(&pbx_capi_bridge_modify_event, &chat_bridge_lock);
+	}
+	pbx_capi_bridge_modify_state = 1;
+	cc_mutex_unlock(&chat_bridge_lock);
+}
+
+static void pbx_capi_chat_leave_bridge_modify_state(void)
+{
+	cc_mutex_lock(&chat_bridge_lock);
+	pbx_capi_bridge_modify_state = 0;
+	ast_cond_signal(&pbx_capi_bridge_modify_event);
+	cc_mutex_unlock(&chat_bridge_lock);
+}
+
+/*
+		\brief Find the group where the new member can be attached to, create group if not found
+
+		\note groups are not sparse, group 1 is the root
+	*/
+static unsigned int pbx_capi_find_group (const char* roomName, unsigned long long controllers) {
+	char* roomNameTemplate = alloca(strlen(roomName) + strlen(PBX_CHAT_GROUP_PREFIX) + 1);
+	unsigned int selectedGroup = 0, i;
+
+	strcpy(roomNameTemplate, roomName);
+	strcat(roomNameTemplate, PBX_CHAT_GROUP_PREFIX);
+
+	for (i = 2;;i++) {
+		unsigned int v = pbx_capi_chat_get_group_member_count(roomName, i);
+		if (v == 0)
+			break;
+		if (v < PBX_CHAT_MAX_GROUP_MEMBERS) {
+			selectedGroup = i;
+			break;
+		}
+	}
+	if (selectedGroup == 0) {
+		/* Create new group */
+		int controller = pbx_capi_chat_get_group_controller(roomName, 1);
+		unsigned long long mainController = controllers;
+
+		selectedGroup = pbx_capi_chat_find_max_group (roomName);
+		
+		if (controller > 0) {
+			mainController = (1LU << (controller - 1));
+		}
+
+		if (pbx_capi_create_conference_bridge(roomName, mainController, 1, roomName, controllers, selectedGroup) == NULL)
+			return 0;
+	}
+
+	return selectedGroup;
+}
+
+void pbx_capi_chat_init_module(void)
+{
+	ast_cond_init(&pbx_capi_bridge_modify_event, NULL);
 }
 
