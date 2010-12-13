@@ -1076,7 +1076,7 @@ int pbxcli_capi_chatinfo(int fd, int argc, char *argv[])
 	}
 
 	ast_cli(fd, CC_MESSAGE_NAME " chat\n");
-	ast_cli(fd, "Room# Roomname    Member                        Caller\n");
+	ast_cli(fd, "%-6s%-17s%-40s%-17s\n", "Room#", "Roomname", "Member", "Caller");
 
 	cc_mutex_lock(&chat_lock);
 	room = chat_list;
@@ -1086,11 +1086,11 @@ int pbxcli_capi_chatinfo(int fd, int argc, char *argv[])
 			c = room->i->used;
 		}
 		if (!c) {
-			ast_cli(fd, "%3d   %-12s%-30s\"%s\" <%s>\n",
+			ast_cli(fd, "%5d %-17s%-40s\"%s\" <%s>\n",
 				room->number, room->name, room->i->vname,
 				"?", "?");
 		} else {
-			ast_cli(fd, "%3d   %-12s%-30s\"%s\" <%s>\n",
+			ast_cli(fd, "%5d %-17s%-40s\"%s\" <%s>\n",
 				room->number, room->name, c->name,
 				pbx_capi_get_callername (c, ""), pbx_capi_get_cid (c, ""));
 		}
