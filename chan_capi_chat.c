@@ -27,6 +27,11 @@
 #include "chan_capi_ami.h"
 #include "chan_capi_devstate.h"
 
+#ifdef DIVA_STREAMING
+#include "platform.h"
+#include "chan_capi_divastreaming_utils.h"
+#endif
+
 #define CHAT_FLAG_MOH      0x0001
 #define CHAT_FLAG_SAMEMSG  0x0002
 
@@ -58,6 +63,7 @@ struct capichat_s {
 	unsigned int info;
 	time_t       time;
 	unsigned int group; /* Group inside of conference, 0 - groups are not used, 1 - group root, > 1 - group in conference */
+	unsigned int groupUsers; /* Amount of users using this group */
 };
 
 struct _deffered_chat_capi_message;
@@ -70,7 +76,7 @@ typedef struct _deffered_chat_capi_message {
 
 static struct capichat_s *chat_list = NULL;
 AST_MUTEX_DEFINE_STATIC(chat_lock);
-AST_MUTEX_DEFINE_STATIC(chat_bridge_lock); /* Held until bridge calculated and created */
+AST_MUTEX_DEFINE_STATIC(chat_bridge_lock);
 static volatile int pbx_capi_bridge_modify_state;
 static ast_cond_t   pbx_capi_bridge_modify_event;
 
@@ -81,8 +87,15 @@ static const char* room_member_type_2_name(room_member_type_t room_member_type);
 static size_t pbx_capi_create_full_room_name(const char* roomName, unsigned int group, char* dst, size_t dstLen);
 static int pbx_capi_chat_get_group_controller(const char* roomName, unsigned int group);
 static unsigned int pbx_capi_find_group (const char* roomName, unsigned long long controllers);
+static unsigned int pbx_capi_add_group_user(const char* roomName, unsigned int groupNumber);
+static unsigned int pbx_capi_remove_group_user(const char* roomName,
+																							 unsigned int groupNumber,
+																							 struct capichat_s** mainGroup,
+																							 struct capichat_s** additionalGroup);
 static void pbx_capi_chat_enter_bridge_modify_state(void);
 static void pbx_capi_chat_leave_bridge_modify_state(void);
+static struct capichat_s* pbx_capi_get_group_main_bridge(struct capi_pvt* mainPLCI);
+static void pbx_capi_cleanup_bridge(const char* roomName, unsigned int groupNumber);
 
 /*
  * partial update the capi mixer for the given char room
@@ -623,6 +636,7 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 	time_t conferenceConnectTime;
 	int largeConferenceMode = 0;
 	unsigned int selectedGroup = 0;
+	unsigned int bridgeUsers = 0;
 
 	roomname = strsep(&param, COMMANDSEPARATOR);
 	options = strsep(&param, COMMANDSEPARATOR);
@@ -685,12 +699,13 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 		if (c > 0) {
 			contr = (1LU << (c - 1));
 		}
+		bridgeUsers = pbx_capi_add_group_user(roomname, selectedGroup);
 		pbx_capi_chat_leave_bridge_modify_state();
 	}
 
-	cc_verbose(3, 1, VERBOSE_PREFIX_3 CC_MESSAGE_NAME " chat: %s: roomname=%s group=%u "
+	cc_verbose(3, 1, VERBOSE_PREFIX_3 CC_MESSAGE_NAME " chat: %s: roomname=%s group=%u group users=%u"
 		"options=%s hangup_timeout=%d controller=%s (0x%llx)\n",
-		c->name, roomname, selectedGroup, options, hangup_timeout, controller, contr);
+		c->name, roomname, selectedGroup, bridgeUsers, options, hangup_timeout, controller, contr);
 
 	if (c->tech == &capi_tech) {
 		i = CC_CHANNEL_PVT(c); 
@@ -702,6 +717,7 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 			i = capi_mknullif(c, contr);
 		}
 		if (i == NULL) {
+			pbx_capi_cleanup_bridge (roomname, selectedGroup);
 			return -1;
 		}
 	}
@@ -720,6 +736,7 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 	if (!room) {
 		cc_log(LOG_WARNING, "Unable to open " CC_MESSAGE_NAME " chat room.\n");
 		capi_remove_nullif(i);
+		pbx_capi_cleanup_bridge (roomname, selectedGroup);
 		return -1;
 	}
 
@@ -742,6 +759,7 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 
 out:
 	capi_remove_nullif(i);
+	pbx_capi_cleanup_bridge (roomname, selectedGroup);
 
 	return 0;
 }
@@ -1431,7 +1449,7 @@ pbx_capi_create_conference_bridge(const char* mainName,
 			capi_ifc[1]->name[sizeof(capi_ifc[1]->name)-1] = 0;
 
 			cc_verbose(2, 0, VERBOSE_PREFIX_2 CC_MESSAGE_NAME
-				"Create bridge '%s' <-> '%s'\n", mainFullName, additionalFullName);
+				" Create bridge '%s' <-> '%s'\n", mainFullName, additionalFullName);
 		}
 	}
 
@@ -1603,6 +1621,138 @@ static unsigned int pbx_capi_find_group (const char* roomName, unsigned long lon
 	}
 
 	return selectedGroup;
+}
+
+static struct capichat_s* pbx_capi_get_group_bridge(const char* roomName, unsigned int groupNumber)
+{
+	struct capichat_s *currentRoom;
+	char* roomNameTemplate = alloca(strlen(roomName) + strlen(PBX_CHAT_GROUP_PREFIX) + 1);
+
+	strcpy(roomNameTemplate, roomName);
+	strcat(roomNameTemplate, PBX_CHAT_GROUP_PREFIX);
+
+	for (currentRoom = chat_list; currentRoom != 0; currentRoom = currentRoom->next) {
+		if ((currentRoom->i != NULL) &&
+				(strlen(roomNameTemplate) < strlen(currentRoom->name)) &&
+				(memcmp(currentRoom->name, roomNameTemplate, strlen(roomNameTemplate)) == 0) &&
+				((unsigned int)atoi(&currentRoom->name[strlen(roomNameTemplate)]) == currentRoom->group) &&
+				 (currentRoom->i->used == NULL) && (currentRoom->i->bridgePeer != NULL)) {
+			return currentRoom;
+		}
+	}
+
+	return NULL;
+}
+
+static struct capichat_s* pbx_capi_get_group_main_bridge(struct capi_pvt* mainPLCI)
+{
+	struct capichat_s *currentRoom;
+
+	for (currentRoom = chat_list; currentRoom != 0; currentRoom = currentRoom->next) {
+		if (currentRoom->i == mainPLCI) {
+			return (currentRoom);
+		}
+	}
+
+	return NULL;
+}
+
+static unsigned int pbx_capi_add_group_user(const char* roomName, unsigned int groupNumber)
+{
+	struct capichat_s* groupBridge;
+	unsigned int ret = 0;
+
+	cc_mutex_lock(&chat_lock);
+	groupBridge = pbx_capi_get_group_bridge(roomName, groupNumber);
+	if (groupBridge != NULL) {
+		groupBridge->groupUsers++;
+		ret = groupBridge->groupUsers;
+	}
+	cc_mutex_unlock(&chat_lock);
+
+	return ret;
+}
+
+static unsigned int pbx_capi_remove_group_user(const char* roomName,
+																							 unsigned int groupNumber,
+																							 struct capichat_s** mainGroup,
+																							 struct capichat_s** additionalGroup)
+
+{
+	struct capichat_s* groupBridge;
+	unsigned int ret = 0;
+
+	*mainGroup = NULL;
+	*additionalGroup = NULL;
+
+	cc_mutex_lock(&chat_lock);
+	groupBridge = pbx_capi_get_group_bridge(roomName, groupNumber);
+	if (groupBridge != NULL) {
+		if (groupBridge->groupUsers != 0) {
+			groupBridge->groupUsers--;
+		}
+		ret = groupBridge->groupUsers;
+		if (ret == 0) {
+			*mainGroup       = pbx_capi_get_group_main_bridge(groupBridge->i->bridgePeer);
+			*additionalGroup = groupBridge;
+		}
+	}
+	cc_mutex_unlock(&chat_lock);
+
+	return ret;
+}
+
+/*!
+		\brief Clean up bridge if no members are left in the group
+	*/
+static void pbx_capi_cleanup_bridge(const char* roomName, unsigned int groupNumber)
+{
+	int bridgeUsers;
+
+	if (groupNumber != 0) {
+		size_t mainFullNameLength       = pbx_capi_create_full_room_name(roomName, 1, NULL, 0);
+		size_t additionalFullNameLength = pbx_capi_create_full_room_name(roomName, groupNumber, NULL, 0);
+		char* mainFullName       = alloca(mainFullNameLength);
+		char* additionalFullName = alloca(additionalFullNameLength);
+		struct capichat_s* mainGroup;
+		struct capichat_s* additionalGroup;
+
+		pbx_capi_create_full_room_name(roomName, 1, mainFullName, mainFullNameLength);
+		pbx_capi_create_full_room_name(roomName, groupNumber, additionalFullName, additionalFullNameLength);
+
+		pbx_capi_chat_enter_bridge_modify_state();
+		bridgeUsers = pbx_capi_remove_group_user(roomName, groupNumber, &mainGroup, &additionalGroup);
+
+		if (bridgeUsers == 0) {
+			struct capi_pvt *mainPLCI = mainGroup->i, *additionalPLCI = additionalGroup->i;
+			cc_verbose(2, 0, VERBOSE_PREFIX_2 CC_MESSAGE_NAME
+				" Delete bridge '%s' <-> '%s'\n", mainFullName, additionalFullName);
+			/*
+				Delecte bridge between conference room groups
+				*/
+
+			del_chat_member(additionalGroup);
+			del_chat_member(mainGroup);
+#ifdef DIVA_STREAMING
+			capi_DivaStreamLock();
+#endif
+			cc_mutex_lock(&mainPLCI->lock);
+			cc_mutex_lock(&additionalPLCI->lock);
+			mainPLCI->bridgePeer = NULL;
+			additionalPLCI->bridgePeer = NULL;
+			cc_mutex_unlock(&additionalPLCI->lock);
+			cc_mutex_unlock(&mainPLCI->lock);
+#ifdef DIVA_STREAMING
+			capi_DivaStreamUnLock();
+#endif
+			capi_remove_nullif(mainPLCI);
+			capi_remove_nullif(additionalPLCI);
+		} else {
+			cc_verbose(2, 0, VERBOSE_PREFIX_2 CC_MESSAGE_NAME
+				" Delete bridge user (%u) '%s' <-> '%s'\n", bridgeUsers, mainFullName, additionalFullName);
+		}
+		pbx_capi_chat_leave_bridge_modify_state();
+	}
 }
 
 void pbx_capi_chat_init_module(void)
