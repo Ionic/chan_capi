@@ -4497,16 +4497,18 @@ static void capidev_handle_data_b3_indication(
 
 	return_on_no_interface("DATA_B3_IND");
 
-	if ((i->bridgePeer != NULL)
+	if (i->virtualBridgePeer != 0) {
+		if ((i->bridgePeer != NULL)
 #ifdef DIVA_STREAMING
-			&& (i->diva_stream_entry == 0)
-			&& (i->bridgePeer->diva_stream_entry == 0)
+				&& (i->diva_stream_entry == 0)
+				&& (i->bridgePeer->diva_stream_entry == 0)
 #endif
-			) {
-		if (i->bridgePeer->NCCI != 0) {
-			i->bridgePeer->send_buffer_handle++;
-			capi_sendf(NULL, 0, CAPI_DATA_B3_REQ, i->bridgePeer->NCCI, get_capi_MessageNumber(),
-				"dwww", b3buf, b3len, i->bridgePeer->send_buffer_handle, 0);
+				) {
+			if (i->bridgePeer->NCCI != 0) {
+				i->bridgePeer->send_buffer_handle++;
+				capi_sendf(NULL, 0, CAPI_DATA_B3_REQ, i->bridgePeer->NCCI, get_capi_MessageNumber(),
+					"dwww", b3buf, b3len, i->bridgePeer->send_buffer_handle, 0);
+			}
 		}
 		return;
 	}

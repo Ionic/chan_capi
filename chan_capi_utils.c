@@ -198,6 +198,8 @@ struct capi_pvt *capi_mknullif(struct ast_channel *c, unsigned long long control
 
 	tmp->used = c;
 	tmp->peer = c;
+	if (c == NULL)
+		tmp->virtualBridgePeer = 1;
 
 	tmp->cip = CAPI_CIPI_SPEECH;
 	tmp->transfercapability = PRI_TRANS_CAP_SPEECH;

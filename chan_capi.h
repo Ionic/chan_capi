@@ -563,6 +563,7 @@ struct capi_pvt {
 	struct _diva_stream_scheduling_entry* diva_stream_entry;
 #endif
 	/* Connection between two conference rooms. NULL PLCI */
+	int virtualBridgePeer;
 	struct capi_pvt *bridgePeer;
 
 	/*! Next channel in list */
