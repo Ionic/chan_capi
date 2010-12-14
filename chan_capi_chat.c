@@ -48,7 +48,8 @@ typedef enum {
 
 #define PLCI_PER_LX_REQUEST 8
 #define PBX_CHAT_GROUP_PREFIX ".G"
-#define PBX_CHAT_MAX_GROUP_MEMBERS 3 /*! \todo value to be calculated at run time dependent on the type of used hardware */
+#define PBX_CHAT_MAX_GROUP_MEMBERS_PRI 31
+#define PBX_CHAT_MAX_GROUP_MEMBERS_BRI 2
 
 #define PBX_CHAT_MEMBER_INFO_RECENT     0x00000001
 #define PBX_CHAT_MEMBER_INFO_REMOVE     0x00000002
@@ -89,6 +90,9 @@ static int pbx_capi_chat_get_group_controller(const char* roomName, unsigned int
 static unsigned int pbx_capi_find_group (const char* roomName, unsigned long long controllers);
 static unsigned int pbx_capi_add_group_user(const char* roomName, unsigned int groupNumber);
 static unsigned int pbx_capi_remove_group_user(const char* roomName, unsigned int groupNumber);
+static unsigned int pbx_capi_chat_get_group_member_count(const char* roomName,
+																												 unsigned int group,
+																												 int* groupController);
 static void pbx_capi_chat_enter_bridge_modify_state(void);
 static void pbx_capi_chat_leave_bridge_modify_state(void);
 static struct capichat_s* pbx_capi_get_room_bridge(const char* roomName);
@@ -1501,7 +1505,9 @@ static size_t pbx_capi_create_full_room_name(const char* roomName, unsigned int 
 /*!
 	\brief Calculate amount of members in group
 	*/
-static unsigned int pbx_capi_chat_get_group_member_count(const char* roomName, unsigned int group)
+static unsigned int pbx_capi_chat_get_group_member_count(const char* roomName,
+																												 unsigned int group,
+																												 int* groupController)
 {
 	size_t fullRoomNameLength = pbx_capi_create_full_room_name(roomName, group, NULL, 0);
 	char* fullRoomName = alloca(fullRoomNameLength);
@@ -1512,7 +1518,12 @@ static unsigned int pbx_capi_chat_get_group_member_count(const char* roomName, u
 
 	cc_mutex_lock(&chat_lock);
 	for (currentRoom = chat_list, numberOfMembers = 0; ((group != 0) && (currentRoom != 0)); currentRoom = currentRoom->next) {
-		numberOfMembers += ((currentRoom->group == group) && (strcmp(currentRoom->name, fullRoomName) == 0));
+		if ((currentRoom->group == group) && (strcmp(currentRoom->name, fullRoomName) == 0)) {
+			if (currentRoom->i != NULL) {
+				*groupController = currentRoom->i->controller;
+			}
+			numberOfMembers++;
+		}
 	}
 	cc_mutex_unlock(&chat_lock);
 
@@ -1596,10 +1607,19 @@ static unsigned int pbx_capi_find_group (const char* roomName, unsigned long lon
 	strcat(roomNameTemplate, PBX_CHAT_GROUP_PREFIX);
 
 	for (i = 2;;i++) {
-		unsigned int v = pbx_capi_chat_get_group_member_count(roomName, i);
+		unsigned int maxChannels = PBX_CHAT_MAX_GROUP_MEMBERS_PRI;
+		int groupController = -1;
+
+		unsigned int v = pbx_capi_chat_get_group_member_count(roomName, i, &groupController);
 		if (v == 0)
 			break;
-		if (v < PBX_CHAT_MAX_GROUP_MEMBERS) {
+		if (groupController > 0) {
+			const struct cc_capi_controller *c = pbx_capi_get_controller(groupController);
+			if (c != 0 && c->nbchannels == 2) {
+				maxChannels = PBX_CHAT_MAX_GROUP_MEMBERS_BRI;
+			}
+		}
+		if (v < maxChannels) {
 			selectedGroup = i;
 			break;
 		}
