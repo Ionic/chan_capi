@@ -87,7 +87,9 @@ static ast_cond_t   pbx_capi_bridge_modify_event;
 static const char* room_member_type_2_name(room_member_type_t room_member_type);
 static size_t pbx_capi_create_full_room_name(const char* roomName, unsigned int group, char* dst, size_t dstLen);
 static int pbx_capi_chat_get_group_controller(const char* roomName, unsigned int group);
-static unsigned int pbx_capi_find_group (const char* roomName, unsigned long long controllers);
+static unsigned int pbx_capi_find_group (const char* roomName,
+																				 unsigned long long controllers,
+																				 int requiredController);
 static unsigned int pbx_capi_add_group_user(const char* roomName, unsigned int groupNumber);
 static unsigned int pbx_capi_remove_group_user(const char* roomName, unsigned int groupNumber);
 static unsigned int pbx_capi_chat_get_group_member_count(const char* roomName,
@@ -689,13 +691,22 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 		options++;
 	}
 
+	if (c->tech == &capi_tech) {
+		i = CC_CHANNEL_PVT(c); 
+	} else {
+		/* virtual CAPI channel */
+		i = pbx_check_resource_plci(c);
+	}
 
 	if (largeConferenceMode != 0) {
 		int c;
 		pbx_capi_chat_enter_bridge_modify_state();
-		selectedGroup = pbx_capi_find_group (roomname, contr);
+		selectedGroup = pbx_capi_find_group (roomname, contr, (i != NULL) ? i->controller : -1);
 		if (selectedGroup == 0) {
 			pbx_capi_chat_leave_bridge_modify_state();
+			if (i != NULL) {
+				capi_remove_nullif(i);
+			}
 			return -1;
 		}
 		c = pbx_capi_chat_get_group_controller(roomname, selectedGroup);
@@ -710,12 +721,7 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 		"options=%s hangup_timeout=%d controller=%s (0x%llx)\n",
 		c->name, roomname, selectedGroup, bridgeUsers, options, hangup_timeout, controller, contr);
 
-	if (c->tech == &capi_tech) {
-		i = CC_CHANNEL_PVT(c); 
-	} else {
-		/* virtual CAPI channel */
-		i = pbx_check_resource_plci(c);
-
+	if (c->tech != &capi_tech) {
 		if (i == NULL) {
 			i = capi_mknullif(c, contr);
 		}
@@ -1017,7 +1023,7 @@ int pbx_capi_chat_associate_resource_plci(struct ast_channel *c, char *param)
 	cc_format_t codecs = 0; /* codecs are disabled by default */
 	int all = 0;
 
-	controller = strsep(&param, COMMANDSEPARATOR);
+	controller = pbx_capi_strsep_controller_list (&param);
 	codeclist  = param;
 
 	if (controller) {
@@ -1599,7 +1605,9 @@ static void pbx_capi_chat_leave_bridge_modify_state(void)
 
 		\note groups are not sparse, group 1 is the root
 	*/
-static unsigned int pbx_capi_find_group (const char* roomName, unsigned long long controllers) {
+static unsigned int pbx_capi_find_group (const char* roomName,
+																				 unsigned long long controllers,
+																				 int requiredController) {
 	char* roomNameTemplate = alloca(strlen(roomName) + strlen(PBX_CHAT_GROUP_PREFIX) + 1);
 	unsigned int selectedGroup = 0, i;
 
@@ -1609,10 +1617,12 @@ static unsigned int pbx_capi_find_group (const char* roomName, unsigned long lon
 	for (i = 2;;i++) {
 		unsigned int maxChannels = PBX_CHAT_MAX_GROUP_MEMBERS_PRI;
 		int groupController = -1;
-
 		unsigned int v = pbx_capi_chat_get_group_member_count(roomName, i, &groupController);
+
 		if (v == 0)
 			break;
+		if ((requiredController > 0) && (groupController != requiredController))
+			continue;
 		if (groupController > 0) {
 			const struct cc_capi_controller *c = pbx_capi_get_controller(groupController);
 			if (c != 0 && c->nbchannels == 2) {
@@ -1633,6 +1643,9 @@ static unsigned int pbx_capi_find_group (const char* roomName, unsigned long lon
 		
 		if (controller > 0) {
 			mainController = (1LU << (controller - 1));
+		}
+		if (requiredController > 0) {
+			controllers = (1LU << (requiredController - 1));
 		}
 
 		if (pbx_capi_create_conference_bridge(roomName, mainController, 1, roomName, controllers, selectedGroup) == NULL)
