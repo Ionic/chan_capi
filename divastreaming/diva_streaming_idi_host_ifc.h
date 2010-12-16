@@ -46,9 +46,9 @@ typedef struct _diva_streaming_idi_host_ifc_w_access {
 	int (*write)(struct _diva_streaming_idi_host_ifc_w* ifc, const void* data, dword data_length);
 	int (*write_indirect)(struct _diva_streaming_idi_host_ifc_w* ifc, dword lo, dword hi, dword length);
 	int (*update_remote)(struct _diva_streaming_idi_host_ifc_w* ifc);
-	dword (*get_in_use)(struct _diva_streaming_idi_host_ifc_w* ifc);
-	dword (*get_free)(struct _diva_streaming_idi_host_ifc_w* ifc);
-	dword (*get_length)(struct _diva_streaming_idi_host_ifc_w* ifc);
+	dword (*get_in_use)(const struct _diva_streaming_idi_host_ifc_w* ifc);
+	dword (*get_free)(const struct _diva_streaming_idi_host_ifc_w* ifc);
+	dword (*get_length)(const struct _diva_streaming_idi_host_ifc_w* ifc);
 	byte (*description)(struct _diva_streaming_idi_host_ifc_w* ifc, byte* dst, byte max_length);
 	int (*init)(struct _diva_streaming_idi_host_ifc_w* ifc, dword version, dword counter);
 	diva_streaming_idi_result_t (*sync)(struct _diva_streaming_idi_host_ifc_w* ifc, dword ident);

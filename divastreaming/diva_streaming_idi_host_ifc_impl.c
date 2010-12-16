@@ -50,9 +50,9 @@ static int ack_rx_data (struct _diva_streaming_idi_host_ifc_w* ifc, dword length
 static int write_data (struct _diva_streaming_idi_host_ifc_w* ifc, const void* data, dword data_length);
 static int write_indirect (struct _diva_streaming_idi_host_ifc_w* ifc, dword lo, dword hi, dword length);
 static int update_remote (struct _diva_streaming_idi_host_ifc_w* ifc);
-static dword get_in_use (struct _diva_streaming_idi_host_ifc_w* ifc);
-static dword get_free (struct _diva_streaming_idi_host_ifc_w* ifc);
-static dword get_length (struct _diva_streaming_idi_host_ifc_w* ifc);
+static dword get_in_use (const struct _diva_streaming_idi_host_ifc_w* ifc);
+static dword get_free (const struct _diva_streaming_idi_host_ifc_w* ifc);
+static dword get_length (const struct _diva_streaming_idi_host_ifc_w* ifc);
 static void write_buffer (diva_streaming_idi_host_ifc_w_t* ifc, const void* data, dword data_length);
 static void update_write_buffer (diva_streaming_idi_host_ifc_w_t* ifc);
 static diva_streaming_idi_result_t set_trace_ident (struct _diva_streaming_idi_host_ifc_w* ifc);
@@ -413,15 +413,15 @@ static int update_remote (struct _diva_streaming_idi_host_ifc_w* ifc) {
 	return (ret);
 }
 
-static dword get_in_use (struct _diva_streaming_idi_host_ifc_w* ifc) {
+static dword get_in_use (const struct _diva_streaming_idi_host_ifc_w* ifc) {
 	return (ifc->state.used_length);
 }
 
-static dword get_free (struct _diva_streaming_idi_host_ifc_w* ifc) {
+static dword get_free (const struct _diva_streaming_idi_host_ifc_w* ifc) {
 	return (ifc->state.free_length);
 }
 
-static dword get_length (struct _diva_streaming_idi_host_ifc_w* ifc) {
+static dword get_length (const struct _diva_streaming_idi_host_ifc_w* ifc) {
 	return (ifc->state.length);
 }
 

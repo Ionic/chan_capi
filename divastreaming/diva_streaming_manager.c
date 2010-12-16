@@ -60,8 +60,8 @@ static diva_streaming_idi_result_t diva_stream_manager_wakeup (struct _diva_stre
 static const byte* diva_stream_manager_description (struct _diva_stream* ifc);
 static diva_streaming_idi_result_t diva_stream_manager_sync_req (struct _diva_stream* ifc, dword ident);
 static diva_streaming_idi_result_t diva_stream_flush (struct _diva_stream* ifc);
-static dword diva_stream_get_tx_free (struct _diva_stream* ifc);
-static dword diva_stream_get_tx_in_use (struct _diva_stream* ifc);
+static dword diva_stream_get_tx_free (const struct _diva_stream* ifc);
+static dword diva_stream_get_tx_in_use (const struct _diva_stream* ifc);
 static void diva_notify_os_resource_removed (struct _diva_stream* ifc);
 
 diva_streaming_idi_result_t diva_stream_create (struct _diva_stream** ifc,
@@ -231,14 +231,14 @@ static diva_streaming_idi_result_t diva_stream_flush (struct _diva_stream* ifc) 
 	return (pI->tx_ifc->update_remote (pI->tx) == 0 ? DivaStreamingIdiResultOK : DivaStreamingIdiResultError);
 }
 
-static dword diva_stream_get_tx_free (struct _diva_stream* ifc) {
+static dword diva_stream_get_tx_free (const struct _diva_stream* ifc) {
 	diva_stream_manager_t* pI = DIVAS_CONTAINING_RECORD(ifc, diva_stream_manager_t, ifc);
 
 	return (pI->tx_ifc->get_free (pI->tx));
 }
 
-static dword diva_stream_get_tx_in_use (struct _diva_stream* ifc) {
-	diva_stream_manager_t* pI = DIVAS_CONTAINING_RECORD(ifc, diva_stream_manager_t, ifc);
+static dword diva_stream_get_tx_in_use (const struct _diva_stream* ifc) {
+	const diva_stream_manager_t* pI = DIVAS_CONTAINING_RECORD(ifc, const diva_stream_manager_t, ifc);
 
 	return (pI->tx_ifc->get_in_use (pI->tx));
 }

@@ -36,8 +36,8 @@ typedef struct _diva_stream {
 	const byte* (*description)(struct _diva_stream* ifc);
 	diva_streaming_idi_result_t (*sync)(struct _diva_stream* ifc, dword ident);
 	diva_streaming_idi_result_t (*flush_stream)(struct _diva_stream* ifc);
-	dword (*get_tx_free)(struct _diva_stream* ifc);
-	dword (*get_tx_in_use)(struct _diva_stream* ifc);
+	dword (*get_tx_free)(const struct _diva_stream* ifc);
+	dword (*get_tx_in_use)(const struct _diva_stream* ifc);
 	void  (*notify_os_resource_removed)(struct _diva_stream* ifc);
 } diva_stream_t;
 

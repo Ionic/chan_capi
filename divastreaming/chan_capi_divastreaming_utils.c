@@ -393,12 +393,27 @@ void divaStreamingWakeup (void)
 	}
 }
 
-void capi_DivaStreamLock (void)
+unsigned int capi_DivaStreamingGetStreamInUse(const struct capi_pvt* i)
+{
+	unsigned int ret = 0;
+
+	capi_DivaStreamLock();
+	if ((i != NULL) && (i->diva_stream_entry != NULL) &&
+			(i->diva_stream_entry->diva_stream_state == DivaStreamActive) &&
+			(i->diva_stream_entry->diva_stream != NULL)) {
+		ret = i->diva_stream_entry->diva_stream->get_tx_in_use (i->diva_stream_entry->diva_stream);
+	}
+	capi_DivaStreamUnLock();
+
+	return (ret);
+}
+
+void capi_DivaStreamLock(void)
 {
 	cc_mutex_lock(&stream_write_lock);
 }
 
-void capi_DivaStreamUnLock (void)
+void capi_DivaStreamUnLock(void)
 {
 	cc_mutex_unlock(&stream_write_lock);
 }
