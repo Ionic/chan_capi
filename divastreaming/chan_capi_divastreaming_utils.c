@@ -94,7 +94,13 @@ static int divaStreamingMessageRx (void* user_context, dword message, dword leng
 																																		 b3buf, b3len);
 									bridgePeer->diva_stream_entry->diva_stream->flush_stream(bridgePeer->diva_stream_entry->diva_stream);
 								} else {
-									DBG_ERR(("DROP BRIDGE PACKET"))
+									if (bridgePeer->NCCI != 0 && bridgePeer->diva_stream_entry != 0 &&
+										bridgePeer->diva_stream_entry->diva_stream_state == DivaStreamActive) {
+										DBG_ERR(("%s PLCI %04x discarded bridge packet free: %u in use: %u",
+															pE->i->name, pE->i->PLCI & 0xffffU, 
+										bridgePeer->diva_stream_entry->diva_stream->get_tx_free (bridgePeer->diva_stream_entry->diva_stream),
+										bridgePeer->diva_stream_entry->diva_stream->get_tx_in_use (bridgePeer->diva_stream_entry->diva_stream)))
+									}
 								}
 							}
 						} else {
