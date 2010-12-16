@@ -42,6 +42,8 @@ int pbx_capi_chat_is_room_muted(const struct capichat_s * room);
 int pbx_capi_chat_is_member_muted(const struct capichat_s * room);
 int pbx_capi_chat_is_member_listener(const struct capichat_s * room);
 int pbx_capi_chat_is_most_recent_user(const struct capichat_s * room);
+unsigned int pbx_capi_chat_get_room_group (const struct capichat_s * room);
+unsigned int pbx_capi_chat_get_room_group_members (const struct capichat_s * room);
 
 void pbx_capi_lock_chat_rooms(void);
 void pbx_capi_unlock_chat_rooms(void);

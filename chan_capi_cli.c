@@ -22,6 +22,10 @@
 #include "chan_capi_chat.h"
 #include "chan_capi_cli.h"
 #include "chan_capi_management_common.h"
+#ifdef DIVA_STREAMING
+#include "platform.h"
+#include "chan_capi_divastreaming_utils.h"
+#endif
 #ifdef DIVA_STATUS
 #include "divastatus_ifc.h"
 #endif
@@ -40,6 +44,10 @@ static char show_channels_usage[] =
 static char show_resources_usage[] =
 "Usage: " CC_MESSAGE_NAME " show ressources\n"
 "       Show info about used by channels resources.\n";
+
+static char show_bridges_usage[] =
+"Usage: " CC_MESSAGE_NAME " show bridges\n"
+"       Show info about used conference bridges.\n";
 
 static char debug_usage[] =
 "Usage: " CC_MESSAGE_NAME " debug\n"
@@ -80,6 +88,7 @@ char chatinfo_usage[] =
 #define CC_CLI_TEXT_QSIG_NO_DEBUG "Disable QSIG debugging"
 #define CC_CLI_TEXT_CHATINFO "Show " CC_MESSAGE_BIGNAME " chat info"
 #define CC_CLI_TEXT_SHOW_RESOURCES "Show used resources"
+#define CC_CLI_TEXT_SHOW_BRIDGES "Show used conference bridges"
 #define CC_CLI_TEXT_EXEC_CAPICOMMAND "Exec command"
 #define CC_CLI_TEXT_CHAT_MANAGE "Manager chat conference"
 
@@ -292,14 +301,15 @@ static int pbxcli_capi_show_resources(int fd, int argc, char *argv[])
 #endif
 
 	ast_cli(fd, CC_MESSAGE_BIGNAME " resources in use:\n");
-	ast_cli(fd, "%-40s %-6s %-4s %-10s %-9s %-5s %-5s %-6s %-6s %-6s\n",
-							"Line-Name", "Domain", "DTMF", "EchoCancel", "NoiseSupp", "RxAGC", "TxAGC", "RxGain", "TxGain", "CAPI");
-	ast_cli(fd, "----------------------------------------------------------------------------------------------------------\n");
+	ast_cli(fd, "%-40s %-6s %-4s %-10s %-9s %-5s %-5s %-6s %-6s %-6s %-7s\n",
+							"Line-Name", "Domain", "DTMF", "EchoCancel", "NoiseSupp", "RxAGC", "TxAGC", "RxGain", "TxGain", "CAPI", "Queue");
+	ast_cli(fd, "-----------------------------------------------------------------------------------------------------------------\n");
 
 	for (ifc_type = 0; ifc_type < sizeof(data)/sizeof(data[0]); ifc_type++) {
 		data[ifc_type].lock_proc();
 
 		for (i = data[ifc_type].head; i; i = i->next) {
+			unsigned int queueDepth = 0;
 			char* name;
 
 			if (((i->used == 0) && (i->channeltype != CAPI_CHANNELTYPE_NULL)) || ((i->channeltype != CAPI_CHANNELTYPE_B) &&
@@ -321,7 +331,11 @@ static int pbxcli_capi_show_resources(int fd, int argc, char *argv[])
 				continue;
 			}
 
-			ast_cli(fd, "%-40s %-6s %-4s %-10s %-9s %-5s %-5s %-.1f%-3s %-.1f%-3s%5d\n",
+#ifdef DIVA_STREAMING
+			queueDepth = capi_DivaStreamingGetStreamInUse(i->line_plci == NULL ? i : i->line_plci);
+#endif
+
+			ast_cli(fd, "%-40s %-6s %-4s %-10s %-9s %-5s %-5s %-.1f%-3s %-.1f%-3s%5d %7u\n",
 							(name == 0) ? i->vname : name,
 							(i->channeltype == CAPI_CHANNELTYPE_B) ? "TDM" : "IP",
 							(i->isdnstate & CAPI_ISDN_STATE_DTMF) ? "Y" : "N",
@@ -331,12 +345,83 @@ static int pbxcli_capi_show_resources(int fd, int argc, char *argv[])
 							(i->divaAudioFlags & 0x0004) ? "Y" : "N", /* Tx AGC */
 							i->divaDigitalRxGainDB, "dB",
 							i->divaDigitalTxGainDB, "dB",
-							i->controller);
+							i->controller,
+							queueDepth);
 			ast_free (name);
 		}
 
 		data[ifc_type].unlock_proc();
 	}
+
+#ifdef CC_AST_HAS_VERSION_1_6
+	return CLI_SUCCESS;
+#else
+	return RESULT_SUCCESS;
+#endif
+}
+
+/*
+ * do command capi show bridges
+ */
+#ifdef CC_AST_HAS_VERSION_1_6
+static char *pbxcli_capi_show_bridges(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
+#else
+static int pbxcli_capi_show_bridges(int fd, int argc, char *argv[])
+#endif
+{
+	const struct capichat_s *capiChatRoom;
+	int required_args;
+	int provided_args;
+
+#ifdef CC_AST_HAS_VERSION_1_6
+	int fd = a->fd;
+
+	if (cmd == CLI_INIT) {
+		e->command = CC_MESSAGE_NAME " show bridges";
+		e->usage = show_bridges_usage;
+		return NULL;
+	} else if (cmd == CLI_GENERATE)
+		return NULL;
+	required_args = e->args;
+	provided_args = a->argc;
+#else
+	required_args = 3;
+	provided_args = argc;
+#endif
+
+	ast_cli(fd, CC_MESSAGE_BIGNAME " conference bridges in use:\n");
+	ast_cli(fd, "%-17s %-5s %-7s %-4s %-11s\n",
+							"Bridge", "Group", "Members", "CAPI", "Queue depth");
+	ast_cli(fd, "----------------------------------------------------------------------------------------------------------\n");
+
+	pbx_capi_lock_chat_rooms();
+	for (capiChatRoom = pbx_capi_chat_get_room_c(NULL);
+			 capiChatRoom != NULL;
+			 capiChatRoom = pbx_capi_chat_get_room_c(capiChatRoom)) {
+		const struct capi_pvt* i = pbx_capi_chat_get_room_interface_c(capiChatRoom);
+
+		if ((i->virtualBridgePeer == 0) || (i->bridgePeer == 0)) {
+			continue;
+		}
+
+		{
+			unsigned int groupNumber = pbx_capi_chat_get_room_group (capiChatRoom);
+			if (groupNumber > 0) {
+				const char*  roomName    = pbx_capi_chat_get_room_name(capiChatRoom);
+				unsigned int groupNumber = pbx_capi_chat_get_room_group(capiChatRoom);
+				unsigned int groupUsers  = pbx_capi_chat_get_room_group_members(capiChatRoom);
+				unsigned int queueDepth  = 0;
+
+#ifdef DIVA_STREAMING
+				queueDepth = capi_DivaStreamingGetStreamInUse(i);
+#endif
+
+				ast_cli(fd, "%-17s %5u %7u %4d %11d\n",
+								roomName, groupNumber, groupUsers, i->controller, queueDepth);
+			}
+		}
+	}
+	pbx_capi_unlock_chat_rooms();
 
 #ifdef CC_AST_HAS_VERSION_1_6
 	return CLI_SUCCESS;
@@ -657,6 +742,7 @@ static struct ast_cli_entry cc_cli_cmd[] = {
 	AST_CLI_DEFINE(pbxcli_capi_show_resources, CC_CLI_TEXT_SHOW_RESOURCES),
 	AST_CLI_DEFINE(pbxcli_capi_exec_capicommand, CC_CLI_TEXT_EXEC_CAPICOMMAND),
 	AST_CLI_DEFINE(pbxcli_capi_chat_manage_capicommand, CC_CLI_TEXT_CHAT_MANAGE),
+	AST_CLI_DEFINE(pbxcli_capi_show_bridges, CC_CLI_TEXT_SHOW_BRIDGES),
 };
 #else
 static struct ast_cli_entry  cli_info =
@@ -683,6 +769,8 @@ static struct ast_cli_entry  cli_exec_capicommand =
 	{ { CC_MESSAGE_NAME, "exec", NULL }, pbxcli_capi_exec_capicommand, CC_CLI_TEXT_CHAT_MANAGE, show_exec_usage };
 static struct ast_cli_entry  cli_chat_manage =
 	{ { CC_MESSAGE_NAME, "chat", "manage", NULL }, pbxcli_capi_chat_manage_capicommand, CC_CLI_TEXT_EXEC_CAPICOMMAND, show_chat_manage_usage };
+static struct ast_cli_entry  cli_show_bridges =
+	{ { CC_MESSAGE_NAME, "show", "bridges", NULL }, pbxcli_capi_show_bridges, CC_CLI_TEXT_SHOW_BRIDGES, show_bridges_usage };
 #endif
 
 
@@ -705,6 +793,7 @@ void pbx_capi_cli_register(void)
 	ast_cli_register(&cli_show_resources);
 	ast_cli_register(&cli_exec_capicommand);
 	ast_cli_register(&cli_chat_manage);
+	ast_cli_register(&cli_show_bridges);
 #endif
 }
 
@@ -726,6 +815,7 @@ void pbx_capi_cli_unregister(void)
 	ast_cli_unregister(&cli_show_resources);
 	ast_cli_unregister(&cli_exec_capicommand);
 	ast_cli_unregister(&cli_chat_manage);
+	ast_cli_unregister(&cli_show_bridges);
 #endif
 }
 

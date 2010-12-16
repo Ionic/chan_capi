@@ -1367,6 +1367,23 @@ int pbx_capi_chat_is_most_recent_user(const struct capichat_s * room)
 	return ((room->info & PBX_CHAT_MEMBER_INFO_RECENT) != 0);
 }
 
+/*!
+ * \brief Get room group
+ *
+ * \note called unter protection of chat_lock
+ */
+unsigned int pbx_capi_chat_get_room_group (const struct capichat_s * room) {
+	return room->group;
+}
+
+/*!
+ * \brief Get room group
+ *
+ * \note called unter protection of chat_lock
+ */
+unsigned int pbx_capi_chat_get_room_group_members (const struct capichat_s * room) {
+	return room->groupUsers;
+}
 
 /*!
  * \brief Lock chat list
