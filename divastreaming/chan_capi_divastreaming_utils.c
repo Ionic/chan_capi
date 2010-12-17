@@ -84,6 +84,7 @@ static int divaStreamingMessageRx (void* user_context, dword message, dword leng
 								struct capi_pvt* bridgePeer = pE->i->bridgePeer;
 								if (bridgePeer->NCCI != 0 && bridgePeer->diva_stream_entry != 0 &&
 										bridgePeer->diva_stream_entry->diva_stream_state == DivaStreamActive &&
+										bridgePeer->diva_stream_entry->diva_stream->get_tx_in_use (bridgePeer->diva_stream_entry->diva_stream) < 512 &&
 										bridgePeer->diva_stream_entry->diva_stream->get_tx_free (bridgePeer->diva_stream_entry->diva_stream) >
 																																																2*CAPI_MAX_B3_BLOCK_SIZE+128) {
 									dword i = 0, k = 0, b3len;
