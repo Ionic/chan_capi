@@ -313,6 +313,9 @@ struct cc_capi_gains {
 #define CAPI_ISDN_STATE_PBX_DONT      0x40000000
 #define CAPI_ISDN_STATE_PBX           0x80000000
 
+#define CAPI_ISDN_STATE2_PROCEEDING         0x00000001
+#define CAPI_ISDN_STATE2_PROCEEDING_PENDING 0x00000002
+
 #define CAPI_CHANNELTYPE_B            0
 #define CAPI_CHANNELTYPE_D            1
 #define CAPI_CHANNELTYPE_NULL         2
@@ -401,6 +404,7 @@ struct capi_pvt {
 
 	/* the state of the line */
 	unsigned int isdnstate;
+	unsigned int isdnstate2;
 	int cause;
 
 	/* which b-protocol is active */

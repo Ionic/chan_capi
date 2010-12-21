@@ -99,6 +99,7 @@ static char *commandtdesc = CC_MESSAGE_BIGNAME " command interface.\n"
 "\n"
 "capicommand() where () can be:\n"
 "\"progress\" send progress (for NT mode)\n"
+"\"proceeding\" send proceeding (for NT mode)\n"
 "\"deflect,to_number\" forwards an unanswered call to number\n"
 "\"malicous\" report a call of malicious nature\n"
 "\"echocancel,<yes> or <no>\" echo-cancel provided by driver/hardware\n"
@@ -1081,6 +1082,46 @@ static int pbx_capi_alert(struct ast_channel *c)
 	return 0;
 }
 
+/*!
+		\brief Send CALL PROCEEDING (if supported by hardware)
+
+		\note Sending of Proceeding is not defined by CAPI spec.
+					Diva hardware uses ALERT with sending complete set.
+					Other hardware can send alert only
+
+ */
+static int pbx_capi_signal_proceeding(struct ast_channel *c, char *param)
+{
+	static const unsigned char sending_complete[] = { 2, 1, 0 };
+	struct capi_pvt *i = CC_CHANNEL_PVT(c);
+
+	if ((i->state != CAPI_STATE_INCALL) &&
+			(i->state != CAPI_STATE_DID)) {
+		cc_verbose(2, 1, VERBOSE_PREFIX_3 "%s: attempting PROCEEDING in state %d\n",
+			i->vname, i->state);
+	}
+
+	if ((i->ntmode == 0) 
+			/*! \todo  || (capi_controllers[i->controlle]->mnufacturer != ManufacturerDiva) */) {
+		return (pbx_capi_alert(c));
+	}
+
+	if (((i->isdnstate2 & CAPI_ISDN_STATE2_PROCEEDING) != 0) ||
+			((i->isdnstate2 & CAPI_ISDN_STATE2_PROCEEDING_PENDING) != 0)) {
+		return 0;
+	}
+
+
+	if (capi_sendf(NULL, 0, CAPI_ALERT_REQ, i->PLCI, get_capi_MessageNumber(),
+	    "(()()()()s)", sending_complete) != 0) {
+		return -1;
+	}
+
+	i->isdnstate2 |= CAPI_ISDN_STATE2_PROCEEDING_PENDING;
+
+	return 0;
+}
+
 /*
  * cleanup the interface
  */
@@ -1108,6 +1149,7 @@ static void interface_cleanup(struct capi_pvt *i)
 	}
 
 	i->isdnstate = 0;
+	i->isdnstate2 = 0;
 	i->cause = 0;
 	i->fsetting = 0;
 
@@ -5722,7 +5764,14 @@ static void capidev_handle_msg(_cmsg *CMSG)
 		break;
 	case CAPI_P_CONF(ALERT):
 		wInfo = ALERT_CONF_INFO(CMSG);
-		if(i == NULL) break;
+		if (i == NULL) break;
+		if ((i->isdnstate2 & CAPI_ISDN_STATE2_PROCEEDING_PENDING) != 0) {
+			if ((wInfo & 0xff00) == 0) {
+				i->isdnstate2 |= CAPI_ISDN_STATE2_PROCEEDING;
+			}
+			i->isdnstate2 &= ~CAPI_ISDN_STATE2_PROCEEDING_PENDING;
+			break;
+		}
 		if (!i->owner) break;
 		if ((wInfo & 0xff00) == 0) {
 			if (i->state != CAPI_STATE_DISCONNECTING) {
@@ -7251,6 +7300,7 @@ static struct capicommands_s {
 	{ "getid",        pbx_capi_get_id,          0, 0, 0 },
 	{ "peerlink",     pbx_capi_peer_link,       0, 0, 0 },
 	{ "progress",     pbx_capi_signal_progress, 1, 0, 0 },
+	{ "proceeding",   pbx_capi_signal_proceeding, 1, 0, 0 },
 	{ "deflect",      pbx_capi_call_deflect,    1, 0, 0 },
 	{ "receivefax",   pbx_capi_receive_fax,     1, 1, 0 },
 	{ "sendfax",      pbx_capi_send_fax,        1, 1, 0 },
@@ -7485,7 +7535,7 @@ static int pbx_capi_indicate(struct ast_channel *c, int condition)
 	case AST_CONTROL_PROCEEDING:
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested PROCEEDING-Indication for %s\n",
 			i->vname, c->name);
-		if (i->ntmode) pbx_capi_signal_progress(c, NULL);
+		pbx_capi_signal_proceeding(c, NULL);
 		break;
 	case AST_CONTROL_HOLD:
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested HOLD-Indication for %s\n",
