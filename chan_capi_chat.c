@@ -226,7 +226,19 @@ static struct capichat_s* update_capi_mixer_part(
 	return (new_chat_start);
 }
 
-static void update_capi_mixer(int remove, unsigned int roomnumber, struct capi_pvt *i, deffered_chat_capi_message_t* update_segment)
+/*!
+ * \note CAPI updates LI state on PLCI removal.
+ *       If expect_plci_removal is true then do not send
+ *       CAPI LI commands. All other actions are taken to
+ *       ensure all side effects apply. CAPI updates LI
+ *       state on PLCI removal.
+ */
+static void update_capi_mixer(
+	int remove,
+	unsigned int roomnumber,
+	struct capi_pvt *i,
+	deffered_chat_capi_message_t* update_segment,
+	int expect_plci_removal)
 {
 	struct capichat_s *room;
 	unsigned int overall_found;
@@ -280,15 +292,17 @@ static void update_capi_mixer(int remove, unsigned int roomnumber, struct capi_p
 		if (update_segment == 0) {
 			for (nr = 0; nr < segment_nr; nr++) {
 				if (segments[nr].busy != 0) {
-					cc_verbose(3, 1, VERBOSE_PREFIX_3 CC_MESSAGE_NAME
-						" mixer: %s PLCI=0x%04x LI=0x%x\n", i->vname, i->PLCI, segments[nr].datapath);
+					if (expect_plci_removal == 0) {
+						cc_verbose(3, 1, VERBOSE_PREFIX_3 CC_MESSAGE_NAME
+							" mixer: %s PLCI=0x%04x LI=0x%x\n", i->vname, i->PLCI, segments[nr].datapath);
 
-					capi_sendf(NULL, 0, CAPI_FACILITY_REQ, i->PLCI, get_capi_MessageNumber(),
-						"w(w(dc))",
-						FACILITYSELECTOR_LINE_INTERCONNECT,
-						0x0001, /* CONNECT */
-						segments[nr].datapath,
-						&segments[nr].p_struct);
+						capi_sendf(NULL, 0, CAPI_FACILITY_REQ, i->PLCI, get_capi_MessageNumber(),
+							"w(w(dc))",
+							FACILITYSELECTOR_LINE_INTERCONNECT,
+							0x0001, /* CONNECT */
+							segments[nr].datapath,
+							&segments[nr].p_struct);
+					}
 				}
 			}
 		}
@@ -330,7 +344,7 @@ static void update_all_capi_mixers(unsigned int roomnumber)
 				for (nr = 0; nr < nr_segments; nr++) {
 					segment[nr].busy = 0;
 				}
-				update_capi_mixer(0, roomnumber, room->i, segment);
+				update_capi_mixer(0, roomnumber, room->i, segment, 0);
 				if (segment[0].busy != 0) {
 					PLCIS[i++] = room->i->PLCI;
 				}
@@ -362,7 +376,7 @@ static void update_all_capi_mixers(unsigned int roomnumber)
 /*
  * delete a chat member
  */
-static void del_chat_member(struct capichat_s *room)
+static void del_chat_member(struct capichat_s *room, int expect_plci_removal)
 {
 	struct capichat_s *tmproom;
 	struct capichat_s *tmproom2 = NULL;
@@ -387,7 +401,7 @@ static void del_chat_member(struct capichat_s *room)
 	}
 	cc_mutex_unlock(&chat_lock);
 
-	update_capi_mixer(1, roomnumber, i, 0);
+	update_capi_mixer(1, roomnumber, i, 0, expect_plci_removal);
 }
 
 /*
@@ -453,7 +467,7 @@ static struct capichat_s *add_chat_member(const char *roomname, struct capi_pvt 
 	cc_verbose(3, 0, VERBOSE_PREFIX_3 "%s: added new chat member to room '%s' %s(%d)\n",
 		i->vname, roomname, room_member_type_2_name(room_member_type), roomnumber);
 
-	update_capi_mixer(0, roomnumber, i, 0);
+	update_capi_mixer(0, roomnumber, i, 0, 0);
 
 	return room;
 }
@@ -463,7 +477,7 @@ static struct capichat_s *add_chat_member(const char *roomname, struct capi_pvt 
  */
 static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i,
 	struct capichat_s *room, unsigned int flags, struct capi_pvt* iline,
-	FILE* voice_message, unsigned int hangup_timeout)
+	FILE* voice_message, unsigned int hangup_timeout, int* pbx_detected_hangup)
 {
 	struct ast_frame *f;
 	int ms;
@@ -476,6 +490,10 @@ static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i,
 	int moh_active = 0, voice_message_moh_active = 0;
 	int write_block_nr = 2;
 	time_t alone_since = time(NULL);
+	int local_detected_hangup;
+	int* detected_hangup = (pbx_detected_hangup != NULL) ? pbx_detected_hangup : &local_detected_hangup;
+
+	*detected_hangup = 0;
 
 	if (voice_message == NULL) {
 		ast_indicate(chan, -1);
@@ -521,6 +539,7 @@ static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i,
 					continue;
 				cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: chat: no frame, hangup.\n",
 					i->vname);
+				*detected_hangup = 1;
 				break;
 			}
 			if ((f->frametype == AST_FRAME_CONTROL) &&
@@ -528,6 +547,7 @@ static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i,
 				cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: chat: hangup frame.\n",
 					i->vname);
 				ast_frfree(f);
+				*detected_hangup = 1;
 				break;
 			} else if (f->frametype == AST_FRAME_VOICE) {
 				cc_verbose(5, 1, VERBOSE_PREFIX_3 "%s: chat: voice frame.\n",
@@ -642,6 +662,7 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 	int largeConferenceMode = 0;
 	unsigned int selectedGroup = 0;
 	unsigned int bridgeUsers = 0;
+	int expect_plci_removal;
 
 	roomname = strsep(&param, COMMANDSEPARATOR);
 	options = strsep(&param, COMMANDSEPARATOR);
@@ -756,7 +777,7 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 	conferenceConnectTime = time(NULL);
 
 	/* main loop */
-	chat_handle_events(c, i, room, flags, 0, 0, hangup_timeout);
+	chat_handle_events(c, i, room, flags, 0, 0, hangup_timeout, &expect_plci_removal);
 
 	pbx_capi_chat_leave_event(c, room, time(NULL)-conferenceConnectTime);
 	if (room->active == 1) {
@@ -764,7 +785,9 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 		pbx_capi_chat_room_state_event(room->name, 0);
 	}
 
-	del_chat_member(room);
+	expect_plci_removal |= (i->channeltype == CAPI_CHANNELTYPE_NULL); /* NULL PLCI is removed, no need to update CAPI LI state */
+
+	del_chat_member(room, expect_plci_removal);
 
 out:
 	capi_remove_nullif(i);
@@ -894,9 +917,9 @@ int pbx_capi_chat_play(struct ast_channel *c, char *param)
 	}
 
 	/* main loop */
-	chat_handle_events(c, i, room, flags, (c->tech == &capi_tech) ? (CC_CHANNEL_PVT(c)) : 0, f, 0);
+	chat_handle_events(c, i, room, flags, (c->tech == &capi_tech) ? (CC_CHANNEL_PVT(c)) : 0, f, 0, NULL);
 
-	del_chat_member(room);
+	del_chat_member(room, 1);
 
 out:
 	fclose (f);
@@ -1445,7 +1468,7 @@ pbx_capi_create_conference_bridge(const char* mainName,
 	if (error != 0) {
 		for (i = 0; i < sizeof(name)/sizeof(name[0]); i++) {
 			if (room[i] != 0) {
-				del_chat_member(room[i]);
+				del_chat_member(room[i], 1);
 			}
 			if (capi_ifc[i] != 0) {
 				capi_remove_nullif(capi_ifc[i]);
@@ -1855,8 +1878,8 @@ static void pbx_capi_cleanup_bridge(const char* roomName, unsigned int groupNumb
 					cc_verbose(2, 0, VERBOSE_PREFIX_2 CC_MESSAGE_NAME
 						" Delete bridge '%s' <-> '%s'\n", mainFullName, additionalFullName);
 
-					del_chat_member(additionalGroup);
-					del_chat_member(mainGroup);
+					del_chat_member(additionalGroup, 1);
+					del_chat_member(mainGroup, 1);
 #ifdef DIVA_STREAMING
 					capi_DivaStreamLock();
 #endif
