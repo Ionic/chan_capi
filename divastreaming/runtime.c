@@ -1,6 +1,6 @@
 /*
  *
-  Copyright (c) Dialogic (R) 2009 - 2010
+  Copyright (c) Dialogic (R) 2009 - 2011
  *
   This source file is supplied for the use with
   Eicon Networks range of DIVA Server Adapters.
@@ -22,6 +22,7 @@
   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
  */
+#include <stdio.h>
 #include "platform.h"
 #include <malloc.h>
 #include "chan_capi_platform.h"
