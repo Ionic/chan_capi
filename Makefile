@@ -183,6 +183,12 @@ clean:
 	rm -f divastatus/*.o
 	rm -f divaverbose/*.o
 
+distclean: clean
+	rm -f $(MODULES_DIR)/$(SHAREDOS)
+
+sysclean: distclean
+	rm -f $(MODULES_DIR)/*.so
+
 config.h:
 	./create_config.sh "$(ASTERISK_HEADER_DIR)"
 
