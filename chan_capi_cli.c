@@ -13,7 +13,7 @@
  * This program is free software and may be modified and 
  * distributed under the terms of the GNU Public License.
  */
-
+#include <stdio.h>
 #include "chan_capi_platform.h"
 #include "chan_capi20.h"
 #include "chan_capi.h"
@@ -28,6 +28,9 @@
 #endif
 #ifdef DIVA_STATUS
 #include "divastatus_ifc.h"
+#endif
+#ifdef DIVA_VERBOSE
+#include "divaverbose.h"
 #endif
 
 /*
@@ -502,7 +505,7 @@ static int pbxcli_capi_do_debug(int fd, int argc, char *argv[])
 		
 	capidebug = 1;
 	ast_cli(fd, CC_MESSAGE_BIGNAME " Message Debugging Enabled\n");
-	
+
 #ifdef CC_AST_HAS_VERSION_1_6
 	return CLI_SUCCESS;
 #else
@@ -739,6 +742,10 @@ static struct ast_cli_entry cc_cli_cmd[] = {
 #ifdef DIVA_STATUS
 	AST_CLI_DEFINE(pbxcli_capi_ifc_status, CC_CLI_TEXT_IFC_STATUSINFO),
 #endif
+#ifdef DIVA_VERBOSE
+	AST_CLI_DEFINE(pbxcli_capi_do_verbose, CC_CLI_TEXT_CAPI_DO_VERBOSE),
+	AST_CLI_DEFINE(pbxcli_capi_no_verbose, CC_CLI_TEXT_CAPI_NO_VERBOSE),
+#endif
 	AST_CLI_DEFINE(pbxcli_capi_show_resources, CC_CLI_TEXT_SHOW_RESOURCES),
 	AST_CLI_DEFINE(pbxcli_capi_exec_capicommand, CC_CLI_TEXT_EXEC_CAPICOMMAND),
 	AST_CLI_DEFINE(pbxcli_capi_chat_manage_capicommand, CC_CLI_TEXT_CHAT_MANAGE),
@@ -762,6 +769,12 @@ static struct ast_cli_entry  cli_chatinfo =
 #ifdef DIVA_STATUS
 static struct ast_cli_entry  cli_ifcstate =
 	{ { CC_MESSAGE_NAME, "ifcstate", NULL }, pbxcli_capi_ifc_status, CC_CLI_TEXT_IFC_STATUSINFO, diva_status_ifc_state_usage };
+#endif
+#ifdef DIVA_VERBOSE
+static struct ast_cli_entry  cli_verbose =
+	{ { CC_MESSAGE_NAME, "verbose", NULL }, pbxcli_capi_do_verbose, CC_CLI_TEXT_CAPI_DO_VERBOSE, capi_do_verbose_usage };
+static struct ast_cli_entry  cli_no_verbose =
+	{ { CC_MESSAGE_NAME, "no", "verbose", NULL }, pbxcli_capi_no_verbose, CC_CLI_TEXT_CAPI_NO_VERBOSE, capi_no_verbose_usage };
 #endif
 static struct ast_cli_entry  cli_show_resources =
 	{ { CC_MESSAGE_NAME, "show", "resources", NULL }, pbxcli_capi_show_resources, CC_CLI_TEXT_SHOW_RESOURCES, show_resources_usage };
@@ -790,6 +803,10 @@ void pbx_capi_cli_register(void)
 #ifdef DIVA_STATUS
 	ast_cli_register(&cli_ifcstate);
 #endif
+#ifdef DIVA_VERBOSE
+	ast_cli_register(&cli_verbose);
+	ast_cli_register(&cli_no_verbose);
+#endif
 	ast_cli_register(&cli_show_resources);
 	ast_cli_register(&cli_exec_capicommand);
 	ast_cli_register(&cli_chat_manage);
@@ -811,6 +828,10 @@ void pbx_capi_cli_unregister(void)
 	ast_cli_unregister(&cli_chatinfo);
 #ifdef DIVA_STATUS
 	ast_cli_unregister(&cli_ifcstate);
+#endif
+#ifdef DIVA_VERBOSE
+	ast_cli_unregister(&cli_verbose);
+	ast_cli_unregister(&cli_no_verbose);
 #endif
 	ast_cli_unregister(&cli_show_resources);
 	ast_cli_unregister(&cli_exec_capicommand);

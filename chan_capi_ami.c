@@ -23,6 +23,7 @@
  * Based on apps/app_meetme.c
  *
  */
+#include <stdio.h>
 #include "chan_capi_platform.h"
 #include "chan_capi20.h"
 #include "chan_capi.h"

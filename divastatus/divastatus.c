@@ -27,12 +27,12 @@
  * it CVS file format.
  *
  */
+#include <stdlib.h>
+#include <stdio.h>
 #include "divastreaming/platform.h"
 #include "chan_capi_platform.h"
 #include "chan_capi20.h"
 #include "chan_capi.h"
-#include <stdlib.h>
-#include <stdio.h>
 #include <time.h>
 #include <sys/types.h>
 #include <sys/stat.h>

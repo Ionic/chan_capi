@@ -839,4 +839,16 @@ int pbx_capi_streaming_supported (struct capi_pvt *i);
 #define _DI_DSP_CTRL        0x0003
 #define _DI_OPTIONS_REQUEST 0x0009
 
+#if (!defined(CC_AST_HAS_VERSION_1_4) && !defined(CC_AST_HAS_VERSION_1_6) && !defined(CC_AST_HAS_VERSION_1_8))
+
+#define ast_malloc(__x__)          malloc((__x__))
+#define ast_free(__x__)            free((__x__))
+#define ast_strdup(__x__)          strdup((__x__))
+#define ast_channel_trylock(__x__) ast_mutex_trylock(&(__x__)->lock)
+#define ast_channel_unlock(__x__)  ast_mutex_unlock(&(__x__)->lock)
+#define ast_devstate_prov_add(__a__,__b__) (-1)
+#define ast_devstate_prov_del(__x__) do{}while(0)
+
+#endif
+
 #endif

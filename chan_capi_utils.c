@@ -17,6 +17,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <string.h>
+#include <ctype.h>
 #include <sys/types.h>
 #include "chan_capi_platform.h"
 #include "xlaw.h"

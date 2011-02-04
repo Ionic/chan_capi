@@ -58,6 +58,7 @@ struct _diva_streaming_vector* vind;
 #include "chan_capi_cli.h"
 #include "chan_capi_ami.h"
 #include "chan_capi_devstate.h"
+#include "divaverbose.h"
 
 /* #define CC_VERSION "x.y.z" */
 #define CC_VERSION "$Revision$"
@@ -4482,8 +4483,10 @@ static int pbx_capi_get_samples(struct capi_pvt *i, int length)
 	case AST_FORMAT_SLINEAR16:
 #endif
 		return (length/2);
+#if defined(AST_FORMAT_G722)
 	case AST_FORMAT_G722:
 		return (length*2);
+#endif
 #if defined(AST_FORMAT_SIREN7)
 	case AST_FORMAT_SIREN7:
 		return (length *  (320 / 80));
@@ -8791,6 +8794,8 @@ int unload_module(void)
 	ast_channel_unregister(&capi_tech);
 
 	cleanup_ccbsnr();
+
+	diva_verbose_unload();
 	
 	return 0;
 }
@@ -8810,6 +8815,8 @@ int load_module(void)
 	struct ast_flags config_flags = { 0 };
 #endif
 
+	diva_verbose_load();
+
 #ifdef CC_AST_HAS_VERSION_1_6
 	cfg = ast_config_load(config, config_flags);
 #else
@@ -8819,16 +8826,19 @@ int load_module(void)
 	/* We *must* have a config file otherwise stop immediately, well no */
 	if (!cfg) {
 		cc_log(LOG_ERROR, "Unable to load config %s, chan_capi disabled\n", config);
+		diva_verbose_unload();
 		return 0;
 	}
 
 	if (cc_mutex_lock(&iflock)) {
 		cc_log(LOG_ERROR, "Unable to lock interface list???\n");
+		diva_verbose_unload();
 		return -1;
 	}
 
 	if ((res = cc_init_capi()) != 0) {
 		cc_mutex_unlock(&iflock);
+		diva_verbose_unload();
 		return(res);
 	}
 
@@ -8837,6 +8847,7 @@ int load_module(void)
 
 	if (res != 0) {
 		cc_mutex_unlock(&iflock);
+		diva_verbose_unload();
 		return(res);
 	}
 

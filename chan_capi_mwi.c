@@ -18,6 +18,7 @@
   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
  */
+#include <stdio.h>
 #include "chan_capi_platform.h"
 #include "chan_capi20.h"
 #include "chan_capi.h"

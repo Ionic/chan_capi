@@ -20,6 +20,7 @@ OSNAME=${shell uname}
 
 DIVA_STREAMING=0
 DIVA_STATUS=0
+DIVA_VERBOSE=0
 
 USE_OWN_LIBCAPI=yes
 
@@ -89,6 +90,8 @@ ifeq (${DIVA_STATUS},1)
 INCLUDE += -I./divastatus -I./divastatus/..
 endif
 
+INCLUDE += -I./divaverbose
+
 DEBUG=-g #-pg
 INCLUDE+= -I$(ASTERISK_HEADER_DIR)
 ifndef C4B
@@ -121,6 +124,10 @@ CFLAGS+=$(shell echo '\#include <sys/inotify.h>' > /tmp/test.c 2>/dev/null && \
                 echo 'int main(int argc,char**argv){if(inotify_init()>=0)return 0; return 1;}' >> /tmp/test.c 2>/dev/null && \
                 $(CC) /tmp/test.c -o /tmp/test && /tmp/test >/dev/null 2>&1 && echo '-DCC_USE_INOTIFY=1'; rm -f /tmp/test.c /tmp/test)
 endif
+ifeq (${DIVA_VERBOSE},1)
+CFLAGS += -DDIVA_VERBOSE=1
+endif
+
 
 LIBS=-ldl -lpthread -lm
 CC=gcc
@@ -152,6 +159,10 @@ ifeq (${DIVA_STATUS},1)
 OBJECTS += divastatus/divastatus.o
 endif
 
+ifeq (${DIVA_VERBOSE},1)
+OBJECTS += divaverbose/divaverbose.o
+endif
+
 CFLAGS+=-Wno-missing-prototypes -Wno-missing-declarations
 
 CFLAGS+=-DCRYPTO
@@ -170,6 +181,7 @@ clean:
 	rm -f libcapi20/*.o
 	rm -f divastreaming/*.o
 	rm -f divastatus/*.o
+	rm -f divaverbose/*.o
 
 config.h:
 	./create_config.sh "$(ASTERISK_HEADER_DIR)"
