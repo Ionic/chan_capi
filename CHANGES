@@ -30,6 +30,7 @@ HEAD
   Capichat[List,ListComplete,Join,Leave,End] events
 - Add device state events for char rooms (capichat:[roomname]) and for
   interface state (ISDN/I[N]/congestion)
+- Add access to Diva trace driver
 
 chan_capi-1.1.5
 ------------------
