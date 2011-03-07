@@ -704,13 +704,39 @@ static int capi_check_diva_tone_function_allowed(struct capi_pvt *i, int useLine
 static void capi_diva_audio_features(struct capi_pvt *i, int useLinePLCI)
 {
 	struct capi_pvt *effectiveIfc;
+	unsigned short divaAudioFlags, divaDigitalTxGain, divaDigitalRxGain;
+	const char* plciName;
+
 	if (capi_check_diva_tone_function_allowed(i, useLinePLCI) != 0)
 		return;
 
 	effectiveIfc = ((i->channeltype == CAPI_CHANNELTYPE_NULL) && (useLinePLCI != 0)) ? i->line_plci : i;
 
-	cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: Setting up audio features (PLCI=%#x, function=%04x, rx=%u, tx=%u)\n",
-			i->vname, i->PLCI, i->divaAudioFlags, i->divaDigitalRxGain, i->divaDigitalTxGain);
+	if (i->channeltype != CAPI_CHANNELTYPE_NULL) {
+		/* ISDN connection */
+		divaAudioFlags    = (i->divaAudioFlags | i->divaDataStubAudioFlags);
+		divaDigitalTxGain = i->divaDigitalTxGain;
+		divaDigitalRxGain = i->divaDigitalRxGain;
+		plciName = "";
+	} else {
+		/* Resource PLCI */
+		if (useLinePLCI != 0) {
+			/* Command for line stub */
+			divaAudioFlags    = i->divaAudioFlags;
+			divaDigitalTxGain = i->divaDigitalTxGain;
+			divaDigitalRxGain = i->divaDigitalRxGain;
+			plciName = "LINE-";
+		} else {
+			/* Command for data stub */
+			divaAudioFlags    = i->divaDataStubAudioFlags;
+			divaDigitalTxGain = 0;
+			divaDigitalRxGain = 0;
+			plciName = "DATA-";
+		}
+	}
+
+	cc_verbose(3, 0, VERBOSE_PREFIX_2 "%s: Setting up audio features (%sPLCI=%#x, function=%04x, rx=%u, tx=%u)\n",
+			i->vname, plciName, i->PLCI, divaAudioFlags, divaDigitalRxGain, divaDigitalTxGain);
 
 	capi_sendf (effectiveIfc, 0, CAPI_MANUFACTURER_REQ, effectiveIfc->PLCI, get_capi_MessageNumber(),
 			"dw(b(bwww))",
@@ -718,9 +744,9 @@ static void capi_diva_audio_features(struct capi_pvt *i, int useLinePLCI)
 			_DI_DSP_CTRL,
 			0x1c,
 			0x0b,
-			i->divaAudioFlags,
-			i->divaDigitalTxGain,
-			i->divaDigitalRxGain);
+			divaAudioFlags,
+			divaDigitalTxGain,
+			divaDigitalRxGain);
 }
 
 static void capi_diva_clamping(struct capi_pvt *i, unsigned int duration)
@@ -2357,6 +2383,7 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state, const char *l
 	memset(i->txavg, 0, ECHO_TX_COUNT);
 
 	i->divaAudioFlags            = 0;
+	i->divaDataStubAudioFlags    = 0;
 	i->divaDigitalRxGain         = 0;
 	i->divaDigitalRxGainDB       = 0;
 	i->divaDigitalTxGain         = 0;
@@ -6394,10 +6421,10 @@ static int pbx_capi_noisesuppressor(struct ast_channel *c, char *param)
 	}
 
 	if (ast_true(param)) {
-		i->divaAudioFlags |= 0x0080;
+		i->divaDataStubAudioFlags |= 0x0080;
 		capi_diva_audio_features(i, 0);
 	} else if (ast_false(param)) {
-		i->divaAudioFlags &= ~0x0080;
+		i->divaDataStubAudioFlags &= ~0x0080;
 		capi_diva_audio_features(i, 0);
 	} else {
 		cc_log(LOG_WARNING, "Parameter for noise suppressor invalid.\n");
@@ -6405,7 +6432,7 @@ static int pbx_capi_noisesuppressor(struct ast_channel *c, char *param)
 	}
 
 	cc_verbose(2, 0, VERBOSE_PREFIX_4 "%s: noise suppressor switched %s\n",
-		i->vname, (i->divaAudioFlags & 0x0080) != 0 ? "ON":"OFF");
+		i->vname, (i->divaDataStubAudioFlags & 0x0080) != 0 ? "ON":"OFF");
 
 	return 0;
 }

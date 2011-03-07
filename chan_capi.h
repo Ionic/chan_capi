@@ -506,6 +506,7 @@ struct capi_pvt {
 	float txmin;
 
 	unsigned short divaAudioFlags;
+	unsigned short divaDataStubAudioFlags;
 	unsigned short divaDigitalRxGain;
 	float divaDigitalRxGainDB;
 	unsigned short divaDigitalTxGain;
