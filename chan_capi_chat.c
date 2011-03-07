@@ -550,7 +550,7 @@ static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i,
 				*detected_hangup = 1;
 				break;
 			} else if (f->frametype == AST_FRAME_VOICE) {
-				cc_verbose(5, 1, VERBOSE_PREFIX_3 "%s: chat: voice frame.\n",
+				cc_verbose(8, 1, VERBOSE_PREFIX_3 "%s: chat: voice frame.\n",
 					i->vname);
 				if ((voice_message == NULL) && (i->channeltype == CAPI_CHANNELTYPE_NULL)) {
 					capi_write_frame(i, f);
