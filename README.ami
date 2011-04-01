@@ -76,7 +76,7 @@ Command: capicomand command
 |  Event CapichatList                                               |
 +-------------------------------------------------------------------+
 
-Provided information abouyt state of conference member.
+Provided information about state of conference member.
 
 Event: CapichatList
 ActionID: Action ID as used in CapichatList request.
