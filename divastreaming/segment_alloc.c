@@ -80,7 +80,7 @@ static dword get_segment_length_proc(struct _diva_segment_alloc*);
 #if defined(DIVA_USERMODE)
 static int map_entry (struct _diva_segment_alloc* pI, diva_map_entry_t* pE);
 #endif
-static void* map_address (struct _diva_segment_alloc* ifc, dword lo, dword hi);
+static void* map_address (struct _diva_segment_alloc* ifc, dword lo, dword hi, int map_host);
 static void* umap_address (struct _diva_segment_alloc* ifc, dword lo, dword hi, void* local);
 static int   write_address (struct _diva_segment_alloc* ifc, dword lo, dword hi, dword data);
 static void  resource_removed (struct _diva_segment_alloc* ifc);
@@ -331,14 +331,14 @@ static int map_entry (struct _diva_segment_alloc* pI, diva_map_entry_t* pE) {
 }
 #endif
 
-static void* map_address (struct _diva_segment_alloc* pI, dword lo, dword hi) {
+static void* map_address (struct _diva_segment_alloc* pI, dword lo, dword hi, int map_host) {
 	void* ret = 0;
 
 #if defined(DIVA_USERMODE)
 #if defined(LINUX)
 	qword addr = ((qword)lo) | (((qword)hi) << 32);
 
-	ret = mmap (0, 4*1024, PROT_READ|PROT_WRITE, MAP_SHARED, pI->fd_mem, addr);
+	ret = mmap (0, 4*1024, PROT_READ|PROT_WRITE, MAP_SHARED, (map_host == 0) ? pI->fd_mem : pI->fd, addr);
 	if (ret == ((void*)-1)) {
 		ret = 0;
 	}

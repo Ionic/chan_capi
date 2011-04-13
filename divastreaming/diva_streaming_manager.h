@@ -33,7 +33,7 @@ typedef struct _diva_stream {
 	diva_streaming_idi_result_t (*release_stream)(struct _diva_stream* ifc); /**< destroy stream */
 	diva_streaming_idi_result_t (*write)(struct _diva_stream* ifc, dword message, const void* data, dword length); /**< write data to stream */
 	diva_streaming_idi_result_t (*wakeup)(struct _diva_stream* ifc);
-	const byte* (*description)(struct _diva_stream* ifc);
+	const byte* (*description)(struct _diva_stream* ifc, const byte* addie, byte addielength);
 	diva_streaming_idi_result_t (*sync)(struct _diva_stream* ifc, dword ident);
 	diva_streaming_idi_result_t (*flush_stream)(struct _diva_stream* ifc);
 	dword (*get_tx_free)(const struct _diva_stream* ifc);
@@ -57,6 +57,7 @@ typedef struct _diva_stream {
 #define DIVA_STREAM_MESSAGE_INIT_ERROR 0x00000007 /** Stream init error */
 #define DIVA_STREAM_MESSAGE_RELEASED   0x00000008 /** Not message, used internally */
 
+#define DIVA_STREAMING_MANAGER_HOST_USER_MODE_STREAM   0x40000000U
 
 diva_streaming_idi_result_t diva_stream_create_with_user_segment_alloc (struct _diva_stream** ifc,
 																																				void* os_context,

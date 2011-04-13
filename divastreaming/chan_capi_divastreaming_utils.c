@@ -217,7 +217,8 @@ void capi_DivaStreamingOn(struct capi_pvt *i, byte streamCommand, _cword message
 	ret = diva_stream_create (&pE->diva_stream, NULL, 255, divaStreamingMessageRx, pE, trace_ident);
 
 	if (ret == 0) {
-		byte* description = (byte*)pE->diva_stream->description (pE->diva_stream);
+		static byte addie[] = { 0x2d, 0x01, 0x00, 0x00 };
+		byte* description = (byte*)pE->diva_stream->description (pE->diva_stream, addie, (byte)sizeof(addie));
 		MESSAGE_EXCHANGE_ERROR error;
 
 		description[1] = streamCommand;

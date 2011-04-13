@@ -50,7 +50,7 @@ typedef struct _diva_streaming_idi_host_ifc_w_access {
 	dword (*get_free)(const struct _diva_streaming_idi_host_ifc_w* ifc);
 	dword (*get_length)(const struct _diva_streaming_idi_host_ifc_w* ifc);
 	byte (*description)(struct _diva_streaming_idi_host_ifc_w* ifc, byte* dst, byte max_length);
-	int (*init)(struct _diva_streaming_idi_host_ifc_w* ifc, dword version, dword counter);
+	int (*init)(struct _diva_streaming_idi_host_ifc_w* ifc, dword version, dword counter, dword info);
 	diva_streaming_idi_result_t (*sync)(struct _diva_streaming_idi_host_ifc_w* ifc, dword ident);
 	diva_streaming_idi_result_t (*trace_ident)(struct _diva_streaming_idi_host_ifc_w* ifc);
 } diva_streaming_idi_host_ifc_w_access_t;

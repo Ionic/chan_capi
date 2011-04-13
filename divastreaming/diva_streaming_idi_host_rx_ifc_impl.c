@@ -253,7 +253,7 @@ static int diva_streaming_idi_host_rx_process_message (struct _diva_streaming_id
 
 				DBG_TRC(("version:%u counter:%08x info:%08x [%s]", version, counter, info, ifc->trace_ident))
 
-				ifc->tx_ifc->init (ifc->tx, version, counter);
+				ifc->tx_ifc->init (ifc->tx, version, counter, info);
 				ifc->tx_ifc->trace_ident (ifc->tx);
 				ifc->notify_user_proc (ifc->user_context, DIVA_STREAM_MESSAGE_INIT << 8 | 0xffU, 0, 0, 0);
 			}

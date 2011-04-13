@@ -57,7 +57,7 @@ static diva_streaming_idi_result_t diva_stream_manager_release (struct _diva_str
 static diva_streaming_idi_result_t diva_stream_manager_release_stream (struct _diva_stream* ifc);
 static diva_streaming_idi_result_t diva_stream_manager_write (struct _diva_stream* ifc, dword message, const void* data, dword length);
 static diva_streaming_idi_result_t diva_stream_manager_wakeup (struct _diva_stream* ifc);
-static const byte* diva_stream_manager_description (struct _diva_stream* ifc);
+static const byte* diva_stream_manager_description (struct _diva_stream* ifc, const byte* addie, byte addielen);
 static diva_streaming_idi_result_t diva_stream_manager_sync_req (struct _diva_stream* ifc, dword ident);
 static diva_streaming_idi_result_t diva_stream_flush (struct _diva_stream* ifc);
 static dword diva_stream_get_tx_free (const struct _diva_stream* ifc);
@@ -193,7 +193,7 @@ static diva_streaming_idi_result_t diva_stream_manager_wakeup (struct _diva_stre
 	return (pI->rx_ifc->wakeup (pI->rx));
 }
 
-const byte* diva_stream_manager_description (struct _diva_stream* ifc) {
+const byte* diva_stream_manager_description (struct _diva_stream* ifc, const byte* addie, byte addielen) {
 	diva_stream_manager_t* pI = DIVAS_CONTAINING_RECORD(ifc, diva_stream_manager_t, ifc);
 	byte length = 4, len_tx, len_rx;
 
@@ -208,6 +208,21 @@ const byte* diva_stream_manager_description (struct _diva_stream* ifc) {
 			pI->description[1] = 0; /* Request */
 			pI->description[2] = len_rx+len_tx+1;  /* Structure length */
 			pI->description[3] = 0; /* Version */
+
+			if (addie != 0 && addielen != 0) {
+				byte* description = &pI->description[0];
+				byte* start = &description[3];
+
+				start[0] |= 2U;
+				start = start + start[-1];
+				memcpy (start, addie, addielen);
+				start += addielen;
+				*start++ = 0;
+
+				description[2] += addielen+1;
+				description[0] += addielen+1;
+				length         += addielen+1;
+			}
 
 			DBG_TRC(("description length %u [%s]", length, pI->trace_ident))
 			DBG_BLK(((void*)pI->description, length))

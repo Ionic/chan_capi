@@ -43,7 +43,7 @@ static int write_message (struct _diva_streaming_idi_host_ifc_w* ifc,
 													const void* data,
 													dword data_length);
 static byte description (diva_streaming_idi_host_ifc_w_t* ifc, byte* dst, byte max_length);
-static int init (struct _diva_streaming_idi_host_ifc_w* ifc, dword version, dword counter);
+static int init (struct _diva_streaming_idi_host_ifc_w* ifc, dword version, dword counter, dword info);
 static diva_streaming_idi_result_t sync_req (struct _diva_streaming_idi_host_ifc_w* ifc, dword ident);
 static int ack_data (struct _diva_streaming_idi_host_ifc_w* ifc, dword length);
 static int ack_rx_data (struct _diva_streaming_idi_host_ifc_w* ifc, dword length, int flush_ack);
@@ -322,13 +322,15 @@ static byte description (diva_streaming_idi_host_ifc_w_t* ifc, byte* dst, byte m
 	return (length);
 }
 
-static int init (struct _diva_streaming_idi_host_ifc_w* ifc, dword version, dword counter) {
+static int init (struct _diva_streaming_idi_host_ifc_w* ifc, dword version, dword counter, dword info) {
 	diva_segment_alloc_access_t* segment_alloc_access = diva_get_segment_alloc_ifc (ifc->segment_alloc);
 
 	ifc->remote_counter_offset = counter % (4*1024);
 	ifc->remote_counter_base   = counter - ifc->remote_counter_offset;
 
-	ifc->remote_counter_mapped_base = segment_alloc_access->map_address (ifc->segment_alloc, ifc->remote_counter_base, 0);
+	ifc->remote_counter_mapped_base = segment_alloc_access->map_address (ifc->segment_alloc,
+																					ifc->remote_counter_base, 0,
+																					(info & DIVA_STREAMING_MANAGER_HOST_USER_MODE_STREAM) != 0);
 	if (ifc->remote_counter_mapped_base != 0) {
 		byte* p = ifc->remote_counter_mapped_base;
 		ifc->remote_counter_mapped = (dword*)&p[ifc->remote_counter_offset];

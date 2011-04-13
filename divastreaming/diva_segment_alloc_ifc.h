@@ -33,7 +33,7 @@ typedef struct _diva_segment_alloc_access {
 	void* (*segment_alloc)(struct _diva_segment_alloc* ifc, dword* lo, dword* hi);
 	void  (*segment_free)(struct _diva_segment_alloc* ifc, void* addr, dword lo, dword hi);
 	dword (*get_segment_length)(struct _diva_segment_alloc* ifc);
-	void* (*map_address)(struct _diva_segment_alloc* ifc, dword lo, dword hi);
+	void* (*map_address)(struct _diva_segment_alloc* ifc, dword lo, dword hi, int map_host);
 	void* (*umap_address)(struct _diva_segment_alloc* ifc, dword lo, dword hi, void* local);
 	int   (*write_address)(struct _diva_segment_alloc* ifc, dword lo, dword hi, dword data);
 	void  (*resource_removed)(struct _diva_segment_alloc* ifc);
