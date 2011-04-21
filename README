@@ -98,6 +98,7 @@ The Dial string
          (Useful if additional digits should be send afterwards or together
           with 'b' to get the dialtone and then send the number, e.g., if 
           no progress tones are available)
+   'c' : do not send sending complete
    's' : activate 'stay-online': do not disconnect CAPI connection on hangup.
          This is needed to give additional commands like CCBS after hangup.
          To really hang up the CAPI connection, use either capicommand(hangup)

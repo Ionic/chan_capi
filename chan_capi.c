@@ -1525,6 +1525,7 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 	int doqsig;
 	char *sending_complete;
 	unsigned char *facilityarray = NULL, *bc_s = NULL, *llc_s = 0, *hlc_s = 0;
+	int no_sending_complete = 0;
 	
 	MESSAGE_EXCHANGE_ERROR  error;
 
@@ -1554,6 +1555,11 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 			if (i->doOverlap)
 				cc_log(LOG_WARNING, "Overlap already set in '%s'\n", idest);
 			i->doOverlap = 1;
+			break;
+		case 'c': /* Do not send sending complete */
+			if (no_sending_complete != 0)
+				cc_log(LOG_WARNING, "No sending complete already set in '%s'\n", idest);
+			no_sending_complete = 1;
 			break;
 		case 'd':	/* use default cid */
 			if (use_defaultcid)
@@ -1697,7 +1703,7 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 		}
 	} else {
 		called[0] = strlen(dest) + 1;
-		sending_complete = "\x02\x01\x00";
+		sending_complete = (no_sending_complete == 0) ? "\x02\x01\x00" : "\x00";
 	}
 
 	if ((p = pbx_builtin_getvar_helper(c, "CALLEDTON"))) {
