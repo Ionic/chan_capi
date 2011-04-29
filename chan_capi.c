@@ -1974,7 +1974,7 @@ static struct ast_frame *pbx_capi_read(struct ast_channel *c)
 			if ((f->datalen > 0) && (i->doDTMF > 0) && (i->vad != NULL)) {
 				f = ast_dsp_process(c, i->vad, f);
 			}
-#if 0
+#ifdef CC_AST_HAS_VERSION_1_4
 		} else if (f->frametype == AST_FRAME_DTMF) {
 /* Work around problem with recognition of fast sequences of events,
  * see main/channel.c for details
@@ -1983,7 +1983,7 @@ static struct ast_frame *pbx_capi_read(struct ast_channel *c)
 						ast_test_flag(c, AST_FLAG_EMULATE_DTMF) ||
 						ast_test_flag(c, AST_FLAG_IN_DTMF))) {
 				ast_set_flag(c, AST_FLAG_IN_DTMF);
-				c->dtmf_tv = ast_tv(0,0);
+				c->dtmf_tv = ast_tvsub(ast_tvnow(),ast_tv(0,250*1000));
 				if (!f->len)
 						f->len = 100;
 			}
