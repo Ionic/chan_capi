@@ -4009,7 +4009,7 @@ static void capidev_sendback_info(struct capi_pvt *i, _cmsg *CMSG)
 
 	i2 = CC_CHANNEL_PVT(i->peer);
 
-	if (!(i2->ntmode))
+	if ((i2 == NULL) || (!(i2->ntmode)))
 		return;
 
 	length = INFO_IND_INFOELEMENT(CMSG)[0];
