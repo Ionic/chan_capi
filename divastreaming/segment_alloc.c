@@ -212,7 +212,7 @@ int diva_destroy_segment_alloc (struct _diva_segment_alloc** segment_alloc) {
 #if defined(LINUX)
 		if (pI->fd >= 0)
 			close (pI->fd);
-		if (pI->fd_mem == 0)
+		if (pI->fd_mem >= 0)
 			close (pI->fd_mem);
 #endif
 #else
