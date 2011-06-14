@@ -59,6 +59,7 @@ typedef struct _diva_segment_alloc {
 #if defined(LINUX)
 	int fd;
 	int fd_mem;
+	int fd_xdi;
 #endif
 #else
 	DESCRIPTOR* d;
@@ -133,9 +134,10 @@ int diva_create_segment_alloc  (void* os_context, struct _diva_segment_alloc** s
 #if defined(DIVA_USERMODE) /* { */
 #if defined(LINUX) /* { */
 		pI->fd = open ("/dev/DivasMAP", O_RDWR | O_NONBLOCK); /** \todo use hardware related DMA entry, needs update of XDI driver */
-    pI->fd_mem = open ("/dev/mem", O_RDWR | O_NONBLOCK);
+    pI->fd_mem = open ("/dev/mem", O_RDWR | O_NONBLOCK); /* /dev/mem is optional */
+    pI->fd_xdi = open ("/dev/DivasXDI", O_RDWR | O_NONBLOCK); /* /dev/mem is optional */
 
-		if (pI->fd >= 0 && pI->fd_mem >= 0) {
+		if (pI->fd >= 0 && (pI->fd_mem >= 0 || pI->fd_xdi >= 0)) {
 			*segment_alloc = pI;
 		} else {
 			diva_destroy_segment_alloc (&pI);
@@ -214,6 +216,8 @@ int diva_destroy_segment_alloc (struct _diva_segment_alloc** segment_alloc) {
 			close (pI->fd);
 		if (pI->fd_mem >= 0)
 			close (pI->fd_mem);
+		if (pI->fd_xdi >= 0)
+			close (pI->fd_xdi);
 #endif
 #else
 
@@ -337,10 +341,13 @@ static void* map_address (struct _diva_segment_alloc* pI, dword lo, dword hi, in
 #if defined(DIVA_USERMODE)
 #if defined(LINUX)
 	qword addr = ((qword)lo) | (((qword)hi) << 32);
+	int effective_map_fd = (map_host == 0) ? pI->fd_mem : pI->fd;
 
-	ret = mmap (0, 4*1024, PROT_READ|PROT_WRITE, MAP_SHARED, (map_host == 0) ? pI->fd_mem : pI->fd, addr);
-	if (ret == ((void*)-1)) {
-		ret = 0;
+	if (effective_map_fd >= 0) {
+		ret = mmap (0, 4*1024, PROT_READ|PROT_WRITE, MAP_SHARED, effective_map_fd, addr);
+		if (ret == ((void*)-1)) {
+			ret = 0;
+		}
 	}
 #endif
 #else
@@ -379,10 +386,23 @@ static void* umap_address (struct _diva_segment_alloc* ifc, dword lo, dword hi, 
 	return (0);
 }
 
-static int write_address (struct _diva_segment_alloc* ifc, dword lo, dword hi, dword data) {
-	DBG_ERR(("%s %s at %d", __FILE__, "write_address", __LINE__))
+static int write_address (struct _diva_segment_alloc* pI, dword lo, dword hi, dword data) {
+	diva_xdi_direct_access_cmd_t cmd;
+	int ret;
 
-	return (-1);
+	if (unlikely(pI->fd_xdi < 0))
+		return (-1);
+
+
+	cmd.hdr.ident = DIVA_XDI_DIRECT_ACCESS_CMD_IDENT;
+	cmd.hdr.cmd   = DIVA_XDI_DIRECT_ACCESS_CMD_WRITE_BY_ADDRESS;
+	cmd.cmd.write_by_address.address = lo;
+	cmd.cmd.write_by_address.value   = data;
+
+	ret = write (pI->fd_xdi, &cmd, sizeof(cmd.hdr)+sizeof(cmd.cmd.write_by_address)) ==
+					sizeof(cmd.hdr)+sizeof(cmd.cmd.write_by_address) ? 0 : -1;
+
+	return (ret);
 }
 
 static void resource_removed (struct _diva_segment_alloc* pI) {

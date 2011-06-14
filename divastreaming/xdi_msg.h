@@ -1,11 +1,15 @@
+
 /*
  *
-  Copyright (c) Dialogic (R) 2009 - 2010
+  Copyright (c) Dialogic(R), 2010-2011
+  Copyright 2000-2003 by Armin Schindler (mac@melware.de)
+  Copyright 2000-2003 Cytronics & Melware (info@melware.de)
+
  *
   This source file is supplied for the use with
-  Eicon Networks range of DIVA Server Adapters.
+  Dialogic range of Adapters.
  *
-  Dialogic (R) File Revision :    1.9
+  Dialogic(R) File Revision :    2.1
  *
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -22,6 +26,7 @@
   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
  */
+
 #ifndef __DIVA_XDI_UM_CFG_MESSSGE_H__
 #define __DIVA_XDI_UM_CFG_MESSAGE_H__
 
@@ -306,6 +311,28 @@ typedef struct _diva_xdi_io_cmd {
   unsigned int length;
   void * cmd;
 } diva_xdi_io_cmd;
+
+/*
+ * Diva direct interface access commands
+ */
+#define DIVA_XDI_DIRECT_ACCESS_CMD_IDENT 0x1234abcd
+typedef struct _diva_xdi_direct_access_cmd_hdr {
+	dword ident;
+	dword cmd;
+} diva_xdi_direct_access_cmd_hdr_t;
+
+#define DIVA_XDI_DIRECT_ACCESS_CMD_WRITE_BY_ADDRESS 1
+typedef struct _diva_xdi_direct_access_write_by_address {
+	dword address;
+	dword value;
+} diva_xdi_direct_access_write_by_address_t;
+
+typedef struct _diva_xdi_direct_access_cmd {
+	diva_xdi_direct_access_cmd_hdr_t hdr;
+	union {
+		diva_xdi_direct_access_write_by_address_t write_by_address;
+	} cmd;
+} diva_xdi_direct_access_cmd_t;
 
 #endif
 

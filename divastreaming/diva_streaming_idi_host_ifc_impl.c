@@ -335,7 +335,7 @@ static int init (struct _diva_streaming_idi_host_ifc_w* ifc, dword version, dwor
 		byte* p = ifc->remote_counter_mapped_base;
 		ifc->remote_counter_mapped = (dword*)&p[ifc->remote_counter_offset];
 	} else {
-		DBG_TRC(("use system call [%s]", ifc->trace_ident))
+		DBG_TRC(("stream uses system call [%s]", ifc->trace_ident))
 	}
 
 	return (0);
