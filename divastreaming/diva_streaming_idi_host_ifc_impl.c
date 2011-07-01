@@ -99,6 +99,9 @@ int diva_streaming_idi_host_ifc_create (struct _diva_streaming_idi_host_ifc_w** 
 		DBG_TRC(("alloc %p %08x:%08x [%s]", ifc_w->segments[i], ifc_w->segment_lo[i], ifc_w->segment_hi[i], trace_ident))
 
 		ifc_w->segment_length[i] = (*(segment_alloc_access->get_segment_length))(segment_alloc);
+		if (i == 0) {
+			*(volatile dword*)(ifc_w->segments[i]+ifc_w->segment_length[i]-sizeof(dword)) = 0;
+		}
 
 		ifc_w->state.length += ifc_w->segment_length[i];
 	}
@@ -325,17 +328,26 @@ static byte description (diva_streaming_idi_host_ifc_w_t* ifc, byte* dst, byte m
 static int init (struct _diva_streaming_idi_host_ifc_w* ifc, dword version, dword counter, dword info) {
 	diva_segment_alloc_access_t* segment_alloc_access = diva_get_segment_alloc_ifc (ifc->segment_alloc);
 
-	ifc->remote_counter_offset = counter % (4*1024);
-	ifc->remote_counter_base   = counter - ifc->remote_counter_offset;
+	if ((info & DIVA_STREAMING_MANAGER_TX_COUNTER_IN_TX_PAGE) != 0) {
+		ifc->segment_length[0]       -= sizeof(dword);
+		ifc->state.length            -= sizeof(dword);
+		ifc->state.write_buffer_free -= sizeof(dword);
+		ifc->state.free_length       -= sizeof(dword);
+		ifc->remote_counter_mapped = (dword*)(ifc->segments[0]+ifc->segment_length[0]);
+		ifc->remote_counter_mapped_base = 0;
+	} else {
+		ifc->remote_counter_offset = counter % (4*1024);
+		ifc->remote_counter_base   = counter - ifc->remote_counter_offset;
 
-	ifc->remote_counter_mapped_base = segment_alloc_access->map_address (ifc->segment_alloc,
+		ifc->remote_counter_mapped_base = segment_alloc_access->map_address (ifc->segment_alloc,
 																					ifc->remote_counter_base, 0,
 																					(info & DIVA_STREAMING_MANAGER_HOST_USER_MODE_STREAM) != 0);
-	if (ifc->remote_counter_mapped_base != 0) {
-		byte* p = ifc->remote_counter_mapped_base;
-		ifc->remote_counter_mapped = (dword*)&p[ifc->remote_counter_offset];
-	} else {
-		DBG_TRC(("stream uses system call [%s]", ifc->trace_ident))
+		if (ifc->remote_counter_mapped_base != 0) {
+			byte* p = ifc->remote_counter_mapped_base;
+			ifc->remote_counter_mapped = (dword*)&p[ifc->remote_counter_offset];
+		} else {
+			DBG_TRC(("stream uses system call [%s]", ifc->trace_ident))
+		}
 	}
 
 	return (0);

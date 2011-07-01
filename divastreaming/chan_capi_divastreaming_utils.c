@@ -217,34 +217,13 @@ void capi_DivaStreamingOn(struct capi_pvt *i, byte streamCommand, _cword message
 	ret = diva_stream_create (&pE->diva_stream, NULL, 255, divaStreamingMessageRx, pE, trace_ident);
 
 	if (ret == 0) {
-		static byte addie[] = { 0x2d, 0x01, 0x00, 0x00 };
+		static byte addie[] = { 0x2d /* UID */, 0x01, 0x00, 0x04 /* BC */, 0x04, 0x0, 0x0, 0x0, 0x00 /* 0x20 DMA polling */, 0 /* END */};
 		byte* description = (byte*)pE->diva_stream->description (pE->diva_stream, addie, (byte)sizeof(addie));
 		MESSAGE_EXCHANGE_ERROR error;
 
 		description[1] = streamCommand;
 
 		description[3] |= 0x01;
-
-#if 0 /*! \todo create function to add info elements to stream description */
-	byte* start = &description[3];
-
-	start[0] |= 2U;
-	start = start + start[-1];
-	*start++ = 0x2c;
-	*start++ = 8;
-	*start++ = 1;
-	*start++ = 2;
-	*start++ = 3;
-	*start++ = 4;
-	*start++ = 'a';
-	*start++ = 'b';
-	*start++ = 'c';
-	*start++ = 'd';
-	*start++ = 0;
-
-	description[2] += 11;
-	description[0] += 11;
-#endif
 
 		if (streamCommand == 0) {
 			messageNumber = get_capi_MessageNumber();

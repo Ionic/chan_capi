@@ -58,6 +58,7 @@ typedef struct _diva_stream {
 #define DIVA_STREAM_MESSAGE_RELEASED   0x00000008 /** Not message, used internally */
 
 #define DIVA_STREAMING_MANAGER_HOST_USER_MODE_STREAM   0x40000000U
+#define DIVA_STREAMING_MANAGER_TX_COUNTER_IN_TX_PAGE   0x20000000U /* Tx counter is located at end of TX page */
 
 diva_streaming_idi_result_t diva_stream_create_with_user_segment_alloc (struct _diva_stream** ifc,
 																																				void* os_context,
