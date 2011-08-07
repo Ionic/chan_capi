@@ -975,6 +975,8 @@ char *capi_info_string(unsigned int info)
 		return "No call suspended";
 	case 0x34D6:
 		return "Call having the requested call identity has been cleared";
+	case 0x34D7:
+		return "User not a member of CUG";
 	case 0x34D8:
 		return "Incompatible destination";
 	case 0x34DB:
