@@ -155,19 +155,32 @@ _cstruct capi_rtp_ncpi(struct capi_pvt *i)
  */
 int capi_alloc_rtp(struct capi_pvt *i)
 {
+#ifdef CC_AST_HAS_AST_SOCKADDR
+	struct ast_sockaddr addr;
+	struct ast_sockaddr us;
+#else
 	struct ast_hostent ahp;
 	struct hostent *hp;
 	struct in_addr addr;
 	struct sockaddr_in us;
+#endif
 #ifndef CC_AST_HAS_VERSION_1_4
 	char temp[MAXHOSTNAMELEN];
 #endif
 
+#ifdef CC_AST_HAS_AST_SOCKADDR
+	ast_sockaddr_parse(&addr, "localhost:0", 0);
+#else
 	hp = ast_gethostbyname("localhost", &ahp);
 	memcpy(&addr, hp->h_addr, sizeof(addr));
+#endif
 
 #ifdef CC_AST_HAS_RTP_ENGINE_H
+#ifdef CC_AST_HAS_AST_SOCKADDR
+	i->rtp = ast_rtp_instance_new(NULL, NULL, &addr, NULL);
+#else
 	i->rtp = ast_rtp_instance_new(NULL, NULL, (struct sockaddr_in *)&addr, NULL);
+#endif
 #else
 	i->rtp = ast_rtp_new_with_bindaddr(NULL, NULL, 0, 0, addr);
 #endif
@@ -185,12 +198,16 @@ int capi_alloc_rtp(struct capi_pvt *i)
 #endif
 	cc_verbose(2, 1, VERBOSE_PREFIX_4 "%s: alloc rtp socket on %s:%d\n",
 		i->vname,
+#ifdef CC_AST_HAS_AST_SOCKADDR
+		ast_sockaddr_stringify(&us), ntohs(ast_sockaddr_port(&us)));
+#else
 #ifdef CC_AST_HAS_VERSION_1_4
 		ast_inet_ntoa(us.sin_addr),
 #else
 		ast_inet_ntoa(temp, sizeof(temp), us.sin_addr),
 #endif
 		ntohs(us.sin_port));
+#endif
 	i->timestamp = 0;
 	return 0;
 }
@@ -200,13 +217,15 @@ int capi_alloc_rtp(struct capi_pvt *i)
  */
 int capi_write_rtp(struct capi_pvt *i, struct ast_frame *f)
 {
+#ifdef CC_AST_HAS_AST_SOCKADDR
+	struct ast_sockaddr us;
+#else
 	struct sockaddr_in us;
+	socklen_t uslen = sizeof(us);
+#endif
 	int len;
-	socklen_t uslen;
 	unsigned int *rtpheader;
 	unsigned char buf[256];
-
-	uslen = sizeof(us);
 
 	if (!(i->rtp)) {
 		cc_log(LOG_ERROR, "rtp struct is NULL\n");
@@ -228,12 +247,16 @@ int capi_write_rtp(struct capi_pvt *i, struct ast_frame *f)
 	}
 
 	while(1) {
+#ifdef CC_AST_HAS_AST_SOCKADDR
+		len = ast_recvfrom(ast_rtp_instance_fd(i->rtp, 0), buf, sizeof(buf), 0, &us);
+#else
 #ifdef CC_AST_HAS_RTP_ENGINE_H
 		len = recvfrom(ast_rtp_instance_fd(i->rtp, 0),
 			buf, sizeof(buf), 0, (struct sockaddr *)&us, &uslen);
 #else
 		len = recvfrom(ast_rtp_fd(i->rtp),
 			buf, sizeof(buf), 0, (struct sockaddr *)&us, &uslen);
+#endif
 #endif
 		if (len <= 0)
 			break;
@@ -281,7 +304,11 @@ int capi_write_rtp(struct capi_pvt *i, struct ast_frame *f)
 struct ast_frame *capi_read_rtp(struct capi_pvt *i, unsigned char *buf, int len)
 {
 	struct ast_frame *f;
+#ifdef CC_AST_HAS_AST_SOCKADDR
+	struct ast_sockaddr us;
+#else
 	struct sockaddr_in us;
+#endif
 
 	if (!(i->owner))
 		return NULL;
@@ -299,10 +326,14 @@ struct ast_frame *capi_read_rtp(struct capi_pvt *i, unsigned char *buf, int len)
 	ast_rtp_set_peer(i->rtp, &us);
 #endif
 
+#ifdef CC_AST_HAS_AST_SOCKADDR
+	if (len != ast_sendto(ast_rtp_instance_fd(i->rtp, 0), buf, len, 0, &us))
+#else
 #ifdef CC_AST_HAS_RTP_ENGINE_H
 	if (len != sendto(ast_rtp_instance_fd(i->rtp, 0), buf, len, 0, (struct sockaddr *)&us, sizeof(us)))
 #else
 	if (len != sendto(ast_rtp_fd(i->rtp), buf, len, 0, (struct sockaddr *)&us, sizeof(us)))
+#endif
 #endif
 	{
 		cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s: RTP sendto error\n",

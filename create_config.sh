@@ -243,6 +243,15 @@ check_version_onesix()
 		echo "#undef CC_AST_HAS_RTP_ENGINE_H" >>$CONFIGFILE
 		echo " * no rtp_engine.h"
 	fi
+	if [ -f $INCLUDEDIR/netsock2.h ]; then
+		if grep -q "struct ast_sockaddr " $INCLUDEDIR/netsock2.h; then
+			echo "#define CC_AST_HAS_AST_SOCKADDR" >>$CONFIGFILE
+			echo " * found ast_sockaddr structure"
+		else
+			echo "#undef CC_AST_HAS_AST_SOCKADDR" >>$CONFIGFILE
+			echo " * no ast_sockaddr structure"
+		fi
+	fi
 }
 
 case $VER in
