@@ -8455,8 +8455,6 @@ static int conf_interface(struct cc_capi_conf *conf, struct ast_variable *v)
 	char *p, *q;
 #ifdef CC_AST_HAS_VERSION_10_0
 	struct ast_format_cap *cap = ast_format_cap_alloc ();
-#else
-	const void* cap = 0;
 #endif
 
 	memset(faxdest, 0, sizeof(faxdest));

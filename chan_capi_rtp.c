@@ -362,12 +362,12 @@ struct ast_frame *capi_read_rtp(struct capi_pvt *i, unsigned char *buf, int len)
 			return NULL;
 		}
 		cc_verbose(6, 1, VERBOSE_PREFIX_4 "%s: DATA_B3_IND RTP NCCI=%#x len=%d %s (read/write=%d/%d)\n",
-			i->vname, i->NCCI, len, ast_getformatname(FRAME_SUBCLASS_CODEC(f->subclass)),
+			i->vname, i->NCCI, len, cc_getformatname(GET_FRAME_SUBCLASS_CODEC(f->subclass)),
 			i->owner->readformat, i->owner->writeformat);
-		if (i->owner->nativeformats != FRAME_SUBCLASS_CODEC(f->subclass)) {
+		if (i->owner->nativeformats != GET_FRAME_SUBCLASS_CODEC(f->subclass)) {
 			cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: DATA_B3_IND RTP nativeformats=%d, but subclass=%ld\n",
-				i->vname, i->owner->nativeformats, FRAME_SUBCLASS_CODEC(f->subclass));
-			i->owner->nativeformats = FRAME_SUBCLASS_CODEC(f->subclass);
+				i->vname, i->owner->nativeformats, GET_FRAME_SUBCLASS_CODEC(f->subclass));
+			i->owner->nativeformats = GET_FRAME_SUBCLASS_CODEC(f->subclass);
 			ast_set_read_format(i->owner, i->owner->readformat);
 			ast_set_write_format(i->owner, i->owner->writeformat);
 		}
