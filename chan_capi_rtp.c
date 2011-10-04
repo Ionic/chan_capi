@@ -122,27 +122,27 @@ _cstruct capi_rtp_ncpi(struct capi_pvt *i)
 	if ((i) && (i->owner) &&
 	    (i->bproto == CC_BPROTO_RTP)) {
 		switch(i->codec) {
-		case AST_FORMAT_ALAW:
+		case CC_FORMAT_ALAW:
 			ncpi = NCPI_voice_over_ip_alaw;
 			break;
-		case AST_FORMAT_ULAW:
+		case CC_FORMAT_ULAW:
 			ncpi = NCPI_voice_over_ip_ulaw;
 			break;
-		case AST_FORMAT_GSM:
+		case CC_FORMAT_GSM:
 			ncpi = NCPI_voice_over_ip_gsm;
 			break;
-		case AST_FORMAT_G723_1:
+		case CC_FORMAT_G723_1:
 			ncpi = NCPI_voice_over_ip_g723;
 			break;
-		case AST_FORMAT_G726:
+		case CC_FORMAT_G726:
 			ncpi = NCPI_voice_over_ip_g726;
 			break;
-		case AST_FORMAT_G729A:
+		case CC_FORMAT_G729A:
 			ncpi = NCPI_voice_over_ip_g729;
 			break;
 		default:
 			cc_log(LOG_ERROR, "%s: format %s(%d) invalid.\n",
-				i->vname, ast_getformatname(i->codec), i->codec);
+				i->vname, cc_getformatname(i->codec), i->codec);
 			break;
 		}
 	}
@@ -155,6 +155,7 @@ _cstruct capi_rtp_ncpi(struct capi_pvt *i)
  */
 int capi_alloc_rtp(struct capi_pvt *i)
 {
+#ifndef CC_AST_HAS_VERSION_10_0 /* Use vocoder without RTP framing */
 #ifdef CC_AST_HAS_AST_SOCKADDR
 	struct ast_sockaddr addr;
 	struct ast_sockaddr us;
@@ -210,6 +211,11 @@ int capi_alloc_rtp(struct capi_pvt *i)
 #endif
 	i->timestamp = 0;
 	return 0;
+#else
+	i->rtp = 0;
+	cc_log(LOG_ERROR, "%s: use vocoder\n", i->vname);
+	return 1;
+#endif
 }
 
 /*
@@ -217,6 +223,7 @@ int capi_alloc_rtp(struct capi_pvt *i)
  */
 int capi_write_rtp(struct capi_pvt *i, struct ast_frame *f)
 {
+#ifndef CC_AST_HAS_VERSION_10_0 /* Use vocoder */
 #ifdef CC_AST_HAS_AST_SOCKADDR
 	struct ast_sockaddr us;
 #else
@@ -283,7 +290,7 @@ int capi_write_rtp(struct capi_pvt *i, struct ast_frame *f)
 		i->send_buffer_handle++;
 
 		cc_verbose(6, 1, VERBOSE_PREFIX_4 "%s: RTP write for NCCI=%#x len=%d(%d) %s ts=%x\n",
-			i->vname, i->NCCI, len, f->datalen, ast_getformatname(FRAME_SUBCLASS_CODEC(f->subclass)),
+			i->vname, i->NCCI, len, f->datalen, cc_getformatname(GET_FRAME_SUBCLASS_CODEC(f->subclass)),
 			i->timestamp);
 
 		capi_sendf(NULL, 0, CAPI_DATA_B3_REQ, i->NCCI, get_capi_MessageNumber(),
@@ -295,6 +302,8 @@ int capi_write_rtp(struct capi_pvt *i, struct ast_frame *f)
 		);
 	}
 
+#endif
+
 	return 0;
 }
 
@@ -303,6 +312,7 @@ int capi_write_rtp(struct capi_pvt *i, struct ast_frame *f)
  */
 struct ast_frame *capi_read_rtp(struct capi_pvt *i, unsigned char *buf, int len)
 {
+#ifndef CC_AST_HAS_VERSION_10_0 /* Use vocoder */
 	struct ast_frame *f;
 #ifdef CC_AST_HAS_AST_SOCKADDR
 	struct ast_sockaddr us;
@@ -363,6 +373,9 @@ struct ast_frame *capi_read_rtp(struct capi_pvt *i, unsigned char *buf, int len)
 		}
 	}
 	return f;
+#else
+	return NULL;
+#endif
 }
 
 /*
@@ -435,59 +448,59 @@ void voice_over_ip_profile(struct cc_capi_controller *cp)
 
 	cc_verbose(3, 0, VERBOSE_PREFIX_4 "RTP codec: ");
 	if (payload1 & 0x00000100) {
-		cp->rtpcodec |= AST_FORMAT_ALAW;
+		cp->rtpcodec |= CC_FORMAT_ALAW;
 		cc_verbose(3, 0, "G.711-alaw ");
 	}
 	if (payload1 & 0x00000001) {
-		cp->rtpcodec |= AST_FORMAT_ULAW;
+		cp->rtpcodec |= CC_FORMAT_ULAW;
 		cc_verbose(3, 0, "G.711-ulaw ");
 	}
 	if (payload1 & 0x00000008) {
-		cp->rtpcodec |= AST_FORMAT_GSM;
+		cp->rtpcodec |= CC_FORMAT_GSM;
 		cc_verbose(3, 0, "GSM ");
 	}
 	if (payload1 & 0x00000010) {
-		cp->rtpcodec |= AST_FORMAT_G723_1;
+		cp->rtpcodec |= CC_FORMAT_G723_1;
 		cc_verbose(3, 0, "G.723.1 ");
 	}
 	if (payload1 & 0x00000004) {
-		cp->rtpcodec |= AST_FORMAT_G726;
+		cp->rtpcodec |= CC_FORMAT_G726;
 		cc_verbose(3, 0, "G.726 ");
 	}
 	if (payload1 & 0x00040000) {
-		cp->rtpcodec |= AST_FORMAT_G729A;
+		cp->rtpcodec |= CC_FORMAT_G729A;
 		cc_verbose(3, 0, "G.729 ");
 	}
 	if (payload1 & (1U << 27)) {
-		cp->rtpcodec |= AST_FORMAT_ILBC;
+		cp->rtpcodec |= CC_FORMAT_ILBC;
 		cc_verbose(3, 0, "iLBC ");
 	}
-#ifdef AST_FORMAT_G722
+#ifdef CC_FORMAT_G722
 	if (payload1 & (1U << 9)) {
-		cp->rtpcodec |= AST_FORMAT_G722;
+		cp->rtpcodec |= CC_FORMAT_G722;
 		cc_verbose(3, 0, "G.722 ");
 	}
 #endif
-#if defined(AST_FORMAT_SIREN7) && defined(AST_FORMAT_SIREN14)
+#if defined(CC_FORMAT_SIREN7) && defined(CC_FORMAT_SIREN14)
 	if (payload1 & (1U << 24)) {
-#ifdef AST_FORMAT_SIREN7
-		cp->rtpcodec |= AST_FORMAT_SIREN7;
+#ifdef CC_FORMAT_SIREN7
+		cp->rtpcodec |= CC_FORMAT_SIREN7;
 		cc_verbose(3, 0, "siren7 ");
 #endif
-#ifdef AST_FORMAT_SIREN14
-		cp->rtpcodec |= AST_FORMAT_SIREN14;
+#ifdef CC_FORMAT_SIREN14
+		cp->rtpcodec |= CC_FORMAT_SIREN14;
 		cc_verbose(3, 0, "siren14 ");
 #endif
 	}
 #endif
-#if defined(AST_FORMAT_SLINEAR) || defined(AST_FORMAT_SLINEAR16)
+#if defined(CC_FORMAT_SLINEAR) || defined(CC_FORMAT_SLINEAR16)
 	if (payload1 & (1U << 1)) {
-#if defined(AST_FORMAT_SLINEAR)
-		cp->rtpcodec |= AST_FORMAT_SLINEAR;
+#if defined(CC_FORMAT_SLINEAR)
+		cp->rtpcodec |= CC_FORMAT_SLINEAR;
 		cc_verbose(3, 0, "slin ");
 #endif
-#if defined(AST_FORMAT_SLINEAR16)
-		cp->rtpcodec |= AST_FORMAT_SLINEAR16;
+#if defined(CC_FORMAT_SLINEAR16)
+		cp->rtpcodec |= CC_FORMAT_SLINEAR16;
 		cc_verbose(3, 0, "slin16 ");
 #endif
 	}

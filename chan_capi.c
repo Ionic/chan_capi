@@ -198,7 +198,7 @@ static char capi_subscriber_prefix[AST_MAX_EXTENSION];
 
 static char default_language[MAX_LANGUAGE] = "";
 
-cc_format_t capi_capability = AST_FORMAT_ALAW;
+cc_format_t capi_capability = CC_FORMAT_ALAW;
 
 static int null_plci_dtmf_support = 1;
 
@@ -1655,31 +1655,31 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 		cip = tcap2cip(i->transfercapability);
 	}
 
-#if defined(AST_FORMAT_G722) || defined(AST_FORMAT_SIREN7) || defined(AST_FORMAT_SIREN14) || defined(AST_FORMAT_SLINEAR16)
+#if defined(CC_FORMAT_G722) || defined(CC_FORMAT_SIREN7) || defined(CC_FORMAT_SIREN14) || defined(CC_FORMAT_SLINEAR16)
 	if (capi_tcap_is_digital(i->transfercapability) == 0 && i->bproto == CC_BPROTO_VOCODER) {
 		static unsigned char llc_s_template[] = { 0x04, 0x00, 0xc0, 0x90, 0xa5 };
 		static unsigned char hlc_s_template[] = { 0x02, 0x91, 0x81 };
 		switch(i->codec) {
-#if defined(AST_FORMAT_G722)
-			case AST_FORMAT_G722:
+#if defined(CC_FORMAT_G722)
+			case CC_FORMAT_G722:
 				llc_s = llc_s_template;
 				hlc_s = hlc_s_template;
 				break;
 #endif
-#if defined(AST_FORMAT_SIREN7)
-			case AST_FORMAT_SIREN7:
+#if defined(CC_FORMAT_SIREN7)
+			case CC_FORMAT_SIREN7:
 				llc_s = llc_s_template;
 				hlc_s = hlc_s_template;
 				break;
 #endif
-#if defined(AST_FORMAT_SIREN14)
-			case AST_FORMAT_SIREN14:
+#if defined(CC_FORMAT_SIREN14)
+			case CC_FORMAT_SIREN14:
 				llc_s = llc_s_template;
 				hlc_s = hlc_s_template;
 				break;
 #endif
-#if defined(AST_FORMAT_SLINEAR16)
-			case AST_FORMAT_SLINEAR16:
+#if defined(CC_FORMAT_SLINEAR16)
+			case CC_FORMAT_SLINEAR16:
 				llc_s = llc_s_template;
 				hlc_s = hlc_s_template;
 				break;
@@ -1771,55 +1771,55 @@ _cstruct diva_get_b1_conf (struct capi_pvt *i) {
 
 	if (i->bproto == CC_BPROTO_VOCODER) {
 		switch(i->codec) {
-		case AST_FORMAT_ALAW:
+		case CC_FORMAT_ALAW:
 			b1conf = (_cstruct)"\x06\x08\x04\x03\x00\xa0\x00";
 			break;
-		case AST_FORMAT_ULAW:
+		case CC_FORMAT_ULAW:
 			b1conf = (_cstruct)"\x06\x00\x04\x03\x00\xa0\x00";
 			break;
-		case AST_FORMAT_GSM:
+		case CC_FORMAT_GSM:
 			b1conf = (_cstruct)"\x06\x03\x04\x0f\x00\xa0\x00";
 			break;
-		case AST_FORMAT_G723_1:
+		case CC_FORMAT_G723_1:
 			b1conf = (_cstruct)"\x06\x04\x04\x01\x00\xa0\x00";
 			break;
-		case AST_FORMAT_G726:
+		case CC_FORMAT_G726:
 			b1conf = (_cstruct)"\x06\x02\x04\x0f\x00\xa0\x00";
 			break;
-		case AST_FORMAT_ILBC: /* 30 mSec 240 samples */
+		case CC_FORMAT_ILBC: /* 30 mSec 240 samples */
 			b1conf = (_cstruct)"\x06\x1b\x04\x03\x00\xf0\x00";
 			break;
-		case AST_FORMAT_G729A:
+		case CC_FORMAT_G729A:
 			b1conf = (_cstruct)"\x06\x12\x04\x0f\x00\xa0\x00";
 			break;
-#ifdef AST_FORMAT_G722
-		case AST_FORMAT_G722:
+#ifdef CC_FORMAT_G722
+		case CC_FORMAT_G722:
 			b1conf = (_cstruct)"\x06\x09\x04\x03\x00\xa0\x00";
 			break;
 #endif
-#ifdef AST_FORMAT_SIREN7
-		case AST_FORMAT_SIREN7:
+#ifdef CC_FORMAT_SIREN7
+		case CC_FORMAT_SIREN7:
 			b1conf = (_cstruct)"\x06\x24\x04\x0f\x02\xa0\x00"; /* 32 kBit/s */
 			break;
 #endif
-#ifdef AST_FORMAT_SIREN14
-		case AST_FORMAT_SIREN14:
+#ifdef CC_FORMAT_SIREN14
+		case CC_FORMAT_SIREN14:
 			b1conf = (_cstruct)"\x06\x24\x04\x0f\x07\xa0\x00"; /* 48 kBit/s */
 			break;
 #endif
-#if defined(AST_FORMAT_SLINEAR)
-		case AST_FORMAT_SLINEAR:
+#if defined(CC_FORMAT_SLINEAR)
+		case CC_FORMAT_SLINEAR:
 			b1conf = (_cstruct)"\x06\x01\x04\x0f\x01\xa0\x00";
 			break;
 #endif
-#if defined(AST_FORMAT_SLINEAR16)
-		case AST_FORMAT_SLINEAR16:
+#if defined(CC_FORMAT_SLINEAR16)
+		case CC_FORMAT_SLINEAR16:
 			b1conf = (_cstruct)"\x06\x01\x04\x0f\x05\xa0\x00";
 			break;
 #endif
 		default:
 			cc_log(LOG_ERROR, "%s: format %s(%d) invalid.\n",
-				i->vname, ast_getformatname(i->codec), i->codec);
+				i->vname, cc_getformatname(i->codec), i->codec);
 			break;
 		}
 	}
@@ -1885,27 +1885,27 @@ static int capi_send_answer(struct ast_channel *c, _cstruct b3conf)
 		capi_facility_add_datetime(facilityarray);
 	}
 
-#if defined(AST_FORMAT_G722) || defined(AST_FORMAT_SIREN7) || defined(AST_FORMAT_SIREN14) || defined(AST_FORMAT_SLINEAR16)
+#if defined(CC_FORMAT_G722) || defined(CC_FORMAT_SIREN7) || defined(CC_FORMAT_SIREN14) || defined(CC_FORMAT_SLINEAR16)
 	if (i->bproto == CC_BPROTO_VOCODER) {
 		static unsigned char llc_s_template[] = { 0x03, 0x91, 0x90, 0xa5 };
 		switch(i->codec) {
-#if defined(AST_FORMAT_G722)
-			case AST_FORMAT_G722:
+#if defined(CC_FORMAT_G722)
+			case CC_FORMAT_G722:
 				llc_s = llc_s_template;
 				break;
 #endif
-#if defined(AST_FORMAT_SIREN7)
-			case AST_FORMAT_SIREN7:
+#if defined(CC_FORMAT_SIREN7)
+			case CC_FORMAT_SIREN7:
 				llc_s = llc_s_template;
 				break;
 #endif
-#if defined(AST_FORMAT_SIREN14)
-			case AST_FORMAT_SIREN14:
+#if defined(CC_FORMAT_SIREN14)
+			case CC_FORMAT_SIREN14:
 				llc_s = llc_s_template;
 				break;
 #endif
-#if defined(AST_FORMAT_SLINEAR16)
-			case AST_FORMAT_SLINEAR16:
+#if defined(CC_FORMAT_SLINEAR16)
+			case CC_FORMAT_SLINEAR16:
 				llc_s = llc_s_template;
 				break;
 #endif
@@ -2435,35 +2435,41 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state, const char *l
 
 	tmp->callgroup = i->callgroup;
 	tmp->pickupgroup = i->pickupgroup;
-	tmp->nativeformats = capi_capability;
+
+
+#if 0
 	i->bproto = CC_BPROTO_TRANSPARENT;
+	tmp->nativeformats = capi_capability;
 
 	if ((i->rtpcodec = (capi_controllers[i->controller]->rtpcodec & i->capability))) {
-#if 0 /* VOCODER */
-		if (capi_alloc_rtp(i)) {
-			/* error on rtp alloc */
-			i->rtpcodec = 0;
-		} else {
-			/* start with rtp */
-			tmp->nativeformats = i->rtpcodec;
-			i->bproto = CC_BPROTO_RTP;
-		}
-#else
 		tmp->nativeformats = i->rtpcodec;
 		i->bproto = CC_BPROTO_VOCODER;
-#endif
 	}
+
 	fmt = ast_best_codec(tmp->nativeformats);
+
 	i->codec = fmt;
 	tmp->readformat = fmt;
 	tmp->writeformat = fmt;
-
-	tmp->tech = &capi_tech;
 	tmp->rawreadformat = fmt;
 	tmp->rawwriteformat = fmt;
+#else
+	if ((i->rtpcodec = (capi_controllers[i->controller]->rtpcodec & i->capability))) {
+		i->bproto = CC_BPROTO_VOCODER;
+		cc_add_formats(tmp->nativeformats, i->rtpcodec);
+	} else {
+		i->bproto = CC_BPROTO_TRANSPARENT;
+		cc_add_formats(tmp->nativeformats, capi_capability);
+	}
+	fmt = cc_set_best_codec(tmp);
+	i->codec = fmt;
+#endif
+
+	tmp->tech = &capi_tech;
+
 
 	cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: setting format %s - %s%s\n",
-		i->vname, ast_getformatname(fmt),
+		i->vname, cc_getformatname(fmt),
 		ast_getformatname_multiple(alloca(80), 80,
 		tmp->nativeformats),
 		(i->bproto == CC_BPROTO_VOCODER) ? "VOCODER" : ((i->rtp) ? " (RTP)" : ""));
@@ -2538,19 +2544,23 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state, const char *l
 /*
  * PBX wants us to dial ...
  */
-#ifdef CC_AST_HAS_REQUEST_REQUESTOR
-#ifdef CC_AST_HAS_REQUEST_FORMAT_T
+#ifdef CC_AST_HAS_REQUEST_REQUESTOR /* { */
+#ifdef CC_AST_HAS_REQUEST_FORMAT_T /* { */
 static struct ast_channel *
 pbx_capi_request(const char *type, format_t format, const struct ast_channel *requestor, void *data, int *cause)
 /* TODO: new field requestor to link to called channel */
-#else
+#elif !defined(CC_AST_HAS_VERSION_10_0) /* } { */
 static struct ast_channel *
 pbx_capi_request(const char *type, int format, const struct ast_channel *requestor, void *data, int *cause)
-#endif
-#else
+#else /* } { */
+static struct ast_channel *
+pbx_capi_request(const char *type, struct ast_format_cap *format, const struct ast_channel *requestor, void *data, int *cause)
+#endif /* } */
+
+#else /* } { */
 static struct ast_channel *
 pbx_capi_request(const char *type, int format, void *data, int *cause)
-#endif
+#endif /* } */
 {
 	struct capi_pvt *i, *bestChannel;
 	struct ast_channel *tmp = NULL;
@@ -2560,7 +2570,9 @@ pbx_capi_request(const char *type, int format, void *data, int *cause)
 	unsigned int controller = 0;
 	unsigned int ccbsnrhandle = 0;
 
-	cc_verbose(1, 1, VERBOSE_PREFIX_4 "data = %s format=%d\n", (char *)data, format);
+	cc_verbose(1, 1, VERBOSE_PREFIX_4 "data = %s format=%s\n",
+							(char *)data, 
+							ast_getformatname_multiple(alloca(80), 80, format));
 
 	cc_copy_string(buffer, (char *)data, sizeof(buffer));
 	capi_parse_dialstring(buffer, &interface, &dest, &param, &ocid);
@@ -3151,8 +3163,8 @@ static void clear_channel_fax_loop(struct ast_channel *c,  struct capi_pvt *i)
 	ast_indicate(chan, -1);
 
 	waitfd = i->readerfd;
-	ast_set_read_format(chan, capi_capability);
-	ast_set_write_format(chan, capi_capability);
+	cc_set_read_format(chan, capi_capability);
+	cc_set_write_format(chan, capi_capability);
 
 	while (capi_tell_fax_finish(i)) {
 		ready_fd = 0;
@@ -4528,21 +4540,21 @@ static void capidev_handle_facility_indication(_cmsg *CMSG, unsigned int PLCI, u
 static int pbx_capi_get_samples(struct capi_pvt *i, int length)
 {
 	switch (i->codec) {
-	case AST_FORMAT_SLINEAR:
-#if defined(AST_FORMAT_SLINEAR16)
-	case AST_FORMAT_SLINEAR16:
+	case CC_FORMAT_SLINEAR:
+#if defined(CC_FORMAT_SLINEAR16)
+	case CC_FORMAT_SLINEAR16:
 #endif
 		return (length/2);
-#if defined(AST_FORMAT_G722)
-	case AST_FORMAT_G722:
+#if defined(CC_FORMAT_G722)
+	case CC_FORMAT_G722:
 		return (length*2);
 #endif
-#if defined(AST_FORMAT_SIREN7)
-	case AST_FORMAT_SIREN7:
+#if defined(CC_FORMAT_SIREN7)
+	case CC_FORMAT_SIREN7:
 		return (length *  (320 / 80));
 #endif
-#if defined(AST_FORMAT_SIREN14)
-	case AST_FORMAT_SIREN14:
+#if defined(CC_FORMAT_SIREN14)
+	case CC_FORMAT_SIREN14:
 		return ((typeof(length)) length * ((float) 640 / 120));
 #endif
 	}
@@ -4648,7 +4660,7 @@ static void capidev_handle_data_b3_indication(
 		if ((i->doES == 1) && (!capi_tcap_is_digital(i->transfercapability))) {
 			for (j = 0; j < b3len; j++) {
 				*(b3buf + j) = capi_reversebits[*(b3buf + j)]; 
-				if (capi_capability == AST_FORMAT_ULAW) {
+				if (capi_capability == CC_FORMAT_ULAW) {
 					rxavg += abs(capiULAW2INT[ capi_reversebits[*(b3buf + j)]]);
 				} else {
 					rxavg += abs(capiALAW2INT[ capi_reversebits[*(b3buf + j)]]);
@@ -4661,7 +4673,7 @@ static void capidev_handle_data_b3_indication(
 			txavg = txavg / j;
 				    
 			if ( (txavg / ECHO_TXRX_RATIO) > rxavg) {
-				if (capi_capability == AST_FORMAT_ULAW) {
+				if (capi_capability == CC_FORMAT_ULAW) {
 					memset(b3buf, 255, b3len);
 				} else {
 					memset(b3buf, 85, b3len);
@@ -4680,9 +4692,9 @@ static void capidev_handle_data_b3_indication(
 				}
 			}
 		}
-		FRAME_SUBCLASS_CODEC(fr.subclass) = capi_capability;
+		SET_FRAME_SUBCLASS_CODEC(fr.subclass, capi_capability);
 	} else {
-		FRAME_SUBCLASS_CODEC(fr.subclass) = i->codec;
+		SET_FRAME_SUBCLASS_CODEC(fr.subclass, i->codec);
 	}
 
 	fr.frametype = AST_FRAME_VOICE;
@@ -4694,7 +4706,7 @@ static void capidev_handle_data_b3_indication(
 	fr.delivery = ast_tv(0,0);
 	fr.src = NULL;
 	cc_verbose(8, 1, VERBOSE_PREFIX_3 "%s: DATA_B3_IND (len=%d) fr.datalen=%d fr.subclass=%ld\n",
-		i->vname, b3len, fr.datalen, FRAME_SUBCLASS_CODEC(fr.subclass));
+		i->vname, b3len, fr.datalen, GET_FRAME_SUBCLASS_CODEC(fr.subclass));
 	local_queue_frame(i, &fr);
 	return;
 }
@@ -7898,7 +7910,7 @@ void capi_gains(struct cc_capi_gains *g, float rxgain, float txgain)
 	
 	if (rxgain != 1.0) {
 		for (i = 0; i < 256; i++) {
-			if (capi_capability == AST_FORMAT_ULAW) {
+			if (capi_capability == CC_FORMAT_ULAW) {
 				x = (int)(((float)capiULAW2INT[i]) * rxgain);
 			} else {
 				x = (int)(((float)capiALAW2INT[i]) * rxgain);
@@ -7907,7 +7919,7 @@ void capi_gains(struct cc_capi_gains *g, float rxgain, float txgain)
 				x = 32767;
 			if (x < -32767)
 				x = -32767;
-			if (capi_capability == AST_FORMAT_ULAW) {
+			if (capi_capability == CC_FORMAT_ULAW) {
 				g->rxgains[i] = capi_int2ulaw(x);
 			} else {
 				g->rxgains[i] = capi_int2alaw(x);
@@ -7917,7 +7929,7 @@ void capi_gains(struct cc_capi_gains *g, float rxgain, float txgain)
 	
 	if (txgain != 1.0) {
 		for (i = 0; i < 256; i++) {
-			if (capi_capability == AST_FORMAT_ULAW) {
+			if (capi_capability == CC_FORMAT_ULAW) {
 				x = (int)(((float)capiULAW2INT[i]) * txgain);
 			} else {
 				x = (int)(((float)capiALAW2INT[i]) * txgain);
@@ -7926,7 +7938,7 @@ void capi_gains(struct cc_capi_gains *g, float rxgain, float txgain)
 				x = 32767;
 			if (x < -32767)
 				x = -32767;
-			if (capi_capability == AST_FORMAT_ULAW) {
+			if (capi_capability == CC_FORMAT_ULAW) {
 				g->txgains[i] = capi_int2ulaw(x);
 			} else {
 				g->txgains[i] = capi_int2alaw(x);
@@ -8162,10 +8174,15 @@ static void supported_sservices(struct cc_capi_controller *cp)
 	return;
 }
 
-const struct ast_channel_tech capi_tech = {
+#ifndef CC_AST_HAS_VERSION_10_0
+const
+#endif
+struct ast_channel_tech capi_tech = {
 	.type = channeltype,
 	.description = tdesc,
+#ifndef CC_AST_HAS_VERSION_10_0
 	.capabilities = AST_FORMAT_ALAW,
+#endif
 	.requester = pbx_capi_request,
 #ifdef CC_AST_HAS_VERSION_1_4
 	.send_digit_begin = pbx_capi_send_digit_begin,
@@ -8436,6 +8453,11 @@ static int conf_interface(struct cc_capi_conf *conf, struct ast_variable *v)
 	int faxpriority = 1;
 	char faxdest[AST_MAX_EXTENSION+1];
 	char *p, *q;
+#ifdef CC_AST_HAS_VERSION_10_0
+	struct ast_format_cap *cap = ast_format_cap_alloc ();
+#else
+	const void* cap = 0;
+#endif
 
 	memset(faxdest, 0, sizeof(faxdest));
 	cc_copy_string(faxcontext, "", sizeof(faxcontext));
@@ -8633,10 +8655,10 @@ static int conf_interface(struct cc_capi_conf *conf, struct ast_variable *v)
 			    	v->value);
 		} else
 		if (!strcasecmp(v->name, "allow")) {
-			ast_parse_allow_disallow(&conf->prefs, &conf->capability, v->value, 1);
+			cc_parse_allow_disallow(&conf->prefs, &conf->capability, v->value, 1, cap);
 		} else
 		if (!strcasecmp(v->name, "disallow")) {
-			ast_parse_allow_disallow(&conf->prefs, &conf->capability, v->value, 0);
+			cc_parse_allow_disallow(&conf->prefs, &conf->capability, v->value, 0, cap);
 		}
 		cc_pbx_qsig_conf_interface_value(conf, v);
 	}
@@ -8662,6 +8684,10 @@ static int conf_interface(struct cc_capi_conf *conf, struct ast_variable *v)
 	cc_copy_string(conf->faxexten, faxexten, sizeof(conf->faxexten));
 	if (faxpriority < 1) faxpriority = 1;
 	conf->faxpriority = faxpriority;
+
+#ifdef CC_AST_HAS_VERSION_10_0
+	ast_format_cap_destroy(cap);
+#endif
 
 	return 0;
 }
@@ -8716,7 +8742,7 @@ static int capi_eval_config(struct ast_config *cfg)
 			}
 		} else if (!strcasecmp(v->name, "ulaw")) {
 			if (ast_true(v->value)) {
-				capi_capability = AST_FORMAT_ULAW;
+				capi_capability = CC_FORMAT_ULAW;
 			}
 #ifdef DIVA_STREAMING
 		} else if (!strcasecmp(v->name, "nodivastreaming")) {
@@ -8847,6 +8873,10 @@ int unload_module(void)
 
 	diva_verbose_unload();
 	
+#ifdef CC_AST_HAS_VERSION_10_0
+	capi_tech.capabilities = ast_format_cap_destroy(capi_tech.capabilities);
+#endif
+	
 	return 0;
 }
 
@@ -8865,6 +8895,18 @@ int load_module(void)
 	struct ast_flags config_flags = { 0 };
 #endif
 
+#ifdef CC_AST_HAS_VERSION_10_0
+  if (!(capi_tech.capabilities = ast_format_cap_alloc())) {
+    return AST_MODULE_LOAD_DECLINE;
+  } else {
+		struct ast_format fmt;
+
+		ast_format_clear(&fmt);
+		ast_format_set(&fmt, AST_FORMAT_ALAW, 0);
+		ast_format_cap_add(capi_tech.capabilities, &fmt);
+	}
+#endif
+
 	diva_verbose_load();
 
 #ifdef CC_AST_HAS_VERSION_1_6
@@ -8877,18 +8919,27 @@ int load_module(void)
 	if (!cfg) {
 		cc_log(LOG_ERROR, "Unable to load config %s, chan_capi disabled\n", config);
 		diva_verbose_unload();
+#ifdef CC_AST_HAS_VERSION_10_0
+		capi_tech.capabilities = ast_format_cap_destroy(capi_tech.capabilities);
+#endif
 		return 0;
 	}
 
 	if (cc_mutex_lock(&iflock)) {
 		cc_log(LOG_ERROR, "Unable to lock interface list???\n");
 		diva_verbose_unload();
+#ifdef CC_AST_HAS_VERSION_10_0
+		capi_tech.capabilities = ast_format_cap_destroy(capi_tech.capabilities);
+#endif
 		return -1;
 	}
 
 	if ((res = cc_init_capi()) != 0) {
 		cc_mutex_unlock(&iflock);
 		diva_verbose_unload();
+#ifdef CC_AST_HAS_VERSION_10_0
+		capi_tech.capabilities = ast_format_cap_destroy(capi_tech.capabilities);
+#endif
 		return(res);
 	}
 
@@ -8898,6 +8949,9 @@ int load_module(void)
 	if (res != 0) {
 		cc_mutex_unlock(&iflock);
 		diva_verbose_unload();
+#ifdef CC_AST_HAS_VERSION_10_0
+		capi_tech.capabilities = ast_format_cap_destroy(capi_tech.capabilities);
+#endif
 		return(res);
 	}
 
@@ -8925,6 +8979,7 @@ int load_module(void)
 	if (ast_pthread_create(&capi_device_thread, NULL, capidev_loop, NULL) < 0) {
 		capi_device_thread = (pthread_t)(0-1);
 		cc_log(LOG_ERROR, "Unable to start CAPI device thread!\n");
+		unload_module();
 		return -1;
 	}
 

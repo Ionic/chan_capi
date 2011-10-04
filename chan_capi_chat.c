@@ -503,8 +503,8 @@ static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i,
 	if (i->channeltype == CAPI_CHANNELTYPE_NULL) {
 		int fmt = (i->line_plci != 0 && i->line_plci->bproto == CC_BPROTO_VOCODER) ? i->line_plci->codec : capi_capability;
 		nfds = 1;
-		ast_set_read_format(chan, fmt);
-		ast_set_write_format(chan, fmt);
+		cc_set_read_format(chan, fmt);
+		cc_set_write_format(chan, fmt);
 	}
 
 	if ((flags & CHAT_FLAG_MOH) && ((room->active < 2) || (voice_message != NULL))) {
@@ -1063,7 +1063,7 @@ int pbx_capi_chat_associate_resource_plci(struct ast_channel *c, char *param)
 			if (strcmp (currentcodec, "all") == 0) {
 				all = 1; /* All supported by selected controller codecs */
 			} else {
-				codecs |= ast_getformatbyname (currentcodec);
+				codecs |= cc_getformatbyname (currentcodec);
 			}
 		}
 	}

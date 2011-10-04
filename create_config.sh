@@ -50,6 +50,14 @@ echo "#define CHAN_CAPI_CONFIG_H" >>$CONFIGFILE
 echo >>$CONFIGFILE
 
 case "$AVERSIONNUM" in
+        1000*)
+		echo "#define CC_AST_HAS_VERSION_1_6" >>$CONFIGFILE
+		echo "#define CC_AST_HAS_VERSION_1_8" >>$CONFIGFILE
+		echo "#define CC_AST_HAS_VERSION_10_0" >>$CONFIGFILE
+		echo "#define CC_AST_HAS_EVENT_MWI"   >>$CONFIGFILE
+		echo " * found Asterisk version 10"
+		VER=10_0
+		;;
 	108*)
 		echo "#define CC_AST_HAS_VERSION_1_6" >>$CONFIGFILE
 		echo "#define CC_AST_HAS_VERSION_1_8" >>$CONFIGFILE
@@ -269,6 +277,10 @@ case $VER in
 		;;
 	1_8)
 		echo "Using Asterisk 1.8 API"
+		check_version_onesix
+		;;
+	10_0)
+		echo "Using Asterisk 10.0 API"
 		check_version_onesix
 		;;
 	*)
