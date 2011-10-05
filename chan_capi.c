@@ -4907,7 +4907,16 @@ static void capidev_handle_diva_signaling_manufacturer_infications(struct capi_p
 			if (length != 0) {
 				capidev_read_name_from_diva_manufacturer_infications (data, &data[length], buffer, sizeof(buffer), &octet3a, i->vname, "Calling Party");
 #ifdef CC_AST_HAS_VERSION_1_8
-				ast_set_callerid(i->owner, NULL, buffer, NULL);
+        /* ast_set_callerid updates CDR, but __ast_pbx_run updates CDR too.
+					__ast_pbx_run does not uses the channel lock and this results in destruction
+					of CDR list
+					Do notcall this function until problem resolved
+					ast_set_callerid(i->owner, NULL, buffer, NULL);
+					Use code from ast_set_callerid but do not update CDR
+					*/
+				i->owner->caller.id.name.valid = 1;
+				ast_free(i->owner->caller.id.name.str);
+				i->owner->caller.id.name.str = ast_strdup(buffer);
 #else
 				ast_free (i->owner->cid.cid_name);
 				i->owner->cid.cid_name = ast_strdup(buffer);	/* Save name to callerid */
@@ -5430,7 +5439,17 @@ static void capidev_handle_connect_indication(
 				}
 				i->owner->caller.id.number.presentation = callpres;
 
-				ast_set_callerid(i->owner, effective_cid, NULL, effective_cid);
+				/* Don't use ast_set_callerid() here because it will
+					 generate a needless NewCallerID event
+					 ast_set_callerid(i->owner, effective_cid, NULL, effective_cid);
+					*/
+				i->owner->caller.id.number.valid = 1;
+				ast_free(i->owner->caller.id.number.str);
+				i->owner->caller.id.number.str = ast_strdup(effective_cid);
+
+				i->owner->caller.ani.number.valid = 1;
+				ast_free(i->owner->caller.ani.number.str);
+				i->owner->caller.ani.number.str = ast_strdup(effective_cid);
 			}
 #else
 			i->owner->cid.cid_pres = callpres;

@@ -76,7 +76,16 @@ void cc_qsig_op_ecma_isdn_namepres(struct cc_qsig_invokedata *invoke, struct cap
 	switch (invoke->type) {
 		case 0:	/* Calling Name */
 #ifdef CC_AST_HAS_VERSION_1_8
-			ast_set_callerid(i->owner, NULL, callername, NULL);
+			/* ast_set_callerid updates CDR, but __ast_pbx_run updates CDR too.
+					__ast_pbx_run does not uses the channel lock and this results in destruction
+					of CDR list
+					Do notcall this function until problem resolved
+					ast_set_callerid(i->owner, NULL, callername, NULL);
+					Use code from ast_set_callerid but do not update CDR
+					*/
+				i->owner->caller.id.name.valid = 1;
+				ast_free(i->owner->caller.id.name.str);
+				i->owner->caller.id.name.str = ast_strdup(callername);
 #else
 			i->owner->cid.cid_name = ast_strdup(callername);	/* Save name to callerid */
 #endif
