@@ -5729,10 +5729,11 @@ static struct ast_channel* capidev_acquire_locks_from_thread_context(struct capi
 	cc_mutex_lock(&i->lock);
 	owner = i->owner;
 	if (likely(owner != 0)) {
+		struct ast_channel *ref_owner = owner;
+
 		ast_channel_ref (owner);
 		cc_mutex_unlock(&i->lock);
 		ast_channel_lock(owner);
-		ast_channel_unref (owner);
 		cc_mutex_lock(&i->lock);
 		if (unlikely(i->owner == 0)) {
 			cc_mutex_unlock (&i->lock);
@@ -5740,6 +5741,7 @@ static struct ast_channel* capidev_acquire_locks_from_thread_context(struct capi
 			cc_mutex_lock (&i->lock);
 			owner = 0;
 		}
+		ast_channel_unref (ref_owner);
 	}
 #else
 	for (;;) {
