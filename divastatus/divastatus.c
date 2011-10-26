@@ -372,7 +372,7 @@ static char* diva_status_read_file(unsigned int controller, const char* fileName
 static int diva_status_get_controller_state(int controller, diva_status_ifc_state_t *state)
 {
 	char *data, *p;
-	int i, pri;
+	int i, pri, bri;
 	const char* v;
 
 	memset (state, 0x00, sizeof(*state));
@@ -380,6 +380,8 @@ static int diva_status_get_controller_state(int controller, diva_status_ifc_stat
 	state->hwState    = DivaStatusHwStateUnknown;
 	state->ifcL1State = DivaStatusIfcL2DoNotApply;
 	state->ifcL2State = DivaStatusIfcL2DoNotApply;
+	state->ifcL1VisualState = DivaStatusIfcL2DoNotApply;
+	state->ifcL2VisualState = DivaStatusIfcL2DoNotApply;
 
 	if (diva_status_active() != 0)
 		return -1;
@@ -387,7 +389,7 @@ static int diva_status_get_controller_state(int controller, diva_status_ifc_stat
 	if ((data = diva_status_read_file(controller, DIVA_CONFIG_FILE)) == 0)
 		return -1;
 
-	for (i = 0, pri = 0, p = data, v = strsep(&p, ",");
+	for (i = 0, pri = 0, bri = 0, p = data, v = strsep(&p, ",");
 			 v != 0 && i < DivaStateIfcConfig_Max;
 			 v = strsep(&p, ","), i++) {
 		if (v[0] == '\'' && v[strlen(v)-1] != '\'') {
@@ -402,10 +404,12 @@ static int diva_status_get_controller_state(int controller, diva_status_ifc_stat
 		switch ((diva_state_ifc_config_parameters_t)i) {
 			case DivaStateIfcConfig_TYPE:
 				pri += (strcmp ("PRI", v) == 0);
+				bri += (strcmp ("BRI", v) == 0);
 				break;
 
 			case DivaStateIfcConfig_PRI:
 				pri += (strcmp ("'YES'", v) == 0);
+				bri += (strcmp ("'NO'", v) == 0);
 				break;
 
 			default:
@@ -415,6 +419,9 @@ static int diva_status_get_controller_state(int controller, diva_status_ifc_stat
 	ast_free(data);
 
 	state->ifcType = (pri == 2) ? DivaStatusIfcPri : DivaStatusIfcNotPri;
+	if (bri == 2) {
+		state->ifcType = DivaStatusIfcBri;
+	}
 
 	if ((data = diva_status_read_file(controller, DIVA_STATUS_FILE)) == 0)
 		return (-1);
@@ -431,14 +438,16 @@ static int diva_status_get_controller_state(int controller, diva_status_ifc_stat
 
 		switch ((diva_state_ifcstate_parameters_t)i) {
 			case DivaStateIfcState_LAYER1_STATE:
+				state->ifcL1VisualState = (strcmp ("'Activated'", v) == 0) ? DivaStatusIfcL1OK : DivaStatusIfcL1Error;
 				if (state->ifcType == DivaStatusIfcPri) {
-					state->ifcL1State = (strcmp ("'Activated'", v) == 0) ? DivaStatusIfcL1OK : DivaStatusIfcL1Error;
+					state->ifcL1State = state->ifcL1VisualState;
 				}
 				break;
 
 			case DivaStateIfcState_LAYER2_STATE:
+				state->ifcL2VisualState = (strcmp ("'Layer2 UP'", v) == 0) ? DivaStatusIfcL2OK : DivaStatusIfcL2Error;
 				if (state->ifcType == DivaStatusIfcPri) {
-					state->ifcL2State = (strcmp ("'Layer2 UP'", v) == 0) ? DivaStatusIfcL2OK : DivaStatusIfcL2Error;
+					state->ifcL2State = state->ifcL2VisualState;
 				}
 				break;
 
@@ -611,6 +620,77 @@ const char* diva_status_hw_state_name(diva_status_hardware_state_t hwState)
 	}
 }
 
+static const char* pbxcli_get_visual_ifc_state(const diva_status_ifc_state_t* state)
+{
+	diva_status_interface_state_t ifcState;
+
+	switch (state->ifcType) {
+		case DivaStatusIfcBri: /* Functional state is always unknown, probably L1/L2 activated on demand, \todo read L2 config */
+			if (state->hwState == DivaStateHwStateActive     &&
+					state->ifcL1VisualState == DivaStatusIfcL1OK &&
+					state->ifcL2VisualState == DivaStatusIfcL2OK) {
+				ifcState = DivaStatusInterfaceStateOK;
+			} else {
+				ifcState = diva_status_get_interface_state_from_idi_state (state);
+			}
+			break;
+
+		case DivaStatusIfcAnalog: /* \todo implementation */
+			ifcState = diva_status_get_interface_state_from_idi_state (state);
+			break;
+
+		case DivaStatusIfcPri: /* Functional state == visual state */
+		default:
+			ifcState = diva_status_get_interface_state_from_idi_state (state);
+			break;
+	}
+
+	return (diva_status_interface_state_name(ifcState));
+}
+
+static const char* pbxcli_get_visual_ifc_l1_state(const diva_status_ifc_state_t* state)
+{
+	const char* ret = "-";
+
+	if (state->hwState == DivaStatusHardwareStateOK) {
+		switch (state->ifcType) {
+			case DivaStatusIfcPri: /* Functional state == visual state */
+				ret = (state->ifcL1State == DivaStatusIfcL1OK) ? "On" : "Off";
+				break;
+			case DivaStatusIfcBri:
+				ret = (state->ifcL1VisualState == DivaStatusIfcL1OK) ? "On" : "Off"; /* Functional state != visual state */
+				break;
+			case DivaStatusIfcAnalog: /* \todo implementation */
+				break;
+			default:
+				break;
+		}
+	}
+
+	return (ret);
+}
+
+static const char* pbxcli_get_visual_ifc_l2_state(const diva_status_ifc_state_t* state)
+{
+	const char* ret = "-";
+
+	if (state->hwState == DivaStatusHardwareStateOK) {
+		switch (state->ifcType) {
+			case DivaStatusIfcPri: /* Functional state == visual state */
+				ret = (state->ifcL2State == DivaStatusIfcL2OK) ? "On" : "Off";
+				break;
+			case DivaStatusIfcBri:
+				ret = (state->ifcL2VisualState == DivaStatusIfcL2OK) ? "On" : "Off"; /* Functional state != visual state */
+				break;
+			case DivaStatusIfcAnalog: /* \todo implementation */
+				break;
+			default:
+				break;
+		}
+	}
+
+	return (ret);
+}
 
 #ifdef CC_AST_HAS_VERSION_1_6
 char *pbxcli_capi_ifc_status(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a)
@@ -650,11 +730,9 @@ int pbxcli_capi_ifc_status(int fd, int argc, char *argv[])
 		diva_status_ifc_state_t* state = &controllerState->state[controllerState->currentState];
 		ast_cli(fd, "ISDN%-3d%-2s %-9s%-4s%-4s%-4s%-7s%-3s %12d %11d %11d %11d %11d\n",
 						controllerState->capiController, "",
-						diva_status_interface_state_name(diva_status_get_interface_state_from_idi_state (state)),
-						((state->ifcType == DivaStatusIfcPri) && (state->hwState == DivaStatusHardwareStateOK)) ?
-												(state->ifcL1State == DivaStatusIfcL1OK ? "On" : "Off") : "-",
-						((state->ifcType == DivaStatusIfcPri) && (state->hwState == DivaStatusHardwareStateOK)) ?
-												(state->ifcL2State == DivaStatusIfcL2OK ? "On" : "Off") : "-",
+						pbxcli_get_visual_ifc_state(state),
+						pbxcli_get_visual_ifc_l1_state(state),
+						pbxcli_get_visual_ifc_l2_state(state),
 						((state->ifcType == DivaStatusIfcPri) && (state->hwState == DivaStatusHardwareStateOK)) ?
 												(state->ifcAlarms.Red    != 0 ? "On" : "Off") : "-",
 						((state->ifcType == DivaStatusIfcPri) && (state->hwState == DivaStatusHardwareStateOK)) ?

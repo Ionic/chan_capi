@@ -69,6 +69,8 @@ typedef struct _diva_status_ifc_state {
 	diva_status_ifc_alarms_t   ifcAlarms;
 	diva_status_ifc_l1_state_t ifcL1State;
 	diva_status_ifc_l2_state_t ifcL2State;
+	diva_status_ifc_l1_state_t ifcL1VisualState;
+	diva_status_ifc_l2_state_t ifcL2VisualState;
 	diva_status_ifc_statistics_t ifcRxDStatistics;
 	diva_status_ifc_statistics_t ifcTxDStatistics;
 	unsigned int serialNumber;
