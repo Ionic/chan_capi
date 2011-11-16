@@ -8959,7 +8959,7 @@ int load_module(void)
 #ifdef CC_AST_HAS_VERSION_10_0
 		capi_tech.capabilities = ast_format_cap_destroy(capi_tech.capabilities);
 #endif
-		return(res);
+		return 0;
 	}
 
 	res = capi_eval_config(cfg);
