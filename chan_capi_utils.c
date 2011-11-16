@@ -135,8 +135,10 @@ void capi_remove_nullif(struct capi_pvt *i)
 			}
 			cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: removed null-interface from controller %d.\n",
 				i->vname, i->controller);
-			if (i->smoother)
+			if (i->smoother) {
 				ast_smoother_free(i->smoother);
+				i->smoother = 0;
+			}
 			cc_mutex_destroy(&i->lock);
 			ast_cond_destroy(&i->event_trigger);
 			controller_nullplcis[i->controller - 1]--;

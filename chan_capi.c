@@ -8816,14 +8816,6 @@ static int capi_eval_config(struct ast_config *cfg)
 	return 0;
 }
 
-#ifdef CC_AST_HAS_VERSION_1_4
-static int reload(void)
-{
-	cc_log(LOG_WARNING, "config reload is not supported yet.\n");
-
-	return 0;
-}
-#endif
 /*
  * unload the module
  */
@@ -8849,6 +8841,7 @@ int unload_module(void)
 		pthread_cancel(capi_device_thread);
 		pthread_kill(capi_device_thread, SIGURG);
 		pthread_join(capi_device_thread, NULL);
+		capi_device_thread = (pthread_t)(0-1);
 	}
 
 	cc_mutex_lock(&iflock);
@@ -8865,6 +8858,7 @@ int unload_module(void)
 				diva_status_cleanup_interface(controller);
 #endif
 			ast_free(capi_controllers[controller]);
+			capi_controllers[controller] = 0;
 		}
 	}
 	
@@ -8872,8 +8866,10 @@ int unload_module(void)
 	while (i) {
 		if ((i->owner) || (i->used))
 			cc_log(LOG_WARNING, "On unload, interface still has owner or is used.\n");
-		if (i->smoother)
+		if (i->smoother) {
 			ast_smoother_free(i->smoother);
+			i->smoother = 0;
+		}
 		
 		pbx_capi_qsig_unload_module(i);
 		
@@ -8883,6 +8879,7 @@ int unload_module(void)
 		i = i->next;
 		ast_free(itmp);
 	}
+	capi_iflist = NULL;
 
 	cc_mutex_unlock(&iflock);
 	
@@ -8895,6 +8892,9 @@ int unload_module(void)
 #ifdef CC_AST_HAS_VERSION_10_0
 	capi_tech.capabilities = ast_format_cap_destroy(capi_tech.capabilities);
 #endif
+
+	capi_num_controllers = 0;
+	capi_counter = 0;
 	
 	return 0;
 }
@@ -9004,6 +9004,20 @@ int load_module(void)
 
 	return 0;
 }
+
+#ifdef CC_AST_HAS_VERSION_1_4
+static int reload(void)
+{
+	int ret;
+
+	cc_verbose(1, 0, VERBOSE_PREFIX_1 "config reload\n");
+
+	unload_module();
+	ret = load_module();
+
+	return ret;
+}
+#endif
 
 #ifdef CC_AST_HAS_VERSION_1_4
 AST_MODULE_INFO(ASTERISK_GPL_KEY, AST_MODFLAG_DEFAULT, tdesc,
