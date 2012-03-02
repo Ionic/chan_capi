@@ -2388,7 +2388,12 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state, const char *l
 		ast_channel_release(tmp);
 		return NULL;
 	}
+
+#ifdef CC_AST_HAS_VERSION_1_6
+	ast_channel_set_fd(tmp, 0, i->readerfd);
+#else
 	tmp->fds[0] = i->readerfd;
+#endif
 
 	if (i->smoother != NULL) {
 		ast_smoother_reset(i->smoother, CAPI_MAX_B3_BLOCK_SIZE);
