@@ -216,7 +216,7 @@ static char global_mohinterpret[MAX_MUSICCLASS] = "default";
 #endif
 
 /* local prototypes */
-#define CC_B_INTERFACE_NOT_FREE(__x__) (((__x__)->used) || \
+#define CC_B_INTERFACE_NOT_FREE(__x__) (((__x__)->used) || ((__x__)->reserved) || \
 	((__x__)->channeltype != CAPI_CHANNELTYPE_B) || \
 	(capi_controllers[(__x__)->controller]->nfreebchannels < capi_controllers[(__x__)->controller]->nfreebchannelsHardThr))
 
@@ -1212,6 +1212,7 @@ static void interface_cleanup(struct capi_pvt *i)
 	i->peer = NULL;	
 	i->owner = NULL;
 	i->used = NULL;
+	i->reserved = 0;
 
 	if (i->channeltype == CAPI_CHANNELTYPE_NULL) {
 		capi_interface_task(i, CAPI_INTERFACE_TASK_NULLIFREMOVE);
@@ -2365,6 +2366,9 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state, const char *l
 #else
 	tmp = ast_channel_alloc(0);
 #endif
+
+	cc_mutex_lock(&iflock);
+	i->reserved = 0;
 	
 	if (tmp == NULL) {
 		cc_log(LOG_ERROR, "Unable to allocate channel!\n");
@@ -2660,6 +2664,8 @@ pbx_capi_request(const char *type, int format, void *data, int *cause)
 found_best_channel:
 		/* when we come here, we found a free controller match */
 		cc_copy_string(i->dnid, dest, sizeof(i->dnid));
+		i->reserved = 1;
+		cc_mutex_unlock(&iflock);
 		tmp = capi_new(i, AST_STATE_RESERVED,
 #ifdef CC_AST_HAS_REQUEST_REQUESTOR
 			requestor ? requestor->linkedid : NULL
@@ -5356,7 +5362,7 @@ static void capidev_handle_connect_indication(
 	/* well...somebody is calling us. let's set up a channel */
 	cc_mutex_lock(&iflock);
 	for (i = capi_iflist; i; i = i->next) {
-		if (i->used) {
+		if (i->used || i->reserved) {
 			/* is already used */
 			continue;
 		}
@@ -5413,6 +5419,8 @@ static void capidev_handle_connect_indication(
 			i->MessageNumber = HEADER_MSGNUM(CMSG);
 			i->cid_ton = callernplan;
 
+			i->reserved = 1;
+			cc_mutex_unlock(&iflock);
 			capi_new(i, AST_STATE_DOWN, NULL);
 			if (i->isdnmode == CAPI_ISDNMODE_DID) {
 				i->state = CAPI_STATE_DID;

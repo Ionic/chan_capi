@@ -393,6 +393,8 @@ struct capi_pvt {
 	struct ast_channel *owner;		
 	/*! Channel who called us, possibly NULL */
 	struct ast_channel *peer;		
+	/*! Set if structure is reserved */
+	volatile int reserved;
 	
 	/* capi message number */
 	_cword MessageNumber;	
