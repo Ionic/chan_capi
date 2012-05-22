@@ -6490,10 +6490,10 @@ static int pbx_capi_noisesuppressor(struct ast_channel *c, char *param)
 	}
 
 	if (ast_true(param)) {
-		i->divaDataStubAudioFlags |= 0x0080;
+		i->divaDataStubAudioFlags |= 0x0080 /* Use to activate in Tx direction  0x0040 */; 
 		capi_diva_audio_features(i, 0);
 	} else if (ast_false(param)) {
-		i->divaDataStubAudioFlags &= ~0x0080;
+		i->divaDataStubAudioFlags &= ~0x0080 /* Use to activate in Tx direction  ~0x0040 */;
 		capi_diva_audio_features(i, 0);
 	} else {
 		cc_log(LOG_WARNING, "Parameter for noise suppressor invalid.\n");
