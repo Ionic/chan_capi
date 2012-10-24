@@ -3,6 +3,10 @@ CHANGES
 
 HEAD
 ------------------
+
+
+chan_capi-1.1.6
+------------------
 - Asterisk 1.8 changes
 - added dialplan variables ISDNPI1 and ISDNPI2
 - Support for 'divastreaming' available (Diva 4PRI PCI, Diva 2PRI PCI,
