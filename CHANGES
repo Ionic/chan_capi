@@ -3,6 +3,7 @@ CHANGES
 
 HEAD
 ------------------
+- Asterisk 1.8 changes
 - added dialplan variables ISDNPI1 and ISDNPI2
 - Support for 'divastreaming' available (Diva 4PRI PCI, Diva 2PRI PCI,
   Diva 4PRI HS PCIe, Diva 2PRI HS PCIe, Diva 1PRI HS PCIe,
