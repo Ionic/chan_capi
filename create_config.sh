@@ -31,8 +31,15 @@ AVERSIONNUM=`sed -n '/.*ASTERISK_VERSION_NUM /s/^.*ASTERISK_VERSION_NUM //p' $IN
 AVERSION=`sed -n '/.*ASTERISK_VERSION /s/^.*ASTERISK_VERSION //p' $INCLUDEDIR/version.h`
 AVERSION=`echo $AVERSION | sed 's/\"//g'`
 if [ "$AVERSION" = "" ]; then
-	AVERSION="trunk"
-	VER="1_6"
+	grep "Do not include" $INCLUDEDIR/version.h >/dev/null 2>&1
+	if [ $? -eq 0 ]; then
+		AVERSION="11.0"
+		VER="11_0"
+		AVERSIONNUM=110
+	else
+		AVERSION="trunk"
+		VER="1_6"
+	fi
 fi
 if [ -z "$AVERSIONNUM" ]; then
 	AVERSIONNUM=999999
@@ -50,6 +57,15 @@ echo "#define CHAN_CAPI_CONFIG_H" >>$CONFIGFILE
 echo >>$CONFIGFILE
 
 case "$AVERSIONNUM" in
+        110*)
+		echo "#define CC_AST_HAS_VERSION_1_6" >>$CONFIGFILE
+		echo "#define CC_AST_HAS_VERSION_1_8" >>$CONFIGFILE
+		echo "#define CC_AST_HAS_VERSION_10_0" >>$CONFIGFILE
+		echo "#define CC_AST_HAS_VERSION_11_0" >>$CONFIGFILE
+		echo "#define CC_AST_HAS_EVENT_MWI"   >>$CONFIGFILE
+		echo " * found Asterisk version 11"
+		VER=11_0
+		;;
         100*)
 		echo "#define CC_AST_HAS_VERSION_1_6" >>$CONFIGFILE
 		echo "#define CC_AST_HAS_VERSION_1_8" >>$CONFIGFILE
@@ -281,6 +297,10 @@ case $VER in
 		;;
 	10_0)
 		echo "Using Asterisk 10.0 API"
+		check_version_onesix
+		;;
+	11_0)
+		echo "Using Asterisk 11.0 API"
 		check_version_onesix
 		;;
 	*)
