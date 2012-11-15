@@ -9021,12 +9021,16 @@ int load_module(void)
 #ifdef CC_AST_HAS_VERSION_1_4
 static int reload(void)
 {
-	int ret;
+	int ret = 0;
 
-	cc_verbose(1, 0, VERBOSE_PREFIX_1 "config reload\n");
+	if (usecnt) {
+		cc_verbose(1, 0, VERBOSE_PREFIX_1 "chan_capi refused reload because of active channels\n");
+	} else {
+		cc_verbose(1, 0, VERBOSE_PREFIX_1 "chan_capi reload\n");
 
-	unload_module();
-	ret = load_module();
+		unload_module();
+		ret = load_module();
+	}
 
 	return ret;
 }

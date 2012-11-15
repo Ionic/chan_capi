@@ -3,6 +3,7 @@ CHANGES
 
 HEAD
 ------------------
+- refuse to reload on active channels
 
 
 chan_capi-1.1.6
