@@ -221,6 +221,13 @@ check_version_onesix()
 		echo "#undef CC_AST_HAS_AST_DEVSTATE2STR" >>$CONFIGFILE
 		echo " * obsolete devstate2str function"
 	fi
+	if grep -q "ast_devstate_changed.*ast_devstate_cache" $INCLUDEDIR/devicestate.h; then
+		echo "#define CC_AST_HAS_AST_DEVSTATE_CACHE" >>$CONFIGFILE
+		echo " * found ast_devstate_cache in ast_devstate_changed function"
+	else
+		echo "#undef CC_AST_HAS_AST_DEVSTATE_CACHE" >>$CONFIGFILE
+		echo " * no ast_devstate_cache in ast_devstate_changed function"
+	fi
 	if grep -q "ast_request.*requestor" $INCLUDEDIR/channel.h; then
 		echo "#define CC_AST_HAS_REQUEST_REQUESTOR" >>$CONFIGFILE
 		echo " * found requestor in ast_request"

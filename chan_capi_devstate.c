@@ -113,7 +113,11 @@ void pbx_capi_chat_room_state_event(const char* roomName, int inUse)
 {
 	if (capiChatProviderRegistered != 0) {
 #ifdef CC_AST_HAS_VERSION_1_6
-		ast_devstate_changed((inUse != 0) ? AST_DEVICE_INUSE : AST_DEVICE_NOT_INUSE, "capichat:%s", roomName);
+		ast_devstate_changed((inUse != 0) ? AST_DEVICE_INUSE : AST_DEVICE_NOT_INUSE,
+#ifdef CC_AST_HAS_AST_DEVSTATE_CACHE
+			AST_DEVSTATE_CACHABLE,
+#endif
+			"capichat:%s", roomName);
 #else
 		ast_device_state_changed("capichat:%s", roomName);
 #endif
@@ -130,7 +134,11 @@ void pbx_capi_ifc_state_event(const struct cc_capi_controller* capiController, i
 			((capiController->nfreebchannels >= capiController->nfreebchannelsHardThr) &&
 				(capiController->nfreebchannels - channelsChanged < capiController->nfreebchannelsHardThr))) {
 #ifdef CC_AST_HAS_VERSION_1_6
-		ast_devstate_changed(AST_DEVICE_UNKNOWN, CC_MESSAGE_BIGNAME"/I%d/congestion", capiController->controller);
+		ast_devstate_changed(AST_DEVICE_UNKNOWN,
+#ifdef CC_AST_HAS_AST_DEVSTATE_CACHE
+			AST_DEVSTATE_CACHABLE,
+#endif
+			CC_MESSAGE_BIGNAME"/I%d/congestion", capiController->controller);
 #else
 		ast_device_state_changed (CC_MESSAGE_BIGNAME"/I%d/congestion", capiController->controller);
 #endif

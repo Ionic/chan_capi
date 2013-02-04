@@ -4,6 +4,7 @@ CHANGES
 HEAD
 ------------------
 - refuse to reload on active channels
+- ast_devstate_changed() changes with new cache argument
 
 
 chan_capi-1.1.6
