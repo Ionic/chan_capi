@@ -205,7 +205,7 @@ static struct capichat_s* update_capi_mixer_part(
 			if (overall_found == 1) {
 				/* only one left, enable DATA_B3 too */
 				if (ii_last->line_plci == 0) {
-	        if (ii_last->channeltype != CAPI_CHANNELTYPE_NULL) {
+		if (ii_last->channeltype != CAPI_CHANNELTYPE_NULL) {
 						p_list[5] |= 0x0c;
 					} else {
 						p_list[5] |= 0x30;
@@ -618,8 +618,13 @@ static void chat_handle_events(struct ast_channel *c, struct capi_pvt *i,
 			if ((ready_fd < 0) && ms) { 
 				if (errno == 0 || errno == EINTR)
 					continue;
+#ifdef CC_AST_HAS_VERSION_11_0
+		const char *cur_name = ast_channel_name(chan);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+		const char *cur_name = chan->name;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
 				cc_log(LOG_WARNING, "%s: Wait failed (%s).\n",
-					chan->name, strerror(errno));
+					cur_name, strerror(errno));
 				break;
 			}
 		}
@@ -712,7 +717,17 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 		options++;
 	}
 
-	if (c->tech == &capi_tech) {
+#ifdef CC_AST_HAS_VERSION_11_0
+	const struct ast_channel_tech *cur_tech = ast_channel_tech(c);
+	const char *cur_name = ast_channel_name(c);
+	const enum ast_channel_state cur_state = ast_channel_state(c);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+	const struct ast_channel_tech *cur_tech = c->tech;
+	const char *cur_name = c->name;
+	const enum ast_channel_state cur_state = c->_state;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+
+	if (cur_tech == &capi_tech) {
 		i = CC_CHANNEL_PVT(c); 
 	} else {
 		/* virtual CAPI channel */
@@ -740,9 +755,9 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 
 	cc_verbose(3, 1, VERBOSE_PREFIX_3 CC_MESSAGE_NAME " chat: %s: roomname=%s group=%u group users=%u"
 		"options=%s hangup_timeout=%d controller=%s (0x%llx)\n",
-		c->name, roomname, selectedGroup, bridgeUsers, options, hangup_timeout, controller, contr);
+		cur_name, roomname, selectedGroup, bridgeUsers, options, hangup_timeout, controller, contr);
 
-	if (c->tech != &capi_tech) {
+	if (cur_tech != &capi_tech) {
 		if (i == NULL) {
 			i = capi_mknullif(c, contr);
 		}
@@ -753,7 +768,7 @@ int pbx_capi_chat(struct ast_channel *c, char *param)
 	}
 
 
-	if (c->_state != AST_STATE_UP) {
+	if (cur_state != AST_STATE_UP) {
 		ast_answer(c);
 	}
 
@@ -888,9 +903,19 @@ int pbx_capi_chat_play(struct ast_channel *c, char *param)
 		contr = (unsigned long long)(tmpcntr >> 1);
 	}
 
+#ifdef CC_AST_HAS_VERSION_11_0
+	const char *cur_name = ast_channel_name(c);
+	const struct ast_channel_tech *cur_tech = ast_channel_tech(c);
+	const enum ast_channel_state cur_state = ast_channel_state(c);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+	const char *cur_name = c->name;
+	const struct ast_channel_tech *cur_tech = c->tech;
+	const enum ast_channel_state cur_state = c->_state;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+
 	cc_verbose(3, 1, VERBOSE_PREFIX_3 CC_MESSAGE_NAME " chat_play: %s: roomname=%s "
 		"message=%s controller=%s (0x%llx)\n",
-		c->name, roomname, file_name, controller, contr);
+		cur_name, roomname, file_name, controller, contr);
 
 	i = capi_mknullif(c, contr);
 	if (i == NULL) {
@@ -899,7 +924,7 @@ int pbx_capi_chat_play(struct ast_channel *c, char *param)
 		return (-1);
 	}
 
-	if (c->_state != AST_STATE_UP) {
+	if (cur_state != AST_STATE_UP) {
 		ast_answer(c);
 	}
 
@@ -917,7 +942,7 @@ int pbx_capi_chat_play(struct ast_channel *c, char *param)
 	}
 
 	/* main loop */
-	chat_handle_events(c, i, room, flags, (c->tech == &capi_tech) ? (CC_CHANNEL_PVT(c)) : 0, f, 0, NULL);
+	chat_handle_events(c, i, room, flags, (cur_tech == &capi_tech) ? (CC_CHANNEL_PVT(c)) : 0, f, 0, NULL);
 
 	del_chat_member(room, 1);
 
@@ -1068,7 +1093,13 @@ int pbx_capi_chat_associate_resource_plci(struct ast_channel *c, char *param)
 		}
 	}
 
-	if (c->tech != &capi_tech) {
+#ifdef CC_AST_HAS_VERSION_11_0
+	const struct ast_channel_tech *cur_tech = ast_channel_tech(c);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+	const struct ast_channel_tech *cur_tech = c->tech;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+
+	if (cur_tech != &capi_tech) {
 		i = capi_mkresourceif(c, contr, 0, codecs, all);
 		if (i != NULL) {
 			char buffer[24];
@@ -1140,8 +1171,13 @@ int pbxcli_capi_chatinfo(int fd, int argc, char *argv[])
 				room->number, room->name, room->i->vname,
 				"?", "?");
 		} else {
+#ifdef CC_AST_HAS_VERSION_11_0
+			const char *cur_name = ast_channel_name(c);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+			const char *cur_name = c->name;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
 			ast_cli(fd, "%5d %-17s%-40s\"%s\" <%s>\n",
-				room->number, room->name, c->name,
+				room->number, room->name, cur_name,
 				pbx_capi_get_callername (c, ""), pbx_capi_get_cid (c, ""));
 		}
 		room = room->next;
@@ -1247,7 +1283,12 @@ int pbx_capi_chat_remove_user(const char* roomName, const char* memberName)
 					c = room->i->used;
 				}
 				if (c != 0) {
-					if (strcmp (memberName, c->name) == 0) {
+#ifdef CC_AST_HAS_VERSION_11_0
+					const char *cur_name = ast_channel_name(c);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+					const char *cur_name = c->name;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+					if (strcmp (memberName, cur_name) == 0) {
 						room->info |= PBX_CHAT_MEMBER_INFO_REMOVE;
 						ret = 0;
 					}

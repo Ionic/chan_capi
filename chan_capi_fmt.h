@@ -122,17 +122,17 @@ static inline int cc_set_best_codec(struct ast_channel *a)
 
 	ast_format_clear(&bestCodec);
 
-	if (ast_best_codec(a->nativeformats, &bestCodec) == NULL) {
+	if (ast_best_codec(ast_channel_nativeformats(a), &bestCodec) == NULL) {
 		/*
 			Fallback to aLaw
 			*/
 		ast_format_set(&bestCodec, CC_FORMAT_ALAW, 0);
 	}
 
-	ast_format_copy(&a->rawreadformat,  &bestCodec);
-	ast_format_copy(&a->readformat,     &bestCodec);
-	ast_format_copy(&a->rawwriteformat, &bestCodec);
-	ast_format_copy(&a->writeformat,    &bestCodec);
+	ast_format_copy(ast_channel_readformat(a),  &bestCodec);
+	ast_format_copy(ast_channel_readformat(a),     &bestCodec);
+	ast_format_copy(ast_channel_rawwriteformat(a), &bestCodec);
+	ast_format_copy(ast_channel_writeformat(a),    &bestCodec);
 
 	return (int)ast_format_to_old_bitfield(&bestCodec);
 }
