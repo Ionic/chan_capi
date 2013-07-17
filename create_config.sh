@@ -20,6 +20,7 @@ if [ $# -lt 1 ]; then
 fi
 
 INCLUDEDIR="$1/asterisk"
+AST_BINARY="$1/../sbin/asterisk"
 
 if [ ! -d "$INCLUDEDIR" ]; then
 	echo >&2 "Include directory '$INCLUDEDIR' does not exist"
@@ -31,11 +32,17 @@ AVERSIONNUM=`sed -n '/.*ASTERISK_VERSION_NUM /s/^.*ASTERISK_VERSION_NUM //p' $IN
 AVERSION=`sed -n '/.*ASTERISK_VERSION /s/^.*ASTERISK_VERSION //p' $INCLUDEDIR/version.h`
 AVERSION=`echo $AVERSION | sed 's/\"//g'`
 if [ "$AVERSION" = "" ]; then
-	grep "Do not include" $INCLUDEDIR/version.h >/dev/null 2>&1
+	# Asterisk 11 and up removed version information in its version.h header file.
+	# ast_get_version() and ast_get_version_num() are not usable by external
+	# modules like chan_capi, as there's no library implementing these functions,
+	# so linking will always fail.
+	# Workaround that by trying to run asterisk -V and parse the output.
+	AVERSION=$("$AST_BINARY" -V)
+
 	if [ $? -eq 0 ]; then
-		AVERSION="11.0"
-		VER="11_0"
-		AVERSIONNUM=110
+		AVERSION="$(sed -e 's/Asterisk //g' <<< "$AVERSION")"
+		AVERSIONNUM="$(sed -e 's/\.//g' <<< "$AVERSION")"
+		# Set VER later automatically based on $AVERSIONNUM.
 	else
 		AVERSION="trunk"
 		VER="1_6"
@@ -57,7 +64,7 @@ echo "#define CHAN_CAPI_CONFIG_H" >>$CONFIGFILE
 echo >>$CONFIGFILE
 
 case "$AVERSIONNUM" in
-        110*)
+        11*)
 		echo "#define CC_AST_HAS_VERSION_1_6" >>$CONFIGFILE
 		echo "#define CC_AST_HAS_VERSION_1_8" >>$CONFIGFILE
 		echo "#define CC_AST_HAS_VERSION_10_0" >>$CONFIGFILE
