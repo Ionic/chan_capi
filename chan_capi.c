@@ -5357,6 +5357,13 @@ static void capidev_handle_connect_indication(
 
 	if (CONNECT_IND_BCHANNELINFORMATION(CMSG) && (CONNECT_IND_BCHANNELINFORMATION(CMSG)[0] > 0)) {
 		bchannelinfo[0] = CONNECT_IND_BCHANNELINFORMATION(CMSG)[1] + '0';
+		if ((bchannelinfo[0] == '4') && (CONNECT_IND_BCHANNELINFORMATION(CMSG)[0] >= 4) && (CONNECT_IND_BCHANNELINFORMATION(CMSG)[3] > 0)) {
+			if (CONNECT_IND_BCHANNELINFORMATION(CMSG)[4] & 4) {
+				bchannelinfo[0] = '1';
+			} else {
+				bchannelinfo[0] = '0';
+			}
+		}
 	}
 
 	/* well...somebody is calling us. let's set up a channel */

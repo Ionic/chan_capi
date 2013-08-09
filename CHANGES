@@ -5,6 +5,7 @@ HEAD
 ------------------
 - refuse to reload on active channels
 - ast_devstate_changed() changes with new cache argument
+- check for bchannel information element on incoming call
 
 
 chan_capi-1.1.6
