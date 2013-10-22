@@ -4113,6 +4113,10 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 			case 2:
 				desc = "Bearer service changed";
 				break;
+			case 0xc2:
+				desc = "Conference established";
+				pbx_builtin_setvar_helper(i->owner, "THREEWAYESTABLISHED", "YES");
+				break;
 			case 0xf9:
 				desc = "User put on hold";
 				break;
