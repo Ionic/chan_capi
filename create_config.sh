@@ -40,8 +40,8 @@ if [ "$AVERSION" = "" ]; then
 	AVERSION=$("$AST_BINARY" -V)
 
 	if [ $? -eq 0 ]; then
-		AVERSION="$(sed -e 's/Asterisk //g' <<< "$AVERSION")"
-		AVERSIONNUM="$(sed -e 's/\.//g' <<< "$AVERSION")"
+		AVERSION="$(echo "$AVERSION" | sed -e 's/Asterisk //g')"
+		AVERSIONNUM="$(echo "$AVERSION" |sed -e 's/\.//g')"
 		# Set VER later automatically based on $AVERSIONNUM.
 	else
 		AVERSION="trunk"
