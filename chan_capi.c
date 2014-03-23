@@ -2640,30 +2640,24 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state, const char *l
 		tmp->amaflags = i->amaflags;
 
 #ifdef CC_AST_HAS_VERSION_11_0
-	cc_copy_string(ast_channel_context(tmp), i->context, sizeof(ast_channel_context(tmp)));
-	cc_copy_string(ast_channel_exten(tmp), i->dnid, sizeof(ast_channel_exten(tmp)));
-#else
+	ast_channel_context_set(tmp, i->context);
+	ast_channel_exten_set(tmp, i->dnid);
+#else /* !defined(CC_AST_HAS_VERSION_11_9) */
 	cc_copy_string(tmp->context, i->context, sizeof(tmp->context));
 	cc_copy_string(tmp->exten, i->dnid, sizeof(tmp->exten));
 #endif /* defined(CC_AST_HAS_VERSION_11_0) */
 #ifdef CC_AST_HAS_STRINGFIELD_IN_CHANNEL
+#ifdef CC_AST_HAS_VERSION_11_0
+	ast_channel_accountcode_set(tmp, i->accountcode);
+	ast_channel_language_set(tmp, i->language);
+#else /* !defined(CC_AST_HAS_VERSION_11_9) */
 	ast_string_field_set(tmp, accountcode, i->accountcode);
 	ast_string_field_set(tmp, language, i->language);
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
 #else
 	cc_copy_string(tmp->accountcode, i->accountcode, sizeof(tmp->accountcode));
 	cc_copy_string(tmp->language, i->language, sizeof(tmp->language));
 #endif
-#endif
-
-#ifdef CC_AST_HAS_STRINGFIELD_IN_CHANNEL
-#ifdef CC_AST_HAS_VERSION_11_0
-	if (!ast_strlen_zero(i->language))
-		ast_channel_language_set(tmp, i->language);
-#else /* !defined(CC_AST_HAS_VERSION_11_0) */
-	ast_string_field_set(tmp, language, i->language);
-#endif /* defined(CC_AST_HAS_VERSION_11_0) */
-#else
-	cc_copy_string(tmp->language, i->language, sizeof(tmp->language));
 #endif
 
 	i->owner = tmp;
@@ -3882,11 +3876,12 @@ static int search_did(struct ast_channel *c)
 	if (ast_exists_extension(NULL, cur_context, exten, 1, i->cid)) {
 #ifdef CC_AST_HAS_VERSION_11_0
 		ast_channel_priority_set(c, 1);
+		ast_channel_exten_set(c, exten);
 #else /* !defined(CC_AST_HAS_VERSION_11_0) */
 		c->priority = 1;
+		cc_copy_string(cur_exten, exten, sizeof(cur_exten));
 #endif /* defined(CC_AST_HAS_VERSION_11_0) */
 
-		cc_copy_string(cur_exten, exten, sizeof(cur_exten));
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: %s: %s matches in context %s\n",
 			i->vname, cur_name, exten, cur_context);
 		return 0;
@@ -3978,7 +3973,11 @@ static void start_pbx_on_match(struct capi_pvt *i, unsigned int PLCI, _cword Mes
 		i->isdnstate |= CAPI_ISDN_STATE_PBX;
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Pickup extension '%s' found.\n",
 			i->vname, i->dnid);
+#ifdef CC_AST_HAS_VERSION_11_0
+		ast_channel_exten_set(c, i->dnid);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
 		cc_copy_string(cur_exten, i->dnid, sizeof(cur_exten));
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
 		pbx_capi_alert(c);
 		capi_channel_task(c, CAPI_CHANNEL_TASK_PICKUP);
 		return;
