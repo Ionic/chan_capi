@@ -22,11 +22,14 @@ DIVA_STREAMING=0
 DIVA_STATUS=0
 DIVA_VERBOSE=0
 
-USE_OWN_LIBCAPI=yes
+USE_OWN_LIBCAPI=no
 
 .EXPORT_ALL_VARIABLES:
 
-V=0
+V=1
+
+#OPTIMIZE=-O3 -fomit-frame-pointer -march=native
+OPTIMIZE=-march=native
 
 INSTALL_PREFIX=
 
@@ -92,7 +95,7 @@ endif
 
 INCLUDE += -I./divaverbose
 
-DEBUG=-g #-pg
+DEBUG=-g3 -ggdb3 -gdwarf-4 #-pg
 INCLUDE+= -I$(ASTERISK_HEADER_DIR)
 ifndef C4B
 ifeq (${OSNAME},FreeBSD)
@@ -109,7 +112,7 @@ ifdef C4B
 LIBLINUX+=-L/usr/local/lib -llinuxcapi20
 endif
 
-CFLAGS=-pipe -fPIC -Wall -Wmissing-prototypes -Wmissing-declarations $(DEBUG) $(INCLUDE) -D_REENTRANT -D_GNU_SOURCE
+CFLAGS=-pipe -fPIC -Wall -Wextra -Wmissing-prototypes -Wmissing-declarations $(DEBUG) $(INCLUDE) -D_REENTRANT -D_GNU_SOURCE
 CFLAGS+=$(OPTIMIZE)
 CFLAGS+=-Wno-unused-but-set-variable
 CFLAGS+=-O2
