@@ -1,0 +1,41 @@
+# Vim
+*~
+*.sw?
+
+# KDevelop / Kate / KEdit
+*.kdev4
+*.kate-swp
+Doxyfile
+*.kdevelop
+*.kdevelop.filelist
+*.kdevelop.pcs
+*.kdevses
+
+# Dolphin
+.directory
+
+# GCC
+*.gch
+
+# Clang autocompletion
+.clang_complete
+.ycm_extra_conf*
+
+# Gitstats
+stats
+
+# Temporary object files/static libs.
+*.[oa]
+*.so
+*.dylib
+
+# Don't automatically update .gitignore.
+.gitignore
+
+# Temporary patch files.
+*.patch
+*.diff
+
+# Auto-generated files.
+config.h
+conftest_*.c
