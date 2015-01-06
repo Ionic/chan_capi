@@ -64,7 +64,7 @@ echo "#define CHAN_CAPI_CONFIG_H" >>$CONFIGFILE
 echo >>$CONFIGFILE
 
 case "$AVERSIONNUM" in
-        11*)
+	11*)
 		echo "#define CC_AST_HAS_VERSION_1_6" >>$CONFIGFILE
 		echo "#define CC_AST_HAS_VERSION_1_8" >>$CONFIGFILE
 		echo "#define CC_AST_HAS_VERSION_10_0" >>$CONFIGFILE
@@ -73,7 +73,7 @@ case "$AVERSIONNUM" in
 		echo " * found Asterisk version 11"
 		VER=11_0
 		;;
-        100*)
+	100*)
 		echo "#define CC_AST_HAS_VERSION_1_6" >>$CONFIGFILE
 		echo "#define CC_AST_HAS_VERSION_1_8" >>$CONFIGFILE
 		echo "#define CC_AST_HAS_VERSION_10_0" >>$CONFIGFILE
