@@ -138,6 +138,10 @@ LOCAL_USER_DECL;
 
 static int usecnt;
 
+#ifdef CC_AST_HAS_VERSION_1_4
+struct ast_module *myself;
+#endif
+
 /*
  * LOCKING RULES
  * =============
@@ -536,8 +540,14 @@ static void capi_channel_task(struct ast_channel *c, int task)
 	chan_for_task = c;
 	channel_task = task;
 
+#ifdef CC_AST_HAS_VERSION_11_0
+	const char *cur_name = ast_channel_name(c);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+	const char *cur_name = c->name;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+
 	cc_verbose(4, 1, VERBOSE_PREFIX_4 "%s: set channel task to %d\n",
-		c->name, task);
+		cur_name, task);
 }
 
 /*
@@ -1038,12 +1048,18 @@ static int pbx_capi_send_digit(struct ast_channel *c, char digit)
 		return -1;
 	}
 
+#ifdef CC_AST_HAS_VERSION_11_0
+	const enum ast_channel_state cur_state = ast_channel_state(c);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+	const enum ast_channel_state cur_state = c->_state;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+
 	cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: send_digit '%c' in state %d(%d)\n",
-		i->vname, digit, i->state, c->_state);
+		i->vname, digit, i->state, cur_state);
 
 	cc_mutex_lock(&i->lock);
 
-	if ((c->_state == AST_STATE_DIALING) &&
+	if ((cur_state == AST_STATE_DIALING) &&
 	    (i->state != CAPI_STATE_DISCONNECTING)) {
 		if (!(i->isdnstate & CAPI_ISDN_STATE_ISDNPROGRESS)) {
 			did[0] = digit;
@@ -1211,6 +1227,9 @@ static void interface_cleanup(struct capi_pvt *i)
 
 	i->peer = NULL;	
 	i->owner = NULL;
+#ifdef CC_AST_HAS_VERSION_1_4
+	ast_module_unref(myself);
+#endif
 	i->used = NULL;
 	i->reserved = 0;
 
@@ -1325,7 +1344,13 @@ void capi_activehangup(struct capi_pvt *i, int state)
 	const char *cause;
 
 	if (c) {
-		i->cause = c->hangupcause;
+#ifdef CC_AST_HAS_VERSION_11_0
+		int hangupcause = ast_channel_hangupcause(c);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+		int hangupcause = c->hangupcause;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+
+		i->cause = hangupcause;
 		if ((cause = pbx_builtin_getvar_helper(c, "PRI_CAUSE"))) {
 			i->cause = atoi(cause);
 		}
@@ -1429,7 +1454,15 @@ static int pbx_capi_hangup(struct ast_channel *c)
 	}
 
 	i->owner = NULL;
+#ifdef CC_AST_HAS_VERSION_1_4
+	ast_module_unref(myself);
+#endif
+
+#ifdef CC_AST_HAS_VERSION_11_0
+	ast_channel_tech_pvt_set(c, NULL);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
 	CC_CHANNEL_PVT(c) = NULL;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
 
 	cc_mutex_unlock(&i->lock);
 
@@ -1460,7 +1493,20 @@ static void pbx_capi_call_build_calling_party_number(
 	int CLIR;
 	int callernplan;
 
-#ifdef CC_AST_HAS_VERSION_1_8
+#ifdef CC_AST_HAS_VERSION_11_0
+	if (ast_channel_connected(c)->id.number.valid) {
+		CLIR = ast_channel_connected(c)->id.number.presentation;
+		callernplan = ast_channel_connected(c)->id.number.plan & 0x7f;
+	} else {
+		CLIR = 0;
+		callernplan = 0;
+	}
+	if (ast_channel_connected(c)->id.number.valid && !ast_strlen_zero(ast_channel_connected(c)->id.number.str)) {
+		ast_copy_string(callerid, ast_channel_connected(c)->id.number.str, sizeof(callerid));
+	} else {
+		memset(callerid, 0, sizeof(callerid));
+	}
+#elif defined(CC_AST_HAS_VERSION_1_8)
 	if (c->connected.id.number.valid) {
 		CLIR = c->connected.id.number.presentation;
 		callernplan = c->connected.id.number.plan & 0x7f;
@@ -1473,7 +1519,7 @@ static void pbx_capi_call_build_calling_party_number(
 	} else {
 		memset(callerid, 0, sizeof(callerid));
 	}
-#else
+#else /* !(defined(CC_AST_HAS_VERSION_11_0) || defined(CC_AST_HAS_VERSION_1_8)) */
 	CLIR = c->cid.cid_pres;
 	callernplan = c->cid.cid_ton & 0x7f;
 
@@ -1482,7 +1528,7 @@ static void pbx_capi_call_build_calling_party_number(
 	} else {
 		memset(callerid, 0, sizeof(callerid));
 	}
-#endif
+#endif /* defined(CC_AST_HAS_VERSION_11_0) || defined(CC_AST_HAS_VERSION_1_8) */
 
 	if (use_defaultcid) {
 		cc_copy_string(callerid, i->defaultcid, sizeof(callerid));
@@ -1502,15 +1548,25 @@ static void pbx_capi_call_build_calling_party_number(
 	calling[2] = 0x80 | (CLIR & 0x63);
 	strncpy(&calling[3], callerid, max_calling - 4);
 
+#ifdef CC_AST_HAS_VERSION_11_0
+	const char *cur_name = ast_channel_name(c);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+	const char *cur_name = c->name;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+
 	cc_verbose(1, 1, VERBOSE_PREFIX_2 "%s: Call %s %s%s (pres=0x%02x, ton=0x%02x)\n",
-		i->vname, c->name, i->doB3 ? "with B3 ":" ",
+		i->vname, cur_name, i->doB3 ? "with B3 ":" ",
 		i->doOverlap ? "overlap":"", CLIR, callernplan);
 }
 
 /*
  * PBX tells us to make a call
  */
-static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
+#ifdef CC_AST_HAS_VERSION_11_0
+static int pbx_capi_call(struct ast_channel *c, const char *idest, int timeout)
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+static int pbx_capi_call(struct ast_channel *c, void *idest, int timeout)
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	char *dest, *interface, *param, *ocid;
@@ -1595,7 +1651,14 @@ static int pbx_capi_call(struct ast_channel *c, char *idest, int timeout)
 
 	i->peer = cc_get_peer_link_id(pbx_builtin_getvar_helper(c, "CAPIPEERLINKID"));
 	i->outgoing = 1;
-	i->transfercapability = c->transfercapability;
+
+#ifdef CC_AST_HAS_VERSION_11_0
+	unsigned short cur_xfercap = ast_channel_transfercapability(c);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+	unsigned short cur_xfercap = c->transfercapability;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+
+	i->transfercapability = cur_xfercap;
 	i->isdnstate |= CAPI_ISDN_STATE_PBX;
 	i->state = CAPI_STATE_CONNECTPENDING;
 	ast_setstate(c, AST_STATE_DIALING);
@@ -1979,16 +2042,26 @@ static struct ast_frame *pbx_capi_read(struct ast_channel *c)
 		} else if (f->frametype == AST_FRAME_DTMF) {
 /* Work around problem with recognition of fast sequences of events,
  * see main/channel.c for details
+ * ... or better yet, get rid of this ugly hack alltogether.
  */
+#ifdef CC_AST_HAS_VERSION_11_0
+			if (!(ast_test_flag(ast_channel_flags(c), AST_FLAG_END_DTMF_ONLY) ||
+						ast_test_flag(ast_channel_flags(c), AST_FLAG_EMULATE_DTMF) ||
+						ast_test_flag(ast_channel_flags(c), AST_FLAG_IN_DTMF))) {
+				ast_set_flag(ast_channel_flags(c), AST_FLAG_IN_DTMF);
+				struct timeval back_to_the_past = ast_tvsub(ast_tvnow(), ast_tv(0, 250*1000 /* to msec */));
+				ast_channel_dtmf_tv_set(c, &back_to_the_past);
+#else /* !defined(CC_AST_HAS_VERSION_11_0 */
 			if (!(ast_test_flag(c, AST_FLAG_END_DTMF_ONLY) ||
 						ast_test_flag(c, AST_FLAG_EMULATE_DTMF) ||
 						ast_test_flag(c, AST_FLAG_IN_DTMF))) {
 				ast_set_flag(c, AST_FLAG_IN_DTMF);
 				c->dtmf_tv = ast_tvsub(ast_tvnow(),ast_tv(0,250*1000));
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
 				if (!f->len)
 						f->len = 100;
 			}
-#endif
+#endif /* defined(CC_AST_HAS_VERSION_1_4) */
 		}
 	}
 
@@ -2015,8 +2088,16 @@ static int pbx_capi_fixup(struct ast_channel *oldchan, struct ast_channel *newch
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(newchan);
 
+#ifdef CC_AST_HAS_VERSION_11_0
+	const char *old_name = ast_channel_name(oldchan);
+	const char *new_name = ast_channel_name(newchan);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+	const char *old_name = oldchan->name;
+	const char *new_name = newchan->name;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+
 	cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: %s fixup now %s\n",
-		i->vname, oldchan->name, newchan->name);
+		i->vname, old_name, new_name);
 
 	cc_mutex_lock(&i->lock);
 	i->owner = newchan;
@@ -2123,8 +2204,15 @@ static int pbx_capi_bridge_transfer(
 	
 		if (ret == 2) {	
 			/* don't do bridge - call transfer is active */
+#ifdef CC_AST_HAS_VERSION_11_0
+			const char *c0_name = ast_channel_name(c0);
+			const char *c1_name = ast_channel_name(c1);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+			const char *c0_name = c0->name;
+			const char *c1_name = c1->name;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
 			cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s:%s cancelled bridge (path replacement was sent) for %s and %s\n",
-				   i0->vname, i1->vname, c0->name, c1->name);
+				   i0->vname, i1->vname, c0_name, c1_name);
 		}
 	} else {
 		/* standard ECT */
@@ -2271,8 +2359,15 @@ static CC_BRIDGE_RETURN pbx_capi_bridge(
 	struct capi_pvt *i1 = CC_CHANNEL_PVT(c1);
 	CC_BRIDGE_RETURN ret = AST_BRIDGE_COMPLETE;
 
+#ifdef CC_AST_HAS_VERSION_11_0
+	const char *c0_name = ast_channel_name(c0);
+	const char *c1_name = ast_channel_name(c1);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+	const char *c0_name = c0->name;
+	const char *c1_name = c1->name;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
 	cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s:%s Requested native bridge for %s and %s\n",
-		i0->vname, i1->vname, c0->name, c1->name);
+		i0->vname, i1->vname, c0_name, c1_name);
 
 	if ((i0->isdnstate & CAPI_ISDN_STATE_ECT) ||
 	    (i1->isdnstate & CAPI_ISDN_STATE_ECT)) {
@@ -2440,11 +2535,17 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state, const char *l
 #endif
 	}
 
+#ifdef CC_AST_HAS_VERSION_11_0
+	ast_channel_tech_pvt_set(tmp, i);
+
+	ast_channel_callgroup_set(tmp, i->callgroup);
+	ast_channel_pickupgroup_set(tmp, i->pickupgroup);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
 	CC_CHANNEL_PVT(tmp) = i;
 
 	tmp->callgroup = i->callgroup;
 	tmp->pickupgroup = i->pickupgroup;
-
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
 
 #if 0
 	i->bproto = CC_BPROTO_TRANSPARENT;
@@ -2465,69 +2566,98 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state, const char *l
 #else
 	if ((i->rtpcodec = (capi_controllers[i->controller]->rtpcodec & i->capability))) {
 		i->bproto = CC_BPROTO_VOCODER;
-		cc_add_formats(tmp->nativeformats, i->rtpcodec);
+#ifdef CC_AST_HAS_VERSION_11_0
+		struct ast_format_cap *cur_nativefmts = ast_channel_nativeformats(tmp);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+		struct ast_format_cap *cur_nativefmts = tmp->nativeformats;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+		cc_add_formats(cur_nativefmts, i->rtpcodec);
 	} else {
 		i->bproto = CC_BPROTO_TRANSPARENT;
-		cc_add_formats(tmp->nativeformats, capi_capability);
+#ifdef CC_AST_HAS_VERSION_11_0
+		struct ast_format_cap *cur_nativefmts = ast_channel_nativeformats(tmp);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+		struct ast_format_cap *cur_nativefmts = tmp->nativeformats;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+		cc_add_formats(cur_nativefmts, capi_capability);
 	}
 	fmt = cc_set_best_codec(tmp);
 	i->codec = fmt;
 #endif
 
+#ifdef CC_AST_HAS_VERSION_11_0
+	ast_channel_tech_set(tmp, &capi_tech);
+	struct ast_format_cap *cur_nativefmts = ast_channel_nativeformats(tmp);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
 	tmp->tech = &capi_tech;
-
+	struct ast_format_cap *cur_nativefmts = tmp->nativeformats;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
 
 	cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: setting format %s - %s%s\n",
 		i->vname, cc_getformatname(fmt),
 		ast_getformatname_multiple(alloca(80), 80,
-		tmp->nativeformats),
+		cur_nativefmts),
 		(i->bproto == CC_BPROTO_VOCODER) ? "VOCODER" : ((i->rtp) ? " (RTP)" : ""));
 
 	if (!ast_strlen_zero(i->cid)) {
-#ifdef CC_AST_HAS_VERSION_1_8
+#ifdef CC_AST_HAS_VERSION_11_0
+		ast_free (ast_channel_connected(tmp)->id.number.str);
+		ast_channel_connected(tmp)->id.number.valid = 1;
+		ast_channel_connected(tmp)->id.number.str = ast_strdup(i->cid);
+		ast_channel_connected(tmp)->id.number.plan = i->cid_ton;
+#elif defined(CC_AST_HAS_VERSION_1_8)
 		ast_free (tmp->connected.id.number.str);
 		tmp->connected.id.number.valid = 1;
 		tmp->connected.id.number.str = ast_strdup(i->cid);
 		tmp->connected.id.number.plan = i->cid_ton;
-#else
+#else /* !(defined(CC_AST_HAS_VERSION_11_0) || defined(CC_AST_HAS_VERSION_1_8)) */
 		ast_free(tmp->cid.cid_num);
 		tmp->cid.cid_num = ast_strdup(i->cid);
-#endif
+#endif /* defined(CC_AST_HAS_VERSION_11_0) || defined(CC_AST_HAS_VERSION_1_8) */
 	}
 	if (!ast_strlen_zero(i->dnid)) {
-#ifdef CC_AST_HAS_VERSION_1_8
+#ifdef CC_AST_HAS_VERSION_11_0
+		ast_free (ast_channel_dialed(tmp)->number.str);
+		ast_channel_dialed(tmp)->number.str  = ast_strdup (i->dnid);
+#elif defined(CC_AST_HAS_VERSION_1_8)
 		ast_free (tmp->dialed.number.str);
 		tmp->dialed.number.str  = ast_strdup (i->dnid);
-#else
+#else /* !(defined(CC_AST_HAS_VERSION_11_0) || defined(CC_AST_HAS_VERSION_1_8)) */
 		ast_free(tmp->cid.cid_dnid);
 		tmp->cid.cid_dnid = ast_strdup(i->dnid);
-#endif
+#endif /* defined(CC_AST_HAS_VERSION_11_0) || defined(CC_AST_HAS_VERSION_1_8) */
 	}
-#ifdef CC_AST_HAS_VERSION_1_8
+#ifdef CC_AST_HAS_VERSION_11_0
+	ast_channel_dialed(tmp)->number.plan = i->cid_ton;
+#elif defined(CC_AST_HAS_VERSION_1_8)
 	tmp->dialed.number.plan = i->cid_ton;
-#else
+#else /* !(defined(CC_AST_HAS_VERSION_11_0) || defined(CC_AST_HAS_VERSION_1_8)) */
 	tmp->cid.cid_ton = i->cid_ton;
-#endif
+#endif /* defined(CC_AST_HAS_VERSION_11_0) || defined(CC_AST_HAS_VERSION_1_8) */
 
 #ifndef CC_AST_HAS_EXT2_CHAN_ALLOC
 	if (i->amaflags)
 		tmp->amaflags = i->amaflags;
-	
+
+#ifdef CC_AST_HAS_VERSION_11_0
+	ast_channel_context_set(tmp, i->context);
+	ast_channel_exten_set(tmp, i->dnid);
+#else /* !defined(CC_AST_HAS_VERSION_11_9) */
 	cc_copy_string(tmp->context, i->context, sizeof(tmp->context));
 	cc_copy_string(tmp->exten, i->dnid, sizeof(tmp->exten));
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
 #ifdef CC_AST_HAS_STRINGFIELD_IN_CHANNEL
+#ifdef CC_AST_HAS_VERSION_11_0
+	ast_channel_accountcode_set(tmp, i->accountcode);
+	ast_channel_language_set(tmp, i->language);
+#else /* !defined(CC_AST_HAS_VERSION_11_9) */
 	ast_string_field_set(tmp, accountcode, i->accountcode);
 	ast_string_field_set(tmp, language, i->language);
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
 #else
 	cc_copy_string(tmp->accountcode, i->accountcode, sizeof(tmp->accountcode));
 	cc_copy_string(tmp->language, i->language, sizeof(tmp->language));
 #endif
-#endif
-
-#ifdef CC_AST_HAS_STRINGFIELD_IN_CHANNEL
-	ast_string_field_set(tmp, language, i->language);
-#else
-	cc_copy_string(tmp->language, i->language, sizeof(tmp->language));
 #endif
 
 	i->owner = tmp;
@@ -2536,6 +2666,7 @@ static struct ast_channel *capi_new(struct capi_pvt *i, int state, const char *l
 #ifdef CC_AST_HAS_VERSION_1_4
 	ast_atomic_fetchadd_int(&usecnt, 1);
 	ast_jb_configure(tmp, &i->jbconf);
+	ast_module_ref(myself);
 #else
 	cc_mutex_lock(&usecnt_lock);
 	usecnt++;
@@ -2561,9 +2692,12 @@ pbx_capi_request(const char *type, format_t format, const struct ast_channel *re
 #elif !defined(CC_AST_HAS_VERSION_10_0) /* } { */
 static struct ast_channel *
 pbx_capi_request(const char *type, int format, const struct ast_channel *requestor, void *data, int *cause)
-#else /* } { */
+#elif !defined(CC_AST_HAS_VERSION_11_0) /* } { */
 static struct ast_channel *
 pbx_capi_request(const char *type, struct ast_format_cap *format, const struct ast_channel *requestor, void *data, int *cause)
+#else /* } { */
+static struct ast_channel *
+pbx_capi_request(const char *type, struct ast_format_cap *format, const struct ast_channel *requestor, const char *data, int *cause)
 #endif /* } */
 
 #else /* } { */
@@ -2668,7 +2802,11 @@ found_best_channel:
 		cc_mutex_unlock(&iflock);
 		tmp = capi_new(i, AST_STATE_RESERVED,
 #ifdef CC_AST_HAS_REQUEST_REQUESTOR
+#ifdef CC_AST_HAS_VERSION_11_0
+			requestor ? ast_channel_linkedid(requestor) : NULL
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
 			requestor ? requestor->linkedid : NULL
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
 #else
 			NULL
 #endif
@@ -3227,7 +3365,12 @@ static void clear_channel_fax_loop(struct ast_channel *c,  struct capi_pvt *i)
 				if (errno == 0 || errno == EINTR)
 					continue;
 				cc_log(LOG_WARNING, "%s: Wait failed (%s).\n",
-					chan->name, strerror(errno));
+#ifdef CC_AST_HAS_VERSION_11_0
+					ast_channel_name(chan),
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+					chan->name,
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+					strerror(errno));
 				break;
 			}
 		}
@@ -3624,7 +3767,7 @@ static int pbx_capi_send_fax(struct ast_channel *c, char *data)
 static void capi_handle_dtmf_fax(struct capi_pvt *i)
 {
 	struct ast_channel *c = i->owner;
-	char *faxcontext;
+	const char *faxcontext;
 
 	if (!c) {
 		/* no channel, ignore */
@@ -3643,24 +3786,40 @@ static void capi_handle_dtmf_fax(struct capi_pvt *i)
 			i->vname);
 		return;
 	}
-	if ((i->faxdetecttime > 0) && (c->cdr)) {
+#ifdef CC_AST_HAS_VERSION_11_0
+	struct ast_cdr *cur_cdr = ast_channel_cdr(c);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+	struct ast_cdr *cur_cdr = c->cdr;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+
+	if ((i->faxdetecttime > 0) && cur_cdr) {
 		struct timeval now;
 		gettimeofday(&now, NULL);
-		if ((c->cdr->start.tv_sec + i->faxdetecttime) < now.tv_sec) {
+		if ((cur_cdr->start.tv_sec + i->faxdetecttime) < now.tv_sec) {
 			cc_verbose(3, 0, VERBOSE_PREFIX_3
 				"%s: Fax detected after %ld seconds, limit %u - ignored\n",
-				i->vname, (long) (now.tv_sec - c->cdr->start.tv_sec),
+				i->vname, (long) (now.tv_sec - cur_cdr->start.tv_sec),
 				i->faxdetecttime);
 			return;
 		}
 	}
 
-	faxcontext = c->context;
+#ifdef CC_AST_HAS_VERSION_11_0
+	const char *cur_context = ast_channel_context(c);
+	const char *cur_exten = ast_channel_exten(c);
+	const char *cur_name = ast_channel_name(c);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+	const char *cur_context = c->context;
+	const char *cur_exten = c->exten;
+	const char *cur_name = c->name;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+
+	faxcontext = cur_context;
 	if (strlen(i->faxcontext) > 0)
 		faxcontext = i->faxcontext;
 	
-	if ((!strcmp(c->exten, i->faxexten)) &&
-	    (!strcmp(c->context, faxcontext))) {
+	if ((!strcmp(cur_exten, i->faxexten)) &&
+	    (!strcmp(cur_context, faxcontext))) {
 		cc_log(LOG_DEBUG, "Already in fax context/extension, not redirecting\n");
 		return;
 	}
@@ -3668,12 +3827,12 @@ static void capi_handle_dtmf_fax(struct capi_pvt *i)
 	if (!ast_exists_extension(c, faxcontext, i->faxexten, i->faxpriority, i->cid)) {
 		cc_verbose(3, 0, VERBOSE_PREFIX_3
 			"Fax tone detected, but no extension '%s' for %s in context '%s'\n",
-			i->faxexten, c->name, faxcontext);
+			i->faxexten, cur_name, faxcontext);
 		return;
 	}
 
 	cc_verbose(2, 0, VERBOSE_PREFIX_3 "%s: Redirecting %s for fax to %s,%s,%d\n",
-		i->vname, c->name, faxcontext, i->faxexten, i->faxpriority);
+		i->vname, cur_name, faxcontext, i->faxexten, i->faxpriority);
 			
 	capi_channel_task(c, CAPI_CHANNEL_TASK_GOTOFAX);
 
@@ -3693,28 +3852,44 @@ static int search_did(struct ast_channel *c)
 	 */
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	char *exten;
-    
+
+#ifdef CC_AST_HAS_VERSION_11_0
+	const char *cur_context = ast_channel_context(c);
+	char *cur_exten = (char*)ast_channel_exten(c);
+	const char *cur_name = ast_channel_name(c);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+	const char *cur_context = c->context;
+	char *cur_exten = (char*)c->exten;
+	const char *cur_name = c->name;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+
 	if (!strlen(i->dnid) && (i->immediate)) {
 		exten = "s";
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: %s: %s matches in context %s for immediate\n",
-			i->vname, c->name, exten, c->context);
+			i->vname, cur_name, exten, cur_context);
 	} else {
 		if (strlen(i->dnid) < strlen(i->incomingmsn))
 			return 0;
 		exten = i->dnid;
 	}
 
-	if (ast_exists_extension(NULL, c->context, exten, 1, i->cid)) {
+	if (ast_exists_extension(NULL, cur_context, exten, 1, i->cid)) {
+#ifdef CC_AST_HAS_VERSION_11_0
+		ast_channel_priority_set(c, 1);
+		ast_channel_exten_set(c, exten);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
 		c->priority = 1;
-		cc_copy_string(c->exten, exten, sizeof(c->exten));
+		cc_copy_string(cur_exten, exten, sizeof(cur_exten));
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: %s: %s matches in context %s\n",
-			i->vname, c->name, exten, c->context);
+			i->vname, cur_name, exten, cur_context);
 		return 0;
 	}
 
-	if (ast_canmatch_extension(NULL, c->context, exten, 1, i->cid)) {
+	if (ast_canmatch_extension(NULL, cur_context, exten, 1, i->cid)) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: %s: %s would possibly match in context %s\n",
-			i->vname, c->name, exten, c->context);
+			i->vname, cur_name, exten, cur_context);
 		return 1;
 	}
 
@@ -3775,13 +3950,21 @@ static void start_pbx_on_match(struct capi_pvt *i, unsigned int PLCI, _cword Mes
 
 	c = i->owner;
 
+#ifdef CC_AST_HAS_VERSION_11_0
+	const char *cur_name = ast_channel_name(c);
+	char *cur_exten = (char *)ast_channel_exten(c);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+	const char *cur_name = c->name;
+	char *cur_exten = (char *)c->exten;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+
 	if ((i->isdnstate & CAPI_ISDN_STATE_PBX_DONT)) {
 		/* we already found non-match here */
 		return;
 	}
 	if ((i->isdnstate & CAPI_ISDN_STATE_PBX)) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: pbx already started on channel %s\n",
-			i->vname, c->name);
+			i->vname, cur_name);
 		return;
 	}
 
@@ -3790,7 +3973,11 @@ static void start_pbx_on_match(struct capi_pvt *i, unsigned int PLCI, _cword Mes
 		i->isdnstate |= CAPI_ISDN_STATE_PBX;
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Pickup extension '%s' found.\n",
 			i->vname, i->dnid);
-		cc_copy_string(c->exten, i->dnid, sizeof(c->exten));
+#ifdef CC_AST_HAS_VERSION_11_0
+		ast_channel_exten_set(c, i->dnid);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+		cc_copy_string(cur_exten, i->dnid, sizeof(cur_exten));
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
 		pbx_capi_alert(c);
 		capi_channel_task(c, CAPI_CHANNEL_TASK_PICKUP);
 		return;
@@ -3806,7 +3993,7 @@ static void start_pbx_on_match(struct capi_pvt *i, unsigned int PLCI, _cword Mes
 			capi_channel_task(c, CAPI_CHANNEL_TASK_HANGUP); 
 		} else {
 			cc_verbose(2, 1, VERBOSE_PREFIX_2 "Started pbx on channel %s\n",
-				c->name);
+				cur_name);
 		}
 		break;
 	case 1:
@@ -3865,8 +4052,14 @@ static void capidev_handle_did_digits(_cmsg *CMSG, unsigned int PLCI, unsigned i
 	i->isdnstate |= CAPI_ISDN_STATE_DID;
 	
 	update_channel_name(i);	
-	
-	if (i->owner->pbx != NULL) {
+
+#ifdef CC_AST_HAS_VERSION_11_0
+	const struct ast_pbx *owner_pbx = ast_channel_pbx(i->owner);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+	const struct ast_pbx *owner_pbx = i->owner->pbx;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+
+	if (owner_pbx != NULL) {
 		if (did) {
 			/* we are already in pbx, so we send the digits as dtmf */
 			for (a = 0; a < strlen(did); a++) {
@@ -3892,7 +4085,11 @@ void capi_queue_cause_control(struct capi_pvt *i, int control)
 	FRAME_SUBCLASS_INTEGER(fr.subclass) = AST_CONTROL_HANGUP;
 	
 	if ((i->owner) && (control)) {
+#ifdef CC_AST_HAS_VERSION_11_0
+		int cause = ast_channel_hangupcause(i->owner);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
 		int cause = i->owner->hangupcause;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
 		if (cause == AST_CAUSE_NORMAL_CIRCUIT_CONGESTION) {
 			FRAME_SUBCLASS_INTEGER(fr.subclass) = AST_CONTROL_CONGESTION;
 		} else if ((cause != AST_CAUSE_NO_USER_RESPONSE) &&
@@ -4027,7 +4224,13 @@ static void capidev_sendback_info(struct capi_pvt *i, _cmsg *CMSG)
 	if (!(i->peer))
 		return;
 
-	if (i->peer->tech != &capi_tech)
+#ifdef CC_AST_HAS_VERSION_11_0
+	const struct ast_channel_tech *peer_tech = ast_channel_tech(i->peer);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+	const struct ast_channel_tech *peer_tech = i->peer->tech;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+
+	if (peer_tech != &capi_tech)
 		return;
 
 	i2 = CC_CHANNEL_PVT(i->peer);
@@ -4066,7 +4269,11 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element CAUSE %02x %02x\n",
 			i->vname, INFO_IND_INFOELEMENT(CMSG)[1], INFO_IND_INFOELEMENT(CMSG)[2]);
 		if (i->owner) {
+#ifdef CC_AST_HAS_VERSION_11_0
+			ast_channel_hangupcause_set(i->owner, INFO_IND_INFOELEMENT(CMSG)[2] & 0x2f);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
 			i->owner->hangupcause = INFO_IND_INFOELEMENT(CMSG)[2] & 0x7f;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
 		}
 		capidev_sendback_info(i, CMSG);
 		break;
@@ -4264,10 +4471,16 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 		 * get a PROGRESS with a hangupcause set (safer?)
 		 */
 		if (i->doB3 == CAPI_B3_DONT) {
-			if ((i->owner) &&
-			    (i->owner->hangupcause == AST_CAUSE_USER_BUSY)) {
-				capi_queue_cause_control(i, 1);
-				break;
+			if (i->owner) {
+#ifdef CC_AST_HAS_VERSION_11_0
+				int owner_hangupcause = ast_channel_hangupcause(i->owner);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+				int owner_hangupcause = i->owner->hangupcause;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+				if (owner_hangupcause == AST_CAUSE_USER_BUSY) {
+					capi_queue_cause_control(i, 1);
+					break;
+				}
 			}
 		}
 		send_progress(i);
@@ -4922,16 +5135,22 @@ static void capidev_handle_diva_signaling_manufacturer_infications(struct capi_p
 			if (length != 0) {
 				capidev_read_name_from_diva_manufacturer_infications (data, &data[length], buffer, sizeof(buffer), &octet3a, i->vname, "Calling Party");
 #ifdef CC_AST_HAS_VERSION_1_8
-        /* ast_set_callerid updates CDR, but __ast_pbx_run updates CDR too.
+				/* ast_set_callerid updates CDR, but __ast_pbx_run updates CDR too.
 					__ast_pbx_run does not uses the channel lock and this results in destruction
 					of CDR list
 					Do notcall this function until problem resolved
 					ast_set_callerid(i->owner, NULL, buffer, NULL);
 					Use code from ast_set_callerid but do not update CDR
-					*/
+				*/
+#ifdef CC_AST_HAS_VERSION_11_0
+				ast_channel_caller(i->owner)->id.name.valid = 1;
+				ast_free(ast_channel_caller(i->owner)->id.name.str);
+				ast_channel_caller(i->owner)->id.name.str = ast_strdup(buffer);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
 				i->owner->caller.id.name.valid = 1;
 				ast_free(i->owner->caller.id.name.str);
 				i->owner->caller.id.name.str = ast_strdup(buffer);
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
 #else
 				ast_free (i->owner->cid.cid_name);
 				i->owner->cid.cid_name = ast_strdup(buffer);	/* Save name to callerid */
@@ -5021,8 +5240,13 @@ static void capidev_handle_connect_active_indication(_cmsg *CMSG, unsigned int P
 
 	if ((i->owner) && (i->FaxState & CAPI_FAX_STATE_ACTIVE)) {
 		ast_setstate(i->owner, AST_STATE_UP);
-		if (i->owner->cdr)
-			ast_cdr_answer(i->owner->cdr);
+#ifdef CC_AST_HAS_VERSION_11_0
+		struct ast_cdr *owner_cdr = ast_channel_cdr(i->owner);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+		struct ast_cdr *owner_cdr = i->owner->cdr;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+		if (owner_cdr)
+			ast_cdr_answer(owner_cdr);
 		return;
 	}
 	
@@ -5104,15 +5328,24 @@ static void capidev_handle_connect_b3_active_indication(_cmsg *CMSG, unsigned in
 	}
 
 	if (i->fsetting & CAPI_FSETTING_EARLY_BRIDGE) {
-		if ((i->peer != NULL) && (i->peer->tech == &capi_tech)) {
-			struct capi_pvt *i1;
-			i1 = CC_CHANNEL_PVT(i->peer);
-			if ((capi_controllers[i->controller]->lineinterconnect) && 
-			    (capi_controllers[i1->controller]->lineinterconnect) &&
-			    (i->bridge) && (i1->bridge)) {
-				cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: activate early bridge to %s\n",
-					i->vname, i1->vname);
-				capi_bridge(1, i, i1, 0);
+		if (i->peer != NULL) {
+
+#ifdef CC_AST_HAS_VERSION_11_0
+			const struct ast_channel_tech *peer_tech = ast_channel_tech(i->peer);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+			const struct ast_channel_tech *peer_tech = i->peer->tech;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+
+			if (peer_tech == &capi_tech) {
+				struct capi_pvt *i1;
+				i1 = CC_CHANNEL_PVT(i->peer);
+				if ((capi_controllers[i->controller]->lineinterconnect) && 
+				    (capi_controllers[i1->controller]->lineinterconnect) &&
+			   	    (i->bridge) && (i1->bridge)) {
+					cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: activate early bridge to %s\n",
+						   i->vname, i1->vname);
+					capi_bridge(1, i, i1, 0);
+				}
 			}
 		}
 	}
@@ -5244,13 +5477,24 @@ static void capidev_handle_disconnect_indication(_cmsg *CMSG, unsigned int PLCI,
 	i->reason = DISCONNECT_IND_REASON(CMSG);
 
 	if (i->owner) {
-		if (i->owner->hangupcause == 0) {
+#ifdef CC_AST_HAS_VERSION_11_0
+		int owner_hangupcause = ast_channel_hangupcause(i->owner);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+		int owner_hangupcause = i->owner->hangupcause;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+		if (owner_hangupcause == 0) {
 			/* set hangupcause, in case there is no 
 			 * "cause" information element:
 			 */
-			i->owner->hangupcause =
+			owner_hangupcause =
 				((i->reason & 0xFF00) == 0x3400) ?
 				i->reason & 0x7F : AST_CAUSE_NORMAL_CLEARING;
+
+#ifdef CC_AST_HAS_VERSION_11_0
+			ast_channel_hangupcause_set(i->owner, owner_hangupcause);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+			i->owner->hangupcause = owner_hangupcause;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
 		}
 		/* the real reason could be != 0x34xx, so provide this value in variable */
 		sprintf(buffer, "%d", i->reason);
@@ -5444,7 +5688,11 @@ static void capidev_handle_connect_indication(
 				break;
 			}
 			i->transfercapability = cip2tcap(i->cip);
+#ifdef CC_AST_HAS_VERSION_11_0
+			ast_channel_transfercapability_set(i->owner, i->transfercapability);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
  			i->owner->transfercapability = i->transfercapability;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
 			if (capi_tcap_is_digital(i->transfercapability)) {
 				i->bproto = CC_BPROTO_TRANSPARENT;
 			}
@@ -5458,15 +5706,32 @@ static void capidev_handle_connect_indication(
 				if (capi_national_prefix[0]      == 0 &&
 						capi_international_prefix[0] == 0 &&
 						capi_subscriber_prefix[0]    == 0) {
+#ifdef CC_AST_HAS_VERSION_11_0
+					ast_channel_caller(i->owner)->id.number.plan = callernplan;
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
 					i->owner->caller.id.number.plan = callernplan;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
 					effective_cid = CID;
 				}
+#ifdef CC_AST_HAS_VERSION_11_0
+				ast_channel_caller(i->owner)->id.number.presentation = callpres;
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
 				i->owner->caller.id.number.presentation = callpres;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
 
 				/* Don't use ast_set_callerid() here because it will
 					 generate a needless NewCallerID event
 					 ast_set_callerid(i->owner, effective_cid, NULL, effective_cid);
 					*/
+#ifdef CC_AST_HAS_VERSION_11_0
+				ast_channel_caller(i->owner)->id.number.valid = 1;
+				ast_free(ast_channel_caller(i->owner)->id.number.str);
+				ast_channel_caller(i->owner)->id.number.str = ast_strdup(effective_cid);
+
+				ast_channel_caller(i->owner)->ani.number.valid = 1;
+				ast_free(ast_channel_caller(i->owner)->ani.number.str);
+				ast_channel_caller(i->owner)->ani.number.str = ast_strdup(effective_cid);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
 				i->owner->caller.id.number.valid = 1;
 				ast_free(i->owner->caller.id.number.str);
 				i->owner->caller.id.number.str = ast_strdup(effective_cid);
@@ -5474,6 +5739,7 @@ static void capidev_handle_connect_indication(
 				i->owner->caller.ani.number.valid = 1;
 				ast_free(i->owner->caller.ani.number.str);
 				i->owner->caller.ani.number.str = ast_strdup(effective_cid);
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
 			}
 #else
 			i->owner->cid.cid_pres = callpres;
@@ -5886,8 +6152,17 @@ static void capidev_handle_msg(_cmsg *CMSG)
 		if ((wInfo & 0xff00) == 0) {
 			if (i->state != CAPI_STATE_DISCONNECTING) {
 				i->state = CAPI_STATE_ALERTING;
-				if (i->owner->_state == AST_STATE_RING) {
+#ifdef CC_AST_HAS_VERSION_11_0
+				enum ast_channel_state owner_state = ast_channel_state(i->owner);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+				enum ast_channel_state owner_state = i->owner->_state;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+				if (owner_state == AST_STATE_RING) {
+#ifdef CC_AST_HAS_VERSION_11_0
+					ast_channel_rings_set(i->owner, 1);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
 					i->owner->rings = 1;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
 				}
 			}
 		}
@@ -6013,8 +6288,15 @@ static void capidev_handle_msg(_cmsg *CMSG)
 static struct capi_pvt* get_active_plci(struct ast_channel *c)
 {
 	struct capi_pvt* i;
+	const struct ast_channel_tech *cur_tech;
 
-	if (c->tech == &capi_tech) {
+#ifdef CC_AST_HAS_VERSION_11_0
+	cur_tech = ast_channel_tech(c);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+	cur_tech = c->tech;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+
+	if (cur_tech == &capi_tech) {
 		i = CC_CHANNEL_PVT(c);
 	} else {
 		i = pbx_check_resource_plci(c);
@@ -6033,6 +6315,12 @@ static int pbx_capi_call_deflect(struct ast_channel *c, char *param)
 	char *number;
 	int numberlen;
 	char facnumber[DEFLECT_NUMBER_MAX_LEN + 4];
+
+#ifdef CC_AST_HAS_VERSION_11_0
+	const char *cur_name = ast_channel_name(c);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+	const char *cur_name = c->name;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
 
 	if (!param) {
 		cc_log(LOG_WARNING, CC_MESSAGE_NAME
@@ -6055,7 +6343,7 @@ static int pbx_capi_call_deflect(struct ast_channel *c, char *param)
 	}
 	if (!(capi_controllers[i->controller]->CD)) {
 		cc_log(LOG_NOTICE,"%s: CALL DEFLECT for %s not supported by controller.\n",
-			i->vname, c->name);
+			i->vname, cur_name);
 		return -1;
 	}
 
@@ -6120,6 +6408,12 @@ static int pbx_capi_peer_link(struct ast_channel *c, char *param)
 	char buffer[32];
 	int id;
 
+#ifdef CC_AST_HAS_VERSION_11_0
+	const char *cur_name = ast_channel_name(c);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+	const char *cur_name = c->name;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+
 	id = cc_add_peer_link_id(c);
 
 	if (id >= 0) {
@@ -6128,7 +6422,7 @@ static int pbx_capi_peer_link(struct ast_channel *c, char *param)
 	}
 
 	cc_verbose(2, 1, VERBOSE_PREFIX_3 "Added %s as " CC_MESSAGE_BIGNAME " peer link.\n",
-		c->name);
+		cur_name);
 
 	return 0;
 }
@@ -6141,7 +6435,15 @@ static int pbx_capi_retrieve(struct ast_channel *c, char *param)
 	struct capi_pvt *i = CC_CHANNEL_PVT(c); 
 	unsigned int plci = 0;
 
-	if (c->tech == &capi_tech) {
+#ifdef CC_AST_HAS_VERSION_11_0
+	const struct ast_channel_tech *cur_tech = ast_channel_tech(c);
+	const char *cur_name = ast_channel_name(c);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+	const struct ast_channel_tech *cur_tech = c->tech;
+	const char *cur_name = c->name;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+
+	if (cur_tech == &capi_tech) {
 		plci = i->onholdPLCI;
 	} else {
 		i = NULL;
@@ -6162,7 +6464,7 @@ static int pbx_capi_retrieve(struct ast_channel *c, char *param)
 
 	if (!i) {
 		cc_log(LOG_WARNING, "%s is not valid or not on hold to retrieve!\n",
-			c->name);
+			cur_name);
 		return 0;
 	}
 
@@ -6185,7 +6487,7 @@ static int pbx_capi_retrieve(struct ast_channel *c, char *param)
 
 	if (!(capi_controllers[i->controller]->holdretrieve)) {
 		cc_log(LOG_NOTICE,"%s: RETRIEVE for %s not supported by controller.\n",
-			i->vname, c->name);
+			i->vname, cur_name);
 		return -1;
 	}
 
@@ -6223,6 +6525,12 @@ static int pbx_capi_ect(struct ast_channel *c, char *param)
 	unsigned int ectplci;
 	char *holdid;
 	int explicit_peer_plci = 0;
+
+#ifdef CC_AST_HAS_VERSION_11_0
+	const char *cur_name = ast_channel_name(c);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+	const char *cur_name = c->name;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
 
 	if ((id = pbx_builtin_getvar_helper(c, "CALLERHOLDID"))) {
 		plci = (unsigned int)strtoul(id, NULL, 0);
@@ -6288,7 +6596,7 @@ static int pbx_capi_ect(struct ast_channel *c, char *param)
 
 	if (!(capi_controllers[i->controller]->ECT)) {
 		cc_log(LOG_WARNING, "%s: ECT for %s not supported by controller.\n",
-			i->vname, c->name);
+			i->vname, cur_name);
 		return -1;
 	}
 
@@ -6369,22 +6677,28 @@ static int pbx_capi_hold(struct ast_channel *c, char *param)
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 	char buffer[16];
 
+#ifdef CC_AST_HAS_VERSION_11_0
+	const char *cur_name = ast_channel_name(c);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+	const char *cur_name = c->name;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+
 	/*  TODO: support holdtype notify */
 
 	if ((i->isdnstate & CAPI_ISDN_STATE_HOLD)) {
 		cc_log(LOG_NOTICE,"%s: %s already on hold.\n",
-			i->vname, c->name);
+			i->vname, cur_name);
 		return 0;
 	}
 
 	if (!(i->isdnstate & CAPI_ISDN_STATE_B3_UP)) {
 		cc_log(LOG_NOTICE,"%s: Cannot put on hold %s while not connected.\n",
-			i->vname, c->name);
+			i->vname, cur_name);
 		return 0;
 	}
 	if (!(capi_controllers[i->controller]->holdretrieve)) {
 		cc_log(LOG_NOTICE,"%s: HOLD for %s not supported by controller.\n",
-			i->vname, c->name);
+			i->vname, cur_name);
 		return 0;
 	}
 
@@ -6424,9 +6738,15 @@ static int pbx_capi_malicious(struct ast_channel *c, char *param)
 {
 	struct capi_pvt *i = CC_CHANNEL_PVT(c);
 
+#ifdef CC_AST_HAS_VERSION_11_0
+	const char *cur_name = ast_channel_name(c);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+	const char *cur_name = c->name;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+
 	if (!(capi_controllers[i->controller]->MCID)) {
 		cc_log(LOG_NOTICE, "%s: MCID for %s not supported by controller.\n",
-			i->vname, c->name);
+			i->vname, cur_name);
 		return -1;
 	}
 
@@ -7331,6 +7651,12 @@ static int pbx_capi_3pty_begin(struct ast_channel *c, char *param)
 	const char	*id;
 	unsigned int	plci = 0;
 
+#ifdef CC_AST_HAS_VERSION_11_0
+	const char *cur_name = ast_channel_name(c);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+	const char *cur_name = c->name;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+
 	if ((id = pbx_builtin_getvar_helper(c, "CALLERHOLDID"))) {
 		plci = (unsigned int)strtoul(id, NULL, 0);
 	}
@@ -7367,12 +7693,12 @@ static int pbx_capi_3pty_begin(struct ast_channel *c, char *param)
 	}
 	if (!(i->isdnstate & CAPI_ISDN_STATE_B3_UP)) {
 		cc_log(LOG_NOTICE,"%s: Cannot initiate conference %s while not connected.\n",
-			i->vname, c->name);
+			i->vname, cur_name);
 		return 0;
 	}
 	if (!(capi_controllers[i->controller]->threePTY)) {
-	        cc_log(LOG_NOTICE,"%s: 3PTY for %s not supported by controller.\n",
-			i->vname, c->name);
+		cc_log(LOG_NOTICE,"%s: 3PTY for %s not supported by controller.\n",
+			i->vname, cur_name);
 		return 0;
 	}
 
@@ -7457,11 +7783,11 @@ static struct capicommands_s {
 	{ "resource",         pbx_capi_chat_associate_resource_plci, 0, 0, 0 },
 	{ "mwi",          pbx_capi_mwi,             1, 0, 0 },
 	{ "hangup",       pbx_capi_realhangup,      0, 0, 0 },
- 	{ "qsig_ssct",	  pbx_capi_qsig_ssct,	    1, 0, 0 },
-  	{ "qsig_ct",      pbx_capi_qsig_ct,         1, 0, 0 },
-   	{ "qsig_callmark",pbx_capi_qsig_callmark,   1, 0, 0 },
+	{ "qsig_ssct",	  pbx_capi_qsig_ssct,	    1, 0, 0 },
+	{ "qsig_ct",      pbx_capi_qsig_ct,         1, 0, 0 },
+	{ "qsig_callmark",pbx_capi_qsig_callmark,   1, 0, 0 },
 	{ "qsig_getplci", pbx_capi_qsig_getplci,    1, 0, 0 },
-  	{ NULL, NULL, 0 }
+	{ NULL, NULL, 0 }
 };
 
 pbx_capi_command_proc_t pbx_capi_lockup_command_by_name(const char* name)
@@ -7538,21 +7864,29 @@ static int pbx_capicommand_exec(struct ast_channel *chan, void *data)
 		return -1;
 	}
 
-	if ((chan != NULL) && (chan->tech != &capi_tech)) {
-		if (capicmd->capionly != 0) {
-			struct capi_pvt* resource_plci = pbx_check_resource_plci (chan);
+	if (chan != NULL) {
+#ifdef CC_AST_HAS_VERSION_11_0
+		const struct ast_channel_tech *cur_tech = ast_channel_tech(chan);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+		const struct ast_channel_tech *cur_tech = chan->tech;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
 
-			if ((capicmd->resourceplcisupported == 0) ||
-					(resource_plci == NULL) ||
-					(resource_plci->line_plci == NULL)) {
+		if (cur_tech != &capi_tech) {
+			if (capicmd->capionly != 0) {
+				struct capi_pvt* resource_plci = pbx_check_resource_plci (chan);
+
+				if ((capicmd->resourceplcisupported == 0) ||
+						(resource_plci == NULL) ||
+						(resource_plci->line_plci == NULL)) {
 #ifdef CC_AST_HAS_VERSION_1_4
-				ast_module_user_remove(u);
+					ast_module_user_remove(u);
 #else
-				LOCAL_USER_REMOVE(u);
+					LOCAL_USER_REMOVE(u);
 #endif
-				cc_log(LOG_WARNING, "This capicommand works on " CC_MESSAGE_NAME
-					" channels only, check your extensions.conf!\n");
-				return -1;
+					cc_log(LOG_WARNING, "This capicommand works on " CC_MESSAGE_NAME
+			    		       " channels only, check your extensions.conf!\n");
+					return -1;
+				}
 			}
 		}
 	}
@@ -7597,10 +7931,16 @@ static int pbx_capi_indicate(struct ast_channel *c, int condition)
 
 	cc_mutex_lock(&i->lock);
 
+#ifdef CC_AST_HAS_VERSION_11_0
+	const char *cur_name = ast_channel_name(c);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+	const char *cur_name = c->name;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+
 	switch (condition) {
 	case AST_CONTROL_RINGING:
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested RINGING-Indication for %s\n",
-			i->vname, c->name);
+			i->vname, cur_name);
 		/* TODO somehow enable unhold on ringing, but when wanted only */
 		/* 
 		if (i->isdnstate & CAPI_ISDN_STATE_HOLD)
@@ -7615,7 +7955,7 @@ static int pbx_capi_indicate(struct ast_channel *c, int condition)
 		break;
 	case AST_CONTROL_BUSY:
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested BUSY-Indication for %s\n",
-			i->vname, c->name);
+			i->vname, cur_name);
 		if ((i->state == CAPI_STATE_ALERTING) ||
 		    (i->state == CAPI_STATE_DID) || (i->state == CAPI_STATE_INCALL)) {
 			capi_sendf(NULL, 0, CAPI_CONNECT_RESP, i->PLCI, i->MessageNumber,
@@ -7627,7 +7967,7 @@ static int pbx_capi_indicate(struct ast_channel *c, int condition)
 		break;
 	case AST_CONTROL_CONGESTION:
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested CONGESTION-Indication for %s\n",
-			i->vname, c->name);
+			i->vname, cur_name);
 		if ((i->state == CAPI_STATE_ALERTING) ||
 		    (i->state == CAPI_STATE_DID) || (i->state == CAPI_STATE_INCALL)) {
 			capi_sendf(NULL, 0, CAPI_CONNECT_RESP, i->PLCI, i->MessageNumber,
@@ -7639,17 +7979,17 @@ static int pbx_capi_indicate(struct ast_channel *c, int condition)
 		break;
 	case AST_CONTROL_PROGRESS:
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested PROGRESS-Indication for %s\n",
-			i->vname, c->name);
+			i->vname, cur_name);
 		if (i->ntmode) pbx_capi_signal_progress(c, NULL);
 		break;
 	case AST_CONTROL_PROCEEDING:
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested PROCEEDING-Indication for %s\n",
-			i->vname, c->name);
+			i->vname, cur_name);
 		pbx_capi_signal_proceeding(c, NULL);
 		break;
 	case AST_CONTROL_HOLD:
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested HOLD-Indication for %s\n",
-			i->vname, c->name);
+			i->vname, cur_name);
 		if (i->doholdtype != CC_HOLDTYPE_LOCAL) {
 			ret = pbx_capi_hold(c, NULL);
 		}
@@ -7661,7 +8001,7 @@ static int pbx_capi_indicate(struct ast_channel *c, int condition)
 		break;
 	case AST_CONTROL_UNHOLD:
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested UNHOLD-Indication for %s\n",
-			i->vname, c->name);
+			i->vname, cur_name);
 		if (i->doholdtype != CC_HOLDTYPE_LOCAL) {
 			if (i->transfergroup) {
 				/* we assume bridge transfer, so wait a little bit to see
@@ -7680,7 +8020,7 @@ static int pbx_capi_indicate(struct ast_channel *c, int condition)
 		break;
 	case -1: /* stop indications */
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested Indication-STOP for %s\n",
-			i->vname, c->name);
+			i->vname, cur_name);
 		if ((i->isdnstate & CAPI_ISDN_STATE_HOLD)) {
 			if (i->transfergroup) {
 				/* we assume bridge transfer, so wait a little bit to see
@@ -7693,7 +8033,7 @@ static int pbx_capi_indicate(struct ast_channel *c, int condition)
 		break;
 	default:
 		cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Requested unknown Indication %d for %s\n",
-			i->vname, condition, c->name);
+			i->vname, condition, cur_name);
 		break;
 	}
 	cc_mutex_unlock(&i->lock);
@@ -7703,7 +8043,11 @@ static int pbx_capi_indicate(struct ast_channel *c, int condition)
 /*
  * PBX wants to know the state for a specific device
  */
+#ifdef CC_AST_HAS_VERSION_11_0
+static int pbx_capi_devicestate(const char *data)
+#else /* !defined(CC_AST_HAS_VERSIOM_11_0) */
 static int pbx_capi_devicestate(void *data)
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
 {
 	char *s;
 	char *target;
@@ -7834,19 +8178,19 @@ static void capi_do_channel_task(void)
 	case CAPI_CHANNEL_TASK_PICKUP:
 		if (ast_pickup_call(chan_for_task)) {
 			cc_verbose(3, 1, VERBOSE_PREFIX_2 "%s: Pickup not possible.\n",
-				chan_for_task->name);
+				ast_channel_name(chan_for_task));
 		}
 		ast_hangup(chan_for_task);
 		break;
 	case CAPI_CHANNEL_TASK_GOTOFAX:
 		/* deferred (out of lock) async goto fax extension */
 		/* Save the DID/DNIS when we transfer the fax call to a "fax" extension */
-		pbx_builtin_setvar_helper(chan_for_task, "FAXEXTEN", chan_for_task->exten);
+		pbx_builtin_setvar_helper(chan_for_task, "FAXEXTEN", ast_channel_exten(chan_for_task));
 		i = CC_CHANNEL_PVT(chan_for_task);
 		if (i) {
 			if (ast_async_goto(chan_for_task, i->faxcontext, i->faxexten, i->faxpriority)) {
 				cc_log(LOG_WARNING, "Failed to async goto '%s,%s,%d' for '%s'\n",
-					i->faxcontext, i->faxexten, i->faxpriority, chan_for_task->name);
+					i->faxcontext, i->faxexten, i->faxpriority, ast_channel_name(chan_for_task));
 			}
 		}
 		break;
@@ -8950,6 +9294,10 @@ int load_module(void)
 	}
 #endif
 
+#ifdef CC_AST_HAS_VERSION_1_4
+	myself = ast_module_info->self;
+#endif
+
 	diva_verbose_load();
 
 #ifdef CC_AST_HAS_VERSION_1_6
@@ -9013,7 +9361,7 @@ int load_module(void)
 	}
 
 	pbx_capi_cli_register();
-	pbx_capi_ami_register();
+	pbx_capi_ami_register(myself);
 	pbx_capi_register_device_state_providers();
 	pbx_capi_chat_init_module();
 	
@@ -9103,15 +9451,19 @@ static void pbx_capi_add_diva_protocol_independent_extension (struct capi_pvt *i
 			cid_name = 0;
 	}
 
-#ifdef CC_AST_HAS_VERSION_1_8
+#ifdef CC_AST_HAS_VERSION_11_0
+	if (cid_name == 0 && ast_channel_connected(i->owner)->id.name.valid ) {
+		cid_name = ast_strdupa(S_COR(ast_channel_connected(i->owner)->id.name.valid, ast_channel_connected(i->owner)->id.name.str, ""));
+	}
+#elif defined(CC_AST_HAS_VERSION_1_8)
 	if (cid_name == 0 && i->owner->connected.id.name.valid ) {
 		cid_name = ast_strdupa(S_COR(i->owner->connected.id.name.valid, i->owner->connected.id.name.str, ""));
 	}
-#else
+#else /* !(defined(CC_AST_HAS_VERSION_11_0) || defined(CC_AST_HAS_VERSION_1_8)) */
   if (cid_name == 0 && i->owner->cid.cid_name && *i->owner->cid.cid_name) {
 		cid_name = ast_strdupa(i->owner->cid.cid_name);
 	}
-#endif
+#endif /* defined(CC_AST_HAS_VERSION_11_0) || defined(CC_AST_HAS_VERSION_1_8) */
 	if (cid_name != 0 && *cid_name == 0)
 		cid_name = i->name;
 

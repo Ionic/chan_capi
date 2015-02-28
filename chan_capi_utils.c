@@ -172,6 +172,7 @@ struct capi_pvt *capi_mknullif(struct ast_channel *c, unsigned long long control
 	int channelcount = 0xffff;
 	int maxcontr = (CAPI_MAX_CONTROLLERS > (sizeof(controllermask)*8)) ?
 		(sizeof(controllermask)*8) : CAPI_MAX_CONTROLLERS;
+	char *cur_chan_name;
 
 	cc_verbose(3, 1, VERBOSE_PREFIX_4 "capi_mknullif: find controller for mask 0x%lx\n",
 		controllermask);
@@ -193,8 +194,17 @@ struct capi_pvt *capi_mknullif(struct ast_channel *c, unsigned long long control
 	
 	cc_mutex_init(&tmp->lock);
 	ast_cond_init(&tmp->event_trigger, NULL);
-	
-	snprintf(tmp->name, sizeof(tmp->name) - 1, "%s-NULLPLCI", (c != 0) ? c->name : "BRIDGE");
+	if (c) {
+#ifdef CC_AST_HAS_VERSION_11_0
+		cur_chan_name = (char *)ast_channel_name(c);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+		cur_chan_name = c->name;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+	}
+	else
+		cur_chan_name = "BRIDGE";
+
+	snprintf(tmp->name, sizeof(tmp->name) - 1, "%s-NULLPLCI", cur_chan_name);
 	snprintf(tmp->vname, sizeof(tmp->vname) - 1, "%s", tmp->name);
 
 	tmp->channeltype = CAPI_CHANNELTYPE_NULL;
@@ -303,7 +313,11 @@ struct capi_pvt *capi_mkresourceif(
 	} else {
 		controller = data_plci_ifc->controller;
 		codecs = (all != 0) ? pbx_capi_get_controller_codecs (controller) : codecs;
+#ifdef CC_AST_HAS_VERSION_11_0
+		fmt = pbx_capi_get_controller_codecs (controller) & codecs & cc_get_formats_as_bits(ast_channel_nativeformats(c));
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
 		fmt = pbx_capi_get_controller_codecs (controller) & codecs & cc_get_formats_as_bits(c->nativeformats);
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
 		if (fmt != 0)
 			fmt = cc_get_best_codec_as_bits(fmt);
 	}
@@ -316,8 +330,14 @@ struct capi_pvt *capi_mkresourceif(
 	
 	cc_mutex_init(&data_ifc->lock);
 	ast_cond_init(&data_ifc->event_trigger, NULL);
-	
-	snprintf(data_ifc->name, sizeof(data_ifc->name) - 1, "%s-%sPLCI", c->name, (data_plci_ifc == 0) ? "DATA" : "LINE");
+
+#ifdef CC_AST_HAS_VERSION_11_0
+	const char *cur_name = ast_channel_name(c);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+	const char *cur_name = c->name;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+
+	snprintf(data_ifc->name, sizeof(data_ifc->name) - 1, "%s-%sPLCI", cur_name, (data_plci_ifc == 0) ? "DATA" : "LINE");
 	snprintf(data_ifc->vname, sizeof(data_ifc->vname) - 1, "%s", data_ifc->name);
 
 	data_ifc->channeltype = CAPI_CHANNELTYPE_NULL;
@@ -1312,6 +1332,7 @@ struct ast_channel *cc_get_peer_link_id(const char *p)
 {
 	int id = -1;
 	struct ast_channel *chan = NULL;
+	char *cur_name = "unlinked";
 
 	if (p) {
 		id = (int)strtol(p, NULL, 0);
@@ -1322,8 +1343,15 @@ struct ast_channel *cc_get_peer_link_id(const char *p)
 		chan = peerlinkchannel[id].channel;
 		peerlinkchannel[id].channel = NULL;
 	}
+	if (chan) {
+#ifdef CC_AST_HAS_VERSION_11_0
+		cur_name = (char *)ast_channel_name(chan);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+		cur_name = (char *)chan->name;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+	}
 	cc_verbose(3, 1, VERBOSE_PREFIX_4 CC_MESSAGE_NAME
-		": peerlink %d allocated, peer is %s\n", id, (chan)?chan->name:"unlinked");
+		": peerlink %d allocated, peer is %s\n", id, cur_name);
 	cc_mutex_unlock(&peerlink_lock);
 	return chan;
 }
@@ -1605,15 +1633,17 @@ int capi_write_frame(struct capi_pvt *i, struct ast_frame *f)
 	 ast_channel_lock(chan) to be held while
 	 while accessing returned pointer
 	*/
-const char* pbx_capi_get_cid(const struct ast_channel* c, const char* notAvailableVisual)
+const char* pbx_capi_get_cid(struct ast_channel* c, const char* notAvailableVisual)
 {
 	const char* cid;
 
-#ifdef CC_AST_HAS_VERSION_1_8
+#ifdef CC_AST_HAS_VERSION_11_0
+	cid = S_COR(ast_channel_caller(c)->id.number.valid, ast_channel_caller(c)->id.number.str, notAvailableVisual);
+#elif defined(CC_AST_HAS_VERSION_1_8)
 	cid = S_COR(c->caller.id.number.valid, c->caller.id.number.str, notAvailableVisual);
-#else
+#else /* !(defined(CC_AST_HAS_VERSION_11_0) || defined(CC_AST_HAS_VERSION_1_8)) */
 	cid = c->cid.cid_num;
-#endif
+#endif /* defined(CC_AST_HAS_VERSION_11_0) || defined(CC_AST_HAS_VERSION_1_8) */
 
 	return (cid);
 }
@@ -1622,15 +1652,17 @@ const char* pbx_capi_get_cid(const struct ast_channel* c, const char* notAvailab
 	 ast_channel_lock(chan) to be held while
 	 while accessing returned pointer
 	*/
-const char* pbx_capi_get_callername(const struct ast_channel* c, const char* notAvailableVisual)
+const char* pbx_capi_get_callername(struct ast_channel* c, const char* notAvailableVisual)
 {
 	const char* name;
 
-#ifdef CC_AST_HAS_VERSION_1_8
+#ifdef CC_AST_HAS_VERSION_11_0
+	name = S_COR(ast_channel_caller(c)->id.name.valid, ast_channel_caller(c)->id.name.str, notAvailableVisual);
+#elif defined(CC_AST_HAS_VERSION_1_8)
 	name = S_COR(c->caller.id.name.valid, c->caller.id.name.str, notAvailableVisual);
-#else
+#else /* !(defined(CC_AST_HAS_VERSION_11_0) || defined(CC_AST_HAS_VERSION_1_8)) */
 	name = (c->cid.cid_name) ? c->cid.cid_name : notAvailableVisual;
-#endif
+#endif /* defined(CC_AST_HAS_VERSION_11_0) || defined(CC_AST_HAS_VERSION_1_8) */
 
 	return (name);
 }
@@ -1639,15 +1671,17 @@ const char* pbx_capi_get_callername(const struct ast_channel* c, const char* not
 	 ast_channel_lock(chan) to be held while
 	 while accessing returned pointer
 	*/
-const char* pbx_capi_get_connectedname(const struct ast_channel* c, const char* notAvailableVisual)
+const char* pbx_capi_get_connectedname(struct ast_channel* c, const char* notAvailableVisual)
 {
 	const char* name;
 
-#ifdef CC_AST_HAS_VERSION_1_8
+#ifdef CC_AST_HAS_VERSION_11_0
+	name = S_COR(ast_channel_connected(c)->id.name.valid, ast_channel_connected(c)->id.name.str, notAvailableVisual);
+#elif defined(CC_AST_HAS_VERSION_1_8)
 	name = S_COR(c->connected.id.name.valid, c->connected.id.name.str, notAvailableVisual);
-#else
+#else /* !(defined(CC_AST_HAS_VERSION_11_0) || defined(CC_AST_HAS_VERSION_1_8)) */
 	name = (c->cid.cid_name) ? c->cid.cid_name : notAvailableVisual;
-#endif
+#endif /* defined(CC_AST_HAS_VERSION_11_0) || defined(CC_AST_HAS_VERSION_1_8) */
 
 	return (name);
 }

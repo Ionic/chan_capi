@@ -79,7 +79,13 @@ int pbx_capi_voicecommand(struct ast_channel *c, char *param)
 	const char* key[2];
 	size_t length;
 
-	if (c->tech == &capi_tech) {
+#ifdef CC_AST_HAS_VERSION_11_0
+	const struct ast_channel_tech *cur_tech = ast_channel_tech(c);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+	const struct ast_channel_tech *cur_tech = c->tech;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+  
+	if (cur_tech == &capi_tech) {
 		i = CC_CHANNEL_PVT(c);
 	} else {
 		i = pbx_check_resource_plci(c);
@@ -200,7 +206,13 @@ int pbx_capi_voicecommand_transparency(struct ast_channel *c, char *param)
 {
 	struct capi_pvt *i;
 
-	if (c->tech == &capi_tech) {
+#ifdef CC_AST_HAS_VERSION_11_0
+	const struct ast_channel_tech *cur_tech = ast_channel_tech(c);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+	const struct ast_channel_tech *cur_tech = c->tech;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+
+	if (cur_tech == &capi_tech) {
 		i = CC_CHANNEL_PVT(c);
 	} else {
 		i = pbx_check_resource_plci(c);

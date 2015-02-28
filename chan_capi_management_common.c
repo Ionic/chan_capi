@@ -86,7 +86,12 @@ int pbx_capi_management_capicommand(const char *requiredChannelName, const char 
 					retry_search = 1;
 					break;
 				}
-				if ((!ast_strlen_zero(c->name) && (strcmp(requiredChannelName, c->name) == 0)) ||
+#ifdef CC_AST_HAS_VERSION_11_0
+				const char *cur_name = ast_channel_name(c);
+#else /* !defined(CC_AST_HAS_VERSION_11_0) */
+				const char *cur_name = c->name;
+#endif /* defined(CC_AST_HAS_VERSION_11_0) */
+				if ((!ast_strlen_zero(cur_name) && (strcmp(requiredChannelName, cur_name) == 0)) ||
 						strcmp(requiredChannelName, i->vname) == 0) {
 					struct ast_channel* usedChannel = c;
 					int ret;
