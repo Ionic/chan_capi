@@ -348,6 +348,7 @@ struct cc_capi_gains {
 /* Features and settings of current connection */
 #define CAPI_FSETTING_STAYONLINE      0x00000001
 #define CAPI_FSETTING_EARLY_BRIDGE    0x00000002
+#define CAPI_FSETTING_EARLYB3_ONLY_WHEN_TONES_AVAIL 0x00000004
 
 /* Private qsig data for capi device */
 struct cc_qsig_data {

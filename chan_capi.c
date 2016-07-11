@@ -1296,24 +1296,17 @@ void cc_start_b3(struct capi_pvt *i)
 }
 
 /*
- * start early B3
- */
-static void start_early_b3(struct capi_pvt *i)
-{
-	if (i->doB3 != CAPI_B3_DONT) { 
-		/* we do early B3 Connect */
-		cc_start_b3(i);
-	}
-}
-
-/*
  * signal 'progress' to PBX 
  */
 static void send_progress(struct capi_pvt *i)
 {
 	struct ast_frame fr = { AST_FRAME_CONTROL, };
 
-	start_early_b3(i);
+	if (i->doB3 != CAPI_B3_DONT &&
+	    !(i->fsetting & CAPI_FSETTING_EARLYB3_ONLY_WHEN_TONES_AVAIL)) {
+		/* we do early B3 Connect */
+		cc_start_b3(i);
+	}
 
 	if (!(i->isdnstate & CAPI_ISDN_STATE_PROGRESS)) {
 		i->isdnstate |= CAPI_ISDN_STATE_PROGRESS;
@@ -1608,6 +1601,13 @@ static int pbx_capi_call(struct ast_channel *c, void *idest, int timeout)
 				cc_log(LOG_WARNING, "B3 already set in '%s'\n", idest);
 			i->doB3 = CAPI_B3_ON_SUCCESS;
 			break;
+		case 't':	/* enable B3 only on in-band tones available indication */
+			if ((i->fsetting & CAPI_FSETTING_EARLYB3_ONLY_WHEN_TONES_AVAIL))
+				cc_log(LOG_WARNING,
+				       "B3 on in-band tones avail only already set in '%s'\n",
+				       idest);
+			i->fsetting |= CAPI_FSETTING_EARLYB3_ONLY_WHEN_TONES_AVAIL;
+			break;
 		case 'o':	/* overlap sending of digits */
 			if (i->doOverlap)
 				cc_log(LOG_WARNING, "Overlap already set in '%s'\n", idest);
@@ -1648,6 +1648,18 @@ static int pbx_capi_call(struct ast_channel *c, void *idest, int timeout)
 		cc_log(LOG_ERROR, "No destination or dialtone requested in '%s'\n", idest);
 		return -1;
 	}
+
+	if (((!dest) || (!dest[0])) &&
+	    i->fsetting & CAPI_FSETTING_EARLYB3_ONLY_WHEN_TONES_AVAIL)
+		cc_log(LOG_WARNING,
+		       "dialtone request with B3 on in-band tones avail setting might not work on all exchanges in '%s'\n",
+		       idest);
+
+	if (i->doB3 == CAPI_B3_DONT &&
+	    i->fsetting & CAPI_FSETTING_EARLYB3_ONLY_WHEN_TONES_AVAIL)
+		cc_log(LOG_WARNING,
+		       "B3 on in-band tones avail setting ignored when early B3 is disabled in '%s'\n",
+		       idest);
 
 	i->peer = cc_get_peer_link_id(pbx_builtin_getvar_helper(c, "CAPIPEERLINKID"));
 	i->outgoing = 1;
@@ -3901,8 +3913,17 @@ static int search_did(struct ast_channel *c)
  */
 static void handle_progress_indicator(_cmsg *CMSG, unsigned int PLCI, struct capi_pvt *i)
 {
+	int inband_info = 0;
+
 	if (INFO_IND_INFOELEMENT(CMSG)[0] < 2) {
 		cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: Progress description missing\n",
+			i->vname);
+		return;
+	}
+
+	if ((INFO_IND_INFOELEMENT(CMSG)[2] & 0x60) != 0x00) {
+		cc_verbose(3, 1,
+			VERBOSE_PREFIX_4 "%s: Progress description has unsupported coding\n",
 			i->vname);
 		return;
 	}
@@ -3911,6 +3932,7 @@ static void handle_progress_indicator(_cmsg *CMSG, unsigned int PLCI, struct cap
 	case 0x01:
 		cc_verbose(4, 1, VERBOSE_PREFIX_4 "%s: Not end-to-end ISDN\n",
 			i->vname);
+		inband_info = 1;
 		break;
 	case 0x02:
 		cc_verbose(4, 1, VERBOSE_PREFIX_4 "%s: Destination is non ISDN\n",
@@ -3932,12 +3954,19 @@ static void handle_progress_indicator(_cmsg *CMSG, unsigned int PLCI, struct cap
 	case 0x08:
 		cc_verbose(4, 1, VERBOSE_PREFIX_4 "%s: In-band information available\n",
 			i->vname);
+		inband_info = 1;
 		break;
 	default:
 		cc_verbose(3, 1, VERBOSE_PREFIX_4 "%s: Unknown progress description %02x\n",
 			i->vname, INFO_IND_INFOELEMENT(CMSG)[2]);
 	}
+
+	if (inband_info && i->doB3 != CAPI_B3_DONT &&
+	    i->fsetting & CAPI_FSETTING_EARLYB3_ONLY_WHEN_TONES_AVAIL)
+		cc_start_b3(i);
+
 	send_progress(i);
+
 	return;
 }
 
@@ -4139,12 +4168,17 @@ static void capidev_handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsig
 		}
 		return;
 	}
-	
+
+	/* at this point the call is either incoming or we are always doing B3 */
+
 	/* case 2: we are doing B3, and receive the 0x8045 after a successful call */
-	if ((i->doB3 != CAPI_B3_DONT) &&
-	    (i->state == CAPI_STATE_CONNECTED) && (i->outgoing == 1)) {
+	if ((i->state == CAPI_STATE_CONNECTED) && (i->outgoing == 1)) {
 		cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s: Disconnect case 2\n",
 			i->vname);
+		/*
+		 * FIXME: is this right? if this is just a normal hangup of
+		 * a successful call shouldn't it be the same as case 1?
+		 */
 		capi_queue_cause_control(i, 1);
 		return;
 	}
@@ -4165,22 +4199,11 @@ static void capidev_handle_info_disconnect(_cmsg *CMSG, unsigned int PLCI, unsig
 		capi_queue_cause_control(i, 0);
 		return;
 	}
-	
-	/* case 4 (a.k.a. the italian case): B3 always. call is unsuccessful */
-	if ((i->doB3 == CAPI_B3_ALWAYS) && (i->outgoing == 1)) {
-		cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s: Disconnect case 4\n",
-			i->vname);
-		if ((i->state == CAPI_STATE_CONNECTED) &&
-		    (i->isdnstate & CAPI_ISDN_STATE_B3_UP)) {
-			capi_queue_cause_control(i, 1);
-			return;
-		}
-		/* wait for the 0x001e (PROGRESS), play audio and wait for a timeout from the network */
-		return;
-	}
-	cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: Other case DISCONNECT INFO_IND\n",
+
+	/* case 4 (a.k.a. the italian case): always doing B3 and call is unsuccessful */
+	cc_verbose(4, 1, VERBOSE_PREFIX_3 "%s: Disconnect case 4\n",
 		i->vname);
-	return;
+	/* play audio and wait for a timeout from the network */
 }
 
 /*
@@ -4285,7 +4308,8 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 	case 0x0018:	/* Channel Identification */
 		cc_verbose(3, 1, VERBOSE_PREFIX_3 "%s: info element CHANNEL IDENTIFICATION %02x\n",
 			i->vname, INFO_IND_INFOELEMENT(CMSG)[1]);
-		if (i->doB3 == CAPI_B3_ON_SUCCESS) { 
+		if (i->doB3 != CAPI_B3_DONT &&
+		    !(i->fsetting & CAPI_FSETTING_EARLYB3_ONLY_WHEN_TONES_AVAIL)) {
 			/* try early B3 Connect */
 			cc_start_b3(i);
 		}
