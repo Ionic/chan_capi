@@ -93,6 +93,9 @@ The Dial string
   The string consists of a list of characters with the following meaning:
    'b' : early B3 always.
    'B' : early B3 on successful calls only.
+   't' : enable B3 only on in-band tones available indication as Q.931 (05/98)
+         recommends (without this option it will be enabled on "PROGRESS" or
+         "ALERTING" messages, any "Progress" indication or channel identification).
    'd' : use the default caller ID that is set by defaultcid= in capi.conf
    'o' : use overlap sending of number.
          (Useful if additional digits should be send afterwards or together
@@ -371,7 +374,8 @@ you:
 		indications)
     
 For normal PBX usage, you would use the "b" option, always Early B3.
-
+You can also add "t" option so B3 will be enabled only on in-band tones available
+indication as Q.931 (05/98) recommends.
 
 Overlap sending (a.k.a. real dialtone)
 ======================================
