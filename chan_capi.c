@@ -4293,7 +4293,7 @@ static void capidev_handle_info_indication(_cmsg *CMSG, unsigned int PLCI, unsig
 			i->vname, INFO_IND_INFOELEMENT(CMSG)[1], INFO_IND_INFOELEMENT(CMSG)[2]);
 		if (i->owner) {
 #ifdef CC_AST_HAS_VERSION_11_0
-			ast_channel_hangupcause_set(i->owner, INFO_IND_INFOELEMENT(CMSG)[2] & 0x2f);
+			ast_channel_hangupcause_set(i->owner, INFO_IND_INFOELEMENT(CMSG)[2] & 0x7f);
 #else /* !defined(CC_AST_HAS_VERSION_11_0) */
 			i->owner->hangupcause = INFO_IND_INFOELEMENT(CMSG)[2] & 0x7f;
 #endif /* defined(CC_AST_HAS_VERSION_11_0) */
